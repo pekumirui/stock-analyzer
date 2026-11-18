@@ -26,7 +26,7 @@
 - [app/api/AGENTS.md](../app/api/AGENTS.md)
 - [static/AGENTS.md](../static/AGENTS.md)
 
-スキーマと取込の全体はリポジトリ直下の `DESIGN.md`（この wiki には載せない）。
+取込の全体はリポジトリ直下の `DESIGN.md`（この wiki には載せない）。テーブルと列は [DB スキーマ](SCHEMA.md)。
 
 ## この wiki
 

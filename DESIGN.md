@@ -32,107 +32,9 @@
 - `jquants.py` はエンドポイント群ごとにスライディングウィンドウで自主規制する。パスが `/fins/` で始まるものはプランと別枠。429 は指数バックオフ（5→10→20→40→60 秒）で最大 6 回再試行
 - RS に要る 252 営業日 + α は Light の取得期間で足りる
 
-## 3. DBスキーマ
+## 3. 取込と保存の規則
 
-```sql
-stocks            -- 銘柄マスタ
-  code TEXT PK    -- 5桁コード (例 "72030", "262A0")。先頭・末尾は数字、途中は 0-9A-Z
-  name, sector33, market, product_category, updated_at
-  edinet_code     -- EDINET コード。jobs/edinet/edinet_codes.py が付ける。無い銘柄は NULL (docs/DESIGN_edinet.md)
-  -- product_category = J-Quants ProdCat
-  -- 既存DBは migrate で列追加。値は次の日次バッチの銘柄マスタ更新で埋まる
-  -- (株価・財務の再取得は不要)
-
-homepages         -- 上場会社のホームページ URL（KAB-319）。将来 TDnet に無い IR を取る起点
-  code PK                 -- 普通株の 5 桁（末尾 0）。FK は付けない
-  url                     -- 選んだ 1 本（会社ホームページ）
-  host                    -- 正規化ホスト（小文字、先頭 www. を除く。KAB-320 の月次設定と突き合わせる）
-  source                  -- manual / xbrl_url / tanshin_html
-  origin                  -- manual / xbrl:{doc_id} / tanshin:{disclosure_no}
-  changed_at              -- url / source / origin / host が変わった時刻（JST naive）
-  checked_at              -- 最後に確認した時刻（値が同じでも進む）
-  -- 4 桁は末尾 0（7203→72030）。5 桁の優先株は先頭 4 文字 + 0（72031→72030）。262A0 はそのまま
-  -- 確度は source で一意なので列にしない（manual > xbrl_url > tanshin_html）
-  -- 上場廃止: stocks は UPSERT のみで消えない。homepages も消さない。--all は今の stocks だけ対象
-  -- 1 社 1 行のまま。IR / 月次ページは将来別表（code, kind, url の複数行）。実装はまだ無い
-  -- 月次ページ URL の正本は今どおり config/monthly/ir_monthly.json の index_url
-
-daily_prices      -- 日足。WITHOUT ROWID (行を code, date 順に置く。KAB-289)
-  code, date PK(複合)
-  open, high, low, close, volume, turnover      -- 調整前(報告時生値)
-  adj_factor
-  adj_open, adj_high, adj_low, adj_close, adj_volume  -- 調整済(分析はこちらを使う)
-  market_cap                                     -- 時価総額(百万円)
-  upper_limit, lower_limit, ex_rt                -- J-Quants UL / LL / ExRT (UL / LL は取込前の行が NULL)
-
-topix             -- TOPIX日足
-  date PK, open, high, low, close
-
-statements        -- 決算短信 (J-Quants /fins/summary ほぼ生保存。短信 XBRL から作った行も入る。docs/DESIGN_xbrl.md §3.2)
-  disclosure_no PK
-  code, disclosed_date, disclosed_time
-  type_of_period          -- 1Q/2Q/3Q/FY
-  fiscal_year_start, fiscal_year_end
-  net_sales, operating_profit, ordinary_profit, profit, eps   -- 累計実績
-  f2_net_sales, f2_operating_profit, f2_ordinary_profit, f2_profit, f2_eps  -- 半期(2Q)会社予想
-  fy_net_sales, fy_operating_profit, fy_ordinary_profit, fy_profit, fy_eps  -- 通期会社予想
-  is_revision             -- 予想修正開示フラグ
-  raw_json                -- 元データ全項目 (将来の項目追加に備え保持)
-  source                  -- jquants / xbrl（KAB-383。xbrl の行は数値を J-Quants で上書きしない。NULL は J-Quants）
-  -- ix_statements_earnings_cover (code, disclosed_date, disclosure_no, … raw_json と source 以外)
-  -- カレンダーの重複判定と決算一覧の履歴が表本体 (raw_json) を読まない (KAB-292)
-
-indicators        -- 日次算出テクニカル (バッチで更新, 最新日分を保持+履歴)
-  code, date PK(複合)
-  ma50, ma150, ma200
-  ma200_slope_1m          -- 200日線の1ヶ月変化率
-  high_52w, low_52w
-  rs_raw, rs_rank         -- RS生値と1-99ランク
-  stage                   -- 1/2/3/4 (判定不能はNULL)
-  avg_volume_50
-
-earnings_events   -- 決算発表イベントと発表後パフォーマンス
-  code, disclosed_date PK(複合)
-  base_date, base_price   -- 決算後に買えた最初の値 (§4.3)
-  return_1d, return_5d, return_20d, return_60d, return_to_date
-  alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
-  disclosed_time          -- その日の発表時刻 (最初の決算短信、無ければ一番早い開示)
-  is_first                -- その期 (決算期 × 四半期) の最初の決算短信か。訂正・予想修正だけは偽
-  next_disclosed_date     -- 同じ銘柄の次の期の最初の決算短信の日 (まだなら NULL)
-  end_date, return_to_next, alpha_to_next  -- 次の決算の前営業日の終値まで (まだなら株価の最終日まで)
-
-earnings_date_pubs -- 決算発表予定の発表履歴。現在の予定は (code, fq_name) の最新 pub_date
-  code, fq_name, pub_date PK
-  sch_date                -- NULL は未定。欠測ではない
-  fye                     -- MMDD の4文字。0299 は 2月末
-  co_name
-  -- FK は付けない。ix_earnings_date_pubs_sch_date。日付で先に絞っても移動前の日は最新 pub_date で捨てる
-
-earnings_date_fetches -- 取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない
-  pub_date PK
-  n
-
-monthly_issuers   -- 発行体ごとの月次属性。月次業種は stocks.sector33 とは別
-  code PK                 -- stocks.code と同じ 5桁。FK は付けない
-  industry                -- 月次業種。既定は その他
-  last_ingested_at        -- ingest でセルが変わったときだけ更新。NULL は新着ではない
-
-monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
-  code, year PK           -- code は J-Quants 5桁 (9279→92790, 262A→262A0)。year は西暦4桁
-  -- stocks に無い code は書かない。FK は付けない (既存テーブルへ ADD できない / PRAGMA foreign_keys も有効化しない)
-
-monthly_elements  -- 表の行。element は登録時の正規名、sort_order が登録順
-  code, year, element PK
-  unit                  -- number | yoy_index。入力 JSON は yoy_pct も可。ingest は yoy_index と value+100
-  -- 行名は docs/DESIGN_monthly_labels.md。GET は保存名。SPA は表示名で行を畳む
-
-monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
-  code, year, element, month PK
-  value
-
-data_versions     -- プロセス内キャッシュの版。対象の表が変わると +1
-  name PK                 -- monthly_list = 月次一覧（/monthly、/api/v1/tables、/sitemap.xml）
-  version                 -- 最初の対象書き込みで 1。その後の INSERT/UPDATE/DELETE ごとに +1
+テーブル・列・索引・ER 図は [`docs/SCHEMA.md`](docs/SCHEMA.md)（`app/models.py` から自動生成。列の意味もそこに出る）。EDINET の表は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)、XBRL の表は [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。ここには取込と保存の規則を書く。
 
 月次一覧の版（name = monthly_list）を上げるのは monthly_tables / monthly_elements /
 monthly_values / monthly_issuers / stocks の INSERT・UPDATE・DELETE（行ごと）。
@@ -140,45 +42,6 @@ API・cron・MCP・手書きの SQL のどれでも上がる。トリガーは i
 行がまだ無いあいだの版は 0。last_ingested_at は版に使わない（更新しない書き込みがある）。
 一覧の is_new は `last_ingested_at` の JST 暦日が今日を含む直近 3 日（当日・前日・前々日）。`ingested_today` は JST の今日。どちらも日付で変わるので、使い回しのキーは (version, JST の今日)。
 結果はワーカーのメモリに置く。別プロセスの書き込みは、次の読みで版が変わって作り直す。
-
-monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
-  code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
-  element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える
-  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls / ir_json (ingest の via) / doc (PUT doc の新規行) / legacy
-  first_seen_at, last_seen_at
-  -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
-
-pts_snapshots     -- 株探の PTS ナイトタイムセッション ランキング。取得 1 回ごとにランキング全行
-  fetched_at, ranking, code PK  -- 取得時刻 JST / night_up・night_down・night_volume / 5桁コード (FK なし)
-  session_date            -- 比べている通常取引の終値の日（株探の見出し「D日終値」から。取得日ではない）
-  as_of                   -- 株探の「HH:MM現在」。同じ session_date・ranking・as_of は書かない
-  rank, name, market, base_close, pts_price, pts_chg_pct, volume
-  -- 索引 (session_date, ranking)
-
-edinet_filers / edinet_documents / edinet_list_days
-                  -- EDINET の提出者・書類一覧。docs/DESIGN_edinet.md
-large_holding_reports / large_holdings
-                  -- EDINET 大量保有報告書（書類 1 行 / 提出者・共同保有者 1 行）。docs/DESIGN_edinet.md §5
-edinet_buybacks / edinet_buyback_resolutions
-                  -- EDINET 自己株券買付状況報告書（書類 1 行 / 決議 1 行）。docs/DESIGN_edinet.md §6
-edinet_tender_offers / edinet_tender_offer_docs
-                  -- EDINET 公開買付け（案件 1 行 / 書類 1 行）。docs/DESIGN_edinet.md §7
-
-fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
-  date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
-  rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
-
-material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
-  material_id, month, metric, source PK  -- material_id は config/supply/supply_chain.json の id (FK なし)
-                                          -- month は YYYY-MM、metric は production / shipment / inventory / import / export
-                                          --   / processing (原油処理) / domestic_sales (国内向販売)
-                                          -- source は seidou:<報告番号> (生産動態) / sekiyu (石油統計) / trade (貿易)
-  value, unit     -- 単位は統計のまま (t / kl / 本)。kl と t は換算しない
-  revision        -- 1 速報 / 2 確報 / 3 年報 (年間補正後)。下がる上書きはしない
-  origin          -- 取り込んだ e-Stat の表 ID か Excel のファイル名
-  is_estimate     -- 按分の推計値 (いまは常に false)
-  updated_at
-```
 
 月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest`。
 
@@ -394,6 +257,8 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 | `tanshin_html` | 上の条件の決算短信 `tdnet_pdf_documents.html_gz` | `tanshin:{disclosure_no}` | 『URL』『ホームページ』ラベル近くの URL を優先。監査法人・親会社の URL を先頭だけ見ると取り違える。w3.org / TDnet / EDINET / JPX / SEC / SNS はホストの完全一致かドット区切りの末尾一致で捨てる（86970 の `jpx.co.jp` は残す） |
 
 将来の IR / 月次ページは `homepages` に足さず、別表（`code`, `kind`, `url` の複数行）にする。月次ページ URL の正本は `config/monthly/ir_monthly.json` の `index_url`。KAB-320 で `homepages.host` と突き合わせる。上場廃止会社の行は残す（stocks も消さない）。
+
+確度は source で一意なので列にしない（manual > xbrl_url > tanshin_html）。`--all` は今の stocks だけ対象。
 
 ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
 

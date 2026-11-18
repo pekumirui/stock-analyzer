@@ -5,7 +5,7 @@
   {
    "name": "briefing_documents",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "決算説明資料 PDF の索引\n機能: 株価・決算",
    "columns": [
     {
      "name": "source",
@@ -25,7 +25,7 @@
      "type": "VARCHAR(5)",
      "nullable": false,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "普通株の 5 桁\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "company_name",
@@ -37,7 +37,8 @@
      "name": "pubdate",
      "type": "VARCHAR(32)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "開示日時 YYYY-MM-DD HH:MM:SS"
     },
     {
      "name": "title",
@@ -49,7 +50,8 @@
      "name": "rel_path",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "data/briefing からの相対パス"
     },
     {
      "name": "url",
@@ -73,19 +75,22 @@
      "name": "status",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "saved"
     },
     {
      "name": "storage",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "local"
+     "default": "local",
+     "comment": "local / onedrive"
     },
     {
      "name": "saved_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -128,21 +133,21 @@
   {
    "name": "briefing_extracts",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "決算説明資料の読み取り。資料 1 つに 1 行\n機能: 株価・決算",
    "columns": [
     {
      "name": "document_id",
      "type": "VARCHAR(80)",
      "nullable": false,
      "default": null,
-     "comment": "→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）"
+     "comment": "出所をまたいで同じ開示番号\n→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）"
     },
     {
      "name": "source",
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）"
+     "comment": "どの出所の PDF を読んだか\n→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）"
     },
     {
      "name": "code",
@@ -156,7 +161,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "値: submitted / done / failed"
+     "comment": "結果を受け取ったら done（1 ページでも読めたら）か failed\n値: submitted / done / failed"
     },
     {
      "name": "batch_id",
@@ -168,7 +173,8 @@
      "name": "request_key",
      "type": "VARCHAR(24)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "Batch の custom_id の頭。document_id は custom_id に使えない文字を含みうる"
     },
     {
      "name": "model",
@@ -186,13 +192,15 @@
      "name": "pages",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "PDF のページ数"
     },
     {
      "name": "llm_pages",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "Claude に回したページ数"
     },
     {
      "name": "error_pages",
@@ -210,7 +218,8 @@
      "name": "verified",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "文字データにある数字"
     },
     {
      "name": "sum_checks",
@@ -228,7 +237,8 @@
      "name": "input_tokens",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "キャッシュの読み書きを含む"
     },
     {
      "name": "output_tokens",
@@ -246,13 +256,15 @@
      "name": "submitted_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "extracted_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -316,7 +328,7 @@
   {
    "name": "briefing_facts",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "読み取った数値。briefing_pages の表を 1 セル 1 行に展開したもの\n機能: 株価・決算",
    "columns": [
     {
      "name": "id",
@@ -360,13 +372,15 @@
      "name": "period_kind",
      "type": "VARCHAR(24)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "actual / forecast / previous_forecast / plan / change"
     },
     {
      "name": "value",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "資料の表記（符号は - にそろえる）"
     },
     {
      "name": "value_num",
@@ -384,20 +398,22 @@
      "name": "part_of",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "内訳の親（metric|segment）"
     },
     {
      "name": "verified",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "文字データにある"
     },
     {
      "name": "sum_status",
      "type": "VARCHAR(12)",
      "nullable": true,
      "default": null,
-     "comment": "値: ok / split / paren / partial / mismatch"
+     "comment": "親の行だけ\n値: ok / split / paren / partial / mismatch"
     }
    ],
    "indexes": [
@@ -441,26 +457,28 @@
   {
    "name": "briefing_irbank_scans",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "IR BANK の開示一覧を読み終えた銘柄\n機能: 株価・決算",
    "columns": [
     {
      "name": "code",
      "type": "VARCHAR(5)",
      "nullable": false,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "代表の 5 桁（末尾 0 を優先）\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "scanned_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "listed",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "説明資料と判定した件数"
     },
     {
      "name": "saved",
@@ -472,19 +490,22 @@
      "name": "skipped",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "開示番号が索引済み"
     },
     {
      "name": "reindexed",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "PDF は既にあり索引だけ足した"
     },
     {
      "name": "missing",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "PDF が 404"
     },
     {
      "name": "failed",
@@ -522,7 +543,7 @@
   {
    "name": "briefing_pages",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "読み取った説明資料のページ。表紙・注意事項など Claude に回さないページも kind だけ残す\n機能: 株価・決算",
    "columns": [
     {
      "name": "document_id",
@@ -560,7 +581,8 @@
      "name": "tables_json",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "Claude が返した表（列 × 行、行の of）をそのまま"
     },
     {
      "name": "error",
@@ -572,7 +594,8 @@
      "name": "raw_text",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JSON が読めなかったページだけ、Claude の応答をそのまま残す。Batch の結果は 29 日で消える"
     }
    ],
    "indexes": [],
@@ -605,7 +628,7 @@
   {
    "name": "daily_prices",
    "type": "table",
-   "comment": "機能: 株価・決算 / WITHOUT ROWID",
+   "comment": "日足\n機能: 株価・決算 / WITHOUT ROWID",
    "columns": [
     {
      "name": "code",
@@ -624,37 +647,43 @@
      "name": "open",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整前"
     },
     {
      "name": "high",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整前"
     },
     {
      "name": "low",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整前"
     },
     {
      "name": "close",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整前"
     },
     {
      "name": "volume",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整前"
     },
     {
      "name": "turnover",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整前"
     },
     {
      "name": "adj_factor",
@@ -666,55 +695,64 @@
      "name": "adj_open",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整済"
     },
     {
      "name": "adj_high",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整済"
     },
     {
      "name": "adj_low",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整済"
     },
     {
      "name": "adj_close",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整済"
     },
     {
      "name": "adj_volume",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "調整済"
     },
     {
      "name": "market_cap",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "時価総額(百万円)"
     },
     {
      "name": "upper_limit",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "J-Quants UL。その日にストップ高を付けたら 1。取込前の行は NULL"
     },
     {
      "name": "lower_limit",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "J-Quants LL。ストップ安"
     },
     {
      "name": "ex_rt",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "J-Quants ExRT。権利落ち日だけ 1=分割（無償割当を含む）/ 2=併合 / 3=ライツイシュー"
     }
    ],
    "indexes": [
@@ -756,13 +794,14 @@
   {
    "name": "data_versions",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "読み取り結果を使い回すための版。対象表のトリガーが version を +1 する\n機能: 株価・決算",
    "columns": [
     {
      "name": "name",
      "type": "VARCHAR",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "使い回す結果の名前。monthly_list は月次一覧（/monthly、/api/v1/tables、/sitemap.xml）"
     },
     {
      "name": "version",
@@ -787,7 +826,7 @@
   {
    "name": "earnings_date_fetches",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない\n機能: 株価・決算",
    "columns": [
     {
      "name": "pub_date",
@@ -818,7 +857,7 @@
   {
    "name": "earnings_date_pubs",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "決算発表予定の発表履歴。発表のたびに 1 行。現在の予定は (code, fq_name) で pub_date が最新の行。移動前の日が残っている\n機能: 株価・決算",
    "columns": [
     {
      "name": "code",
@@ -831,7 +870,8 @@
      "name": "fq_name",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "1Q | 2Q | 3Q | FY"
     },
     {
      "name": "pub_date",
@@ -844,13 +884,15 @@
      "name": "sch_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "NULL は未定。欠測ではない"
     },
     {
      "name": "fye",
      "type": "VARCHAR(4)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "MMDD。0299 は 2月末"
     },
     {
      "name": "co_name",
@@ -912,7 +954,7 @@
   {
    "name": "earnings_events",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "決算発表イベントと発表後パフォーマンス\n機能: 株価・決算",
    "columns": [
     {
      "name": "code",
@@ -933,13 +975,14 @@
      "type": "DATE",
      "nullable": true,
      "default": null,
-     "comment": "→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+     "comment": "決算後に買えた最初の値\n→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
     },
     {
      "name": "base_price",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決算後に買えた最初の値"
     },
     {
      "name": "return_1d",
@@ -975,69 +1018,78 @@
      "name": "alpha_1d",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "対TOPIX超過リターン"
     },
     {
      "name": "alpha_5d",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "対TOPIX超過リターン"
     },
     {
      "name": "alpha_20d",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "対TOPIX超過リターン"
     },
     {
      "name": "alpha_60d",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "対TOPIX超過リターン"
     },
     {
      "name": "alpha_to_date",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "対TOPIX超過リターン"
     },
     {
      "name": "disclosed_time",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "その日の決算短信のうち一番早い発表時刻"
     },
     {
      "name": "is_first",
      "type": "BOOLEAN",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽"
     },
     {
      "name": "next_disclosed_date",
      "type": "DATE",
      "nullable": true,
      "default": null,
-     "comment": "→ statements.(code, disclosed_date)（宣言だけ。DB の制約なし）"
+     "comment": "同じ銘柄の次の期の最初の決算短信の日。まだ無ければ NULL\n→ statements.(code, disclosed_date)（宣言だけ。DB の制約なし）"
     },
     {
      "name": "end_date",
      "type": "DATE",
      "nullable": true,
      "default": null,
-     "comment": "→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+     "comment": "return_to_next の終点（次の決算の前営業日。無ければ株価の最終日）\n→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
     },
     {
      "name": "return_to_next",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "次の決算の前日終値まで（%）"
     },
     {
      "name": "alpha_to_next",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "対TOPIX超過リターン"
     }
    ],
    "indexes": [],
@@ -1117,7 +1169,7 @@
   {
    "name": "edinet_archives",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet → OneDrive\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "doc_id",
@@ -1130,7 +1182,8 @@
      "name": "file_type",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "書類取得 API の type（1 / 5）"
     },
     {
      "name": "doc_type_code",
@@ -1142,13 +1195,15 @@
      "name": "rel_path",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "data/edinet からの相対パス"
     },
     {
      "name": "status",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/ gone（取り直しのとき EDINET が 404。残っていない）"
     },
     {
      "name": "bytes",
@@ -1166,7 +1221,8 @@
      "name": "saved_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -1199,7 +1255,7 @@
   {
    "name": "edinet_buyback_resolutions",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "自己株券買付状況報告書の 1 書類 × 決議 1 件（取締役会・株主総会・投資法人の役員会）\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "doc_id",
@@ -1212,7 +1268,8 @@
      "name": "resolution_no",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "書類の中の順番（1 始まり）"
     },
     {
      "name": "kind",
@@ -1225,19 +1282,22 @@
      "name": "body",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決議した機関（取締役会・定時株主総会・役員会）"
     },
     {
      "name": "resolution_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決議日"
     },
     {
      "name": "acquire_from",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "取得期間"
     },
     {
      "name": "acquire_to",
@@ -1249,19 +1309,22 @@
      "name": "limit_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決議の枠（株数）。無ければ NULL"
     },
     {
      "name": "limit_amount",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決議の枠（価額の総額・円）"
     },
     {
      "name": "month_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月の取得（「－」は 0）"
     },
     {
      "name": "month_amount",
@@ -1273,7 +1336,8 @@
      "name": "cumulative_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月末までの累計"
     },
     {
      "name": "cumulative_amount",
@@ -1285,7 +1349,8 @@
      "name": "progress_shares",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "進捗（書類の値。0.5297 = 52.97%）"
     },
     {
      "name": "progress_amount",
@@ -1297,7 +1362,8 @@
      "name": "label",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決議状況の行の見出し（そのまま）"
     }
    ],
    "indexes": [],
@@ -1330,7 +1396,7 @@
   {
    "name": "edinet_buybacks",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "自己株券買付状況報告書・訂正（EDINET 書類種別 220 / 230）の 1 書類。中身は書類取得 API type=1（XBRL）のテキストブロックの表\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "doc_id",
@@ -1349,26 +1415,29 @@
      "name": "submit_datetime",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "doc_type_code",
      "type": "VARCHAR(3)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "220 報告書 / 230 訂正"
     },
     {
      "name": "form_code",
      "type": "VARCHAR(6)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "170000 株式会社 / 253000 投資法人"
     },
     {
      "name": "code",
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "上場していなければ NULL\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "edinet_code",
@@ -1387,13 +1456,15 @@
      "name": "report_month",
      "type": "VARCHAR(7)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月 YYYY-MM（報告期間の末日の月）"
     },
     {
      "name": "period_start",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告期間"
     },
     {
      "name": "period_end",
@@ -1405,31 +1476,36 @@
      "name": "issued_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月末の発行済株式総数（投資法人は投資口）"
     },
     {
      "name": "treasury_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月末の保有自己株式数"
     },
     {
      "name": "resolution_count",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決議の数（edinet_buyback_resolutions の行数）"
     },
     {
      "name": "month_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月に取得した株数（決議の合計）"
     },
     {
      "name": "month_amount",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告月に取得した価額の総額（円）"
     },
     {
      "name": "is_amendment",
@@ -1455,7 +1531,8 @@
      "name": "is_latest",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "大元ごとの最新の 1 件"
     },
     {
      "name": "withdrawn",
@@ -1468,7 +1545,7 @@
      "type": "VARCHAR",
      "nullable": false,
      "default": null,
-     "comment": "値: parsed / meta / failed"
+     "comment": "meta は取得状況が対象外の訂正\n値: parsed / meta / failed"
     },
     {
      "name": "parse_error",
@@ -1480,7 +1557,8 @@
      "name": "fetched_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -1590,7 +1668,7 @@
   {
    "name": "edinet_documents",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "EDINET 書類一覧 API（type=2）の 1 行。docID は一意でない（修正・不開示・取下げが別レコードで出る）\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "file_date",
@@ -1616,7 +1694,7 @@
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "secCode か edinet_filers から引く\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "edinet_code",
@@ -1684,7 +1762,8 @@
      "name": "submit_datetime",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "doc_description",
@@ -1710,13 +1789,15 @@
      "name": "subsidiary_edinet_codes",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "カンマ区切り"
     },
     {
      "name": "current_report_reasons",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "カンマ区切り"
     },
     {
      "name": "parent_doc_id",
@@ -1729,7 +1810,8 @@
      "name": "ope_datetime",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "withdrawal_status",
@@ -1789,7 +1871,8 @@
      "name": "fetched_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -1959,7 +2042,7 @@
   {
    "name": "edinet_filers",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "EDINET コードリスト（提出者）の写し。上場していない提出者（大量保有の保有者など）も持つ。リストから消えた提出者も残す\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "edinet_code",
@@ -1972,7 +2055,7 @@
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "証券コード 5 桁\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "filer_name",
@@ -1990,55 +2073,64 @@
      "name": "filer_type",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "提出者種別（内国法人・組合 / 外国法人・組合 / 個人 など）"
     },
     {
      "name": "listed",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "上場区分（上場 / 非上場）"
     },
     {
      "name": "is_consolidated",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "連結の有無（有 / 無）"
     },
     {
      "name": "capital",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "資本金（百万円）。リストの文字列のまま"
     },
     {
      "name": "fiscal_year_end",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決算日（例 3月31日）"
     },
     {
      "name": "industry",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "提出者業種"
     },
     {
      "name": "jcn",
      "type": "VARCHAR(13)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "提出者法人番号"
     },
     {
      "name": "list_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "リストのダウンロード実行日"
     },
     {
      "name": "updated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -2079,7 +2171,7 @@
   {
    "name": "edinet_list_days",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "書類一覧を取った日ごとの記録\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "file_date",
@@ -2091,7 +2183,8 @@
      "name": "count",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "metadata.resultset.count"
     },
     {
      "name": "max_seq",
@@ -2103,19 +2196,22 @@
      "name": "process_datetime",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "EDINET 側の一覧作成時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "finalized",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "file_date より後に取った = その日の一覧は確定"
     },
     {
      "name": "fetched_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -2134,7 +2230,7 @@
   {
    "name": "edinet_tender_offer_docs",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "公開買付けの書類 1 件（240〜340）。届出・訂正・撤回・報告書・意見表明・対質問回答など\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "doc_id",
@@ -2148,7 +2244,7 @@
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "→ edinet_tender_offers.tender_offer_id（宣言だけ。DB の制約なし）"
+     "comment": "大元（parent_doc_id をたどる）\n→ edinet_tender_offers.tender_offer_id（宣言だけ。DB の制約なし）"
     },
     {
      "name": "file_date",
@@ -2160,7 +2256,8 @@
      "name": "submit_datetime",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "doc_type_code",
@@ -2172,7 +2269,8 @@
      "name": "ordinance_code",
      "type": "VARCHAR(3)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "040 他社株 / 050 発行者（自社株）"
     },
     {
      "name": "form_code",
@@ -2204,7 +2302,7 @@
      "type": "VARCHAR(6)",
      "nullable": true,
      "default": null,
-     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+     "comment": "届出書・報告書は対象者、意見表明は買付者\n→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "parent_doc_id",
@@ -2217,7 +2315,8 @@
      "name": "withdrawn",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "取下げ・不開示"
     },
     {
      "name": "period_start",
@@ -2283,13 +2382,15 @@
      "name": "opinion_text",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "意見の内容（最初の段落）"
     },
     {
      "name": "success",
      "type": "BOOLEAN",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "公開買付けの成否（報告書）"
     },
     {
      "name": "tendered_shares",
@@ -2308,7 +2409,7 @@
      "type": "VARCHAR",
      "nullable": false,
      "default": null,
-     "comment": "値: parsed / meta / failed"
+     "comment": "meta は中身を読まない書類\n値: parsed / meta / failed"
     },
     {
      "name": "parse_error",
@@ -2320,7 +2421,8 @@
      "name": "fetched_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -2413,20 +2515,21 @@
   {
    "name": "edinet_tender_offers",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "公開買付け 1 件。届出書（240）を大元に、訂正・撤回・意見表明・報告書から決め直す\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "tender_offer_id",
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
+     "comment": "大元の docID（ふつうは公開買付届出書）\n→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
     },
     {
      "name": "is_issuer",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "発行者による公開買付け（自社株 TOB）"
     },
     {
      "name": "offeror_edinet_code",
@@ -2446,7 +2549,7 @@
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "買付者が上場していれば\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "target_edinet_code",
@@ -2466,19 +2569,21 @@
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "対象者\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "announced_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "届出書の提出日"
     },
     {
      "name": "period_start",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "買付け等の期間"
     },
     {
      "name": "period_end",
@@ -2490,51 +2595,57 @@
      "name": "price",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "普通株式 1 株の買付価格（円）"
     },
     {
      "name": "price_initial",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "届出書の当初の価格"
     },
     {
      "name": "planned_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "買付予定数"
     },
     {
      "name": "min_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "買付予定数の下限（無ければ NULL）"
     },
     {
      "name": "max_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "買付予定数の上限（無ければ NULL）"
     },
     {
      "name": "holding_ratio_after",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "買付け後の株券等所有割合（届出書は予定、報告書は結果）"
     },
     {
      "name": "opinion",
      "type": "VARCHAR",
      "nullable": true,
      "default": null,
-     "comment": "値: support / oppose / neutral / reserved"
+     "comment": "対象者の意見\n値: support / oppose / neutral / reserved"
     },
     {
      "name": "recommendation",
      "type": "VARCHAR",
      "nullable": true,
      "default": null,
-     "comment": "値: recommend / leave / not_recommend"
+     "comment": "応募\n値: recommend / leave / not_recommend"
     },
     {
      "name": "status",
@@ -2547,26 +2658,29 @@
      "name": "tendered_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "応募数（株式換算）"
     },
     {
      "name": "purchased_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "買付数"
     },
     {
      "name": "result_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "公開買付報告書の提出日"
     },
     {
      "name": "latest_doc_id",
      "type": "VARCHAR(8)",
      "nullable": true,
      "default": null,
-     "comment": "→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
+     "comment": "いちばん新しい書類\n→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
     },
     {
      "name": "doc_count",
@@ -2578,7 +2692,8 @@
      "name": "updated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -2700,7 +2815,7 @@
   {
    "name": "fx_rates",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "ECB 対EUR 日次レート。EUR 自身は持たない\n機能: 株価・決算",
    "columns": [
     {
      "name": "date",
@@ -2712,13 +2827,15 @@
      "name": "quote",
      "type": "VARCHAR(3)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "ISO 4217（USD / JPY 等）"
     },
     {
      "name": "rate",
      "type": "FLOAT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "1 EUR = rate 単位の quote"
     }
    ],
    "indexes": [
@@ -2748,26 +2865,28 @@
   {
    "name": "homepages",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "上場会社のホームページ URL\n機能: 株価・決算",
    "columns": [
     {
      "name": "code",
      "type": "VARCHAR(5)",
      "nullable": false,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "普通株（末尾 0）\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "url",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "選んだ 1 本（会社ホームページ）"
     },
     {
      "name": "host",
      "type": "VARCHAR(255)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "小文字。先頭 www. を除く"
     },
     {
      "name": "source",
@@ -2780,19 +2899,22 @@
      "name": "origin",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "manual / xbrl:{doc_id} / tanshin:{disclosure_no}"
     },
     {
      "name": "changed_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "url / source / origin / host が変わった時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "checked_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "最後に確認した時刻。値が同じでも進む\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -2824,7 +2946,7 @@
   {
    "name": "indicators",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "日次算出テクニカル\n機能: 株価・決算",
    "columns": [
     {
      "name": "code",
@@ -2868,7 +2990,8 @@
      "name": "ma200_slope_1m",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "200日線の1ヶ月変化率"
     },
     {
      "name": "high_52w",
@@ -2886,19 +3009,22 @@
      "name": "rs_raw",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "RS生値"
     },
     {
      "name": "rs_rank",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "1-99ランク"
     },
     {
      "name": "stage",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "1/2/3/4 (判定不能はNULL)"
     },
     {
      "name": "avg_volume_50",
@@ -2949,7 +3075,7 @@
   {
    "name": "large_holding_reports",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "大量保有報告書・変更報告書・訂正（EDINET 書類種別 350 / 360）の 1 書類。中身は書類取得 API type=5（XBRL→CSV）\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "doc_id",
@@ -2968,25 +3094,29 @@
      "name": "submit_datetime",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "doc_type_code",
      "type": "VARCHAR(3)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "350 大量保有・変更報告書 / 360 訂正"
     },
     {
      "name": "form_code",
      "type": "VARCHAR(6)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "010000 大量保有 / 010002 変更 / 020002 短期大量譲渡 / 03xxxx 特例 など"
     },
     {
      "name": "title",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "表紙の書類名（変更報告書ＮＯ．3 など）"
     },
     {
      "name": "filer_edinet_code",
@@ -3013,7 +3143,7 @@
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "発行者の証券コード（CSV の 4 桁に 0 を付けた 5 桁）\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "issuer_name",
@@ -3026,67 +3156,77 @@
      "type": "VARCHAR(5)",
      "nullable": true,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "上場していなければ NULL\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "obligation_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "報告義務発生日"
     },
     {
      "name": "filing_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "表紙の提出日"
     },
     {
      "name": "reason",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "提出事由（変更報告書だけ）"
     },
     {
      "name": "arrangement",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "提出形態（連名 / その他）"
     },
     {
      "name": "holder_count",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "提出者及び共同保有者の総数"
     },
     {
      "name": "shares_held",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "保有株券等の数（合計）"
     },
     {
      "name": "outstanding_shares",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "発行済株式等総数"
     },
     {
      "name": "holding_ratio",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "株券等保有割合（0.0507 = 5.07%）"
     },
     {
      "name": "holding_ratio_prev",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "直前の報告書の保有割合。大量保有報告書は NULL"
     },
     {
      "name": "joint_holders_text",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "第3 共同保有者に関する事項（該当なしは NULL）"
     },
     {
      "name": "is_amendment",
@@ -3099,26 +3239,28 @@
      "type": "VARCHAR(8)",
      "nullable": true,
      "default": null,
-     "comment": "→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
+     "comment": "訂正の対象（DEI の IdentificationOfDocumentSubjectToAmendment）\n→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
     },
     {
      "name": "original_doc_id",
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
+     "comment": "訂正をたどった大元。訂正でなければ自分\n→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
     },
     {
      "name": "is_latest",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "大元ごとに取下げでない最新の 1 件"
     },
     {
      "name": "withdrawn",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "取下げ・不開示（edinet_documents から）"
     },
     {
      "name": "parse_status",
@@ -3137,7 +3279,8 @@
      "name": "fetched_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -3290,7 +3433,7 @@
   {
    "name": "large_holdings",
    "type": "table",
-   "comment": "機能: EDINET・大量保有",
+   "comment": "大量保有の 1 書類 × 提出者・共同保有者 1 人（CSV の FilerLargeVolumeHolder<N>Member）\n機能: EDINET・大量保有",
    "columns": [
     {
      "name": "doc_id",
@@ -3303,7 +3446,8 @@
      "name": "holder_no",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "書類の中の番号（1 始まり）"
     },
     {
      "name": "edinet_code",
@@ -3322,7 +3466,8 @@
      "name": "holder_type",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "個人・法人の別（法人（株式会社）など）"
     },
     {
      "name": "shares_held",
@@ -3352,43 +3497,50 @@
      "name": "base_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "保有の基準日"
     },
     {
      "name": "purpose",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "保有目的"
     },
     {
      "name": "important_proposal",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "重要提案行為等（該当なしは NULL）"
     },
     {
      "name": "own_funds",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "取得資金: 自己資金額（円）"
     },
     {
      "name": "borrowings",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "借入金額計"
     },
     {
      "name": "other_funds",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "その他金額計"
     },
     {
      "name": "total_funds",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "取得資金合計"
     }
    ],
    "indexes": [
@@ -3443,32 +3595,35 @@
   {
    "name": "material_monthly",
    "type": "table",
-   "comment": "機能: サプライ",
+   "comment": "サプライタブの素材ごとの月次量\n機能: サプライ",
    "columns": [
     {
      "name": "material_id",
      "type": "VARCHAR",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "config/supply/supply_chain.json の id（FK なし）"
     },
     {
      "name": "month",
      "type": "VARCHAR(7)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "YYYY-MM"
     },
     {
      "name": "metric",
      "type": "VARCHAR",
      "nullable": false,
      "default": null,
-     "comment": "値: production / shipment / inventory / import / export / processing / domestic_sales"
+     "comment": "processing は原油処理、domestic_sales は国内向販売\n値: production / shipment / inventory / import / export / processing / domestic_sales"
     },
     {
      "name": "source",
      "type": "VARCHAR",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "seidou:<報告番号>（生産動態）/ sekiyu（石油統計）/ trade（貿易）"
     },
     {
      "name": "value",
@@ -3480,31 +3635,36 @@
      "name": "unit",
      "type": "VARCHAR",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "t / kl / 本 など。換算しない"
     },
     {
      "name": "revision",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "1 速報 / 2 確報 / 3 年報（年間補正後）"
     },
     {
      "name": "origin",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "取り込んだ e-Stat の表 ID か Excel のファイル名"
     },
     {
      "name": "is_estimate",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "按分の推計値"
     },
     {
      "name": "updated_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -3526,7 +3686,7 @@
   {
    "name": "material_trade_country",
    "type": "table",
-   "comment": "機能: サプライ",
+   "comment": "素材の輸出入の相手国別の月次量（普通貿易統計の品別国別表）。material_monthly の trade の国別内訳。国合計を material_monthly に書かない素材も国別だけはここに持つ\n機能: サプライ",
    "columns": [
     {
      "name": "material_id",
@@ -3551,7 +3711,8 @@
      "name": "country",
      "type": "VARCHAR(3)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "貿易統計の国コード（137 = サウジアラビア）"
     },
     {
      "name": "country_name",
@@ -3575,7 +3736,8 @@
      "name": "revision",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "1 速報 / 2 確報"
     },
     {
      "name": "origin",
@@ -3587,7 +3749,8 @@
      "name": "updated_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -3609,7 +3772,7 @@
   {
    "name": "monthly_element_sources",
    "type": "table",
-   "comment": "機能: 月次",
+   "comment": "送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力\n機能: 月次",
    "columns": [
     {
      "name": "code",
@@ -3629,38 +3792,43 @@
      "name": "source_label",
      "type": "VARCHAR(50)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "受け取ったまま（正規化前）。前後の空白だけ落とす"
     },
     {
      "name": "unit",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "受け取ったまま（正規化前）。yoy_pct 可"
     },
     {
      "name": "element",
      "type": "VARCHAR(50)",
      "nullable": false,
      "default": null,
-     "comment": "→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+     "comment": "今の保存名\n→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
     },
     {
      "name": "via",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "経路（api / doc / ir_html / ir_json / ir_xls / legacy）。記録前からある行は保存名そのものを legacy で入れる"
     },
     {
      "name": "first_seen_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "last_seen_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -3708,7 +3876,7 @@
   {
    "name": "monthly_elements",
    "type": "table",
-   "comment": "機能: 月次",
+   "comment": "月次表の行\n機能: 月次",
    "columns": [
     {
      "name": "code",
@@ -3728,19 +3896,22 @@
      "name": "element",
      "type": "VARCHAR(50)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "登録時の正規名"
     },
     {
      "name": "sort_order",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "登録順"
     },
     {
      "name": "unit",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "number"
+     "default": "number",
+     "comment": "number | yoy_index"
     }
    ],
    "indexes": [],
@@ -3776,7 +3947,7 @@
   {
    "name": "monthly_issuers",
    "type": "table",
-   "comment": "機能: 月次",
+   "comment": "発行体ごとの月次属性\n機能: 月次",
    "columns": [
     {
      "name": "code",
@@ -3789,13 +3960,15 @@
      "name": "industry",
      "type": "VARCHAR(50)",
      "nullable": false,
-     "default": "その他"
+     "default": "その他",
+     "comment": "月次業種。stocks.sector33 とは別"
     },
     {
      "name": "last_ingested_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "ingest でセルが変わったときだけ更新。NULL は新着ではない\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -3827,7 +4000,7 @@
   {
    "name": "monthly_tables",
    "type": "table",
-   "comment": "機能: 月次",
+   "comment": "銘柄×年度の月次表 (暦月1〜12。会計月ではない)\n機能: 月次",
    "columns": [
     {
      "name": "code",
@@ -3840,7 +4013,8 @@
      "name": "year",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "西暦4桁"
     }
    ],
    "indexes": [],
@@ -3873,7 +4047,7 @@
   {
    "name": "monthly_values",
    "type": "table",
-   "comment": "機能: 月次",
+   "comment": "月次セル\n機能: 月次",
    "columns": [
     {
      "name": "code",
@@ -3906,7 +4080,8 @@
      "name": "value",
      "type": "FLOAT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "数値のみ (単位・カンマ付き文字列は拒否)"
     }
    ],
    "indexes": [],
@@ -3945,13 +4120,14 @@
   {
    "name": "pts_snapshots",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "株探の PTS ナイトタイムセッションのランキング。取得 1 回ごとにランキング全行を残す\n機能: 株価・決算",
    "columns": [
     {
      "name": "fetched_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "取得時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "ranking",
@@ -3971,13 +4147,15 @@
      "name": "session_date",
      "type": "DATE",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "比べている通常取引の終値の日（株探の見出し「D日終値」から。取得日ではない）"
     },
     {
      "name": "as_of",
      "type": "VARCHAR(5)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "株探の「HH:MM現在」（15 分ディレイ）"
     },
     {
      "name": "rank",
@@ -4063,7 +4241,7 @@
   {
    "name": "statements",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "決算短信 (J-Quants /fins/summary ほぼ生保存。短信 XBRL から作った行も入る)\n機能: 株価・決算",
    "columns": [
     {
      "name": "disclosure_no",
@@ -4094,7 +4272,8 @@
      "name": "type_of_period",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "1Q/2Q/3Q/4Q/5Q/FY"
     },
     {
      "name": "type_of_document",
@@ -4130,109 +4309,127 @@
      "name": "net_sales",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "累計実績"
     },
     {
      "name": "operating_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "累計実績"
     },
     {
      "name": "ordinary_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "累計実績"
     },
     {
      "name": "profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "累計実績"
     },
     {
      "name": "eps",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "累計実績"
     },
     {
      "name": "f2_net_sales",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "半期(2Q)会社予想"
     },
     {
      "name": "f2_operating_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "半期(2Q)会社予想"
     },
     {
      "name": "f2_ordinary_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "半期(2Q)会社予想"
     },
     {
      "name": "f2_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "半期(2Q)会社予想"
     },
     {
      "name": "f2_eps",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "半期(2Q)会社予想"
     },
     {
      "name": "fy_net_sales",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "通期会社予想"
     },
     {
      "name": "fy_operating_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "通期会社予想"
     },
     {
      "name": "fy_ordinary_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "通期会社予想"
     },
     {
      "name": "fy_profit",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "通期会社予想"
     },
     {
      "name": "fy_eps",
      "type": "FLOAT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "通期会社予想"
     },
     {
      "name": "is_revision",
      "type": "BOOLEAN",
      "nullable": true,
-     "default": "False"
+     "default": "False",
+     "comment": "予想修正開示フラグ"
     },
     {
      "name": "raw_json",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "元データ全項目"
     },
     {
      "name": "source",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "jquants / xbrl。NULL は J-Quants"
     }
    ],
    "indexes": [
@@ -4314,13 +4511,14 @@
   {
    "name": "stocks",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "銘柄マスタ\n機能: 株価・決算",
    "columns": [
     {
      "name": "code",
      "type": "VARCHAR(5)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "5桁コード (例 \"72030\", \"262A0\")。先頭・末尾は数字、途中は 0-9A-Z"
     },
     {
      "name": "name",
@@ -4362,14 +4560,15 @@
      "name": "product_category",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "J-Quants ProdCat。011=内国株券, 013=REIT, 014=ETF 等"
     },
     {
      "name": "edinet_code",
      "type": "VARCHAR(6)",
      "nullable": true,
      "default": null,
-     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+     "comment": "EDINET コードリストの証券コードで付ける。無い銘柄は NULL\n→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
     }
    ],
    "indexes": [],
@@ -4401,26 +4600,28 @@
   {
    "name": "tanshin_covers",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "決算短信の表紙。短信ごとに1行\n機能: 株価・決算",
    "columns": [
     {
      "name": "disclosure_no",
      "type": "VARCHAR(32)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "TDnet の書類 ID（PDF/ZIP の stem）"
     },
     {
      "name": "code",
      "type": "VARCHAR(5)",
      "nullable": false,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "普通株の 5 桁\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "disclosed_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "title",
@@ -4439,7 +4640,8 @@
      "name": "has_material",
      "type": "BOOLEAN",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決算補足説明資料作成の有無。表紙から読めなければ NULL"
     },
     {
      "name": "material_note",
@@ -4451,7 +4653,8 @@
      "name": "has_briefing",
      "type": "BOOLEAN",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "決算説明会開催の有無。表紙から読めなければ NULL"
     },
     {
      "name": "briefing_note",
@@ -4463,7 +4666,8 @@
      "name": "checked_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -4504,14 +4708,14 @@
   {
    "name": "tdnet_pdf_documents",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "disclosure_no",
      "type": "VARCHAR(14)",
      "nullable": false,
      "default": null,
-     "comment": "→ statements.disclosure_no（宣言だけ。DB の制約なし）"
+     "comment": "TDnet の docID（= XBRL ZIP 名の後ろ 14 桁）\n→ statements.disclosure_no（宣言だけ。DB の制約なし）"
     },
     {
      "name": "code",
@@ -4542,7 +4746,8 @@
      "name": "status",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗）"
     },
     {
      "name": "error",
@@ -4560,13 +4765,15 @@
      "name": "bytes",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "変換後 HTML（圧縮前）"
     },
     {
      "name": "sha256",
      "type": "VARCHAR(64)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "変換後 HTML（圧縮前）"
     },
     {
      "name": "pages",
@@ -4590,13 +4797,15 @@
      "name": "converter",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "変換器の版（tools/tdnet_pdf/convert.py CONVERTER）"
     },
     {
      "name": "created_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -4650,7 +4859,7 @@
   {
    "name": "topix",
    "type": "table",
-   "comment": "機能: 株価・決算",
+   "comment": "TOPIX日足\n機能: 株価・決算",
    "columns": [
     {
      "name": "date",
@@ -4699,7 +4908,7 @@
   {
    "name": "xbrl_contexts",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "開示ごとのコンテキスト（期間・連結か個別か・次元）\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -4766,7 +4975,8 @@
      "name": "member_labels_json",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "次元メンバー → その書類のラベル（日本語）。標準メンバーも会社が名前を付け替える"
     }
    ],
    "indexes": [
@@ -4817,7 +5027,7 @@
   {
    "name": "xbrl_documents",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "短信 ZIP の表示用 HTML。書類ごとに表示順で並べる\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "filing_id",
@@ -4836,7 +5046,8 @@
      "name": "part",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "summary（サマリー）/ qualitative（添付資料まるごと）/ attachment（qualitative.htm が無い書類の本表 iXBRL）"
     },
     {
      "name": "file_name",
@@ -4848,25 +5059,29 @@
      "name": "html_gz",
      "type": "BLOB",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "元の HTML を gzip。script などの除去は表示のとき"
     },
     {
      "name": "bytes",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "圧縮前"
     },
     {
      "name": "sha256",
      "type": "VARCHAR(64)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "圧縮前"
     },
     {
      "name": "created_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -4899,7 +5114,7 @@
   {
    "name": "xbrl_element_mappings",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "XBRL の要素 → 標準科目の対応\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -4948,7 +5163,8 @@
      "name": "part",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "NULL は値そのもの。'months' は同じ科目・context の値に 月÷12 を足す（有報の「40歳3ヶ月」は年と月が別の要素）"
     }
    ],
    "indexes": [
@@ -5002,7 +5218,7 @@
   {
    "name": "xbrl_elements",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "XBRL の要素。名前空間 × 名前で 1 行\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5056,7 +5272,8 @@
      "name": "first_seen_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5111,7 +5328,7 @@
   {
    "name": "xbrl_facts",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "開示の値（生データ層）。開示 × 要素 × コンテキスト\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5261,7 +5478,7 @@
   {
    "name": "xbrl_filings",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "開示 1 件（1 ZIP = 1 filing）\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5358,14 +5575,15 @@
      "name": "parsed_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     },
     {
      "name": "documents_status",
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "値: stored / empty"
+     "comment": "原文。NULL=まだ / empty=選べる HTML が 0 件\n値: stored / empty"
     },
     {
      "name": "presentation_status",
@@ -5377,7 +5595,8 @@
      "name": "created_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5457,7 +5676,7 @@
   {
    "name": "xbrl_financials",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "標準科目ごとの値（正規化層）。xbrl_facts から再生成できる\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5527,19 +5746,21 @@
      "type": "VARCHAR(24)",
      "nullable": false,
      "default": "actual",
-     "comment": "値: actual / forecast / forecast_previous"
+     "comment": "forecast_previous は前回予想（EarnForecastRevision の PreviousMember）\n値: actual / forecast / forecast_previous"
     },
     {
      "name": "range_side",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "point"
+     "default": "point",
+     "comment": "point | lower | upper（レンジ予想。点予想は point）"
     },
     {
      "name": "target_period",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "FY"
+     "default": "FY",
+     "comment": "数値が指す期間: FY / H1 / Q1 / Q2 / Q3 / year_end / annual"
     },
     {
      "name": "source_fact_id",
@@ -5559,13 +5780,15 @@
      "name": "source_layer",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL"
     },
     {
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5680,7 +5903,7 @@
   {
    "name": "xbrl_job_runs",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "XBRL のバッチの実行記録\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5722,13 +5945,15 @@
      "name": "started_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     },
     {
      "name": "finished_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -5747,7 +5972,7 @@
   {
    "name": "xbrl_major_shareholders",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "大株主の状況 1 行（順位 × 株式ベース / 議決権ベース）\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "filing_id",
@@ -5760,7 +5985,8 @@
      "name": "rank",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "NoNMajorShareholdersMember の N"
     },
     {
      "name": "basis",
@@ -5785,19 +6011,22 @@
      "name": "shares_held",
      "type": "NUMERIC(30, 4)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "所有株式数。議決権ベースの表は NULL"
     },
     {
      "name": "shareholding_ratio",
      "type": "NUMERIC(18, 6)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "0.1650 = 16.50%"
     },
     {
      "name": "voting_rights",
      "type": "NUMERIC(30, 4)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "所有議決権数（個）"
     },
     {
      "name": "voting_rights_ratio",
@@ -5846,7 +6075,7 @@
   {
    "name": "xbrl_pdf_matches",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "fact_id",
@@ -5903,7 +6132,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5987,7 +6217,7 @@
   {
    "name": "xbrl_presentation_roles",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "書類の表示リンク（*pre.xml）のうち財務3表の区分\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "filing_id",
@@ -6030,13 +6260,15 @@
      "name": "items_json",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "区分の要素を表示の順に並べた JSON の配列。1 要素は [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null, 深さ, 見出しの表示名 or null]。深さは区分の根からの段（0 から。落とした構造の要素は数えない）。表示名は見出しの要素（名前に Abstract）だけ。深さと表示名の無い古い行は 4 つ"
     },
     {
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -6069,7 +6301,7 @@
   {
    "name": "xbrl_segments",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "セグメント注記の正規化層。xbrl_financials と同じく再生成できる\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -6102,26 +6334,29 @@
      "name": "axis",
      "type": "VARCHAR(255)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'jpcrp_cor:OperatingSegmentsAxis'"
     },
     {
      "name": "member",
      "type": "VARCHAR(255)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'prefix:localName'（会社独自は jpcrp030000-asr_E...）"
     },
     {
      "name": "member_label_ja",
      "type": "VARCHAR(255)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "その書類のラベル"
     },
     {
      "name": "member_kind",
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "値: segment / subtotal / other / total / reconciling / unknown"
+     "comment": "segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / reconciling=調整額 / unknown=どれにも当たらない\n値: segment / subtotal / other / total / reconciling / unknown"
     },
     {
      "name": "is_consolidated",
@@ -6177,7 +6412,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -6294,7 +6530,7 @@
   {
    "name": "xbrl_shareholder_filings",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "有報の大株主・所有者別の 1 書類。xbrl_facts から正規化\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "filing_id",
@@ -6320,7 +6556,8 @@
      "name": "as_of",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "大株主・所有者別の instant（期末）"
     },
     {
      "name": "basis",
@@ -6333,7 +6570,8 @@
      "name": "shares_per_unit",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "単元株式数（普通株式。無ければ NULL）"
     },
     {
      "name": "is_amendment",
@@ -6359,7 +6597,8 @@
      "name": "is_latest",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件"
     },
     {
      "name": "withdrawn",
@@ -6371,7 +6610,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -6461,7 +6701,7 @@
   {
    "name": "xbrl_shareholding_by_category",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "所有者別状況 1 行（株式の種類 × 区分）\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "filing_id",
@@ -6474,7 +6714,8 @@
      "name": "share_class",
      "type": "VARCHAR(255)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "OrdinaryShareMember 等。軸が無ければ ''"
     },
     {
      "name": "category",
@@ -6492,19 +6733,22 @@
      "name": "units_held",
      "type": "BIGINT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "所有株式数（単元）"
     },
     {
      "name": "shareholding_ratio",
      "type": "NUMERIC(18, 6)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "0.2780 = 27.80%。計の行は無いので NULL"
     },
     {
      "name": "shares_less_than_one_unit",
      "type": "NUMERIC(30, 4)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "単元未満株式。区分の計の行に載せる"
     }
    ],
    "indexes": [
@@ -6547,7 +6791,7 @@
   {
    "name": "xbrl_std_items",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "標準科目\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -6601,7 +6845,8 @@
      "name": "unit",
      "type": "VARCHAR(32)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "xbrl_financials.unit に入れる単位。NULL は fact の単位（JPY / USD / JPYPerShares 等）。fact が pure（人数・年数・比率）のときだけ科目側で persons / years / ratio と決める"
     }
    ],
    "indexes": [],

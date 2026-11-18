@@ -410,6 +410,24 @@ def test_revision_guard() -> None:
         db.close()
 
 
+def test_country_revision_guard() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(MaterialTradeCountry).delete()
+
+        def row(value: float, revision: int) -> CountryRow:
+            return CountryRow("crude", "2026-07", "import", "137", "サウジアラビア", value, "kl", revision, f"r{revision}")
+
+        _eq(write_country_rows(db, [row(100, REVISION_KAKUHO)]), 1, "first write")
+        _eq(write_country_rows(db, [row(90, REVISION_SOKUHO)]), 0, "sokuho must not overwrite kakuho")
+        _eq(write_country_rows(db, [row(101, REVISION_KAKUHO)]), 1, "same revision overwrites")
+        got = db.query(MaterialTradeCountry).one()
+        _eq((got.value, got.revision, got.origin), (101.0, 2, "r2"), "stored")
+    finally:
+        db.close()
+
+
 def test_prune_and_done() -> None:
     init_db()
     db = SessionLocal()
@@ -1031,6 +1049,7 @@ def main() -> None:
     test_material_stats_ok_failed_zero()
     test_trade()
     test_revision_guard()
+    test_country_revision_guard()
     test_prune_and_done()
     test_apparent_and_payload()
     test_lookup_then_upsert_locks_when_other_writer_holds()

@@ -127,25 +127,31 @@ erDiagram
 
 ## テーブル
 
+見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
+
+`UtcDateTime`: UTC をタイムゾーンなしで持つ。
+
 ### tdnet_pdf_documents
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `disclosure_no` | VARCHAR(14) |  | PK / → `statements.disclosure_no`（制約なし） |  |  |
-| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
-| `disclosed_date` | DATE | 可 |  |  |  |
-| `disclosed_time` | VARCHAR(8) | 可 |  |  |  |
-| `title` | TEXT | 可 |  |  |  |
-| `status` | VARCHAR(16) |  |  |  |  |
-| `error` | TEXT | 可 |  |  |  |
-| `html_gz` | BLOB | 可 |  |  |  |
-| `bytes` | INTEGER | 可 |  |  |  |
-| `sha256` | VARCHAR(64) | 可 |  |  |  |
-| `pages` | INTEGER | 可 |  |  |  |
-| `pdf_bytes` | INTEGER | 可 |  |  |  |
-| `pdf_sha256` | VARCHAR(64) | 可 |  |  |  |
-| `converter` | VARCHAR(16) | 可 |  |  |  |
-| `created_at` | DATETIME |  |  |  |  |
+TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `disclosure_no` | VARCHAR(14) |  | PK / → `statements.disclosure_no`（制約なし） |  |  | TDnet の docID（= XBRL ZIP 名の後ろ 14 桁） |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
+| `disclosed_date` | DATE | 可 |  |  |  |  |
+| `disclosed_time` | VARCHAR(8) | 可 |  |  |  |  |
+| `title` | TEXT | 可 |  |  |  |  |
+| `status` | VARCHAR(16) |  |  |  |  | ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗） |
+| `error` | TEXT | 可 |  |  |  |  |
+| `html_gz` | BLOB | 可 |  |  |  |  |
+| `bytes` | INTEGER | 可 |  |  |  | 変換後 HTML（圧縮前） |
+| `sha256` | VARCHAR(64) | 可 |  |  |  | 変換後 HTML（圧縮前） |
+| `pages` | INTEGER | 可 |  |  |  |  |
+| `pdf_bytes` | INTEGER | 可 |  |  |  |  |
+| `pdf_sha256` | VARCHAR(64) | 可 |  |  |  |  |
+| `converter` | VARCHAR(16) | 可 |  |  |  | 変換器の版（tools/tdnet_pdf/convert.py CONVERTER） |
+| `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -153,19 +159,21 @@ erDiagram
 
 ### xbrl_contexts
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
-| `context_ref` | VARCHAR(255) |  |  |  |  |
-| `period_type` | VARCHAR(16) |  |  |  |  |
-| `start_date` | DATE | 可 |  |  |  |
-| `end_date` | DATE |  |  |  |  |
-| `is_consolidated` | INTEGER |  |  |  | `1` |
-| `relative_period` | VARCHAR(16) | 可 |  |  |  |
-| `dimensions_json` | TEXT |  |  |  | `'{}'` |
-| `has_dimensions` | BOOLEAN |  |  |  | `False` |
-| `member_labels_json` | TEXT | 可 |  |  |  |
+開示ごとのコンテキスト（期間・連結か個別か・次元）
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |  |
+| `context_ref` | VARCHAR(255) |  |  |  |  |  |
+| `period_type` | VARCHAR(16) |  |  |  |  |  |
+| `start_date` | DATE | 可 |  |  |  |  |
+| `end_date` | DATE |  |  |  |  |  |
+| `is_consolidated` | INTEGER |  |  |  | `1` |  |
+| `relative_period` | VARCHAR(16) | 可 |  |  |  |  |
+| `dimensions_json` | TEXT |  |  |  | `'{}'` |  |
+| `has_dimensions` | BOOLEAN |  |  |  | `False` |  |
+| `member_labels_json` | TEXT | 可 |  |  |  | 次元メンバー → その書類のラベル（日本語）。標準メンバーも会社が名前を付け替える |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -174,29 +182,33 @@ erDiagram
 
 ### xbrl_documents
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |
-| `seq` | INTEGER |  | PK |  |  |
-| `part` | VARCHAR(16) |  |  |  |  |
-| `file_name` | TEXT |  |  |  |  |
-| `html_gz` | BLOB |  |  |  |  |
-| `bytes` | INTEGER |  |  |  |  |
-| `sha256` | VARCHAR(64) |  |  |  |  |
-| `created_at` | DATETIME |  |  |  |  |
+短信 ZIP の表示用 HTML。書類ごとに表示順で並べる
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
+| `seq` | INTEGER |  | PK |  |  |  |
+| `part` | VARCHAR(16) |  |  |  |  | summary（サマリー）/ qualitative（添付資料まるごと）/ attachment（qualitative.htm が無い書類の本表 iXBRL） |
+| `file_name` | TEXT |  |  |  |  |  |
+| `html_gz` | BLOB |  |  |  |  | 元の HTML を gzip。script などの除去は表示のとき |
+| `bytes` | INTEGER |  |  |  |  | 圧縮前 |
+| `sha256` | VARCHAR(64) |  |  |  |  | 圧縮前 |
+| `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 ### xbrl_element_mappings
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |
-| `namespace_key` | VARCHAR(64) |  |  |  |  |
-| `local_name` | VARCHAR(255) |  |  |  |  |
-| `priority` | INTEGER |  |  |  | `100` |
-| `accounting_standard` | VARCHAR(16) | 可 |  |  |  |
-| `note` | TEXT | 可 |  |  |  |
-| `part` | VARCHAR(16) | 可 |  |  |  |
+XBRL の要素 → 標準科目の対応
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |  |
+| `namespace_key` | VARCHAR(64) |  |  |  |  |  |
+| `local_name` | VARCHAR(255) |  |  |  |  |  |
+| `priority` | INTEGER |  |  |  | `100` |  |
+| `accounting_standard` | VARCHAR(16) | 可 |  |  |  |  |
+| `note` | TEXT | 可 |  |  |  |  |
+| `part` | VARCHAR(16) | 可 |  |  |  | NULL は値そのもの。'months' は同じ科目・context の値に 月÷12 を足す（有報の「40歳3ヶ月」は年と月が別の要素） |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -205,17 +217,19 @@ erDiagram
 
 ### xbrl_elements
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `namespace_uri` | TEXT |  |  |  |  |
-| `namespace_key` | VARCHAR(64) |  |  |  |  |
-| `local_name` | VARCHAR(255) |  |  |  |  |
-| `label_ja` | TEXT | 可 |  |  |  |
-| `label_en` | TEXT | 可 |  |  |  |
-| `item_type` | VARCHAR(16) | 可 |  |  |  |
-| `is_custom` | BOOLEAN |  |  |  | `False` |
-| `first_seen_at` | DATETIME |  |  |  |  |
+XBRL の要素。名前空間 × 名前で 1 行
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `namespace_uri` | TEXT |  |  |  |  |  |
+| `namespace_key` | VARCHAR(64) |  |  |  |  |  |
+| `local_name` | VARCHAR(255) |  |  |  |  |  |
+| `label_ja` | TEXT | 可 |  |  |  |  |
+| `label_en` | TEXT | 可 |  |  |  |  |
+| `item_type` | VARCHAR(16) | 可 |  |  |  |  |
+| `is_custom` | BOOLEAN |  |  |  | `False` |  |
+| `first_seen_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -226,18 +240,20 @@ erDiagram
 
 ### xbrl_facts
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
-| `element_id` | INTEGER |  | FK → `xbrl_elements.id` |  |  |
-| `context_id` | INTEGER |  | FK → `xbrl_contexts.id` |  |  |
-| `unit` | VARCHAR(64) | 可 |  |  |  |
-| `decimals` | INTEGER | 可 |  |  |  |
-| `scale` | INTEGER | 可 |  |  |  |
-| `value_num` | NUMERIC(30, 4) | 可 |  |  |  |
-| `value_text` | TEXT | 可 |  |  |  |
-| `is_nil` | BOOLEAN |  |  |  | `False` |
+開示の値（生データ層）。開示 × 要素 × コンテキスト
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |  |
+| `element_id` | INTEGER |  | FK → `xbrl_elements.id` |  |  |  |
+| `context_id` | INTEGER |  | FK → `xbrl_contexts.id` |  |  |  |
+| `unit` | VARCHAR(64) | 可 |  |  |  |  |
+| `decimals` | INTEGER | 可 |  |  |  |  |
+| `scale` | INTEGER | 可 |  |  |  |  |
+| `value_num` | NUMERIC(30, 4) | 可 |  |  |  |  |
+| `value_text` | TEXT | 可 |  |  |  |  |
+| `is_nil` | BOOLEAN |  |  |  | `False` |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -247,27 +263,29 @@ erDiagram
 
 ### xbrl_filings
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
-| `source` | VARCHAR(16) |  |  |  | `'tdnet'` |
-| `doc_id` | VARCHAR(64) |  |  |  |  |
-| `doc_type` | VARCHAR(32) |  |  |  | `'other'` |
-| `period_type` | VARCHAR(8) | 可 |  |  |  |
-| `fiscal_year_end` | DATE | 可 |  |  |  |
-| `submitted_at` | DATETIME |  |  |  |  |
-| `title` | TEXT | 可 |  |  |  |
-| `accounting_standard` | VARCHAR(16) | 可 |  |  |  |
-| `is_amendment` | BOOLEAN |  |  |  | `False` |
-| `raw_path` | TEXT |  |  |  |  |
-| `raw_sha256` | VARCHAR(64) | 可 |  |  |  |
-| `parse_status` | VARCHAR(16) |  |  |  | `'pending'` |
-| `parse_error` | TEXT | 可 |  |  |  |
-| `parsed_at` | DATETIME | 可 |  |  |  |
-| `documents_status` | VARCHAR(16) | 可 |  | `stored` / `empty` |  |
-| `presentation_status` | VARCHAR(8) | 可 |  |  |  |
-| `created_at` | DATETIME |  |  |  |  |
+開示 1 件（1 ZIP = 1 filing）
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
+| `source` | VARCHAR(16) |  |  |  | `'tdnet'` |  |
+| `doc_id` | VARCHAR(64) |  |  |  |  |  |
+| `doc_type` | VARCHAR(32) |  |  |  | `'other'` |  |
+| `period_type` | VARCHAR(8) | 可 |  |  |  |  |
+| `fiscal_year_end` | DATE | 可 |  |  |  |  |
+| `submitted_at` | DATETIME |  |  |  |  |  |
+| `title` | TEXT | 可 |  |  |  |  |
+| `accounting_standard` | VARCHAR(16) | 可 |  |  |  |  |
+| `is_amendment` | BOOLEAN |  |  |  | `False` |  |
+| `raw_path` | TEXT |  |  |  |  |  |
+| `raw_sha256` | VARCHAR(64) | 可 |  |  |  |  |
+| `parse_status` | VARCHAR(16) |  |  |  | `'pending'` |  |
+| `parse_error` | TEXT | 可 |  |  |  |  |
+| `parsed_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |
+| `documents_status` | VARCHAR(16) | 可 |  | `stored` / `empty` |  | 原文。NULL=まだ / empty=選べる HTML が 0 件 |
+| `presentation_status` | VARCHAR(8) | 可 |  |  |  |  |
+| `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -279,25 +297,27 @@ erDiagram
 
 ### xbrl_financials
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
-| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
-| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |
-| `is_consolidated` | BOOLEAN |  |  |  |  |
-| `period_type` | VARCHAR(8) |  |  |  |  |
-| `period_start` | DATE | 可 |  |  |  |
-| `period_end` | DATE |  |  |  |  |
-| `value` | NUMERIC(30, 4) |  |  |  |  |
-| `unit` | VARCHAR(32) |  |  |  | `'JPY'` |
-| `value_kind` | VARCHAR(24) |  |  | `actual` / `forecast` / `forecast_previous` | `actual`（DB） |
-| `range_side` | VARCHAR(16) |  |  |  | `point`（DB） |
-| `target_period` | VARCHAR(16) |  |  |  | `FY`（DB） |
-| `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |
-| `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |
-| `source_layer` | VARCHAR(16) | 可 |  |  |  |
-| `generated_at` | DATETIME |  |  |  |  |
+標準科目ごとの値（正規化層）。xbrl_facts から再生成できる
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |  |
+| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |  |
+| `is_consolidated` | BOOLEAN |  |  |  |  |  |
+| `period_type` | VARCHAR(8) |  |  |  |  |  |
+| `period_start` | DATE | 可 |  |  |  |  |
+| `period_end` | DATE |  |  |  |  |  |
+| `value` | NUMERIC(30, 4) |  |  |  |  |  |
+| `unit` | VARCHAR(32) |  |  |  | `'JPY'` |  |
+| `value_kind` | VARCHAR(24) |  |  | `actual` / `forecast` / `forecast_previous` | `actual`（DB） | forecast_previous は前回予想（EarnForecastRevision の PreviousMember） |
+| `range_side` | VARCHAR(16) |  |  |  | `point`（DB） | point \| lower \| upper（レンジ予想。点予想は point） |
+| `target_period` | VARCHAR(16) |  |  |  | `FY`（DB） | 数値が指す期間: FY / H1 / Q1 / Q2 / Q3 / year_end / annual |
+| `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |  |
+| `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |  |
+| `source_layer` | VARCHAR(16) | 可 |  |  |  | primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -306,30 +326,34 @@ erDiagram
 
 ### xbrl_job_runs
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `job_name` | VARCHAR(32) |  |  |  |  |
-| `status` | VARCHAR(16) |  |  |  |  |
-| `processed_count` | INTEGER | 可 |  |  | `0` |
-| `error_count` | INTEGER | 可 |  |  | `0` |
-| `message` | TEXT | 可 |  |  |  |
-| `started_at` | DATETIME |  |  |  |  |
-| `finished_at` | DATETIME | 可 |  |  |  |
+XBRL のバッチの実行記録
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `job_name` | VARCHAR(32) |  |  |  |  |  |
+| `status` | VARCHAR(16) |  |  |  |  |  |
+| `processed_count` | INTEGER | 可 |  |  | `0` |  |
+| `error_count` | INTEGER | 可 |  |  | `0` |  |
+| `message` | TEXT | 可 |  |  |  |  |
+| `started_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
+| `finished_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |
 
 ### xbrl_major_shareholders
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |
-| `rank` | INTEGER |  | PK |  |  |
-| `basis` | VARCHAR(16) |  | PK | `shares` / `voting_rights` |  |
-| `name` | TEXT | 可 |  |  |  |
-| `address` | TEXT | 可 |  |  |  |
-| `shares_held` | NUMERIC(30, 4) | 可 |  |  |  |
-| `shareholding_ratio` | NUMERIC(18, 6) | 可 |  |  |  |
-| `voting_rights` | NUMERIC(30, 4) | 可 |  |  |  |
-| `voting_rights_ratio` | NUMERIC(18, 6) | 可 |  |  |  |
+大株主の状況 1 行（順位 × 株式ベース / 議決権ベース）
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
+| `rank` | INTEGER |  | PK |  |  | NoNMajorShareholdersMember の N |
+| `basis` | VARCHAR(16) |  | PK | `shares` / `voting_rights` |  |  |
+| `name` | TEXT | 可 |  |  |  |  |
+| `address` | TEXT | 可 |  |  |  |  |
+| `shares_held` | NUMERIC(30, 4) | 可 |  |  |  | 所有株式数。議決権ベースの表は NULL |
+| `shareholding_ratio` | NUMERIC(18, 6) | 可 |  |  |  | 0.1650 = 16.50% |
+| `voting_rights` | NUMERIC(30, 4) | 可 |  |  |  | 所有議決権数（個） |
+| `voting_rights_ratio` | NUMERIC(18, 6) | 可 |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -337,17 +361,19 @@ erDiagram
 
 ### xbrl_pdf_matches
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `fact_id` | INTEGER |  | PK / FK → `xbrl_facts.id` |  |  |
-| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
-| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
-| `is_consolidated` | BOOLEAN |  |  |  |  |
-| `statement` | VARCHAR(8) |  |  |  |  |
-| `element_key` | VARCHAR(300) | 可 |  |  |  |
-| `sign` | INTEGER |  |  |  | `1` |
-| `matched_by` | VARCHAR(8) | 可 |  |  |  |
-| `generated_at` | DATETIME |  |  |  |  |
+短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `fact_id` | INTEGER |  | PK / FK → `xbrl_facts.id` |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
+| `is_consolidated` | BOOLEAN |  |  |  |  |  |
+| `statement` | VARCHAR(8) |  |  |  |  |  |
+| `element_key` | VARCHAR(300) | 可 |  |  |  |  |
+| `sign` | INTEGER |  |  |  | `1` |  |
+| `matched_by` | VARCHAR(8) | 可 |  |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -357,38 +383,42 @@ erDiagram
 
 ### xbrl_presentation_roles
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |
-| `role` | VARCHAR(255) |  | PK |  |  |
-| `seq` | INTEGER |  |  |  |  |
-| `statement` | VARCHAR(8) |  |  |  |  |
-| `is_consolidated` | BOOLEAN |  |  |  |  |
-| `is_ifrs` | BOOLEAN |  |  |  |  |
-| `items_json` | TEXT |  |  |  |  |
-| `generated_at` | DATETIME |  |  |  |  |
+書類の表示リンク（*pre.xml）のうち財務3表の区分
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
+| `role` | VARCHAR(255) |  | PK |  |  |  |
+| `seq` | INTEGER |  |  |  |  |  |
+| `statement` | VARCHAR(8) |  |  |  |  |  |
+| `is_consolidated` | BOOLEAN |  |  |  |  |  |
+| `is_ifrs` | BOOLEAN |  |  |  |  |  |
+| `items_json` | TEXT |  |  |  |  | 区分の要素を表示の順に並べた JSON の配列。1 要素は [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null, 深さ, 見出しの表示名 or null]。深さは区分の根からの段（0 から。落とした構造の要素は数えない）。表示名は見出しの要素（名前に Abstract）だけ。深さと表示名の無い古い行は 4 つ |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 ### xbrl_segments
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
-| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
-| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |
-| `axis` | VARCHAR(255) |  |  |  |  |
-| `member` | VARCHAR(255) |  |  |  |  |
-| `member_label_ja` | VARCHAR(255) | 可 |  |  |  |
-| `member_kind` | VARCHAR(16) |  |  | `segment` / `subtotal` / `other` / `total` / `reconciling` / `unknown` |  |
-| `is_consolidated` | BOOLEAN |  |  |  |  |
-| `period_type` | VARCHAR(8) |  |  |  |  |
-| `period_start` | DATE | 可 |  |  |  |
-| `period_end` | DATE |  |  |  |  |
-| `value` | NUMERIC(30, 4) |  |  |  |  |
-| `unit` | VARCHAR(32) |  |  |  | `'JPY'` |
-| `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |
-| `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |
-| `generated_at` | DATETIME |  |  |  |  |
+セグメント注記の正規化層。xbrl_financials と同じく再生成できる
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |  |
+| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |  |
+| `axis` | VARCHAR(255) |  |  |  |  | 'jpcrp_cor:OperatingSegmentsAxis' |
+| `member` | VARCHAR(255) |  |  |  |  | 'prefix:localName'（会社独自は jpcrp030000-asr_E...） |
+| `member_label_ja` | VARCHAR(255) | 可 |  |  |  | その書類のラベル |
+| `member_kind` | VARCHAR(16) |  |  | `segment` / `subtotal` / `other` / `total` / `reconciling` / `unknown` |  | segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / reconciling=調整額 / unknown=どれにも当たらない |
+| `is_consolidated` | BOOLEAN |  |  |  |  |  |
+| `period_type` | VARCHAR(8) |  |  |  |  |  |
+| `period_start` | DATE | 可 |  |  |  |  |
+| `period_end` | DATE |  |  |  |  |  |
+| `value` | NUMERIC(30, 4) |  |  |  |  |  |
+| `unit` | VARCHAR(32) |  |  |  | `'JPY'` |  |
+| `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |  |
+| `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -398,20 +428,22 @@ erDiagram
 
 ### xbrl_shareholder_filings
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |
-| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
-| `doc_id` | VARCHAR(64) |  |  |  |  |
-| `as_of` | DATE | 可 |  |  |  |
-| `basis` | VARCHAR(16) |  |  | `shares` / `voting_rights` / `both` |  |
-| `shares_per_unit` | INTEGER | 可 |  |  |  |
-| `is_amendment` | BOOLEAN |  |  |  | `False` |
-| `amends_doc_id` | VARCHAR(8) | 可 | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |
-| `original_doc_id` | VARCHAR(8) |  | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |
-| `is_latest` | BOOLEAN |  |  |  | `False` |
-| `withdrawn` | BOOLEAN |  |  |  | `False` |
-| `generated_at` | DATETIME |  |  |  |  |
+有報の大株主・所有者別の 1 書類。xbrl_facts から正規化
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
+| `doc_id` | VARCHAR(64) |  |  |  |  |  |
+| `as_of` | DATE | 可 |  |  |  | 大株主・所有者別の instant（期末） |
+| `basis` | VARCHAR(16) |  |  | `shares` / `voting_rights` / `both` |  |  |
+| `shares_per_unit` | INTEGER | 可 |  |  |  | 単元株式数（普通株式。無ければ NULL） |
+| `is_amendment` | BOOLEAN |  |  |  | `False` |  |
+| `amends_doc_id` | VARCHAR(8) | 可 | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |  |
+| `original_doc_id` | VARCHAR(8) |  | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |  |
+| `is_latest` | BOOLEAN |  |  |  | `False` | 同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件 |
+| `withdrawn` | BOOLEAN |  |  |  | `False` |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -420,15 +452,17 @@ erDiagram
 
 ### xbrl_shareholding_by_category
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |
-| `share_class` | VARCHAR(255) |  | PK |  |  |
-| `category` | VARCHAR(32) |  | PK |  |  |
-| `shareholder_count` | INTEGER | 可 |  |  |  |
-| `units_held` | BIGINT | 可 |  |  |  |
-| `shareholding_ratio` | NUMERIC(18, 6) | 可 |  |  |  |
-| `shares_less_than_one_unit` | NUMERIC(30, 4) | 可 |  |  |  |
+所有者別状況 1 行（株式の種類 × 区分）
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
+| `share_class` | VARCHAR(255) |  | PK |  |  | OrdinaryShareMember 等。軸が無ければ '' |
+| `category` | VARCHAR(32) |  | PK |  |  |  |
+| `shareholder_count` | INTEGER | 可 |  |  |  |  |
+| `units_held` | BIGINT | 可 |  |  |  | 所有株式数（単元） |
+| `shareholding_ratio` | NUMERIC(18, 6) | 可 |  |  |  | 0.2780 = 27.80%。計の行は無いので NULL |
+| `shares_less_than_one_unit` | NUMERIC(30, 4) | 可 |  |  |  | 単元未満株式。区分の計の行に載せる |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -436,17 +470,19 @@ erDiagram
 
 ### xbrl_std_items
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(64) |  |  |  |  |
-| `statement` | VARCHAR(8) |  |  |  |  |
-| `section` | VARCHAR(64) | 可 |  |  |  |
-| `label_ja` | VARCHAR(128) |  |  |  |  |
-| `display_order` | INTEGER |  |  |  | `0` |
-| `sign` | VARCHAR(16) |  |  |  | `'natural'` |
-| `is_required` | BOOLEAN |  |  |  | `False` |
-| `unit` | VARCHAR(32) | 可 |  |  |  |
+標準科目
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |  |  |
+| `code` | VARCHAR(64) |  |  |  |  |  |
+| `statement` | VARCHAR(8) |  |  |  |  |  |
+| `section` | VARCHAR(64) | 可 |  |  |  |  |
+| `label_ja` | VARCHAR(128) |  |  |  |  |  |
+| `display_order` | INTEGER |  |  |  | `0` |  |
+| `sign` | VARCHAR(16) |  |  |  | `'natural'` |  |
+| `is_required` | BOOLEAN |  |  |  | `False` |  |
+| `unit` | VARCHAR(32) | 可 |  |  |  | xbrl_financials.unit に入れる単位。NULL は fact の単位（JPY / USD / JPYPerShares 等）。fact が pure（人数・年数・比率）のときだけ科目側で persons / years / ratio と決める |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|

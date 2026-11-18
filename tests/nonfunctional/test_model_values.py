@@ -65,3 +65,20 @@ def test_upsert_and_filter_fail_on_an_unlisted_value():
         db.rollback()
         with pytest.raises(StatementError, match="night_sideways"):
             db.execute(select(PtsSnapshot).where(PtsSnapshot.ranking == "night_sideways")).all()
+
+
+def test_time_types_are_plain_datetime_columns():
+    from sqlalchemy.dialects import sqlite
+
+    from app.models import JstDateTime, UtcDateTime
+
+    cols = [c for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, (JstDateTime, UtcDateTime))]
+    assert {type(c.type) for c in cols} == {JstDateTime, UtcDateTime}
+    assert {c.type.compile(dialect=sqlite.dialect()) for c in cols} == {"DATETIME"}
+    init_db()
+    when = datetime(2026, 1, 5, 17, 30)
+    row = {"fetched_at": when, "ranking": "night_down", "code": "72030", "session_date": date(2026, 1, 5), "rank": 1}
+    with SessionLocal() as db:
+        upsert(db, PtsSnapshot, [row])
+        got = db.execute(select(PtsSnapshot.fetched_at).where(PtsSnapshot.ranking == "night_down")).scalar_one()
+    assert got == when and got.tzinfo is None

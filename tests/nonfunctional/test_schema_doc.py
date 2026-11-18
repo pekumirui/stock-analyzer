@@ -66,3 +66,22 @@ def test_erd_link_hides_tables_outside_the_domain():
     shown = set(Base.metadata.tables) - hidden
     assert shown == {t.name for t in monthly} | {"stocks"}
     assert erd_link() == ERD_PAGE
+
+
+def test_model_types_have_a_note_and_comments_reach_the_doc():
+    from sqlalchemy.types import TypeEngine
+
+    from app.models import Base
+    from tools.schema.render import TYPE_NOTES
+
+    own = {type(c.type) for t in Base.metadata.tables.values() for c in t.columns
+           if not type(c.type).__module__.startswith("sqlalchemy")}
+    assert own == set(TYPE_NOTES)
+    assert all(issubclass(k, TypeEngine) for k in own)
+    pages = "\n".join(text for p, text in render().items() if p.endswith(".md"))
+    for t in Base.metadata.tables.values():
+        if t.comment:
+            assert f"### {t.name}\n\n{t.comment}\n" in pages, t.name
+        for c in t.columns:
+            if c.comment:
+                assert c.comment.replace("|", "\\|") in pages, f"{t.name}.{c.name}"
