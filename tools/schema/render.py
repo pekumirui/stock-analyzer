@@ -6,14 +6,14 @@ from sqlalchemy import Enum, Table
 from sqlalchemy.dialects import sqlite
 
 from app.models import Base
-from tools.dataflow.render import DOMAINS, HUB, table_domain
+from tools.dataflow.render import DOMAINS, table_domain
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERVIEW = "docs/SCHEMA.md"
 PAGE_DIR = "docs/schema"
 REBUILD = "python -m tools.schema.render"
 _DIALECT = sqlite.dialect()
-MASTERS = HUB | {"edinet_filers"}
+LAYOUT = ["---", "config:", "  layout: elk", "---"]
 
 
 def _tables() -> list[Table]:
@@ -101,8 +101,7 @@ def _links(t: Table):
         for fk in c.foreign_keys:
             yield (c.name,), fk.column.table, (fk.column.name,), "--"
     for cols, table, to in declared_refs(t):
-        if table not in MASTERS:
-            yield cols, Base.metadata.tables[table], to, ".."
+        yield cols, Base.metadata.tables[table], to, ".."
 
 
 def _unique(t: Table, cols: tuple[str, ...]) -> bool:
@@ -128,7 +127,7 @@ def _mermaid(own: list[Table]) -> list[str]:
             left = ("}" if many else "|") + ("o" if optional else "|")
             label = cols[0] if len(cols) == 1 else f'"{", ".join(cols)}"'
             edges.append(f"  {target.name} {left}{line}o{{ {t.name} : {label}")
-    lines = ["```mermaid", "erDiagram"]
+    lines = ["```mermaid", *LAYOUT, "erDiagram", "  direction LR"]
     for name in sorted(tables):
         t = tables[name]
         keep = linked.get(name, set()) | shown[name]
@@ -150,7 +149,7 @@ def _page(key: str, label: str, own: list[Table]) -> str:
         "",
         f"**自動生成。手で直さない。** 正は `app/models.py`。作り直しは `{REBUILD}`。全体は [SCHEMA.md](../SCHEMA.md)。",
         "",
-        "図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。",
+        "図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。",
         "",
         *_mermaid(own),
         "",

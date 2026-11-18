@@ -2,10 +2,15 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 erDiagram
+  direction LR
   edinet_archives {
     String doc_id PK, FK
     Integer file_type PK
@@ -16,6 +21,8 @@ erDiagram
   }
   edinet_buybacks {
     String doc_id PK, FK
+    String code FK
+    String edinet_code FK
     String amends_doc_id FK
     String original_doc_id FK
   }
@@ -23,10 +30,16 @@ erDiagram
     Date file_date PK, FK
     Integer seq_number PK
     String doc_id 
+    String code FK
+    String edinet_code FK
+    String sec_code FK
+    String issuer_edinet_code FK
+    String subject_edinet_code FK
     String parent_doc_id FK
   }
   edinet_filers {
     String edinet_code PK
+    String sec_code FK
   }
   edinet_list_days {
     Date file_date PK
@@ -34,20 +47,34 @@ erDiagram
   edinet_tender_offer_docs {
     String doc_id PK, FK
     String tender_offer_id FK
+    String filer_edinet_code FK
+    String subject_edinet_code FK
     String parent_doc_id FK
   }
   edinet_tender_offers {
     String tender_offer_id PK, FK
+    String offeror_edinet_code FK
+    String offeror_code FK
+    String target_edinet_code FK
+    String target_code FK
     String latest_doc_id FK
   }
   large_holding_reports {
     String doc_id PK, FK
+    String filer_edinet_code FK
+    String issuer_edinet_code FK
+    String issuer_sec_code FK
+    String code FK
     String amends_doc_id FK
     String original_doc_id FK
   }
   large_holdings {
     String doc_id PK, FK
     Integer holder_no PK
+    String edinet_code FK
+  }
+  stocks {
+    String code PK
   }
   edinet_buybacks |o..o{ edinet_buybacks : amends_doc_id
   edinet_buybacks ||..o{ edinet_buyback_resolutions : doc_id
@@ -57,6 +84,17 @@ erDiagram
   edinet_documents }|..o{ edinet_buybacks : doc_id
   edinet_documents }|..o{ edinet_tender_offer_docs : doc_id
   edinet_documents }|..o{ large_holding_reports : doc_id
+  edinet_filers |o..o{ edinet_buybacks : edinet_code
+  edinet_filers |o..o{ edinet_documents : edinet_code
+  edinet_filers |o..o{ edinet_documents : issuer_edinet_code
+  edinet_filers |o..o{ edinet_documents : subject_edinet_code
+  edinet_filers |o..o{ edinet_tender_offer_docs : filer_edinet_code
+  edinet_filers |o..o{ edinet_tender_offer_docs : subject_edinet_code
+  edinet_filers |o..o{ edinet_tender_offers : offeror_edinet_code
+  edinet_filers |o..o{ edinet_tender_offers : target_edinet_code
+  edinet_filers |o..o{ large_holding_reports : filer_edinet_code
+  edinet_filers |o..o{ large_holding_reports : issuer_edinet_code
+  edinet_filers |o..o{ large_holdings : edinet_code
   edinet_list_days ||..o{ edinet_documents : file_date
   edinet_tender_offer_docs |o..o{ edinet_tender_offer_docs : parent_doc_id
   edinet_tender_offer_docs |o..o{ edinet_tender_offers : latest_doc_id
@@ -65,6 +103,14 @@ erDiagram
   large_holding_reports |o..o{ large_holding_reports : amends_doc_id
   large_holding_reports ||..o{ large_holding_reports : original_doc_id
   large_holding_reports ||..o{ large_holdings : doc_id
+  stocks |o..o{ edinet_buybacks : code
+  stocks |o..o{ edinet_documents : code
+  stocks |o..o{ edinet_documents : sec_code
+  stocks |o..o{ edinet_filers : sec_code
+  stocks |o..o{ edinet_tender_offers : offeror_code
+  stocks |o..o{ edinet_tender_offers : target_code
+  stocks |o..o{ large_holding_reports : code
+  stocks |o..o{ large_holding_reports : issuer_sec_code
 ```
 
 ## テーブル

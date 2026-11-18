@@ -2,10 +2,15 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 erDiagram
+  direction LR
   monthly_element_sources {
     String code PK, FK
     Integer year PK, FK
@@ -19,10 +24,10 @@ erDiagram
     String element PK
   }
   monthly_issuers {
-    String code PK
+    String code PK, FK
   }
   monthly_tables {
-    String code PK
+    String code PK, FK
     Integer year PK
   }
   monthly_values {
@@ -31,9 +36,14 @@ erDiagram
     String element PK, FK
     Integer month PK
   }
+  stocks {
+    String code PK
+  }
   monthly_elements ||..o{ monthly_element_sources : "code, year, element"
   monthly_elements ||..o{ monthly_values : "code, year, element"
+  monthly_issuers ||..o{ monthly_tables : code
   monthly_tables ||..o{ monthly_elements : "code, year"
+  stocks ||..o{ monthly_issuers : code
 ```
 
 ## テーブル
@@ -77,7 +87,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
+| `code` | VARCHAR(5) |  | PK / → `monthly_issuers.code`（制約なし） |  |  |
 | `year` | INTEGER |  | PK |  |  |
 
 ### monthly_values

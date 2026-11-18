@@ -2,15 +2,24 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 erDiagram
+  direction LR
   statements {
     String disclosure_no PK
   }
+  stocks {
+    String code PK
+  }
   tdnet_pdf_documents {
     String disclosure_no PK, FK
+    String code FK
   }
   xbrl_contexts {
     Integer id PK
@@ -35,9 +44,11 @@ erDiagram
   }
   xbrl_filings {
     Integer id PK
+    String code FK
   }
   xbrl_financials {
     Integer id PK
+    String code FK
     Integer filing_id FK
     Integer std_item_id FK
     Integer source_fact_id FK
@@ -54,6 +65,7 @@ erDiagram
   xbrl_pdf_matches {
     Integer fact_id PK, FK
     Integer filing_id FK
+    String code FK
   }
   xbrl_presentation_roles {
     Integer filing_id PK, FK
@@ -61,6 +73,7 @@ erDiagram
   }
   xbrl_segments {
     Integer id PK
+    String code FK
     Integer filing_id FK
     Integer std_item_id FK
     Integer source_fact_id FK
@@ -68,6 +81,7 @@ erDiagram
   }
   xbrl_shareholder_filings {
     Integer filing_id PK, FK
+    String code FK
     String doc_id 
     String amends_doc_id FK
     String original_doc_id FK
@@ -81,6 +95,12 @@ erDiagram
     Integer id PK
   }
   statements ||..o{ tdnet_pdf_documents : disclosure_no
+  stocks ||..o{ tdnet_pdf_documents : code
+  stocks ||..o{ xbrl_filings : code
+  stocks ||..o{ xbrl_financials : code
+  stocks ||..o{ xbrl_pdf_matches : code
+  stocks ||..o{ xbrl_segments : code
+  stocks ||..o{ xbrl_shareholder_filings : code
   xbrl_contexts ||--o{ xbrl_facts : context_id
   xbrl_elements |o--o{ xbrl_financials : source_element_id
   xbrl_elements |o--o{ xbrl_segments : source_element_id

@@ -365,7 +365,7 @@ class MonthlyIssuer(Base):
 class MonthlyTable(Base):
     """銘柄×年度の月次表。"""
     __tablename__ = "monthly_tables"
-    code = Column(String(5), primary_key=True, info={"ref": "stocks.code"})
+    code = Column(String(5), primary_key=True, info={"ref": "monthly_issuers.code"})
     year = Column(Integer, primary_key=True)
 
 

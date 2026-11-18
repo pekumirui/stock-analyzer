@@ -2,17 +2,24 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 erDiagram
+  direction LR
   briefing_documents {
     Enum source PK
     String document_id PK
+    String code FK
   }
   briefing_extracts {
     String document_id PK, FK
     String source FK
+    String code FK
   }
   briefing_facts {
     Integer id PK
@@ -20,14 +27,14 @@ erDiagram
     Integer page FK
   }
   briefing_irbank_scans {
-    String code PK
+    String code PK, FK
   }
   briefing_pages {
     String document_id PK, FK
     Integer page PK
   }
   daily_prices {
-    String code PK
+    String code PK, FK
     Date date PK
   }
   data_versions {
@@ -37,7 +44,7 @@ erDiagram
     Date pub_date PK
   }
   earnings_date_pubs {
-    String code PK
+    String code PK, FK
     String fq_name PK
     Date pub_date PK, FK
   }
@@ -48,12 +55,15 @@ erDiagram
     Date next_disclosed_date FK
     Date end_date FK
   }
+  edinet_filers {
+    String edinet_code PK
+  }
   fx_rates {
     Date date PK
     String quote PK
   }
   homepages {
-    String code PK
+    String code PK, FK
   }
   indicators {
     String code PK, FK
@@ -62,18 +72,20 @@ erDiagram
   pts_snapshots {
     DateTime fetched_at PK
     Enum ranking PK
-    String code PK
+    String code PK, FK
   }
   statements {
     String disclosure_no PK
-    String code 
+    String code FK
     Date disclosed_date 
   }
   stocks {
     String code PK
+    String edinet_code FK
   }
   tanshin_covers {
     String disclosure_no PK
+    String code FK
   }
   topix {
     Date date PK
@@ -85,8 +97,18 @@ erDiagram
   daily_prices |o..o{ earnings_events : "code, end_date"
   daily_prices ||..o{ indicators : "code, date"
   earnings_date_fetches ||..o{ earnings_date_pubs : pub_date
+  edinet_filers |o..o{ stocks : edinet_code
   statements }o..o{ earnings_events : "code, next_disclosed_date"
   statements }|..o{ earnings_events : "code, disclosed_date"
+  stocks |o..o{ statements : code
+  stocks ||..o{ briefing_documents : code
+  stocks ||..o{ briefing_extracts : code
+  stocks ||..o{ briefing_irbank_scans : code
+  stocks ||..o{ daily_prices : code
+  stocks ||..o{ earnings_date_pubs : code
+  stocks ||..o{ homepages : code
+  stocks ||..o{ pts_snapshots : code
+  stocks ||..o{ tanshin_covers : code
 ```
 
 ## テーブル
