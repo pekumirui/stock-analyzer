@@ -100,14 +100,14 @@ def test_rows_from_statements() -> None:
 
 
 def test_unchanged_forecast_is_not_a_revision() -> None:
-    hist = _statements()[:2]  # 1Q の fy_* は期初予想と同じ
+    hist = _statements()[:2]
     kinds = [r["kind"] for r in revision_rows(statement_points(hist), 4)]
     if kinds != ["actual_fy", "forecast_initial"]:
         _fail(kinds)
 
 
 def test_first_forecast_after_start_is_not_initial() -> None:
-    hist = _statements()[1:3]  # 前期の本決算が無い。最初の予想は 1Q
+    hist = _statements()[1:3]
     kinds = [r["kind"] for r in revision_rows(statement_points(hist), 4)]
     if kinds != ["forecast", "forecast_revised"]:
         _fail(kinds)
@@ -143,7 +143,7 @@ def _seed_xbrl(db) -> None:
     put(r26, {k: v - 1000 for k, v in REV26.items()}, FY26, "forecast", side="lower")
     put(r26, {k: v + 1000 for k, v in REV26.items()}, FY26, "forecast", side="upper")
     put(r26, INIT26, FY26, "forecast_previous")
-    put(r26, _pl(1, 1, 1, 1, 1.0), FY25, "actual")  # 業績予想修正の実績は使わない
+    put(r26, _pl(1, 1, 1, 1, 1.0), FY25, "actual")
     a26 = filing("a26", "annual", "FY", datetime.combine(date(2026, 5, 11), time(15)))
     put(a26, ACT26, FY26, "actual")
     put(a26, INIT27, FY27, "forecast")

@@ -19,8 +19,6 @@ function pinCols(table, n){
     x += w[i];
   }
 }
-// 市場と業種。月次とランキングで同じ表記（市場は 東証P / 東証S / 東証G。色の点は CSS の .mkt-*）
-// J-Quants の市場名（プライム）と株探の略記（東Ｐ）のどちらも受ける
 function fmtMarket(market){
   const s = String(market || "").normalize("NFKC");
   if(s.includes("プライム") || /prime/i.test(s) || s === "東P") return {cls:"mkt mkt-p", label:"東証P"};
@@ -28,7 +26,6 @@ function fmtMarket(market){
   if(s.includes("グロース") || /growth/i.test(s) || s === "東G") return {cls:"mkt mkt-g", label:"東証G"};
   return {cls:"", label:s};
 }
-// 33 業種。末尾の「業」を外して先頭 5 文字
 function fmtSector(sector){
   const s = String(sector || "").replace(/業$/, "");
   return Array.from(s).slice(0, 5).join("");

@@ -87,7 +87,7 @@ class MetiClient:
             if r.status_code == 202 or r.headers.get("x-amzn-waf-action"):
                 if challenged:
                     raise MetiChallenged(f"WAF {r.headers.get('x-amzn-waf-action', r.status_code)}: {url}")
-                challenged = True  # 1 回だけ待って取り直す
+                challenged = True
                 time.sleep(self.challenge_wait)
                 continue
             r.raise_for_status()

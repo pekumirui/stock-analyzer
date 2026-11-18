@@ -180,11 +180,9 @@ def test_jpgaap_annual_items() -> None:
 
     assert v("bps") == (Decimal("2120.08"), "JPYPerShares")
     assert v("bps", False) == (Decimal("1500.50"), "JPYPerShares")
-    # EPS は本表に数値が無いので主要な経営指標等から。△は負
     assert v("eps_basic") == (Decimal("-12.34"), "JPYPerShares")
     assert v("eps_basic", False) == (Decimal("440.11"), "JPYPerShares")
     assert v("eps_diluted") == (Decimal("440.08"), "JPYPerShares")
-    # 比率は小数（47.1% → 0.471）。unit は ratio
     assert v("equity_ratio") == (Decimal("0.471"), "ratio")
     assert v("roe") == (Decimal("0.220"), "ratio")
     assert v("shares_issued", False) == (Decimal("733057000"), "shares")
@@ -196,9 +194,7 @@ def test_jpgaap_annual_items() -> None:
     assert v("employee_avg_salary", False) == (Decimal("7307644"), "JPY")
     assert v("rd_expenses") == (Decimal("160000000000"), "JPY")
     assert v("capex_reported") == (Decimal("176144000000"), "JPY")
-    # 既存の本表の科目は今までどおり
     assert v("net_sales") == (Decimal("200000000"), "JPY")
-    # 当期末だけ（前期・セグメント別・所有者別の行は入らない）
     assert {end for _v, _u, end in got.values()} == {date(2025, 3, 31)}
     assert ("employees", True) in got and len([k for k in got if k[0] == "employees"]) == 2
 
@@ -233,7 +229,6 @@ def test_ifrs_annual_items() -> None:
     assert got[("bps", False)][:2] == (Decimal("783.48"), "JPYPerShares")
     assert got[("equity_ratio", True)][:2] == (Decimal("0.440"), "ratio")
     assert got[("roe", True)][:2] == (Decimal("0.107"), "ratio")
-    # 研究開発活動の節が無い会社は IFRS の注記
     assert got[("rd_expenses", True)][:2] == (Decimal("142448000000"), "JPY")
     assert ("rd_expenses", False) not in got
 

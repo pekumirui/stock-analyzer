@@ -123,7 +123,6 @@ function chartMaybe(code, signal){
   return chartDaily(code, signal).catch(e => { if(e.name === "AbortError") throw e; return null; });
 }
 
-// #e-chart は銘柄タブの株価と同じ部品（chart-core.js）。日足の最新、発表日がそれより前なら発表日を真ん中に
 let eChart = null;
 function dropEChart(){
   if(eChart){ eChart.destroy(); eChart = null; }
@@ -141,7 +140,7 @@ let earnSector="", earnChipsOpen=false, earnView="cum";
 const CHIP_TOP = 5;  // 畳んだときに見せる業種の数 (「すべて」は別)
 const sectorOf = r => r.sector33 || "未分類";
 const earnQs = new Set(["1Q","2Q","3Q","4Q"]);
-const q4 = q => /^(FY|4Q|5Q)$/.test(q||"") ? "4Q" : q;  // 本決算と変則の 5Q は 4Q に数える
+const q4 = q => /^(FY|4Q|5Q)$/.test(q||"") ? "4Q" : q;
 const rowQs = r => r.periods ? r.periods.map(p => q4(p.fq)) : [q4(r.period)];
 const inQ = r => rowQs(r).some(q => earnQs.has(q));
 const isShown = r => (!earnSector || sectorOf(r) === earnSector) && inQ(r);
@@ -415,7 +414,6 @@ function amt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${mil(v)}</span>`;
 }
-// 営利と粗利は売上に対する率を薄い括弧で添える
 function rateAmt(r, k){
   const v = r.values && r.values[k];
   const m = margin(r.values, k);
@@ -525,7 +523,6 @@ function renderRev(el, rows, d){
   let h = `<thead><tr><th class="l">決算期</th><th class="disc">発表日</th>`
         + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th>EPS</th></tr></thead><tbody>`;
-  // 年度のまとまり: 決算期は年度の最初の行だけに書く。地の色は実績の行だけ（KAB-279）
   rows.forEach((r,i) => {
     const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
     const now = d && r.disclosed_date === d.disclosed_date;
@@ -536,7 +533,6 @@ function renderRev(el, rows, d){
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
     };
     const badge = `<span class="qb ${bc}">${txt}</span>`;
-    // バッジはどの行も決算期の下の段（数値の修正率と同じ段）。決算期は年度の最初の行だけ
     const label = `${head ? r.range : "&nbsp;"}<span class="g">${badge}</span>`;
     h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${label}</td>`
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td>`

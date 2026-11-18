@@ -155,7 +155,6 @@ def _statement_row(s: dict, fixes: dict[str, date] | None = None) -> dict:
         "fy_ordinary_profit": _f(s.get("FOdP")),
         "fy_profit": _f(s.get("FNP")),
         "fy_eps": _f(s.get("FEPS")),
-        # 業績予想の修正のみの開示 (決算短信本体ではない)
         "is_revision": ("Revision" in doc or "Forecast" in doc)
                        and "FinancialStatements" not in doc,
         "raw_json": json.dumps(s, ensure_ascii=False),

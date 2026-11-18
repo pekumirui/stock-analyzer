@@ -60,7 +60,7 @@ def call(name: str, args: dict) -> dict:
 def handle(msg: dict) -> dict | None:
     method, mid = msg.get("method"), msg.get("id")
     if mid is None:
-        return None  # notification
+        return None
     if method == "initialize":
         result = {
             "protocolVersion": msg.get("params", {}).get("protocolVersion", "2024-11-05"),

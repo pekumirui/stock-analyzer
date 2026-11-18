@@ -53,7 +53,6 @@ def test_normalize() -> None:
 def test_write_day_keeps_existing(tmp_path: Path) -> None:
     d = D("2026-10-27")
     assert intraday.write_day(tmp_path, d, _bars("72030", "2026-10-27", 3000)) == 1
-    # 一度書いた銘柄は上書きしない。無い銘柄だけ足す
     again = pd.concat([_bars("72030", "2026-10-27", 1000), _bars("67580", "2026-10-27", 4000)])
     assert intraday.write_day(tmp_path, d, again) == 1
     got = intraday.read_day(tmp_path, d)
@@ -113,7 +112,6 @@ def test_load_adjusts_with_daily_factor(tmp_path: Path) -> None:
         assert adj["close"].round(6).tolist() == [1000] * 6
         assert adj["volume"].round(6).tolist() == [900] * 3 + [300] * 3
 
-        # ライツイシューは出来高を調整しない
         adj = intraday.load(tmp_path, "22220", D("2026-10-26"), D("2026-10-26"), db)
         assert adj["close"].round(6).tolist() == [900] * 3
         assert adj["volume"].tolist() == [300] * 3

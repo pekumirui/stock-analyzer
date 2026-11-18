@@ -1,10 +1,8 @@
-// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / 業績詳細 / ニュース / 株主。説明資料の中身は stock-deck.js、業績詳細は stock-financials.js。
-// ニュースの詳細で決算短信の原文を PDF と同じ並びで読む
 let stockCode = "";
 let stockSub = "summary";
 let stockNewsId = "";
 let stockOverview = null;
-let stockFilings = null;   // null = まだ読んでいない
+let stockFilings = null;
 let stockFilingsReq = null;
 let stockNewsDecksReq = null;
 let stockDocKey = "";
@@ -15,7 +13,6 @@ const STOCK_MAIN_DOC_TYPES = ["annual", "semiannual", "quarterly"];
 const stockNewsKey = f => f.source === "pdf" ? `p${f.disclosure_no}` : `x${f.id}`;
 const stockEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
-// ヘッダー右上の銘柄検索（KAB-365）。押すとヘッダーの下に入力欄が開き、候補を選ぶと銘柄画面へ飛ぶ
 function stockSuggest(rs){
   const box = $("#sym-suggest");
   box.innerHTML = "";
@@ -61,7 +58,6 @@ document.addEventListener("click", e => {
   if(!e.target.closest("#sym-pop") && !e.target.closest("#sym-btn")) setSymSearch(false);
 });
 
-// 銘柄画面にいれば中のタブはそのまま（ニュースの詳細か説明資料の中身にいたらニュースの一覧へ）。ほかの画面からは概要
 function stockPick(s){
   const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   const onStock = $("#tab-stock").style.display !== "none" && stockCode;
@@ -80,7 +76,6 @@ function stockRoutePath(){
   return `${stockCode}/${stockSub}`;
 }
 
-// ルート（{code5} / {code5}/{sub} / {code5}/news/{id} / {code5}/decks/{key}。tabs.js で形は確かめ済み）を開く
 function openStockRoute(path){
   const [code, sub, id] = String(path).split("/");
   showStock(code, sub || "summary", sub === "news" ? (id || "") : "", undefined, sub === "decks" ? (id || "") : "");
@@ -198,7 +193,6 @@ function renderStockSummary(){
   loadStockFin();
 }
 
-// 業績は決算速報の決算表と同じ表（earnings.js の renderFin / renderProg / renderRev）。最新の実績開示で描く
 let stockFinCode = "";
 async function loadStockFin(){
   const code = stockCode;
@@ -230,7 +224,6 @@ document.querySelectorAll("#st-fin-tabs .ftab").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-stfin-wrap]").forEach(w => { w.hidden = w.dataset.stfinWrap !== b.dataset.stfin; });
 });
 
-// ニュース（短信 /filings の決算・修正と、決算説明資料 /decks を日時で混ぜる。KAB-352）
 function loadStockFilings(){
   if(stockFilings) return Promise.resolve(stockFilings);
   if(stockFilingsReq) return stockFilingsReq;
@@ -242,7 +235,6 @@ function loadStockFilings(){
   return stockFilingsReq;
 }
 
-// ニュースに混ぜる決算説明資料（stock-deck.js の stockDecks）。同じ銘柄のあいだは読み直さない
 function loadStockNewsDecks(){
   if(typeof stockDecks !== "undefined" && stockDecks) return Promise.resolve(stockDecks);
   if(stockNewsDecksReq) return stockNewsDecksReq;
@@ -259,7 +251,6 @@ const stockAt = s => (s || "").slice(2).replace(/-/g, "/");
 const stockKind = f => STOCK_MAIN_DOC_TYPES.includes(f.doc_type) ? "決算" : "修正";
 const stockTitle = f => `${f.title || ""}${f.source === "pdf" ? "（PDF から変換）" : ""}`;
 
-// 並べる時刻。秒は落とす。時刻が無ければ日付だけ（YYYY-MM-DD[ HH:MM]）
 function stockNewsAt(s){
   const m = String(s || "").trim().replace("T", " ").match(/^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?/);
   if(!m) return "";
@@ -333,7 +324,6 @@ async function renderStockNews(){
   }).join("");
 }
 
-// 説明資料の行はニュース詳細ではなく、説明資料の中身（{code}/decks/{key}）を開く
 function openStockNewsDeck(key){
   stockNewsId = "";
   stockSub = "decks";
@@ -350,7 +340,6 @@ $("#st-news").addEventListener("click", e => {
     return;
   }
   stockNewsId = tr.dataset.id;
-  // 詳細は履歴に積む（ブラウザの戻るで一覧へ）
   writeRoute("stock", stockRoutePath(), "stock-news", true);
   renderStockNews();
 });

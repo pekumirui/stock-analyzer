@@ -98,8 +98,6 @@ def _serve(handler: type[_Recorder]) -> tuple[http.server.ThreadingHTTPServer, s
     return server, f"http://127.0.0.1:{server.server_address[1]}"
 
 
-# --- 置き場所と秘密 ---------------------------------------------------------
-
 
 def test_no_webhook_in_repo_files() -> None:
     for path in MON.rglob("*"):
@@ -138,8 +136,6 @@ def test_provision_applies_monitoring() -> None:
     # slack.env を書いた後で呼ぶ
     assert text.index("monitoring_apply") > text.index("write_slack_env \"$SLACK_WEBHOOK_URL\"")
 
-
-# --- fetch.sh ----------------------------------------------------------------
 
 
 def _fake_release(tmp: Path, members: dict[str, bytes]) -> tuple[Path, str]:
@@ -189,7 +185,6 @@ def test_fetch_rejects_checksum_mismatch(tmp_path: Path) -> None:
     proc = _run_fetch(dest, listing)
     assert proc.returncode != 0
     assert "mismatch" in proc.stderr
-    # 途中まで入れない
     assert not dest.exists() or not any(dest.iterdir())
 
 
@@ -205,8 +200,6 @@ def test_binaries_list_covers_every_unit() -> None:
         exe = re.search(r"ExecStart=/opt/monitoring/bin/(\S+)", unit.read_text(encoding="utf-8"))
         assert exe and exe.group(1) in names, unit.name
 
-
-# --- apply.sh ----------------------------------------------------------------
 
 _FAKE_SYSTEMCTL = """#!/bin/bash
 # active な unit は STATE_DIR/<unit> があるもの
@@ -295,14 +288,12 @@ def test_apply_restarts_only_what_changed(tmp_path: Path) -> None:
     a.run()
     etc_rules = a.prefix / "etc" / "monitoring" / "rules"
 
-    # ルールが変われば vmalert だけ
     src_rule = min((a.src / "rules").glob("*.yml"))
     src_rule.write_text(src_rule.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
     _, log = a.run()
     assert re.findall(r"RESTART (\S+)", log) == ["monitoring-vmalert.service"], log
     assert (etc_rules / src_rule.name).read_bytes() == src_rule.read_bytes()
 
-    # repo から消したルールは /etc からも消える
     extra = a.src / "rules" / "extra.yml"
     extra.write_text("groups: []\n", encoding="utf-8")
     a.run()
@@ -312,19 +303,16 @@ def test_apply_restarts_only_what_changed(tmp_path: Path) -> None:
     assert not (etc_rules / "extra.yml").exists()
     assert re.findall(r"RESTART (\S+)", log) == ["monitoring-vmalert.service"], log
 
-    # Webhook を差し替えたら Alertmanager だけ
     a.write_slack(FAKE_URI + "2")
     _, log = a.run()
     assert re.findall(r"RESTART (\S+)", log) == ["monitoring-alertmanager.service"], log
 
-    # ユニットが変われば daemon-reload してそのサービスだけ
     unit = a.src / "systemd" / "monitoring-node-exporter.service"
     unit.write_text(unit.read_text(encoding="utf-8") + "# changed\n", encoding="utf-8")
     _, log = a.run()
     assert "DAEMON_RELOAD" in log
     assert re.findall(r"RESTART (\S+)", log) == ["monitoring-node-exporter.service"], log
 
-    # 止まっていたら変更が無くても起こす
     (a.state / "monitoring-process-exporter.service").unlink()
     _, log = a.run()
     assert "START monitoring-process-exporter.service" in log
@@ -345,8 +333,6 @@ def test_apply_without_webhook_skips_alertmanager(tmp_path: Path) -> None:
     _, log = a.run()
     assert "START monitoring-alertmanager.service" not in log
 
-
-# --- cron-run.sh --------------------------------------------------------------
 
 
 def _fake_app(tmp: Path, exit_code: int, sleep_s: float = 0) -> Path:
@@ -432,8 +418,6 @@ def test_cron_run_metrics_can_be_disabled(tmp_path: Path) -> None:
     assert Handler.calls == []
 
 
-# --- MCP metrics_query（偽の VictoriaMetrics） ---------------------------------
-
 
 def _vector_reply() -> bytes:
     return json.dumps({
@@ -513,8 +497,6 @@ def test_metrics_query_is_listed() -> None:
     names = {t["name"] for t in m.tools_list()}
     assert "metrics_query" in names
 
-
-# --- 実物（実行ファイルがあるときだけ） ---------------------------------------
 
 
 def test_rules_behave() -> None:
@@ -639,24 +621,20 @@ def test_alertmanager_notifies_once_inhibits_and_resolves(tmp_path: Path) -> Non
         def texts() -> list[str]:
             return [c[2].decode() for c in Slack.calls]
 
-        # warning が鳴る
         _post_alerts(base, [_alert("warning", "warn-probe")])
         _wait_posts(Slack, 1)
         assert len(Slack.calls) == 1 and "warn-probe" in texts()[0]
 
-        # critical が来たら critical だけ。warning は抑える
         _post_alerts(base, [_alert("warning", "warn-probe"), _alert("critical", "crit-probe")])
         _wait_posts(Slack, 2)
         assert len(Slack.calls) == 2 and "crit-probe" in texts()[1], texts()
 
-        # 続いていても送り直さない（group_interval を何回か越える）
         for _ in range(4):
             _post_alerts(base, [_alert("warning", "warn-probe"), _alert("critical", "crit-probe")])
             time.sleep(2)
         assert len(Slack.calls) == 2, texts()
         assert not any("warn-probe" in t for t in texts()[1:])
 
-        # 解消は 1 回
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         _post_alerts(base, [_alert("warning", "warn-probe", now), _alert("critical", "crit-probe", now)])
         _wait_posts(Slack, 3)

@@ -48,11 +48,10 @@ def test_convert_pdf_draws_text_rules_and_shading() -> None:
     assert ">Financial Results FY2025</text>" in conv.html
     assert ">1,234</text>" in conv.html
     assert 'textLength="' in conv.html and 'font-family="sans-serif"' in conv.html
-    assert 'fill="rgb(204,204,204)"' in conv.html  # 0.8 g の網掛け
-    assert conv.html.count("<path ") == 2  # 網掛けと線
+    assert 'fill="rgb(204,204,204)"' in conv.html
+    assert conv.html.count("<path ") == 2
     assert 'stroke="rgb(0,0,0)"' in conv.html
     assert "<script" not in conv.html and CONVERTER == "svg2"
-    # バイト列でもパスでも読める
     assert convert_pdf(make_pdf("Other title")).title is None
 
 
@@ -73,7 +72,7 @@ def test_convert_pdf_joins_surrogate_pairs() -> None:
         b"<< /Length %d >>\nstream\n" % len(cmap) + cmap + b"\nendstream",
     ])
     conv = convert_pdf(pdf)
-    conv.html.encode("utf-8")  # 落ちない
+    conv.html.encode("utf-8")
     assert ">\U00020bb7</text>" in conv.html
     assert conv.html.count(">\ufffd</text>") == 2
 
@@ -253,7 +252,6 @@ def test_targets_run_and_api(c) -> None:
         assert db.get(TdnetPdfDocument, "20240101000003").status == "missing"
         assert any(line.startswith("rate_limited 20230101000004") for line in logs)
 
-        # --limit で止まる。もう一度流すと残りだけ
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             again = ingest.run(db, ["99990"], sleep=0, limit=0, client=client, log=logs.append)
         assert again["stopped"] == "limit" and again["remaining"] == 1
@@ -266,7 +264,7 @@ def test_targets_run_and_api(c) -> None:
     pdf_entry = body["filings"][1]
     assert pdf_entry["disclosure_no"] == "20250101000002"
     assert pdf_entry["attribution"].startswith("IR BANK")
-    assert pdf_entry["doc_type"] == "annual"  # 題名の Financial Results（四半期・中間の語なし）
+    assert pdf_entry["doc_type"] == "annual"
     assert pdf_entry["documents"] == [{"seq": 0, "part": "pdf", "pages": 1, "url": "/api/stock/pdf/20250101000002"}]
     assert body["filings"][0]["documents"][0]["url"].startswith("/api/stock/filings/")
 
@@ -274,7 +272,7 @@ def test_targets_run_and_api(c) -> None:
     assert r.status_code == 200 and "<svg" in r.text
     assert "default-src 'none'" in r.headers["content-security-policy"]
     assert c.get("/api/stock/pdf/20250101000002", headers={"If-None-Match": r.headers["etag"]}).status_code == 304
-    assert c.get("/api/stock/pdf/20240101000003").status_code == 404  # missing
+    assert c.get("/api/stock/pdf/20240101000003").status_code == 404
     assert c.get("/api/stock/pdf/20990101000000").status_code == 404
 
 

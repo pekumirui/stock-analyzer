@@ -1,4 +1,3 @@
-// 保有者タブと銘柄 › 株主（KAB-267 / KAB-272。docs/DESIGN_holders.md / DESIGN_stock.md）
 const hdEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const HD_KIND = {new: "新規5%超え", buy: "買い増し", sell: "売り", below: "5%割れ"};
 const HD_COLORS = ["#0077b6", "#d32f2f", "#1b8a5a", "#e6a100", "#8e4ec6", "#0e7490"];

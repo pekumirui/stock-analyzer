@@ -179,8 +179,6 @@ def download(db: Session, client: EdinetClient, doc: EdinetDocument, file_type: 
     return Fetched(got.content, "edinet")
 
 
-# ---- 取り直し（取込済みで ZIP を残していない書類）--------------------------------
-
 # 閲覧期間（年）。書類種別 → 年。DESIGN_edinet.md の早見表と各モジュールの KEEP_YEARS
 _KEEP_YEARS = {
     **dict.fromkeys(("120", "130", "140", "150", "160", "170"), 10),
@@ -202,7 +200,7 @@ def _expires(doc: EdinetDocument) -> date:
     day = doc.file_date
     try:
         return day.replace(year=day.year + years)
-    except ValueError:  # 2/29
+    except ValueError:
         return day.replace(month=2, day=28, year=day.year + years)
 
 
@@ -242,7 +240,7 @@ def backfill_targets(db: Session) -> list[Target]:
             T.doc_id.in_(ids[i:i + 500]), T.withdrawal_status != "1", T.doc_info_edit_status != "1",
         ).order_by(T.file_date, T.seq_number))
         for doc in rows:
-            docs.setdefault(doc.doc_id, doc)  # 元の行（イベント行は除いた。最初の日）
+            docs.setdefault(doc.doc_id, doc)
     out = [Target(doc, want[doc_id], _expires(doc)) for doc_id, doc in docs.items()]
     out.sort(key=lambda t: (t.expires, t.doc.doc_id))
     return out

@@ -73,7 +73,6 @@ def _run() -> dict:
 
 def test_chart_core_bars_and_indicators() -> None:
     o = _run()
-    # 週足は ISO 週。足の日付は期間の最終営業日、始値は最初・終値は最後・高安は最大最小・出来高は合計
     assert o["week"] == {
         "t": ["2026-08-21", "2026-08-24", "2026-09-01"],
         "o": [2980, 3010, 3100], "h": [3010, 3050, 3250], "l": [2970, 3000, 3090],
@@ -82,42 +81,31 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["month"]["t"] == ["2026-08-31", "2026-09-01"]
     assert o["month"]["v"] == [3500, 700] and o["month"]["o"] == [2980, 3200] and o["month"]["c"] == [3120, 3210]
     assert o["isoWeek"][0] == o["isoWeek"][1] != o["isoWeek"][2]
-    # 移動平均は窓が埋まるまで null。日数は週=÷5、月=÷20 の本数
     assert o["sma"] == [None, None, 2, 3]
-    assert o["maLen"] == [50, 10, 2, 0, 0, 2]  # 2 本に満たなければ引かない
+    assert o["maLen"] == [50, 10, 2, 0, 0, 2]
     assert o["mas"] == [50, 150, 200]
-    # 直前 20 本の平均の 2 倍以上
     assert o["spikes"] == [22]
-    # 対TOPIX（TOPIX がある最初の日=100、TOPIX の無い日は直前の値）
-    # 対TOPIX: from 以降で両方そろう最初の日=100。前の日も同じ基準で出す。TOPIX の無い日は直前の値
     days = ["2026-08-17", "2026-08-18", "2026-08-21", "2026-08-24", "2026-08-31", "2026-09-01"]
     assert o["cmp"]["s"] == [[d, v] for d, v in zip(days, [99.5, 100, 100.17, 101.33, 104, 107])]
     assert o["cmp"]["x"] == [[d, v] for d, v in zip(days, [100, 100, 110, 100, 100, 100])]
     assert o["cmpNone"] == 0
-    # PERバンドは値が変わる手前の足からの線を透明にする。色は安い倍率=緑（down）、高い倍率=赤（up）
     assert o["jumps"] == [False, False, True, False, False, False, True, False]
     assert o["bandColors"] == [["down", "#7d8792", "up"], ["down", "up"], ["#7d8792"]]
-    # 2px より細いと粗い足へ、1 つ細かい足が 4px 以上なら細かい足へ
-    # 高安値: 前後 2 本の中の山と谷。見えている最高値・最安値は必ず入る
     assert o["swings"] == {"highs": [2, 6], "lows": [0, 4, 8]}
     assert o["swingsEdge"] == {"highs": [0], "lows": [2]}
     assert o["hl"] == ["8/13 26,020", "25/1/30 2,821.5"]
     assert o["year"]["t"] == ["2026-09-01"] and o["year"]["o"] == [2980] and o["year"]["v"] == [4200]
-    # 最新の n 本。先頭は足の期間の初日（週足の 2 本目は 8/24 の週から）
     assert o["latest"] == [["2026-08-24", "2026-09-01"], ["2026-08-17", "2026-09-01"]]
     assert o["around"] == ["2026-08-18", "2026-08-24"]
     assert o["qty"] == ["800株", "2,500.8万株", "771.1億円", "1.5兆円"]
-    # 縦軸は数字だけ。万株・百万円に届かなければ単位を付けない
     assert o["unit"] == [{"div": 1, "label": ""}, {"div": 10000, "label": "万株"}, {"div": 1000000, "label": "百万円"},
                          {"div": 1, "label": ""}, {"div": 1, "label": ""}]
     assert o["price"] == ["2,821.5", "3,094", "–"]
-    # 業績の階段を日足にそろえる。使い始める日より前は null、予想EPS・営業利益が 0 以下なら倍率を出さない
     assert o["fund"] == {
         "eps": [None, 100, 100, -5], "opq": [None, 5e6, 5e6, 6e6], "opttm": [None, 1e7, 1e7, 0],
         "per": [None, 12, 11, None], "mcop": [None, 12, None, None],
     }
     assert o["quantile"] == [2.5, None]
-    # PERバンドは 10%・50%・90% 点。10 倍未満は小数 1 桁、重なれば 1 本
     assert o["band"] == [[8.9, 13, 16], [12], []]
 
 
@@ -125,12 +113,11 @@ def test_chart_ohlc_html_outside_plot() -> None:
     o = _run()
     last, first, second = o["ohlcLast"], o["ohlc0"], o["ohlc1"]
     assert o["ohlcEmpty"] == ""
-    # 日付は YYYY/MM/DD。足種は出さない。始高安終と前日比
     assert "2026/09/01" in last and "始 3,200" in last and "高 3,250" in last
     assert "安 3,190" in last and "終 <b>3,210</b>" in last
     assert 'class="up">+90 (+2.88%)</span>' in last
     assert "2026/08/17" in first and "終 <b>2,985</b>" in first
-    assert 'class="up"' not in first and 'class="down"' not in first  # 先頭の足に前日比は無い
+    assert 'class="up"' not in first and 'class="down"' not in first
     assert "2026/08/18" in second and 'class="up">+15 (+0.50%)</span>' in second
     assert 'class="down">-20 (-19.05%)</span>' in o["ohlcDown"]
     assert 'class="">0 (0.00%)</span>' in o["ohlcFlat"]
@@ -249,15 +236,12 @@ def test_daily_initial_span_is_one_calendar_year() -> None:
         end = dates[-1]
         return [_first_on_or_after(dates, _shift_years(end, -1)), end]
 
-    # 渡す本数（画面幅）が違っても日足の期間は同じ。幅から数えた 20 本ではない
     assert o["dailyFew"] == o["dailyMany"] == expect(long)
     assert o["dailyFew"] != o["dailyByBars"]
     assert (date.fromisoformat(o["dailyFew"][1]) - date.fromisoformat(o["dailyFew"][0])).days >= 360
-    # 1 年に満たない銘柄は、本数を少なく指定しても全期間
     assert o["shortFew"] == [short[0], short[-1]]
     assert o["shortFew"] != o["shortLast5"]
     assert date.fromisoformat(short[0]) > date.fromisoformat(_shift_years(short[-1], -1))
-    # うるう日の 1 年前は 2/28。日曜の応当日は次の営業日
     assert o["leap"] == expect(leap)
     assert _shift_years(leap[-1], -1) == "2023-02-28"
     assert o["monday"] == expect(monday)
@@ -265,13 +249,11 @@ def test_daily_initial_span_is_one_calendar_year() -> None:
     assert date.fromisoformat("2025-11-02").weekday() == 6
     assert o["monday"][0] > "2025-11-02"
     assert o["one"] == ["2026-11-06", "2026-11-06"]
-    # 週足・月足・年足は本数のまま。日足の 1 年にはしない
     assert o["week20"] == o["weekLatest20"] and o["week8"] == o["weekLatest8"]
     assert o["week80"] == o["weekLatest80"] and o["week20"] != o["week8"]
     assert o["week20"][0] > o["dailyFew"][0] and o["week80"][0] < o["dailyFew"][0]
     assert o["month24"] == o["monthLatest24"] and o["month24"][0] < o["dailyFew"][0]
     assert o["year2"] == o["yearLatest2"]
-    # 発表日を真ん中に出す本数も、日足は 1 年分。週足は渡した本数
     assert o["count15"] == o["count80"] == _bars_between(long, o["dailyFew"][0], o["dailyFew"][1])
     assert o["count15"] > 200
     assert o["weekCount"] == 20

@@ -103,8 +103,7 @@ def test_refetch_fills_flags_and_resumes() -> None:
         db.expire_all()
         assert _adj(db, "2026-09-25") == 18593.3
         assert db.get(DailyPrice, ("285A0", date(2026, 9, 25))).upper_limit == 0
-        assert _adj(db, "2026-09-28") == 53340  # 失敗した日は元のまま
-        # 再実行は残った日だけ
+        assert _adj(db, "2026-09-28") == 53340
         JQ.calls, JQ.broken = [], set()
         with patch("app.market.ingest.JQuantsClient", JQ):
             assert run_refetch_prices(db) == 0

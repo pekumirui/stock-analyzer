@@ -113,7 +113,7 @@ def bar_path(x, w, y0, y1, r=4):
     """y0 が基準線、y1 が先端。先端だけ角を丸める。"""
     h = abs(y1 - y0)
     r = min(r, h / 2, w / 2)
-    if y1 <= y0:  # 上向き
+    if y1 <= y0:
         return (f"M{x:.1f},{y0:.1f}V{y1 + r:.1f}Q{x:.1f},{y1:.1f} {x + r:.1f},{y1:.1f}"
                 f"H{x + w - r:.1f}Q{x + w:.1f},{y1:.1f} {x + w:.1f},{y1 + r:.1f}V{y0:.1f}Z")
     return (f"M{x:.1f},{y0:.1f}V{y1 - r:.1f}Q{x:.1f},{y1:.1f} {x + r:.1f},{y1:.1f}"
@@ -184,7 +184,7 @@ def bar_chart(cols, series, unit, title, total=None, total_name="合計", dec=No
         pos = [sum(max(vs[i] or 0, 0) for _, vs in series) for i in range(n)]
         tot = [v for v in total if v is not None]
         ticks, y = scale(0, max(pos + tot + [0]), 0.1)
-        bw = min(48 if n <= 5 else 28, band * 0.5)  # 列が少なければ太くして、値を棒の中に書ける区分を増やす
+        bw = min(48 if n <= 5 else 28, band * 0.5)
         for i, c in enumerate(cols):
             x = ML + band * (i + 0.5) - bw / 2
             up = 0.0
@@ -197,7 +197,7 @@ def bar_chart(cols, series, unit, title, total=None, total_name="合計", dec=No
             side = []
             for k, name, v, base, top in segs:
                 y0, y1 = y(base), y(top)
-                gap = 1 if y0 - y1 > 3 else 0  # 2px のすき間（上下 1px ずつ）
+                gap = 1 if y0 - y1 > 3 else 0
                 fill = fill_for(k, colors[k], c["kind"])
                 marks.append(f'<path d="{bar_path(x, bw, y0 - gap, y1 + gap, 4 if top == up else 0)}" fill="{fill}">'
                              f'<title>{esc(c["period"])} {esc(name)} {esc(fmt(v, unit))}</title></path>')
@@ -206,10 +206,10 @@ def bar_chart(cols, series, unit, title, total=None, total_name="合計", dec=No
                 if y0 - y1 >= 13 and text_w(s, 9) <= bw - 4 and c["kind"] == "actual":
                     marks.append(f'<text x="{x + bw / 2:.1f}" y="{ym:.1f}" class="seg" fill="{ink_on(colors[k])}" '
                                  f'text-anchor="middle">{esc(s)}</text>')
-                else:  # 棒の中に収まらない区分は右横に（隣の列の棒にかからない幅だけ）
+                else:
                     side.append((ym, s, x + bw + 2, (band - bw) / 2 - 2))
             t = total[i] if total[i] is not None else (up if segs else None)
-            top_label = y(max(t if t is not None else up, up)) - 5  # 合計のラベルの位置（右横の値はこれより下に置く）
+            top_label = y(max(t if t is not None else up, up)) - 5
             last = None
             for ym, s, sx, room in side:  # 下から順。重なる分は 1 段ずらし、ずらせなければ省く（表にある）
                 ty = ym if last is None else max(min(ym, last - 10), MT + 8)
@@ -296,7 +296,7 @@ def line_chart(cols, series, unit, title, dec=None, fx=False):
                          f'<title>{esc(c["period"])} {esc(name)} {esc(fmt(v, unit))}{esc(unit)}</title></circle>')
     for i in range(n):
         pts = sorted((y(vs[i]), vs[i]) for _, vs in series if vs[i] is not None)
-        taken = []  # 置いた値ラベルの y の範囲
+        taken = []
         for j, (py, v) in enumerate(pts):
             for ty in ((py - 9, py + 17) if j == 0 else (py + 17, py - 9)):
                 if MT <= ty - 10 and ty <= H - MB and all(abs(ty - t) >= 12 for t in taken) \
@@ -337,7 +337,6 @@ def charts_for(table):
         if sum(v is not None for v in vals) >= 2:
             data.append((r, vals))
     out, used = [], set()
-    # 内訳（of）のある親 → 積み上げ棒
     by_key = {row_key(r): (r, v) for r, v in data}
     for key, (r, vals) in by_key.items():
         kids = [(kid_label(c, r), v) for c, v in data if c.get("of") and (c["of"] if "|" in c["of"] else c["of"] + "|null") == key]

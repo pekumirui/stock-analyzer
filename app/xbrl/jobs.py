@@ -265,7 +265,7 @@ def _iter_packages(
             if fut is not None:
                 try:
                     package = fut.result()
-                except Exception as exc:  # worker died / result not picklable → parse inline
+                except Exception as exc:
                     print(f"parse worker failed doc_id={rows[i].get('xbrl_id')} err={exc!r}", flush=True)
             yield package
 
@@ -306,7 +306,6 @@ def run_parse(
             errors += 1
         else:
             skipped += 1
-    # パース済みで原文が無い filing（デプロイ前の分）を少しずつ埋める
     docs = fill_missing_documents(db, root, limit=XBRL_DOCUMENTS_FILL_LIMIT)
     print(
         f"documents stored={docs['stored']} empty={docs['empty']} missing_zip={docs['missing_zip']} "

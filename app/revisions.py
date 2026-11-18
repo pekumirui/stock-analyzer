@@ -24,7 +24,7 @@ class RevisionPoint:
     kind: str                      # forecast | actual
     disclosed: date
     values: dict
-    order: tuple = field(default=())   # 同じ日の開示の前後 (開示番号など)
+    order: tuple = field(default=())
 
 
 def revision_cell(cur: float | None, prev: float | None, signed: bool = True) -> dict:
@@ -64,7 +64,7 @@ def _year_rows(points: list[RevisionPoint]) -> list[dict]:
     rows, last = [], None
     for p in sorted((p for p in points if p.kind == FORECAST and _has_values(p.values)), key=key):
         if actual is not None and key(p) >= key(actual):
-            break  # 実績の開示とその後の予想は履歴に入れない
+            break
         if last is None:
             initial = p.disclosed <= shift_year(fy_end, -1) + timedelta(days=INITIAL_WITHIN_DAYS)
             rows.append(_row(fy_end, "forecast_initial" if initial else FORECAST, p, None))

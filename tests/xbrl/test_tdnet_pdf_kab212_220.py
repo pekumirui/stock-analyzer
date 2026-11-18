@@ -1088,7 +1088,6 @@ def test_kab223_dividend_revision_reads_q2_and_annual_columns() -> None:
         for key, value in expected.items():
             if rows.get(key) != value:
                 _fail(f"{key} {rows}")
-        # 前期実績（280 / 620）は今期の予想にしない。
         if {Decimal("280"), Decimal("620")} & set(rows.values()):
             _fail(f"prior actual {rows}")
     finally:

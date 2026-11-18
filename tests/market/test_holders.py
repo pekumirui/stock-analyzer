@@ -189,7 +189,7 @@ def test_activity_by_file_date_and_search(c) -> None:
     same = c.get("/api/holders/E25156?today=2026-10-29").json()
     assert same["holdings"][0]["obligation_date"] == "2027-10-01"
     assert same["holdings"][0]["file_date"] == "2026-10-08"
-    assert same["holdings"][0]["avg_cost"] is None  # total_funds 0
+    assert same["holdings"][0]["avg_cost"] is None
 
 
 def test_stock_holders_and_treasury(c) -> None:
@@ -288,7 +288,6 @@ def test_spa_holders_tab() -> None:
     assert "ac.signal.aborted" in js and "hdDateValue" in js
     assert "準備中" not in stock
     assert "renderStockHoldersTab" in stock
-    # PTS はランキングの中（KAB-265）。大量保有報告書はナビ末尾
     assert 'data-tab="pts"' not in html and 'id="tab-pts"' not in html
     assert 'data-rksub="pts"' in html
     assert html.index('data-tab="ranking"') < html.index('data-tab="holders"')

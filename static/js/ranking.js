@@ -1,4 +1,3 @@
-// ランキングタブ（docs/DESIGN_ranking.md）。中のタブは決算後パフォーマンス / PTS（KAB-265）
 const rkEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const rkMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
 const rkMonth = ym => ym ? `${ym.slice(0,4)}年${+ym.slice(5,7)}月` : "";
@@ -13,7 +12,6 @@ const rkName = r => {
 const rkMarket = r => { const m = fmtMarket(r.market); return `<td class="l ${m.cls}">${rkEsc(m.label || "–")}</td>`; };
 const RK_SHOT_ROWS = 20;
 const RK_DIR = {up: "上昇率", down: "下落率"};
-// 経過日数。次の決算がまだなら営業日数だけ。終わっていれば終点の 〜M/D
 const rkElapsed = r => r.next_disclosed_date
   ? `〜${rkMd(r.end_date)}`
   : (r.bdays == null ? "–" : `${fmt(r.bdays)}日`);
@@ -22,9 +20,9 @@ const rkElapsedTxt = r => r.next_disclosed_date
   : (r.bdays == null ? "" : `${r.bdays}日`);
 let rkData = null;
 let rkDir = "up";
-let rkSub = "perf";  // ランキングの中: perf = 決算後パフォーマンス / pts = PTS
+let rkSub = "perf";
 let rkShot = null;   // X に投稿する画像（Promise<Blob>）。共有はクリックの中で呼ぶので先に作っておく
-let rkSeq = 0;       // 月を続けて変えたとき、古い応答で上書きしない
+let rkSeq = 0;
 
 function rankingSubRoute(){
   return rkSub === "pts" ? "pts" : "";
@@ -47,7 +45,6 @@ function showRankingSub(sub, opts){
   }
 }
 
-// 上昇はプラスだけ大きい順、下落はマイナスだけ小さい順。0 と欠測はどちらにも入れない
 function rkView(d){
   const rows = (d.rows || []).filter(r => r.return_to_next != null);
   const list = rkDir === "up"
@@ -85,7 +82,6 @@ function rkPaint(){
       <td class="num">${rkElapsed(r)}</td></tr>`;
   }
   $("#rk-tbl").innerHTML = h + "</tbody>";
-  // 順位と銘柄を左に固定する（銘柄は順位の幅だけずらす）。市場・業種は横に送ると銘柄の下に隠れる
   pinCols($("#rk-tbl"), 2);
   $("#rk-share").hidden = false;
   rkShot = rkDrawShot({...d, rows: view});
@@ -121,7 +117,6 @@ function rkPost(d, n){
   return `${rkTitle(d, n)}\n計測方法は決算発表後初値〜\n※場中決算は翌営業日初値`;
 }
 
-// 上位の表を PNG にする。見た目は画面の表に合わせる（白地・罫線・正は赤、負は緑）
 function rkDrawShot(d){
   const rows = d.rows.slice(0, RK_SHOT_ROWS);
   const css = getComputedStyle(document.documentElement);
@@ -138,7 +133,6 @@ function rkDrawShot(d){
   g.fillStyle = color("--text");
   g.font = `600 20px ${font}`;
   g.fillText(rkTitle(d, rows.length), PAD, 30);
-  // 列: 画面の表と同じ（対TOPIX は騰落率列名の下、場中 / 引け後は決算日の下）
   const X = {rank: 52, name: 64, mkt: 268, sec: 360, perf: 548, date: 618, held: W - PAD};
   const cols = [["順位", X.rank, "right"], ["銘柄", X.name, "left"], ["市場", X.mkt, "left"],
                 ["業種", X.sec, "left"], ["騰落率", X.perf, "right"], ["決算日", X.date, "right"],
@@ -170,7 +164,6 @@ function rkDrawShot(d){
     if(dot){ g.fillStyle = dot; g.fillRect(X.mkt, y - 4, 7, 7); g.fillStyle = color("--text"); }
     g.fillText(fit(mk.label || "–", 72), X.mkt + (dot ? 11 : 0), y);
     g.fillText(fit(fmtSector(r.sector33).normalize("NFKC") || "–", 106), X.sec, y);
-    // J-Quants の名前は全角英数字。画像では半角に寄せて幅を取らない
     g.font = `14px ${font}`;
     g.fillText(fit(r.name.normalize("NFKC").replace(/\s+/g, " "), 180), X.name, y1);
     g.font = `11px ${font}`; g.fillStyle = color("--sub");

@@ -1,22 +1,18 @@
 // 株価チャートの部品（KAB-300。docs/DESIGN_stock.md「株価」）。銘柄タブの株価と決算速報の #e-chart が使う。
 // 日足は銘柄ごとに一度だけ読み、週足・月足・移動平均・対TOPIX はここで作る（足を変えても通信しない）
 
-// ---- 足と指標（DOM に触らない。tests/market/test_chart_core_js.py が node で呼ぶ） ----
-
 const CHART_TF_DAYS = {D: 1, W: 5, M: 20, Y: 250};  // 移動平均の日数 → 本数（週=÷5、月=÷20、年=÷250）
 const CHART_TF_NAMES = {D: "日足", W: "週足", M: "月足", Y: "年足"};
 const CHART_BAR_PX = 6;  // 週足・月足・年足は 1 本がこの幅になるだけ最新を出す
 
 const chartTs = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 1000;
 
-// ISO 週の木曜の日付。同じ週なら同じ値
 function chartWeekKey(iso){
   const d = new Date(chartTs(iso) * 1000);
   d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7 + 3);
   return d.toISOString().slice(0, 10);
 }
 
-// 日足 {t,o,h,l,c,v,tv} → 足。週足は ISO 週、月足は暦月、年足は暦年。足の日付は期間の最終営業日
 function chartBars(daily, tf){
   if(tf === "D") return daily;
   const keyOf = tf === "W" ? chartWeekKey : tf === "M" ? (t => t.slice(0, 7)) : (t => t.slice(0, 4));
@@ -39,14 +35,12 @@ function chartBars(daily, tf){
   return out;
 }
 
-// 移動平均の本数。2 本に満たなければ 0（線を引かない）
 const chartMaLen = (days, tf) => { const n = Math.floor(days / CHART_TF_DAYS[tf]); return n >= 2 ? n : 0; };
 
 function chartParseMas(text){
   return [...new Set(String(text || "").split(",").map(x => parseInt(x.trim(), 10)).filter(x => x > 0))];
 }
 
-// 単純移動平均。窓が埋まるまでは null
 function chartSma(values, n){
   const out = new Array(values.length).fill(null);
   let s = 0;
@@ -58,7 +52,6 @@ function chartSma(values, n){
   return out;
 }
 
-// 直前 n 本の平均の k 倍以上か
 function chartSpikes(values, n = 20, k = 2){
   const out = new Array(values.length).fill(false);
   let s = 0;
@@ -70,7 +63,6 @@ function chartSpikes(values, n = 20, k = 2){
   return out;
 }
 
-// 株価と TOPIX を from 以降で両方そろう最初の日=100 にした値。日足の日付ごと。TOPIX の無い日は直前の値を使う
 function chartCompare(daily, topix, from){
   const tp = [], s = new Map(), x = new Map();
   let j = 0, last = null, b = -1;
@@ -100,12 +92,10 @@ function lowerBound(a, x){
   return lo;
 }
 
-// 最新の n 本の足を出す期間 [from, to]（日足の日付）。from は先頭の足の期間の初日
 function chartLatestSpan(daily, bars, n){
   const t = bars.t, i = Math.max(0, t.length - n);
   return [chartSpanStart(daily, bars, i), t[t.length - 1]];
 }
-// iso を真ん中にした n 本の期間。右端を越えるなら最新に寄せる
 function chartSpanAround(daily, bars, iso, n){
   const t = bars.t, last = t.length - 1;
   const z = Math.min(last, Math.max(0, lowerBound(t, iso)) + Math.floor(n / 2)), a = Math.max(0, z - n + 1);
@@ -115,14 +105,12 @@ function chartSpanStart(daily, bars, i){
   return i > 0 ? daily.t[Math.min(daily.t.length - 1, lowerBound(daily.t, bars.t[i - 1] + "~"))] : daily.t[0];
 }
 
-// iso から years 年。2/29 を平年へ移すときはその月の最終日
 function chartShiftYears(iso, years){
   const y = +iso.slice(0, 4) + years, m = +iso.slice(5, 7), day = +iso.slice(8, 10);
   const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
   return y + "-" + String(m).padStart(2, "0") + "-" + String(Math.min(day, dim)).padStart(2, "0");
 }
 
-// 初期の期間。日足は直近 1 年（最後の足から 1 年前の同じ日付以降。足りなければ全期間）。ほかの足は最新 n 本
 function chartInitialSpan(daily, bars, tf, n){
   if(tf !== "D") return chartLatestSpan(daily, bars, n);
   const t = bars.t, end = t[t.length - 1];
@@ -130,15 +118,12 @@ function chartInitialSpan(daily, bars, tf, n){
   return [chartSpanStart(daily, bars, i), end];
 }
 
-// 初期の本数。日足は直近 1 年の本数（決算速報が発表日を真ん中に出すときもこれ）
 function chartInitialCount(daily, bars, tf, n){
   if(tf !== "D") return n;
   const t = bars.t, from = chartInitialSpan(daily, bars, tf, n)[0];
   return t.length - lowerBound(t, from);
 }
 
-// 業績の階段 fund {t, eps, op_q, op_ttm} を日足の日付にそろえる（t 以降、次の点まで同じ値）。
-// per は 調整後の終値 ÷ 予想EPS、mcop は 時価総額 ÷ 直近 12 か月の営業利益。0 以下・無い日は null
 function chartFundDaily(daily){
   const n = daily.t.length, f = daily.fund || {t: []};
   const out = {eps: [], opq: [], opttm: [], per: [], mcop: []};
@@ -154,14 +139,12 @@ function chartFundDaily(daily){
   return out;
 }
 
-// 昇順の配列の q 点（線形補間）
 function chartQuantile(sorted, q){
   if(!sorted.length) return null;
   const x = (sorted.length - 1) * q, lo = Math.floor(x), hi = Math.ceil(x);
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (x - lo);
 }
 
-// PERバンドの倍率。予想PER の 10%・50%・90% 点。10 倍未満は小数 1 桁、ほかは整数。重なれば 1 本
 function chartBandMultiples(per){
   const v = per.filter(x => x != null && x > 0).sort((a, b) => a - b);
   if(!v.length) return [];
@@ -169,14 +152,11 @@ function chartBandMultiples(per){
   return [...new Set([0.1, 0.5, 0.9].map(q => r(chartQuantile(v, q))))];
 }
 
-// PERバンドの色。安い倍率=down（緑）、高い倍率=up（赤）、間は灰
 function chartBandColors(n){
   if(n === 1) return [CHART_BAND_COLOR];
   return Array.from({length: n}, (_, k) => k === 0 ? "down" : k === n - 1 ? "up" : CHART_BAND_COLOR);
 }
 
-// 高安値。足 a..b（両端を含む）のうち、前後それぞれ k 本の中で一番高い山・一番安い谷の位置。
-// 同じ値なら先の足。見えている最高値・最安値は必ず入れる
 function chartSwings(h, l, a, b, k){
   const highs = [], lows = [];
   if(b < a) return {highs, lows};
@@ -198,13 +178,11 @@ function chartSwings(h, l, a, b, k){
   return {highs: highs.sort((x, y) => x - y), lows: lows.sort((x, y) => x - y)};
 }
 
-// 高安値のラベル。期間が 1 年を超えると年も付ける
 function chartHlText(iso, v, long){
   const d = `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
   return `${long ? iso.slice(2, 4) + "/" : ""}${d} ${chartPrice(v)}`;
 }
 
-// 値の書き方。株価は小数 1 桁まで、株数と円は 万・億
 const chartPrice = v => v == null ? "–" : Number(v).toLocaleString("ja-JP", {maximumFractionDigits: 1});
 function chartQty(v, unit = ""){
   if(v == null) return "–";
@@ -221,7 +199,6 @@ function chartAxisUnit(max, kind){
   return Math.abs(max || 0) >= div ? {div, label} : {div: 1, label: ""};
 }
 
-// 日付・始高安終・前日比。プロットの外（.chart-ohlc）に出す。足種は出さない（KAB-314）
 function chartOhlcHtml(bars, i){
   if(!bars || !bars.t.length) return "";
   if(i == null || i < 0 || i >= bars.t.length) i = bars.t.length - 1;
@@ -236,8 +213,6 @@ function chartOhlcHtml(bars, i){
     + `<span>安 ${chartPrice(bars.l[i])}</span><span>終 <b>${chartPrice(bars.c[i])}</b></span>${chg}`;
 }
 
-// ---- 読み込み（銘柄ごとに一度。10 分たったら次に開いたとき ETag で確かめる） ----
-
 const CHART_TTL_MS = 10 * 60 * 1000;
 const CHART_CACHE_MAX = 30;
 const chartCache = new Map();
@@ -245,7 +220,7 @@ const chartCache = new Map();
 function chartGet(url){
   const hit = chartCache.get(url);
   if(hit && Date.now() - hit.at < CHART_TTL_MS){
-    chartCache.delete(url); chartCache.set(url, hit);  // 使った順に並べ、古いものから捨てる
+    chartCache.delete(url); chartCache.set(url, hit);
     return hit.p;
   }
   const p = fetch(url).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
@@ -269,8 +244,6 @@ function chartAwait(p, signal){
 }
 const chartDaily = (code, signal) => chartAwait(chartGet(`/api/chart/${code}`), signal);
 const chartTopix = signal => chartAwait(chartGet("/api/topix"), signal);
-
-// ---- 見た目とイベントの重ね合わせ ----
 
 function chartTheme(){
   const s = getComputedStyle(document.documentElement);
@@ -326,8 +299,6 @@ function fillEventToggles(){
   });
 }
 
-// ---- チャート ----
-// el に作る。opt: {height（業績の段・対TOPIX を出すとそのぶん高くする）}
 function createStockChart(el, opt = {}){
   const LW = LightweightCharts;
   const th = chartTheme();
@@ -381,7 +352,7 @@ function createStockChart(el, opt = {}){
   function drawMarkers(){
     if(!st.bars) return;
     const t = st.bars.t;
-    const snap = iso => { const i = lowerBound(t, iso); return i < t.length ? t[i] : null; };  // 発表日を含む足
+    const snap = iso => { const i = lowerBound(t, iso); return i < t.length ? t[i] : null; };
     const byTime = new Map();
     const put = (raw, color, text) => {
       const at = snap(raw);
@@ -400,7 +371,6 @@ function createStockChart(el, opt = {}){
     else markers = LW.createSeriesMarkers(candle, list);
   }
 
-  // 見えている期間の山と谷
   function hlMarkers(){
     if(!st.hl || !st.win) return [];
     const t = st.bars.t, a = lowerBound(t, st.win.from), z = lowerBound(t, st.win.to + "~") - 1;
@@ -409,7 +379,6 @@ function createStockChart(el, opt = {}){
     const long = chartTs(st.win.to) - chartTs(st.win.from) > 366 * 86400;
     const {highs, lows} = chartSwings(st.bars.h, st.bars.l, a, z, k);
     const W = width(), px = W / (z - a + 1);
-    // ラベルは足の真上・真下の中央に出る。端ではみ出すなら日付を外し、それでもはみ出せば出さない
     const fits = (i, text) => { const x = (i - a + 0.5) * px, half = text.length * 3.5; return x >= half && x <= W - half; };
     const out = [];
     const mk = (i, high) => {
@@ -447,7 +416,6 @@ function createStockChart(el, opt = {}){
   }
   const axisFormat = u => ({type: "custom", formatter: v => chartPrice(v / u.div), minMove: 1});
 
-  // 足の日付ごとの値（業績・対TOPIX）。無い日は線を切る（whitespace）
   function barPoints(get){
     return st.bars.t.map(t => {
       const v = get(t);
@@ -477,7 +445,6 @@ function createStockChart(el, opt = {}){
     });
   }
 
-  // 業績の段と対TOPIX を作り直す。業績の段を出せばチャートを高くする
   function drawExtra(){
     extra.forEach(x => chart.removeSeries(x));
     extra = [];
@@ -527,7 +494,6 @@ function createStockChart(el, opt = {}){
     layoutPanes();
   }
 
-  // 対TOPIX。見えている最初の足=100
   function drawCompare(){
     if(!cmpSeries.length) return;
     const t = st.bars.t, from = st.win ? t[Math.min(t.length - 1, lowerBound(t, st.win.from))] : t[0];
@@ -536,7 +502,6 @@ function createStockChart(el, opt = {}){
     cmpSeries[1].setData(barPoints(d => st.cmp.x.get(d)));
   }
 
-  // 日付・始高安終はプロットの上（.chart-ohlc）。MA・出来高などは段ごとに左上へ重ねる
   const legends = [], unitTags = [];
   function paneDiv(list, k, cls){
     if(!list[k]){
@@ -598,7 +563,6 @@ function createStockChart(el, opt = {}){
     return sw(th.accent, `${CHART_FUND_NAMES[st.fund]} ${v == null ? "–" : chartPrice(v) + "倍"}`);
   }
 
-  // 足を tf にして全部描き直す。range があればその期間を出す
   function applyTf(tf){
     st.tf = tf;
     st.bars = barsOf(tf);
@@ -626,7 +590,6 @@ function createStockChart(el, opt = {}){
   el.addEventListener("pointerdown", touchCrosshair);
   el.addEventListener("pointermove", touchCrosshair);
 
-  // 期間 [from, to] を幅いっぱいに出す
   function showSpan(from, to){
     st.win = {from, to};
     drawCompare();
@@ -637,7 +600,6 @@ function createStockChart(el, opt = {}){
   }
   const latestCount = () => Math.max(20, Math.floor(width() / CHART_BAR_PX));
 
-  // ---- 期間のバー（チャートの下。全期間の終値と、いまの期間の窓） ----
   const nav = (() => {
     const box = document.createElement("div");
     box.className = "chart-nav";
@@ -664,7 +626,6 @@ function createStockChart(el, opt = {}){
       let lo = Infinity, hi = -Infinity;
       for(const v of c){ if(v < lo) lo = v; if(v > hi) hi = v; }
       const top = 4, bot = H - 14, Y = v => hi > lo ? bot - (v - lo) / (hi - lo) * (bot - top) : (top + bot) / 2;
-      // 終値の線（1px に 1 点）
       ctx.beginPath();
       const step = Math.max(1, Math.floor(n() / W));
       for(let i = 0; i < n(); i += step) ctx[i ? "lineTo" : "moveTo"](X(i), Y(c[i]));
@@ -672,7 +633,6 @@ function createStockChart(el, opt = {}){
       ctx.strokeStyle = th.accent; ctx.lineWidth = 1; ctx.stroke();
       ctx.lineTo(X(n() - 1), bot); ctx.lineTo(0, bot); ctx.closePath();
       ctx.fillStyle = "rgba(0,119,182,.12)"; ctx.fill();
-      // 年の目盛り
       ctx.fillStyle = th.text; ctx.strokeStyle = th.border; ctx.font = "10px sans-serif"; ctx.textBaseline = "bottom";
       let lastX = -99;
       for(let i = 1; i < n(); i++){
@@ -702,7 +662,7 @@ function createStockChart(el, opt = {}){
       const tol = e.pointerType === "touch" ? 16 : 8;
       let mode = Math.abs(x - xa) <= tol ? "a" : Math.abs(x - xz) <= tol ? "z" : x > xa && x < xz ? "move" : "jump";
       let sa = a, sz = z;
-      if(mode === "jump"){  // 押したところへ窓を動かす（幅はそのまま）
+      if(mode === "jump"){
         const span = z - a, mid = I(x);
         sa = Math.min(Math.max(0, mid - Math.round(span / 2)), n() - 1 - span); sz = sa + span;
         apply(sa, sz);
@@ -743,14 +703,12 @@ function createStockChart(el, opt = {}){
 
   const view = {
     chart,
-    // 銘柄を差し替える。opt2: {mark}
     setData(daily, opt2 = {}){
       st.daily = daily; st.byTf = {}; st.mark = opt2.mark || null;
       st.fd = chartFundDaily(daily);
       st.dIdx = new Map(daily.t.map((t, i) => [t, i]));
       applyTf(st.tf);
     },
-    // 表示の設定を変える。足を変えたらその足の最新を出し、ほかは見えている期間を保つ
     set(o){
       const newTf = o.tf !== undefined && o.tf !== st.tf;
       if(o.tf !== undefined) st.tf = o.tf;
@@ -767,19 +725,16 @@ function createStockChart(el, opt = {}){
       if(newTf || !st.win) view.showLatest();
       else showSpan(st.win.from, st.win.to);
     },
-    // 日足は直近 1 年。ほかの足は 1 本が CHART_BAR_PX になるだけ
     showLatest(){
       if(!st.daily || !st.daily.t.length) return;
       const [f, to] = chartInitialSpan(st.daily, st.bars, st.tf, latestCount());
       showSpan(f, to);
     },
-    // iso を真ん中に、同じ本数を出す（決算速報で古い発表日を選んだとき）
     showAround(iso){
       const n = chartInitialCount(st.daily, st.bars, st.tf, latestCount());
       const [f, to] = chartSpanAround(st.daily, st.bars, iso, n);
       showSpan(f, to);
     },
-    // 最新の足を出したとき iso が入るか
     latestHas(iso){
       return chartInitialSpan(st.daily, st.bars, st.tf, latestCount())[0] <= iso;
     },

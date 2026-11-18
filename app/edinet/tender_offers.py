@@ -63,8 +63,6 @@ class OutsideEdinetWindow(Exception):
     """縦覧期間（KEEP_YEARS 年）を過ぎた書類。EDINET から取れない。"""
 
 
-# ---- パース ---------------------------------------------------------------
-
 def _label(row: list[str]) -> str:
     return squash(row[0]) if row else ""
 
@@ -196,7 +194,7 @@ def opinion_text(block: Block | None) -> str | None:
             break
         if on:
             out.append(t)
-    if not out:                      # 見出しの形が違う書類は最初の段落
+    if not out:
         out = [t for t in block.texts[:3] if "【" not in t]
     text = " ".join(out).strip()
     return text[:2000] or None
@@ -279,8 +277,6 @@ def parse_document(doc_type: str, inst: Instance, *, issuer: bool) -> dict:
     return out
 
 
-# ---- 取込 -----------------------------------------------------------------
-
 def keep_after(today: date | None = None) -> date:
     return years_ago(today or now_jst().date(), KEEP_YEARS)
 
@@ -292,7 +288,7 @@ def _is_issuer(doc: EdinetDocument) -> bool:
 def base_row(doc: EdinetDocument, fetched_at: datetime) -> dict:
     row = {c.name: None for c in EdinetTenderOfferDoc.__table__.columns}
     row.update({
-        "doc_id": doc.doc_id, "tender_offer_id": doc.doc_id,   # refresh_offers が付け直す
+        "doc_id": doc.doc_id, "tender_offer_id": doc.doc_id,
         "file_date": doc.file_date, "submit_datetime": doc.submit_datetime,
         "doc_type_code": doc.doc_type_code, "ordinance_code": doc.ordinance_code,
         "form_code": doc.form_code, "title": doc.doc_description,
@@ -415,8 +411,6 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
           + " ".join(f"{k}={v}" for k, v in shown.items()), flush=True)
     return "parsed"
 
-
-# ---- 案件 -----------------------------------------------------------------
 
 def _newest(docs: list[EdinetTenderOfferDoc], types: tuple[str, ...]) -> list[EdinetTenderOfferDoc]:
     """その種別の parsed の書類を新しい順に。"""
@@ -570,7 +564,6 @@ def refresh_offers(db: Session) -> int:
         want = {
             "tender_offer_id": root,
             "withdrawn": bool(meta and meta.gone),
-            # 書類情報修正があれば新しいメタデータ（対象者の付け替えなど）
             "subject_edinet_code": meta.doc.subject_edinet_code if meta else d.subject_edinet_code,
             "filer_name": (meta.doc.filer_name if meta else None) or d.filer_name,
             "parent_doc_id": meta.doc.parent_doc_id if meta else d.parent_doc_id,

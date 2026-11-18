@@ -177,13 +177,11 @@ function supplyStyle(font){
       width: 2.6, "line-color": "#0077b6", "target-arrow-color": "#0077b6", "z-index": 20,
     }},
     {selector: "node.sel", style: {"border-width": 3, "border-color": "#0077b6"}},
-    // 回収される素材: 右端に印、文字は印のぶん左へ
     {selector: "node[?rec]", style: {
       "background-image": SUPPLY_REC_ICON, "background-width": 11, "background-height": 11,
       "background-position-x": "100%", "background-offset-x": -6, "background-clip": "none",
       "text-margin-x": -SUPPLY_REC_W / 2,
     }},
-    // 選んだ素材の回収の相手（回収元か、使い終わったときの行き先）
     {selector: "node.ret", style: {"border-width": 3, "border-color": "#6f4fb0", opacity: 1}},
   ];
 }
@@ -299,7 +297,6 @@ function supplySheet(open){
 
 function supplySheetSetup(){
   const p = $("#supply-panel"), body = $("#supply-body"), grip = $("#supply-grip");
-  // 下へスワイプで閉じる。つまみからはいつでも、中身からは一番上までスクロールしているときだけ
   let drag = null;
   p.addEventListener("touchstart", e => {
     if(!SUPPLY_SHEET_MQ.matches || e.touches.length !== 1) return;
@@ -309,7 +306,6 @@ function supplySheetSetup(){
   p.addEventListener("touchmove", e => {
     if(!drag) return;
     drag.dy = e.touches[0].clientY - drag.y0;
-    // 中身で上へ指を動かすのはスクロール
     if(drag.dy < 0 && !drag.grip){ drag = null; p.style.transform = ""; return; }
     e.preventDefault();
     p.style.transition = "none";
@@ -328,7 +324,6 @@ function supplySheetSetup(){
   SUPPLY_SHEET_MQ.addEventListener("change", supplySyncMap);
 }
 
-// マップのうちシートに覆われていない縦の範囲（マップ内の座標）
 function supplyMapView(){
   const {cy} = supply, h = cy.height();
   if(!SUPPLY_SHEET_MQ.matches || !$("#supply-panel").classList.contains("open")) return [0, h];
@@ -349,7 +344,6 @@ function supplyFly(eles, duration, focus){
   cy.animate({zoom, pan: {x: cy.width() / 2 - zoom * c.x, y: (y0 + y1) / 2 - zoom * c.y}}, {duration});
 }
 
-// 押した箱がシートの下に隠れるなら、見える範囲へ上げる
 function supplyReveal(node){
   const [y0, y1] = supplyMapView(), y = node.renderedPosition().y, half = node.renderedHeight() / 2 + 12;
   const dy = y + half > y1 ? y1 - half - y : y - half < y0 ? y0 + half - y : 0;
@@ -407,7 +401,6 @@ function supplyPanel(up, down){
   supplyMonthly(id);
 }
 
-// 素材の詳細のタブ。選んだタブは素材を選び直しても続ける（無いタブなら概要）
 let supplyTab = "overview";
 
 function supplyShowTab(name){
@@ -449,7 +442,6 @@ async function supplyCountries(id){
   const segs = top.map((c, i) => ({name: c.name, v: c.value, share: c.share, color: SUPPLY_SHARE_COLORS[i]}));
   if(rest.length) segs.push({name: `その他 ${rest.length} か国`, v: rest.reduce((a, c) => a + c.value, 0),
                              share: rest.reduce((a, c) => a + c.share, 0), color: SUPPLY_SHARE_OTHER});
-  // 中央は 12 か月の輸入量の合計。桁が多いと穴に収まらないので万・億で丸める
   const v = d.total;
   const sum = v >= 1e8 ? `${fmt(v / 1e8, 1)}億` : v >= 1e6 ? `${fmt(v / 1e4)}万` : v >= 1e4 ? `${fmt(v / 1e4, 1)}万` : fmt(v);
   box.innerHTML = `<h3>輸入元の国</h3>
@@ -519,8 +511,6 @@ function supplyShareRows(t){
     .map(([id, v], i) => ({id, v, share: v / total, color: SUPPLY_SHARE_COLORS[i] || SUPPLY_SHARE_OTHER}))};
 }
 
-// 区画は [{name, v, share, color, id?}]。id があれば押すとその企業。区切りは 2px の白
-// 中央は 2 行（label と sub）。unit は区画に触れたときの値の単位
 function supplyDonut(segs, unit, label, sub, aria){
   const R = 56, r0 = 34, C = 64;
   let a0 = -Math.PI / 2;
@@ -632,7 +622,6 @@ function supplyDropChart(){
   if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
 }
 
-// 時刻は "YYYY-MM-DD" か {year, month, day} で来る
 const supplyYm = t => typeof t === "string" ? t.slice(0, 7)
   : t && typeof t === "object" ? `${t.year}-${String(t.month).padStart(2, "0")}` : null;
 
@@ -699,7 +688,7 @@ function supplyEnsureChart(){
     rightPriceScale: {borderVisible: false}, leftPriceScale: {borderVisible: false},
     timeScale: {borderVisible: false, tickMarkFormatter: (t, type) => {
       const s = supplyYm(t) || "";
-      return type === 0 ? `${s.slice(0, 4)}年` : `${Number(s.slice(5))}月`;  // 0 = 年の目盛り
+      return type === 0 ? `${s.slice(0, 4)}年` : `${Number(s.slice(5))}月`;
     }},
     crosshair: {horzLine: {visible: false, labelVisible: false}},
     handleScroll: false, handleScale: false,

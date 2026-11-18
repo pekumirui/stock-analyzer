@@ -67,8 +67,8 @@ def test_list(c) -> None:
     r = c.get("/api/stock/6857/decks")
     assert r.status_code == 200
     decks = r.json()["decks"]
-    assert [d["key"] for d in decks] == [request_key(DONE), request_key(TODO)]   # 新しい開示から。重複は 1 つ
-    assert decks[0]["url"].startswith("https://example.com/tdnet/")              # tdnet の行を使う
+    assert [d["key"] for d in decks] == [request_key(DONE), request_key(TODO)]
+    assert decks[0]["url"].startswith("https://example.com/tdnet/")
     assert (decks[0]["status"], decks[0]["pages"], decks[1]["status"]) == ("done", 3, None)
     assert c.get("/api/stock/9999/decks").status_code == 404
 
@@ -105,10 +105,9 @@ def test_charts_js() -> None:
     res = _deck(TABLE)
     charts = res["charts"]
     titles = [re.search(r"<figcaption>([^<]*)<", h).group(1) for h in charts]
-    # 内訳（積み上げ）、マイナスの混ざる内訳（並べた棒）、率（折れ線）
     assert titles == ["売上高（合計）の内訳", "FCFの内訳", "営業利益率"]
     stacked, cf, rate = charts
-    for v in ("190.5", "218.2", "232.3", "263.8", "23.2", "167.3"):   # すべての値が出る
+    for v in ("190.5", "218.2", "232.3", "263.8", "23.2", "167.3"):
         assert f">{v}<" in stacked
     assert "斜線は予想・計画" in stacked and "url(#dk" in stacked
     assert "−25.8" in cf and "<circle" not in cf and "FCF" in cf
@@ -119,7 +118,6 @@ def test_charts_js() -> None:
 
 
 def test_fx_rows_are_lines_and_money_stays_bars() -> None:
-    # 振る舞いだけ。為替の行は折れ線、売上・利益と単位が円だけの行は棒
     cols = [{"period": "FY24", "kind": "actual"}, {"period": "FY25", "kind": "actual"},
             {"period": "FY26 Q1", "kind": "forecast"}, {"period": "FY26 通期", "kind": "plan"}]
 

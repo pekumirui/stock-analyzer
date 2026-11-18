@@ -200,7 +200,6 @@ def test_news_lists_saved_deck_and_keeps_filings(c) -> None:
     empty_filings = c.get(f"/api/stock/{EMPTY}/filings").json()["filings"]
     empty_decks = c.get(f"/api/stock/{EMPTY}/decks").json()["decks"]
     assert empty_filings == [] and empty_decks == []
-    # 保存済みは出所が複数でも 1 行。保存していない資料は一覧に出ない
     assert len(decks) == 1
     assert decks[0]["title"] == "決算説明資料"
     assert "未保存の説明資料" not in {d["title"] for d in decks}

@@ -49,7 +49,6 @@ def test_sync_matches_frame_after_drift():
         sync_indicators(db, out, chunk_size=2)
         assert _table(db) == _expected(out)
 
-        # 値の違う行・余分な行・欠けた行・NULL になった行を作ってから同期し直す
         upsert(db, Indicator, [
             {"code": "11110", "date": date(2026, 1, 5), "close": 1.0},
             {"code": "33330", "date": date(2026, 1, 5), "close": 9.0},
@@ -61,7 +60,6 @@ def test_sync_matches_frame_after_drift():
         sync_indicators(db, out, chunk_size=2)
         assert _table(db) == _expected(out)
 
-        # 古い日が抜け、新しい日が入る
         nxt = out[out["date"] != date(2026, 1, 5)].copy()
         add = nxt[nxt["date"] == date(2026, 1, 7)].assign(date=date(2026, 1, 8))
         nxt = pd.concat([nxt, add], ignore_index=True)

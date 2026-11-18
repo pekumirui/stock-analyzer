@@ -137,7 +137,6 @@ def test_keep_fact_segments() -> None:
     assert keep_fact(fact, ctx("current", {AXIS: AUTO, "jppfs_cor:ConsolidatedOrNonConsolidatedAxis":
                                            "jppfs_cor:NonConsolidatedMember"}))
     assert not keep_fact(fact, ctx("prior1", {AXIS: AUTO}))
-    # セグメント以外の軸（株主資本等変動計算書の内訳など）は今までどおり捨てる
     assert not keep_fact(fact, ctx("current", {"jppfs_cor:ComponentsOfEquityAxis": "x:CapitalStockMember"}))
     assert not keep_fact(fact, ctx("current", {AXIS: AUTO, "jppfs_cor:ComponentsOfEquityAxis": "x:Y"}))
 
@@ -176,18 +175,14 @@ def test_ingest_segments() -> None:
         assert segs[("seg_profit", AUTO)].value == Decimal("40000000")
         assert segs[("seg_assets", AUTO)].value == Decimal("700000000")
         assert segs[("seg_assets", AUTO)].period_start is None
-        # 前期のセグメントは入れない
         assert len(segs) == 6
-        # xbrl_financials は次元なしの値のまま（セグメントの NetSales を拾わない）
         sales = (db.query(XbrlFinancial).join(XbrlStdItem, XbrlStdItem.id == XbrlFinancial.std_item_id)
                  .filter(XbrlFinancial.filing_id == f.id, XbrlStdItem.code == "net_sales").one())
         assert Decimal(str(sales.value)) == Decimal("200000000")
         assert not db.query(XbrlFinancial).join(XbrlStdItem, XbrlStdItem.id == XbrlFinancial.std_item_id) \
             .filter(XbrlStdItem.statement == "SEG").count()
-        # --rebuild で作り直しても同じ
         st = rebuild_all(db)
         assert st["errors"] == 0
-        # 消す前と作り直した後の件数（KAB-83）。正規化が同じなので前後が一致する
         assert st["segments_deleted"] == st["segments"] == 6
         assert st["deleted"] == st["financials"] > 0
         assert len(_segments(db, f.id)) == 6

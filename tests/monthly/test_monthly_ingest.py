@@ -3270,7 +3270,6 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
     qty = monthly_element_label("既存 売上個数(前年比)", "yoy_index", "31740")
     if qty["segment"] or qty["metric"] != "売上個数" or qty["metric_kind"] != "count":
         _fail(f"31740 売上個数 label: {qty!r}")
-    # KAB-126: 売上総利益 / 売上個数 は共通語彙。銘柄によらず指標になる
     for other in (None, "30380"):
         gp_other = monthly_element_label("既存 売上総利益(前年比)", "yoy_index", other)
         qty_other = monthly_element_label("既存 売上個数(前年比)", "yoy_index", other)
@@ -3383,7 +3382,6 @@ def test_profit_and_quantity_metrics_are_not_sales() -> None:
         label = monthly_element_label(name, unit)
         if (label["metric"], label["metric_kind"], label["series_kind"]) != (metric, kind, None):
             _fail(f"{name!r} label: {label!r}")
-    # 旧保存名は 既存 売上高 に潰れない（区分に残る）
     for old in ("売上総利益 既存 売上高(前年比)", "売上個数 既存 売上高(前年比)"):
         if canonicalize_element_label(old, "yoy_index") != old:
             _fail(f"{old!r} must stay: {canonicalize_element_label(old, 'yoy_index')!r}")

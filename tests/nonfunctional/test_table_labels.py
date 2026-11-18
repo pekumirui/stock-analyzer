@@ -24,7 +24,6 @@ def _raw_uses(path: Path) -> list[str]:
             if line[:m.start()].endswith('title="'):
                 continue
             out.append(f"{path.name}:{no}: {line.strip()}")
-        # X 用の画像など canvas に描くところ
         if "fillText(" in line and FIELD.search(line) and "fmtMarket" not in line and "fmtSector" not in line:
             out.append(f"{path.name}:{no}: {line.strip()}")
     return out

@@ -122,7 +122,7 @@ class SubmitResult:
     batches: list[str] = field(default_factory=list)
     documents: int = 0
     requests: int = 0
-    skipped: list[str] = field(default_factory=list)   # PDF が無い・読めない
+    skipped: list[str] = field(default_factory=list)
 
     def summary(self, dry_run: bool) -> str:
         head = "dry-run" if dry_run else "submitted"

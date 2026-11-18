@@ -165,7 +165,6 @@ def test_parse_two_resolutions() -> None:
     assert (a.month_shares, a.month_amount) == (497400, 1898107305)
     assert (a.cumulative_shares, a.cumulative_amount) == (7683700, 27134681260)
     assert (a.progress_shares, a.progress_amount) == (0.5122, 0.9045)
-    # 始まったばかりの決議: 「―」は 0、進捗は NULL
     assert (b.resolution_date, b.limit_shares) == (date(2026, 7, 30), 14000000)
     assert (b.month_shares, b.cumulative_shares, b.progress_shares) == (0, 0, None)
 
@@ -564,13 +563,11 @@ def test_run_versions_and_rerun() -> None:
                          .order_by(EdinetBuybackResolution.resolution_no)).all()
         assert [r.resolution_date for r in res] == [date(2025, 8, 1), date(2026, 7, 30)]
 
-        # 再実行しても取り直さない・行は増えない
         assert pending_documents(db, today=TODAY) == []
         _run(db, client, pending_documents(db, reparse=True, today=TODAY), today=TODAY)
         assert db.query(EdinetBuybackResolution).count() == 2
         assert db.query(EdinetBuyback).count() == 2
 
-        # 訂正（230）: 大元に束ね、最新は訂正
         db.add(_doc(5, "S100AMD1", doc_type_code="230", form_code="170001", parent_doc_id="S100ORIG",
                     doc_description="訂正自己株券買付状況報告書（法２４条の６第１項に基づくもの）"))
         db.commit()
@@ -582,7 +579,6 @@ def test_run_versions_and_rerun() -> None:
         assert (db.get(EdinetBuyback, "S100ORIG").is_latest, amd.is_latest) == (False, True)
         assert amd.month_shares == 189200
 
-        # 訂正の取下げ: 元が最新に戻る
         db.query(EdinetDocument).filter_by(doc_id="S100AMD1").update({"withdrawal_status": "2"})
         db.commit()
         assert refresh_versions(db) == 2

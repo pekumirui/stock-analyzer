@@ -35,7 +35,6 @@ mon_hash() {
   done | sha256sum | awk '{print $1}'
 }
 
-# 変わったときだけ入れる。変わったら 0、同じなら 1。
 mon_install() {
   local src="$1" dest="$2" mode="$3"
   if [[ -f "$dest" ]] && cmp -s "$src" "$dest"; then
@@ -88,7 +87,6 @@ mon_configs() {
   for f in "$MON_SRC"/rules/*.yml; do
     mon_install "$f" "$MON_ETC/rules/$(basename "$f")" 644 || true
   done
-  # repo から消したルールは /etc からも消す
   for f in "$MON_ETC"/rules/*.yml; do
     [[ -e "$f" ]] || continue
     if [[ ! -f "$MON_SRC/rules/$(basename "$f")" ]]; then

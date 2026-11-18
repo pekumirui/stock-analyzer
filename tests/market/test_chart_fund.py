@@ -65,7 +65,7 @@ def test_eps_follows_splits_after_the_disclosure() -> None:
     days = _days("2025-04-01", "2026-03-31")
     split1 = days.index(date(2025, 12, 29))
     factors = [1.0] * len(days)
-    factors[split1] = 0.2  # 1→5 の分割
+    factors[split1] = 0.2
     stmts = [
         _st("1", "2025-05-02", "15:00:00", "FY", FY25, 450, NxFEPS=600),
         # 分割の発表後、分割後の株数で出し直した予想（600 / 5 = 120 付近）
@@ -73,10 +73,8 @@ def test_eps_follows_splits_after_the_disclosure() -> None:
         _st("3", "2026-02-06", "15:00:00", "3Q", FY26, 450, FEPS=126),
     ]
     eps = fund_steps(stmts, days, factors)["eps"]
-    # 1 本目は分割の係数を掛ける。2 本目は掛けると 25 になり直前（120）から遠いので掛けない。3 本目は分割後
     assert eps == [120, 125, 126]
 
-    # 権利落ちが 180 日より先なら必ず掛ける
     late = [_st("1", "2025-05-02", "15:00:00", "FY", FY25, 450, NxFEPS=600),
             _st("2", "2025-06-02", "15:00:00", "FY", FY26, doc="EarnForecastRevision", FEPS=130)]
     assert fund_steps(late, days, factors)["eps"] == [120, 26]

@@ -195,7 +195,6 @@ def _scan_label_linkbase_urls(label_url: str, loader: RecordingFileLoader, parse
                 continue
             if (elem.get(type_attr) if type_attr else None) != "locator":
                 continue
-            # Locators with xlink:role are remote resources (LabelResourceParser).
             if role_attr and elem.get(role_attr):
                 continue
             loc_href = elem.get(href_attr) if href_attr else None

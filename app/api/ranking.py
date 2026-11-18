@@ -49,7 +49,6 @@ def earnings_perf(month: str | None = None, db: Session = Depends(get_session)):
     stocks = {c: (n, mk, sec) for c, n, mk, sec in
               db.query(Stock.code, Stock.name, Stock.market, Stock.sector33)
               .filter(Stock.code.in_({e.code for e in evs})).all()}
-    # 営業日は TOPIX の日足の日。決算日の翌営業日から終点まで
     bdays = [d for (d,) in db.query(Topix.date).filter(Topix.date > start).order_by(Topix.date)]
 
     def held(e) -> int | None:

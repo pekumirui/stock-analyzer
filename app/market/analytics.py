@@ -68,7 +68,7 @@ def price_frame(db: Session) -> pd.DataFrame:
     df["adj_open"] = df["adj_open"].fillna(df["open"])
     df["adj_high"] = df["adj_high"].fillna(df["high"])
     df["adj_low"] = df["adj_low"].fillna(df["low"])
-    df = df.drop(columns=["high", "low"])  # ステージの ATR だけが使う。生の値は要らない
+    df = df.drop(columns=["high", "low"])
     return df.dropna(subset=["adj_close"])
 
 
@@ -138,7 +138,6 @@ def compute_indicators(
         (c <= df["low_52w"] * P["stage4_near_low"])
     )
 
-    # Stage3: 直近まで Stage2 で、200日線が失速し、値動きが荒いか大商いで下げた
     lb = P["stage3_lookback"]
     recent_s2 = per_code(stage2.astype(float), lambda s: s.rolling(lb, min_periods=1).max()) == 1
     slope = df["ma200_slope_1m"]
@@ -327,13 +326,11 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time,
                      Statement.fiscal_year_end, Statement.type_of_period, Statement.is_revision).all()
     firsts = first_disclosures(stmts)
-    # 同じ日に複数の開示がある銘柄は 1 件にまとめる。時刻は最初の決算短信、無ければ一番早いもの
     times: dict[tuple[str, date], str | None] = {}
     for code, d, t, *_ in stmts:
         k = (code, d)
         times[k] = firsts[k] if k in firsts else min((x for x in (times.get(k), t) if x), default=None)
     stmts = [(code, d, t) for (code, d), t in times.items()]
-    # 開示ごとに、同じ銘柄の次の期の最初の決算短信の日
     first_days: dict[str, list[date]] = {}
     for code, d in sorted(firsts):
         first_days.setdefault(code, []).append(d)
@@ -348,7 +345,6 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
                       g["close"].to_numpy())
                   for c, g in px.groupby("code")}
 
-    # 場中の発表で当日に取引がある日が、ストップ高引けか
     intraday, prev_close = set(), {}
     for code, ddate, dtime in stmts:
         arr = px_by_code.get(code)
@@ -401,7 +397,6 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
         tr = tclose.get(dates[-1], tbase) / tbase - 1
         rec["return_to_date"] = round(r * 100, 2)
         rec["alpha_to_date"] = round((r - tr) * 100, 2)
-        # 次の決算（次の期の最初の決算短信）の前営業日の終値まで。まだ無ければ現在まで
         nxt = next_first.get((code, ddate))
         j = int(np.searchsorted(dates, nxt)) - 1 if nxt else len(dates) - 1
         rec["next_disclosed_date"] = nxt
@@ -705,7 +700,6 @@ def calendar_span(fy_end: date | None, period: str | None) -> tuple[date, date] 
     n = ORDER.get(period or "")
     if not n or fy_end is None:
         return None
-    # 事業年度開始月 = 決算月の翌月。3月期なら4月、12月期なら1月
     start_month = fy_end.month % 12 + 1
     start_year = fy_end.year - 1 if start_month > fy_end.month else fy_end.year
     raw = start_month + (n - 1) * 3

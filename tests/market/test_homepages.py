@@ -717,7 +717,6 @@ def test_walks_back_past_five_when_newer_tanshin_have_no_url() -> None:
             html_gz=_page("URL https://www.sanwayuka.co.jp/"),
             disclosed_date=date(2026, 8, 3),
         )
-        # より新しい短信に URL があれば、さかのぼった古い URL よりそちらを採る
         sync_homepages(db, ["41250"], now=NOW)
         row = db.get(Homepage, "41250")
         assert row.url == "https://www.sanwayuka.co.jp/"

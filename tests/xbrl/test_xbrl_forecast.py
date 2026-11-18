@@ -442,7 +442,6 @@ def test_jpgaap_eps_dividend_forecast_range(tmp: Path) -> None:
             _fail("dps year_end")
         if dps_ann is None or Decimal(str(dps_ann.value)) != Decimal("25"):
             _fail("dps annual")
-        # rebuild is idempotent and keeps legacy
         stats = run_normalize(db, rebuild=True, code="80350")
         if stats["processed"] != 1:
             _fail(f"rebuild {stats}")

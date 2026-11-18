@@ -63,7 +63,7 @@ def _outer_function() -> Key | None:
         mod = _modules.get(code.co_filename)
         if mod is not None:
             qual = getattr(code, "co_qualname", code.co_name).split(".<locals>")[0]
-            if not qual.startswith("<"):  # モジュールの読み込み・内包表記だけのフレーム
+            if not qual.startswith("<"):
                 found = (mod, qual)
         f = f.f_back
     return found
@@ -192,7 +192,7 @@ def pytest_sessionfinish(session, exitstatus):
     if exitstatus != 0:
         tw.line(f"dataflow: テストが通っていないので {what} を{'書かない' if mode == 'write' else '突き合わせない'}", red=True)
         return
-    if os.environ.get("DATAFLOW_DUMP"):  # 調べる用。関数ごとの記録を JSON で
+    if os.environ.get("DATAFLOW_DUMP"):
         Path(os.environ["DATAFLOW_DUMP"]).write_text(json.dumps(
             {f"{m}:{q}": {t: "".join(sorted(rw)) for t, rw in v.items()} for (m, q), v in _seen.items()},
             ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")

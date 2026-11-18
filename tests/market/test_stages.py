@@ -39,19 +39,16 @@ def test_stage2_uptrend():
 
 
 def test_stage2_needs_ma200_rising_every_day():
-    # 205 日前の 1 日だけの高値が 200 日線から抜けた日に 200 日線が下がる。
-    # 1 か月前よりは高い（ma200_slope_1m > 0）が、21 日つづけて上がってはいない
     closes = _uptrend(300)
     k = len(closes) - 1 - 205
     closes[k] = closes[k] * 2.2
     st = _stages(closes)
     assert st[-1] != 2
-    assert st[-6] != 2      # 抜けた日の前も、21 日の窓に入っていれば外れる
-    assert st[-30] == 2     # 窓に入る前は Stage2
+    assert st[-6] != 2
+    assert st[-30] == 2
 
 
 def test_stage1_base_far_above_low():
-    # 横ばいの途中に 1 日だけ安値。52 週安値の 1.3 倍より上でも、200 日線に沿って横ばいなら Stage1
     closes = [100.0 + (1 if i % 2 else -1) for i in range(300)]
     closes[-100] = 70.0
     assert _stages(closes)[-1] == 1
@@ -87,19 +84,16 @@ def test_stage3_topping_with_heavy_volume():
 
 
 def test_stage3_without_volume_by_volatility():
-    # 出来高を伴わない下げでも、値幅が前の 20 日より広がっていれば Stage3
     closes, volumes = _topping("wide")
     assert _stages(closes, volumes)[-1] == 3
 
 
 def test_stage3_needs_a_warning_sign():
-    # 200 日線が失速しても、値幅も出来高も変わらなければ Stage3 にしない（未分類）
     closes, volumes = _topping("none")
     assert _stages(closes, volumes)[-1] is None
 
 
 def test_stage3_includes_ma200_still_rising():
-    # 200 日線はまだ上向き（横ばいではない）でも、傾きが最大の半分を割っていれば失速
     closes, volumes = _topping("heavy")
     _stages(closes, volumes)
     db = SessionLocal()
@@ -111,7 +105,6 @@ def test_stage3_includes_ma200_still_rising():
 
 
 def test_stage3_needs_recent_stage2():
-    # 200 日線が横ばいで荒れていても、直近に Stage2 が無ければ Stage3 にしない
     closes = [100.0 + (8 if i % 2 else -8) * (1 if i > 260 else 0.1) for i in range(300)]
     assert _stages(closes)[-1] != 3
 

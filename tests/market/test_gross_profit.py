@@ -71,17 +71,13 @@ def _seed(db) -> None:
                              period_type="Q2", period_start=start, period_end=end, value=value * M,
                              value_kind="actual", generated_at=ts))
 
-    # 前期 1Q: PDF の短信だけ
     put("tdnet_pdf", "20240809000001", date(2024, 8, 9), date(2024, 4, 1), date(2024, 6, 30), 40)
-    # 前期 2Q: 短信が無く EDINET（半期報）だけ。訂正の半期報は後のほう。期首の違う値（別の書類）は使わない
     put("edinet", "S100AAAA", date(2024, 11, 14), date(2024, 4, 1), date(2024, 9, 30), 85)
     put("edinet", "S100ZZZZ", date(2024, 11, 1), date(2024, 7, 1), date(2024, 9, 30), 45)
     put("edinet", "S100BBBB", date(2025, 1, 20), date(2024, 4, 1), date(2024, 9, 30), 86)
-    # 当期 1Q: ZIP。単体の値は使わない
     put("tdnet", "081220250808000001", date(2025, 8, 8), date(2025, 4, 1), date(2025, 6, 30), 50)
     put("tdnet", "081220250808000001", date(2025, 8, 8), date(2025, 4, 1), date(2025, 6, 30), 7,
         consolidated=False)
-    # 当期 2Q: 元の短信は PDF、訂正短信には値が無い。半期報（EDINET）もある
     put("tdnet_pdf", "20251107000001", date(2025, 11, 7), date(2025, 4, 1), date(2025, 9, 30), 105)
     put("edinet", "S100CCCC", date(2025, 11, 13), date(2025, 4, 1), date(2025, 9, 30), 104)
 
@@ -113,13 +109,13 @@ def test_detail_api() -> None:
     d = c.get(f"/api/earnings/detail/{CODE}", params={"disclosure_no": "20251107000001"}).json()
     cur = next(r for r in d["cumulative"] if r["kind"] == "actual_current")
     if cur["values"]["gross_profit"] != 105 * M or cur["growth"]["gross_profit"]["pct"] != 23.5:
-        _fail(cur)  # 105 / 85 - 1
+        _fail(cur)
     fc = [r for r in d["cumulative"] if r["kind"].startswith("forecast")]
     if any(r["values"].get("gross_profit") is not None for r in fc):
         _fail(fc)
     q2 = d["quarterly"][-1]
     if q2["values"]["gross_profit"] != 55 * M or q2["growth"]["gross_profit"]["pct"] != 22.2:
-        _fail(q2)  # Q単独 105 - 50 = 55、前年 85 - 40 = 45
+        _fail(q2)
     if "gross_profit" in (d["progress"][-1].get("progress") or {}):
         _fail(d["progress"][-1])
 
@@ -128,7 +124,7 @@ def test_detail_api() -> None:
     if row["cumulative"]["gross_profit"] != 105 * M or row["single"]["gross_profit"] != 55 * M:
         _fail(row)
     if row["yoy"]["gross_profit"]["pct"] != 23.5 or row["qoq"]["gross_profit"]["pct"] != 10.0:
-        _fail(row)  # QoQ: 55 / 50 - 1
+        _fail(row)
 
 
 def main() -> None:

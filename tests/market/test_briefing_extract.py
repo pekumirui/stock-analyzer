@@ -57,7 +57,7 @@ def test_verify_expands_tables_and_keeps_them() -> None:
                  {"metric": "比率", "segment": None, "unit": "%", "of": None, "values": ["99.9%", None]}]}]}
     r = bx.verify({"text": TEXT}, out)
     assert len(r["facts"]) == 7 and r["tables"] == out["tables"]
-    assert [f["verified"] for f in r["facts"]].count(False) == 1   # 99.9 は文字データに無い
+    assert [f["verified"] for f in r["facts"]].count(False) == 1
     assert [c["status"] for c in r["sum_checks"]] == ["ok", "ok"]
     assert bb.parse_custom_id(bb.custom_id(bb.request_key(DOC_ID), 12)) == (bb.request_key(DOC_ID), 12)
 
@@ -110,8 +110,6 @@ def test_parse_json_joins_split_pages() -> None:
     with pytest.raises(json.JSONDecodeError):
         bx.parse_json('{"title": "業績", "tables": [')
 
-
-# ---------- Batch に出して書く ----------
 
 ANSWER = {"title": "四半期売上高", "summary": "増えた。", "tables": [{
     "cols": [{"period": "FY24 Q2", "kind": "actual"}, {"period": "FY24 Q3", "kind": "actual"}],
@@ -168,7 +166,7 @@ def setup(tmp_path, monkeypatch):
     db = SessionLocal()
     for t in (BriefingFact, BriefingPage, BriefingExtract, BriefingDocument):
         db.query(t).delete()
-    for source in ("irbank", "tdnet"):   # 同じ開示番号が 2 つの出所にある。TDnet の PDF を読む
+    for source in ("irbank", "tdnet"):
         db.add(BriefingDocument(source=source, document_id=DOC_ID, code=CODE, company_name="アドバンテスト",
                                 pubdate="2026-10-28 15:00:00", title="決算説明会資料", rel_path=REL, url=None,
                                 sha256="x", size=10, status="saved", saved_at=datetime.now(bb.JST).replace(tzinfo=None)))
@@ -202,7 +200,7 @@ def test_submit_and_collect(setup, capsys) -> None:
     assert p["system"][0]["cache_control"] == {"type": "ephemeral"}
     assert p["messages"][0]["content"][0]["type"] == "image"
 
-    job.main(["collect"], client=client)   # まだ終わっていない
+    job.main(["collect"], client=client)
     db = SessionLocal()
     ext = db.get(BriefingExtract, DOC_ID)
     assert (ext.status, ext.source, ext.batch_id) == ("submitted", "tdnet", "msgbatch_1")
@@ -229,7 +227,6 @@ def test_submit_and_collect(setup, capsys) -> None:
     assert {f.sum_status for f in facts if f.segment == "合計"} == {"ok"}
     db.close()
 
-    # 読み取り済みは出し直さない。--redo で読み直すと前の行を置き換える
     job.main(["submit", "--code", "6857"], client=client)
     assert len(setup.created) == 1
     setup.answers.clear()
