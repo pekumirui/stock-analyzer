@@ -48,18 +48,24 @@ erDiagram
 
 ## テーブル
 
+見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
+
+`JstDateTime`: 日本時間をタイムゾーンなしで持つ。
+
 ### monthly_element_sources
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
-| `year` | INTEGER |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
-| `source_label` | VARCHAR(50) |  | PK |  |  |
-| `unit` | VARCHAR(16) |  | PK |  |  |
-| `element` | VARCHAR(50) |  | → `monthly_elements.(code, year, element)`（制約なし） |  |  |
-| `via` | VARCHAR(16) |  |  |  |  |
-| `first_seen_at` | DATETIME |  |  |  |  |
-| `last_seen_at` | DATETIME |  |  |  |  |
+送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |  |
+| `year` | INTEGER |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |  |
+| `source_label` | VARCHAR(50) |  | PK |  |  | 受け取ったまま（正規化前）。前後の空白だけ落とす |
+| `unit` | VARCHAR(16) |  | PK |  |  | 受け取ったまま（正規化前）。yoy_pct 可 |
+| `element` | VARCHAR(50) |  | → `monthly_elements.(code, year, element)`（制約なし） |  |  | 今の保存名 |
+| `via` | VARCHAR(16) |  |  |  |  | 経路（api / doc / ir_html / ir_json / ir_xls / legacy）。記録前からある行は保存名そのものを legacy で入れる |
+| `first_seen_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
+| `last_seen_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -67,35 +73,43 @@ erDiagram
 
 ### monthly_elements
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |
-| `year` | INTEGER |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |
-| `element` | VARCHAR(50) |  | PK |  |  |
-| `sort_order` | INTEGER |  |  |  |  |
-| `unit` | VARCHAR(16) |  |  |  | `number`（DB） |
+月次表の行
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |  |
+| `year` | INTEGER |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |  |
+| `element` | VARCHAR(50) |  | PK |  |  | 登録時の正規名 |
+| `sort_order` | INTEGER |  |  |  |  | 登録順 |
+| `unit` | VARCHAR(16) |  |  |  | `number`（DB） | number \| yoy_index |
 
 ### monthly_issuers
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
-| `industry` | VARCHAR(50) |  |  |  | `その他`（DB） |
-| `last_ingested_at` | DATETIME | 可 |  |  |  |
+発行体ごとの月次属性
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |  |
+| `industry` | VARCHAR(50) |  |  |  | `その他`（DB） | 月次業種。stocks.sector33 とは別 |
+| `last_ingested_at` | DATETIME（`JstDateTime`） | 可 |  |  |  | ingest でセルが変わったときだけ更新。NULL は新着ではない |
 
 ### monthly_tables
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK / → `monthly_issuers.code`（制約なし） |  |  |
-| `year` | INTEGER |  | PK |  |  |
+銘柄×年度の月次表 (暦月1〜12。会計月ではない)
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK / → `monthly_issuers.code`（制約なし） |  |  |  |
+| `year` | INTEGER |  | PK |  |  | 西暦4桁 |
 
 ### monthly_values
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
-| `year` | INTEGER |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
-| `element` | VARCHAR(50) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
-| `month` | INTEGER |  | PK |  |  |
-| `value` | FLOAT |  |  |  |  |
+月次セル
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |  |
+| `year` | INTEGER |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |  |
+| `element` | VARCHAR(50) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |  |
+| `month` | INTEGER |  | PK |  |  |  |
+| `value` | FLOAT |  |  |  |  | 数値のみ (単位・カンマ付き文字列は拒否) |

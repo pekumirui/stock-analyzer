@@ -27,32 +27,38 @@ erDiagram
 
 ## テーブル
 
+見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
+
 ### material_monthly
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `material_id` | VARCHAR |  | PK |  |  |
-| `month` | VARCHAR(7) |  | PK |  |  |
-| `metric` | VARCHAR |  | PK | `production` / `shipment` / `inventory` / `import` / `export` / `processing` / `domestic_sales` |  |
-| `source` | VARCHAR |  | PK |  |  |
-| `value` | FLOAT |  |  |  |  |
-| `unit` | VARCHAR |  |  |  |  |
-| `revision` | INTEGER |  |  |  |  |
-| `origin` | VARCHAR | 可 |  |  |  |
-| `is_estimate` | BOOLEAN |  |  |  | `False` |
-| `updated_at` | DATETIME | 可 |  |  |  |
+サプライタブの素材ごとの月次量
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `material_id` | VARCHAR |  | PK |  |  | config/supply/supply_chain.json の id（FK なし） |
+| `month` | VARCHAR(7) |  | PK |  |  | YYYY-MM |
+| `metric` | VARCHAR |  | PK | `production` / `shipment` / `inventory` / `import` / `export` / `processing` / `domestic_sales` |  | processing は原油処理、domestic_sales は国内向販売 |
+| `source` | VARCHAR |  | PK |  |  | seidou:<報告番号>（生産動態）/ sekiyu（石油統計）/ trade（貿易） |
+| `value` | FLOAT |  |  |  |  |  |
+| `unit` | VARCHAR |  |  |  |  | t / kl / 本 など。換算しない |
+| `revision` | INTEGER |  |  |  |  | 1 速報 / 2 確報 / 3 年報（年間補正後） |
+| `origin` | VARCHAR | 可 |  |  |  | 取り込んだ e-Stat の表 ID か Excel のファイル名 |
+| `is_estimate` | BOOLEAN |  |  |  | `False` | 按分の推計値 |
+| `updated_at` | DATETIME | 可 |  |  |  |  |
 
 ### material_trade_country
 
-| 列 | 型 | NULL | キー | 値 | 既定 |
-|---|---|---|---|---|---|
-| `material_id` | VARCHAR |  | PK |  |  |
-| `month` | VARCHAR(7) |  | PK |  |  |
-| `flow` | VARCHAR |  | PK | `import` / `export` |  |
-| `country` | VARCHAR(3) |  | PK |  |  |
-| `country_name` | VARCHAR |  |  |  |  |
-| `value` | FLOAT |  |  |  |  |
-| `unit` | VARCHAR |  |  |  |  |
-| `revision` | INTEGER |  |  |  |  |
-| `origin` | VARCHAR | 可 |  |  |  |
-| `updated_at` | DATETIME | 可 |  |  |  |
+素材の輸出入の相手国別の月次量（普通貿易統計の品別国別表）。material_monthly の trade の国別内訳。国合計を material_monthly に書かない素材も国別だけはここに持つ
+
+| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
+|---|---|---|---|---|---|---|
+| `material_id` | VARCHAR |  | PK |  |  |  |
+| `month` | VARCHAR(7) |  | PK |  |  |  |
+| `flow` | VARCHAR |  | PK | `import` / `export` |  |  |
+| `country` | VARCHAR(3) |  | PK |  |  | 貿易統計の国コード（137 = サウジアラビア） |
+| `country_name` | VARCHAR |  |  |  |  |  |
+| `value` | FLOAT |  |  |  |  |  |
+| `unit` | VARCHAR |  |  |  |  |  |
+| `revision` | INTEGER |  |  |  |  | 1 速報 / 2 確報 |
+| `origin` | VARCHAR | 可 |  |  |  |  |
+| `updated_at` | DATETIME | 可 |  |  |  |  |

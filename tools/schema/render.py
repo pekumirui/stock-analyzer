@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy import Enum, Table
 from sqlalchemy.dialects import sqlite
 
-from app.models import Base
+from app.models import Base, JstDateTime
 from tools.schema.erd import ERD_DIR, TBLS
 from tools.dataflow.render import DOMAINS, table_domain
 
@@ -19,6 +19,7 @@ REBUILD = "python -m tools.schema.render"
 ERD_PAGE = f"{ERD_DIR}/index.html"
 _DIALECT = sqlite.dialect()
 LAYOUT = ["---", "config:", "  layout: elk", "---"]
+TYPE_NOTES = {JstDateTime: "日本時間をタイムゾーンなしで持つ"}
 
 
 def _tables() -> list[Table]:
@@ -27,6 +28,28 @@ def _tables() -> list[Table]:
 
 def _type(col) -> str:
     return col.type.compile(dialect=_DIALECT)
+
+
+def _own_type(col) -> type | None:
+    return type(col.type) if type(col.type) in TYPE_NOTES else None
+
+
+def _base_type(col) -> str:
+    return next(k.__name__ for k in type(col.type).__mro__ if k.__module__.startswith("sqlalchemy"))
+
+
+def _type_cell(col) -> str:
+    own = _own_type(col)
+    return _type(col) if own is None else f"{_type(col)}（`{own.__name__}`）"
+
+
+def _cell(text: str | None) -> str:
+    return (text or "").replace("|", "\\|").replace("\n", " ")
+
+
+def _type_legend(tables: list[Table]) -> list[str]:
+    used = {_own_type(c) for t in tables for c in t.columns} - {None}
+    return [f"`{k.__name__}`: {TYPE_NOTES[k]}。" for k in sorted(used, key=lambda k: k.__name__)]
 
 
 def _refs(col) -> list[str]:
@@ -77,12 +100,16 @@ def _values(col) -> str:
 
 def _table_section(t: Table) -> list[str]:
     lines = [f"### {t.name}", ""]
+    if t.comment:
+        lines += [t.comment, ""]
     if t.dialect_options["sqlite"].get("with_rowid") is False:
         lines += ["`WITHOUT ROWID`", ""]
-    lines += ["| 列 | 型 | NULL | キー | 値 | 既定 |", "|---|---|---|---|---|---|"]
+    lines += ["| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |", "|---|---|---|---|---|---|---|"]
     for c in t.columns:
         null = "" if not c.nullable else "可"
-        lines.append(f"| `{c.name}` | {_type(c)} | {null} | {_key(c)} | {_values(c)} | {_default(c)} |")
+        lines.append(
+            f"| `{c.name}` | {_type_cell(c)} | {null} | {_key(c)} | {_values(c)} | {_default(c)} | {_cell(c.comment)} |"
+        )
     lines.append("")
     uniques = sorted(
         (u for u in t.constraints if type(u).__name__ == "UniqueConstraint"),
@@ -141,7 +168,7 @@ def _mermaid(own: list[Table]) -> list[str]:
         for c in cols:
             fk = name in own_names and c.name in linked[name]
             mark = ", ".join(m for m, on in (("PK", c.primary_key), ("FK", fk)) if on)
-            lines.append(f"    {type(c.type).__name__} {c.name} {mark}")
+            lines.append(f"    {_base_type(c)} {c.name} {mark}")
         lines.append("  }")
     lines += sorted(edges)
     lines.append("```")
@@ -173,7 +200,11 @@ def _tbls_default(col) -> str | None:
 
 
 def _tbls_note(col) -> str:
-    out = [f"FK → {r}" for r in _refs(col)]
+    out = [col.comment] if col.comment else []
+    own = _own_type(col)
+    if own is not None:
+        out.append(f"{own.__name__}: {TYPE_NOTES[own]}")
+    out += [f"FK → {r}" for r in _refs(col)]
     out += dict.fromkeys(
         f"→ {_spell(table, to)}（宣言だけ。DB の制約なし）" for cols, table, to in declared_refs(col.table) if col.name in cols
     )
@@ -225,6 +256,8 @@ def _tbls_table(t: Table, label: str) -> dict:
     comment = f"機能: {label}"
     if t.dialect_options["sqlite"].get("with_rowid") is False:
         comment += " / WITHOUT ROWID"
+    if t.comment:
+        comment = f"{t.comment}\n{comment}"
     return {
         "name": t.name,
         "type": "table",
@@ -280,7 +313,12 @@ def _page(key: str, label: str, own: list[Table]) -> str:
         "",
         "## テーブル",
         "",
+        "見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。",
+        "",
     ]
+    legend = _type_legend(own)
+    if legend:
+        lines += [" ".join(legend), ""]
     for t in own:
         lines += _table_section(t)
     return "\n".join(lines)
