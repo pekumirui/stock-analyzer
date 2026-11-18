@@ -121,7 +121,6 @@ def main() -> None:
 
     if args.feature == "stock":
         code = args.code or "72030"
-        # 銘柄の見出しと概要（SPA が最初に呼ぶ）。404 は銘柄がない
         ov_url = f"{base}/api/stock/{code}/overview"
         try:
             ost, obody = _get(ov_url)

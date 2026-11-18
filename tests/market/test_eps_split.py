@@ -56,25 +56,25 @@ def test_detail_compares_eps_on_current_shares(c) -> None:
 
     cur = _rows(d, "cumulative", "actual_current")[0]
     assert cur["values"]["eps"] == 12.0
-    assert cur["growth"]["eps"] == {"pct": 20.0, "state": "up"}       # 前年同期 100 → 分割後 10
+    assert cur["growth"]["eps"] == {"pct": 20.0, "state": "up"}
     assert cur["growth"]["profit"]["pct"] == 20.0
     last_year = _rows(d, "cumulative", "actual")[-1]
     assert abs(last_year["values"]["eps"] - 10.0) < 1e-9
 
     q = {r["range"]: r for r in d["quarterly"]}
-    assert abs(q["25.09"]["values"]["eps"] - 5.0) < 1e-9               # (100 - 50) × 0.1
-    assert q["26.09"]["growth"]["eps"]["pct"] == 20.0                  # 6 / 5
+    assert abs(q["25.09"]["values"]["eps"] - 5.0) < 1e-9
+    assert q["26.09"]["growth"]["eps"]["pct"] == 20.0
 
     prog = _rows(d, "progress", "actual_current")[0]
-    assert prog["progress"]["eps"] == 48.0                             # 12 / 25
+    assert prog["progress"]["eps"] == 48.0
 
     revs = d["revisions"]
     fy26 = [r for r in revs if r["fiscal_year_end"] == "2026-03-31"]
-    assert abs(fy26[0]["values"]["eps"] - 20.0) < 1e-9                 # 予想 200 → 20
-    assert abs(fy26[-1]["values"]["eps"] - 22.0) < 1e-9                # 実績 220 → 22
+    assert abs(fy26[0]["values"]["eps"] - 20.0) < 1e-9
+    assert abs(fy26[-1]["values"]["eps"] - 22.0) < 1e-9
     assert fy26[-1]["growth"]["eps"]["pct"] == 10.0
     fy27 = [r for r in revs if r["fiscal_year_end"] == "2027-03-31"]
-    assert fy27[0]["values"]["eps"] == 25.0                            # 分割後の株数の予想は掛けない
+    assert fy27[0]["values"]["eps"] == 25.0
 
 
 def test_detail_before_split_keeps_raw_eps(c) -> None:
@@ -90,5 +90,5 @@ def test_list_yoy_eps(c) -> None:
     rows = c.get("/api/earnings?date=2026-11-09&today=2026-11-10").json()["actuals"]
     r = next(x for x in rows if x["code"] == "99960")
     assert r["yoy"]["eps"] == {"pct": 20.0, "state": "up"}
-    assert r["qoq"]["eps"]["pct"] == 0.0                               # 1Q 単独 6 と 2Q 単独 6
+    assert r["qoq"]["eps"]["pct"] == 0.0
     assert r["progress"]["cur"]["eps"] == 48.0

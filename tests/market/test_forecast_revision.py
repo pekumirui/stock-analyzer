@@ -73,7 +73,6 @@ def test_up_and_down_from_operating_profit() -> None:
 def test_mixed_items_follow_operating_profit() -> None:
     q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_sales=400, fy_op=47, fy_np=29)
     q2 = _stmt("q2", "2Q", date(2025, 11, 1), fy_sales=470, fy_op=46, fy_np=29)
-    # 売上は上方、営利は下方 → 営利に従う
     assert forecast_revision([q1], q2) == {"direction": "down", "pct": -2.1}
 
 
@@ -105,7 +104,6 @@ def test_same_day_revision_doc_is_not_previous() -> None:
     q1 = _stmt("q1", "1Q", date(2025, 10, 14), fy_op=93)
     fs = _stmt("q2", "2Q", date(2026, 1, 13), fy_op=47)
     rev = _stmt("rev", "FY", date(2026, 1, 13), fy_op=47, is_revision=True, doc=REV_DOC)
-    # 同日の EarnForecastRevision を直前にすると 47→47 で消える
     assert forecast_revision([q1, rev], fs) == {"direction": "down", "pct": -49.5}
 
 

@@ -494,7 +494,6 @@ function monthlyYoyBase(id){
   return String(id || "").replace(/\(前年比\)$/, "");
 }
 
-// 同じ節で「X」と「X(前年比)」が両方あれば、金額行の位置と名前に前年比の element（yoy）を持たせて 1 行にする。表示だけ。
 function monthlyPairYoyRows(rows){
   const yoyByKey = new Map();
   const numKeys = new Set();
@@ -528,7 +527,6 @@ function monthlyTlAlt(rec){
   return rec.yoy || "";
 }
 
-// txt はセルの中身（HTML）、len は幅の根拠にする最長行の文字数。数字を出さないセルは塗らない。
 function monthlyTlCell(byName, rec, m){
   const id = monthlyTlShown(rec);
   const src = byName[id];
@@ -602,7 +600,6 @@ function monthlyTreeModel(tables){
         else order.splice(++at, 0, el);
       }
     }
-    // 自動の木は API の order（3 年を通した並び）で並べる。
     pool.sort((a, b) => (a.order != null && b.order != null) ? a.order - b.order : order.indexOf(a.saved) - order.indexOf(b.saved));
     const recs = n.heading ? [] : monthlyPairYoyRows(pool.filter(r => hasValues(r.element)));
     all.push(...recs);
@@ -611,11 +608,9 @@ function monthlyTreeModel(tables){
   const roots = build(src.tree, []);
   const rest = monthlyPairYoyRows(loose.filter(r => hasValues(r.element)));
   all.push(...rest);
-  // 指標の並びは tree_metrics（既存 → 全店 → 店舗 …）、載っていない指標は出てきた順で後ろへ
   const present = new Set(all.filter(r => !rest.includes(r)).map(r => r.mkey));
   const keys = (src.tree_metrics || []).filter(m => present.has(m));
   for(const r of all) if(present.has(r.mkey) && !keys.includes(r.mkey)) keys.push(r.mkey);
-  // 指標どうしの親子（直営 全店 店舗数 → 国内 直営+FC 全店 店舗数 → 合計店舗数）。親も子も出ている指標だけ
   const parent = {};
   for(const [c, p] of Object.entries(src.tree_metric_parent || {})) if(keys.includes(c) && keys.includes(p)) parent[c] = p;
   return {roots, rest, all, keys, parent, auto: !!src.tree_auto};
@@ -644,7 +639,6 @@ function monthlyTreeCount(nodes, k){
   return nodes.reduce((a, n) => a + n.recs.filter(r => r.mkey === k).length + monthlyTreeCount(n.children, k), 0);
 }
 
-// 指標 k の最初の行とその節（{n, r}）
 function monthlyTreeFirst(nodes, k){
   for(const n of nodes){
     const r = n.recs.find(q => q.mkey === k);
@@ -676,7 +670,6 @@ function monthlyTreeOpenMetric(tm, k, open){
   for(let m = k; m; m = tm.parent[m]) open("m:" + m);
 }
 
-// 選んだ系列が閉じた指標や節の中にあれば、指標の行からその節の親までを開く。
 function monthlyTreeReveal(tm, id){
   const hit = r => r.element === id || r.yoy === id;
   let changed = false;
@@ -688,7 +681,6 @@ function monthlyTreeReveal(tm, id){
   const {single, top} = monthlyTreeTop(tm);
   const own = single && single.recs.find(hit);
   if(own){
-    // 会社の行は親の指標の行を開けば見える
     if(tm.parent[own.mkey]) monthlyTreeOpenMetric(tm, tm.parent[own.mkey], open);
     return changed;
   }
@@ -696,9 +688,7 @@ function monthlyTreeReveal(tm, id){
     for(const n of nodes){
       const r = n.recs.find(hit);
       if(r){
-        // 節の外に 1 行しか無い指標は指標の行としてそのまま出ている
         if(!(single && single.recs.some(q => q.mkey === r.mkey)) && monthlyTreeCount(top, r.mkey) === 1 && !tm.parent[r.mkey]) return true;
-        // 節の行は一番浅い指標の下。兄弟枝（直営 vs FC）にだけ行があるときはその枝
         const root = monthlyTreeDisplayMetric(tm, topNode || n, r.mkey);
         monthlyTreeOpenMetric(tm, root, open);
         trail.forEach(k => open("m:" + root + "\u203a" + k));
@@ -724,9 +714,6 @@ function monthlyTreeReveal(tm, id){
   return changed;
 }
 
-// 指標の行（会社全体の数字）と、その下の子の指標と節の木。節の行にはその指標の数字を出す（無ければ空欄）。
-// 会社の行が無い指標は数字の無い見出し。節の外にも 1 行しか無い指標（グループ 出店 など）は木にせずその行を出す。
-// 見出し節（大丸・松坂屋）は数字の無いグレー帯。内数の節（うち商品売上高）は tl-part で薄く出す。
 function monthlyTreeHtml(tm, cellsFor, cols){
   let body = "";
   // 木は 7 段まで下がる。スマホの名前列（12em）では 1 段 1.25em だと店名が 1 文字ずつ折り返す。
@@ -737,7 +724,6 @@ function monthlyTreeHtml(tm, cellsFor, cols){
   const empty = (text, depth, tog, rowCls) =>
     `<tr${rowCls ? ` class="${rowCls}"` : ""}>${monthlyTlNameCell({text, title: text, depth, tree: true, step, ...(tog || {})})}${blank}</tr>`;
   const {single, top} = monthlyTreeTop(tm);
-  // 節の行の下の、子の指標の行（焼肉 ▸ 直営 / FC）。節にその指標の行が無ければ孫の指標を繰り上げる。
   const chans = (n, k) => {
     const out = [];
     for(const c of monthlyTreeSubs(tm, k)){
@@ -780,9 +766,6 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     chanRows(n, ch, k, depth + 1, key, cls);
     for(const c of kids) walk(c, k, depth + 1, kids.length === 1);
   };
-  // 指標の行。子は先に会社の子の指標（直営 / FC、国内 / 海外）、次に節の木。
-  // 節（ブランド）はその節の行がある一番浅い指標の下（物語の合計店舗数は国内 816 の下）。
-  // 一番浅い指標が兄弟枝の一方（直営）だけで、もう一方（FC）にも行があるときは両方に出す。
   const homes = new Map();
   const home = n => {
     if(!homes.has(n)) homes.set(n, new Map());
@@ -810,9 +793,6 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     const has = kids.length > 0 || ms.length > 0;
     const open = has && monthlyTlOpen.has(key);
     const tog = has ? {key, open} : {};
-    // 会社の行があればその行の名前（指標名 売上高 のままだと全社の数字と読めない）。自動の木は 日本+海外 を外す（直営+FC 全店 店舗数）。
-    // config の木は節で剥がした葉から (前年比) を外す（全社 売上高）。金額の無い前年比だけの行は外さない（神戸物産 全国 仕入れ）。
-    // 会社の行が無ければ指標名。子の指標は親との差だけ（直営 / 海外）
     const leaf0 = mine.length ? (mine[0].leaf || mine[0].element) : "";
     const text = pk ? monthlyTreeShortName(k, pk)
       : !mine.length ? k : tm.auto ? monthlyTreeTopName(mine[0].element)
@@ -837,12 +817,10 @@ function monthlyTreeSubs(tm, k){
   return tm.keys.filter(c => tm.parent[c] === k);
 }
 
-// 節にその指標か子孫の指標の行があるか（直営の店舗数しか無いブランドも合計の下に出す）
 function monthlyTreeHasDeep(tm, n, k){
   return monthlyTreeHas(n, k) || monthlyTreeSubs(tm, k).some(c => monthlyTreeHasDeep(tm, n, c));
 }
 
-// 節を出す指標。根の指標から幅優先で、節（子の節を含む）に行がある最初の指標
 function monthlyTreeHome(tm, n, root){
   const queue = [root];
   while(queue.length){
@@ -858,16 +836,12 @@ function monthlyTreeIsAncestor(tm, anc, k){
   return false;
 }
 
-// 節 n を指標 k の下に出すか。home が k なら出す。home が k の祖先なら出さない
-//（焼肉は 直営+FC の下に 1 回、直営の下には並べ直さない）。home が兄弟枝
-//（直営 vs FC）なら、k の行があるときだけ出す（ハードオフの業態別 FC）。
 function monthlyTreePlaceUnder(tm, n, k, homeK){
   if(homeK === k) return true;
   if(!n.recs.some(r => r.mkey === k)) return false;
   return !homeK || !monthlyTreeIsAncestor(tm, homeK, k);
 }
 
-// 選んだ系列を出す指標。親の指標の行がある節は親、兄弟枝にだけ行があるときはその枝
 function monthlyTreeDisplayMetric(tm, n, k){
   const homeM = monthlyTreeHome(tm, n, monthlyTreeRootMetric(tm, k)) || k;
   if(homeM === k || monthlyTreeIsAncestor(tm, homeM, k)) return homeM;
@@ -880,20 +854,17 @@ function monthlyTreeRootMetric(tm, k){
   return m;
 }
 
-// 子の指標の名前は親との差だけ（直営 全店 店舗数 / 直営+FC 全店 店舗数 → 直営）。差が無ければそのまま
 function monthlyTreeShortName(k, pk){
   const p = new Set(String(pk || "").split(" "));
   const d = String(k).split(" ").filter(t => !p.has(t));
   return d.length ? d.join(" ") : k;
 }
 
-// 一番上の行の名前。全地域を表す 日本+海外 は外す（子の行が 日本 / 海外 を出す）。直営+FC は残す（直営の行と見分ける）
 function monthlyTreeTopName(name){
   const t = String(name).split(" ").filter(x => x !== "日本+海外");
   return t.length ? t.join(" ") : name;
 }
 
-// 名前セル。子を持つ行と合計つきの節は ▸/▾ で開閉する（行のクリックは系列の選択なので親へ伝えない）。
 function monthlyTlNameCell(o){
   const pad = o.depth ? ` style="padding-left:${(0.5 + o.depth * (o.step || 1.25)).toFixed(2)}em"` : "";
   const tw = o.key ? `<span class="tl-tw">${o.open ? "▾" : "▸"}</span>` : (o.tree ? `<span class="tl-tw"></span>` : "");
@@ -931,7 +902,6 @@ function toggleMonthlyTimelineSection(key){
   if(wrap) wrap.scrollLeft = left;
 }
 
-// 前年比は 100 を境に色を付ける（上げは --up、下げは --down の薄塗り。±20 で最も濃い）。
 function monthlyYoyHeat(v){
   const n = Number(v);
   if(v == null || v === "" || !Number.isFinite(n) || n === 100) return "";
@@ -976,7 +946,6 @@ function renderMonthlyTimeline(tables, opts){
     }
   }
   let maxNumLen = 0;
-  // 見出しは 1 段。各列に暦年を小さく薄く載せ、横にスクロールしてもどの年かが分かるようにする。
   let head = `<th class="tl-corner"></th>`;
   for(const c of cols){
     const yb = c === cols[0] || c.m === 1 ? ` class="tl-yb"` : "";
@@ -1023,7 +992,6 @@ function closeMonthlyPopup(){
   if(pop) pop.remove();
 }
 
-// 押したセルの月を、MONTHLY_POPUP_MIN_YEAR 以降の各暦年で並べる。読み込んでいない年はここで取りに行く。
 async function openMonthlyPopup(td){
   const tr = td.closest("tr[data-series]");
   const hit = tr && monthlyTlRecs.get(tr.dataset.series);
@@ -1168,7 +1136,6 @@ let monthlyChartCssW = 0;
 let monthlyChartState = null;
 const MONTHLY_OLD_YEAR_OPACITY = 0.4;
 
-// 線グラフの縦軸。値の幅に合わせ、0 から始めない（前年比は 100 を含める）
 function monthlyLineRange(vals, yoy){
   let lo = Math.min(...vals), hi = Math.max(...vals);
   if(yoy){ lo = Math.min(lo, 100); hi = Math.max(hi, 100); }
@@ -1249,7 +1216,6 @@ function drawMonthlyChart(tables, seriesId){
     svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#9aa3ad" stroke-dasharray="4 3"/>`;
   }
   svg += `<line class="monthly-guide" x1="0" x2="0" y1="${T}" y2="${T+plotH}" stroke="#9aa3ad" visibility="hidden"/>`;
-  // 古い年から描き、最新の年を一番上に重ねる
   for(const year of [...years].reverse()){
     const color = monthlyYearColor(year);
     const isLatest = year === latest;
@@ -1259,7 +1225,6 @@ function drawMonthlyChart(tables, seriesId){
       d += `${pen ? "L" : "M"}${mx(mi).toFixed(1)} ${yx(v).toFixed(1)}`;
       pen = true;
     });
-    // 前の年は薄くして、最新の年を主役にする
     const fade = isLatest ? "" : ` opacity="${MONTHLY_OLD_YEAR_OPACITY}"`;
     svg += `<g${fade}><path d="${d}" fill="none" stroke="${color}" stroke-width="${isLatest ? 2.5 : 1.75}" stroke-linejoin="round" stroke-linecap="round"/>`;
     byYear[year].forEach((v, mi) => {
@@ -1268,7 +1233,6 @@ function drawMonthlyChart(tables, seriesId){
     });
     svg += `</g>`;
   }
-  // 値は最新の年だけ書く（3 年分は重なる）。ほかの年はカーソル・タップで出す
   byYear[latest].forEach((v, mi) => {
     if(v==null) return;
     svg += `<text class="monthly-pt-v" x="${mx(mi).toFixed(1)}" y="${(yx(v)-7).toFixed(1)}" font-size="${fsVal}" text-anchor="middle" fill="#333">${fmtMonthlyBarV(v)}</text>`;
@@ -1286,7 +1250,6 @@ function drawMonthlyChart(tables, seriesId){
   monthlyBindChartTip(host);
 }
 
-// 月にカーソルを当てる・タップすると、その月の各年の値を出す
 function monthlyBindChartTip(host){
   if(host._tipBound) return;
   host._tipBound = true;

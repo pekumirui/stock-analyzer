@@ -60,8 +60,6 @@ _PER_SHARE = {"eps_basic", "eps_diluted", "bps", "dps"}
 _MONEY_TOL = 1e6 + 1
 
 
-# ---------------------------------------------------------------- 正解データ
-
 
 def load_expected(path: Path = EXPECTED) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -103,8 +101,6 @@ def row_key(row: dict) -> tuple:
     return (row["no"], *(row[field] for field in KEY_FIELDS))
 
 
-# ---------------------------------------------------------------- 読み取り（スクラッチ DB）
-
 
 def _seed_and_sync(db, expected: dict, html_dirs: list[Path], nos: list[str]) -> dict[str, str]:
     from app.models import Statement, Stock, TdnetPdfDocument
@@ -140,7 +136,7 @@ def _seed_and_sync(db, expected: dict, html_dirs: list[Path], nos: list[str]) ->
     for no in ready:
         try:
             outcomes[no] = sync_pdf_filing(db, no).value
-        except Exception as exc:  # 1 件の例外で全体を止めない。結果に残す
+        except Exception as exc:
             db.rollback()
             outcomes[no] = f"error:{type(exc).__name__}"
         db.commit()
@@ -208,8 +204,6 @@ def _dump_main(args: argparse.Namespace) -> int:
     Path(args.out).write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
     return 0
 
-
-# ---------------------------------------------------------------- 比べる
 
 
 @dataclass
@@ -353,8 +347,6 @@ def markdown(report: Report, result: dict, diff: dict | None, *, label: str) -> 
             out += ["", "```"] + [f"{no} {b} -> {h}" for no, b, h in diff["outcomes"]] + ["```"]
     return "\n".join(out) + "\n"
 
-
-# ---------------------------------------------------------------- 正解データを作る（保守用）
 
 
 def jquants_checks(raw: dict) -> list[dict]:
@@ -511,8 +503,6 @@ def _build_main(args: argparse.Namespace) -> int:
     return 0
 
 
-# ---------------------------------------------------------------- HTML を用意する
-
 
 def _titles(html_dirs: list[Path]) -> dict[str, str]:
     out: dict[str, str] = {}
@@ -558,7 +548,6 @@ def _fetch_main(args: argparse.Namespace) -> int:
                 time.sleep(args.sleep)
             raw = conv.html.encode("utf-8")
             if sha and hashlib.sha256(raw).hexdigest() != sha:
-                # 変換器か IR BANK の PDF が変わった。正解データを作った HTML と違うので知らせる
                 print(f"sha256 mismatch {no}", flush=True)
                 mismatched += 1
             tmp = path.with_suffix(".tmp")
@@ -570,8 +559,6 @@ def _fetch_main(args: argparse.Namespace) -> int:
     print(f"html_dir {out_dir} kept {done} fetched {fetched} failed {failed} sha256_mismatch {mismatched}")
     return 1 if failed or mismatched else 0
 
-
-# ---------------------------------------------------------------- CLI
 
 
 def _check_main(args: argparse.Namespace) -> int:

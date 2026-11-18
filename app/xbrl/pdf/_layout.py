@@ -151,9 +151,7 @@ class Amount:
     upper: Decimal | None
     x1: float
     x0: float = 0.0
-    # レンジの印。value があれば「下限～」、無ければ「～」だけ。上限は下の行。
     tilde: bool = False
-    # 「～上限」。下限は上の行。
     upper_mark: bool = False
 
 
@@ -754,7 +752,6 @@ def grid(lines: list[Line]) -> Grid:
     rows: list[GridRow] = []
     pending = ""
     last_numeric_y: float | None = None
-    # 直前の行が「数値だけの行」に行名を前の行から借りたか（3 行に折り返した行名の真ん中に数値がある）
     value_only = False
     for index, (line, label, amounts) in enumerate(parsed):
         if index < numeric[0] and index not in hanging:

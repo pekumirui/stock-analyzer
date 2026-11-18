@@ -87,7 +87,7 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
             s.gross_profit = None  # find_statement は売上総利益も見る（決算速報は XBRL から付ける）。ここでは使わない
     order = sorted(stmts, key=lambda s: (s.disclosed_date, s.disclosed_time or "", s.disclosure_no))
     hist: list[Statement] = []
-    latest: tuple[date, int] | None = None  # いま出ている一番新しい期 (年度末, 四半期)
+    latest: tuple[date, int] | None = None
     eps = op_q = op_ttm = None
     out: dict[str, list] = {"t": [], "eps": [], "op_q": [], "op_ttm": []}
     for s in order:
@@ -102,7 +102,7 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
                 continue
             key = (s.fiscal_year_end, n)
             if latest is not None and key < latest:
-                continue  # 前の期の出し直し
+                continue
             latest = key
             fy = (s.type_of_document or "").startswith("FY")
             eps = _num(raw, "NxFEPS" if fy else "FEPS")

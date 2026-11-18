@@ -540,7 +540,6 @@ def test_run_filters_dedups_and_saves(tmp: Path) -> None:
     no_id = rec("72030", "トヨタ", "8月度 月次売上高", "")
     unknown = rec("99990", "未上場", "8月度 月次売上高", "140120260805000005")
     broken = rec("26640", "カワチ薬品", "8月度 月次営業概況", "140120260805000006")
-    # 月次らしいが LIST_KEYWORDS に無い表題は取らない
     juchu = rec("64660", "x", "受注速報", "140120260805000007")
     listed = [gift, tanshin, no_id, kichiri, gift, unknown, broken, juchu]
     days_calls: list[tuple] = []

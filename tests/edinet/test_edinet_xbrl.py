@@ -120,7 +120,6 @@ def test_title_meta() -> None:
     assert (m["doc_type"], m["period_type"], m["is_amendment"]) == ("semiannual", "Q2", False)
     m = title_meta("140", "四半期報告書－第70期第3四半期(2023/10/01－2023/12/31)")
     assert (m["doc_type"], m["period_type"]) == ("quarterly", "Q3")
-    # 第138期 の「第1」を Q1 と読まない
     assert title_meta("140", "四半期報告書－第138期第2四半期(2019/07/01－2019/09/30)")["period_type"] == "Q2"
     assert title_meta("150", "訂正四半期報告書－第１１期第１四半期")["period_type"] == "Q1"
 
@@ -140,10 +139,8 @@ def test_keep_fact() -> None:
     assert keep_fact(fact(), ctx("current", {"jppfs_cor:ConsolidatedOrNonConsolidatedAxis":
                                              "jppfs_cor:NonConsolidatedMember"}))
     assert not keep_fact(fact(), ctx("prior1"))
-    # セグメント軸は残す（KAB-77。tests/edinet/test_edinet_segments.py）。ほかの軸は捨てる
     assert keep_fact(fact(), ctx("current", {"jpcrp_cor:OperatingSegmentsAxis": "x:AutoMember"}))
     assert not keep_fact(fact(), ctx("current", {"jppfs_cor:ComponentsOfEquityAxis": "x:CapitalStockMember"}))
-    # 大株主・所有者別の軸は要素名があるときだけ残す（KAB-266）
     name = ParsedFact(namespace_uri="u", namespace_key="jpcrp_cor", local_name="NameMajorShareholders",
                       context_ref="c", unit=None, scale=None, value_num=None, value_text="A",
                       is_nil=False, is_numeric=False)
@@ -194,13 +191,10 @@ def test_ingest_normalize_and_skip() -> None:
         assert f.submitted_at == datetime(2025, 6, 27, 15, 30)  # noqa: DTZ001
         assert _value(db, f.id, "net_sales") == Decimal("200000000")
         assert _value(db, f.id, "total_assets") == Decimal("1000000000")
-        # 前期（PriorYearDuration）の fact は入れない。DEI は入れる
         refs = {c.context_ref for c in db.query(XbrlContext).filter_by(filing_id=f.id)}
         assert "PriorYearDuration" not in refs and "FilingDateInstant" in refs
-        # 取り込み済みは飛ばす。ダウンロードに失敗した書類は filing が無いので次の回にまた取る
         assert [d.doc_id for d in pending_documents(db)] == ["S100FAIL"]
         assert [d.doc_id for d in pending_documents(db, reparse=True)] == ["S100AAAA", "S100FAIL"]
-        # 修正履歴（KAB-57）は EDINET の filing を読まない
         assert xbrl_points(db, "72030", date(2026, 1, 1)) == []
     finally:
         db.close()
@@ -219,7 +213,6 @@ def test_ifrs_and_withdrawal_retracts() -> None:
         f = db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100IFRS").one()
         assert f.accounting_standard == "IFRS"
         assert _value(db, f.id, "net_sales") == Decimal("300000000")
-        # 後から取下げ → 正規化層から外す
         row = db.get(EdinetDocument, (date(2025, 6, 27), 1))
         row.withdrawal_status = "2"
         db.commit()
@@ -246,15 +239,12 @@ def test_not_found_is_stored_failed_and_not_retried() -> None:
         db.commit()
         client = FakeClient({}, gone=("S100GY6A",))
         st = run(db, client, pending_documents(db))
-        # S100TEMP は 404 でない失敗（一時的）なので従来どおり errors
         assert (st["missing"], st["errors"], st["failed"]) == (1, 1, 0)
         f = db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100GY6A").one()
         assert (f.code, f.parse_status, f.doc_type, f.is_amendment) == ("72030", "failed", "annual", True)
         assert "404" in f.parse_error
         assert db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100TEMP").count() == 0
-        # 次の回は 404 の書類を取らない。一時的な失敗はまた取る
         assert [d.doc_id for d in pending_documents(db)] == ["S100TEMP"]
-        # --retry-failed で取り直して、また 404 でも行は 1 つのまま
         retry = pending_documents(db, retry_failed=True)
         assert [d.doc_id for d in retry] == ["S100GY6A", "S100TEMP"]
         st = run(db, FakeClient({"S100TEMP": _zip()}, gone=("S100GY6A",)), retry)
@@ -292,7 +282,6 @@ def test_job_exit_zero_on_not_found(monkeypatch, capsys) -> None:
     monkeypatch.setattr(wrapper, "EdinetClient", lambda: Client({}, gone=("S100GY6A",)))
     assert job.main() == 0
     assert "missing=1 errors=0" in capsys.readouterr().out
-    # 2 回目は pending に出ないのでダウンロードしない
     calls: list[Client] = []
     monkeypatch.setattr(wrapper, "EdinetClient", lambda: calls.append(Client({})) or calls[-1])
     assert job.main() == 0

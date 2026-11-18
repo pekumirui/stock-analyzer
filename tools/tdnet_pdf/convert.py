@@ -94,7 +94,7 @@ def _chars(page, height: float) -> list[_Char]:
         styles: dict[int, _Style] = {}
         out: list[_Char] = []
         n_chars = raw.FPDFText_CountChars(tp)
-        low = False   # 直前の上位サロゲートと組にした下位サロゲート
+        low = False
         for i in range(n_chars):
             if low:
                 low = False

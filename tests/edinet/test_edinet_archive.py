@@ -84,7 +84,6 @@ def test_edinet_then_local(db) -> None:
     assert not list(path.parent.glob("*.tmp"))
     row = db.get(EdinetArchive, ("S100AAAA", CSV))
     assert (row.status, row.bytes, row.rel_path) == (SAVED, len(payload), "350/S100AAAA_type5.zip")
-    # 2 回目は手元から。EDINET に行かない
     client.calls.clear()
     got = download(db, client, doc, CSV)
     assert got.source == "local" and client.calls == []
@@ -143,7 +142,6 @@ def test_large_holdings_outside_window_reads_archive(db, monkeypatch) -> None:
         st = ingest_document(db, client, doc, _lookup(db), today=date(2032, 1, 1))
     assert st == "parsed" and client.calls == []
     assert db.get(LargeHoldingReport, "S100ORIG").parse_status == "parsed"
-    # 残していなければ今までどおり missing（ダウンロードしない）
     other = _doc(2, "S100NONE")
     db.add(other)
     db.commit()
@@ -162,7 +160,6 @@ def test_backfill_order_and_gone(db) -> None:
     from datetime import datetime
 
     fetched = datetime(2026, 10, 30)  # noqa: DTZ001
-    # 大量保有（5 年）は 2024 年提出、自己株買い（1 年）は 2026 年提出 → 自己株買いが先に期限
     lvh = _doc(1, "S100LVH1", file_date=date(2024, 1, 10))
     bb = _doc(2, "S100BB01", file_date=date(2026, 3, 1), doc_type_code="220")
     done = _doc(3, "S100DONE")

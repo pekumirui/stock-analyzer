@@ -102,7 +102,7 @@ def run_page(page: dict, page_dir: Path, model: str, timeout: int, prompt: str =
     text = res.get("result") or ""
     try:
         return dict(meta, **d.verify(page, d.parse_json(text)))
-    except Exception as e:  # JSON 崩れはページ単位でエラーにして続ける
+    except Exception as e:
         return dict(meta, error=f"{type(e).__name__}: {e}", raw=text[:2000])
 
 
@@ -182,7 +182,7 @@ def publish_deck(deck: dict, root: Path, name: str, remote: str, clean: bool) ->
     report = rp.build(result, pdf if pdf.exists() else None, root / "reports" / f"{deck['id']}_{name}.pdf", "pdf")
     files = [report, result]
     if any(p.get("tables") for p in json.loads(result.read_text())["pages"]):
-        files.insert(1, view.build(result, root / "reports" / f"{deck['id']}_{name}_view.pdf", "pdf"))  # 復元ビュー（v2 以降）
+        files.insert(1, view.build(result, root / "reports" / f"{deck['id']}_{name}_view.pdf", "pdf"))
     rp.publish(files, remote)
     if clean:
         shutil.rmtree(root / "work" / deck["id"] / name, ignore_errors=True)

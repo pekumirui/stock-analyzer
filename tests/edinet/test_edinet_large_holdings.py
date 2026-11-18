@@ -185,7 +185,7 @@ def test_parse_joint_report() -> None:
     assert row["obligation_date"] == date(2026, 10, 7)
     assert row["reason"] == "・株券等保有割合の１％以上の減少"
     assert (row["arrangement"], row["holder_count"]) == ("連名", 2)
-    assert row["joint_holders_text"] is None          # 「該当事項なし」は NULL
+    assert row["joint_holders_text"] is None
     assert row["is_amendment"] is False and row["amends_doc_id"] is None
 
 
@@ -194,7 +194,7 @@ def test_single_holder_totals_from_holder() -> None:
     rep = parse_csv_zip(_single_report())
     lookup = CodeLookup({"65160"}, {})
     row = report_row(_doc(1, "S100AAA2", issuer_edinet_code="E22222"), rep, lookup, FETCHED)
-    assert row["code"] == "65160"                     # 発行者の EDINET コードが引けなくても証券コードで付く
+    assert row["code"] == "65160"
     assert (row["shares_held"], row["holding_ratio"]) == (512000, 0.0512)
     assert row["holding_ratio_prev"] is None
     assert row["reason"] is None
@@ -229,19 +229,17 @@ def test_run_versions_and_rerun() -> None:
                              .order_by(LargeHolding.holder_no)).all()
         assert [(h.edinet_code, h.shares_held, h.holding_ratio, h.holding_ratio_prev) for h in holders] == [
             ("E99999", 600000, 0.06, 0.07), ("E88888", 150000, 0.015, 0.015)]
-        assert holders[0].important_proposal is None   # 「該当事項なし。」
+        assert holders[0].important_proposal is None
         assert (holders[0].own_funds, holders[0].total_funds) == (5914000, 5914000)
         sngl = db.get(LargeHolding, ("S100SNGL", 1))
         assert sngl.important_proposal == "状況に応じて経営陣と対話する。"
         assert db.get(LargeHoldingReport, "S100BRKN").parse_status == "failed"
         assert db.get(LargeHoldingReport, "S100ORIG").is_latest is True
 
-        # 再実行: parsed・failed は取り直さない。retry_failed で failed だけ
         assert pending_documents(db) == []
         assert [d.doc_id for d in pending_documents(db, retry_failed=True)] == ["S100BRKN"]
         assert db.query(LargeHolding).count() == 3
 
-        # 訂正（360）: 大元に束ね、最新は訂正の方
         db.add(_doc(6, "S100AMD1", doc_type_code="360", form_code="090001",
                     doc_description="訂正報告書（大量保有報告書・変更報告書）", parent_doc_id="S100ORIG"))
         db.commit()
@@ -252,7 +250,6 @@ def test_run_versions_and_rerun() -> None:
         assert (amd.is_amendment, amd.amends_doc_id, amd.original_doc_id) == (True, "S100ORIG", "S100ORIG")
         assert (orig.is_latest, amd.is_latest) == (False, True)
 
-        # 訂正の訂正も同じ大元に束ねる
         db.add(_doc(7, "S100AMD2", doc_type_code="360", parent_doc_id="S100AMD1"))
         db.commit()
         client.payloads["S100AMD2"] = _joint_report(amends="S100AMD1")
@@ -260,7 +257,6 @@ def test_run_versions_and_rerun() -> None:
         amd2 = db.get(LargeHoldingReport, "S100AMD2")
         assert (amd2.original_doc_id, amd2.is_latest) == ("S100ORIG", True)
 
-        # 訂正の取下げ: 一つ前の訂正が最新に戻る
         db.query(EdinetDocument).filter_by(doc_id="S100AMD2").update({"withdrawal_status": "2"})
         db.commit()
         assert refresh_versions(db) == 2
@@ -270,7 +266,6 @@ def test_run_versions_and_rerun() -> None:
         assert db.get(LargeHoldingReport, "S100AMD1").is_latest is True
         assert refresh_versions(db) == 0
 
-        # failed を取り直して parsed になれば、エラーは消える
         client.payloads["S100BRKN"] = _joint_report()
         run(db, client, pending_documents(db, retry_failed=True))
         brkn = db.get(LargeHoldingReport, "S100BRKN")

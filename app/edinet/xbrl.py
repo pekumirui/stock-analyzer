@@ -213,7 +213,6 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
                 keep_fact=keep_fact,
             )
         except Exception as exc:
-            # TDnet の parse_manifest_row と同じ。flush 済みの filing を failed で残す
             filing = db.query(XbrlFiling).filter_by(source=SOURCE, doc_id=doc.doc_id).one_or_none()
             if filing is not None:
                 mark_failed(db, filing, exc)

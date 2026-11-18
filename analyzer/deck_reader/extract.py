@@ -49,7 +49,6 @@ def numbers_in(text: str) -> set[float]:
     return out
 
 
-# ---------- ページ分類 ----------
 _SKIP_WORDS = (
     "将来予測", "将来に関する記述", "将来の見通し", "見通しに関する注意", "免責", "インサイダー取引",
     "Disclaimer", "forward-looking",
@@ -60,7 +59,6 @@ def classify(text: str, n_paths: int) -> str:
     """LLM に回す必要があるか。divider（表紙・中扉）/ disclaimer（注意事項）は回さない。"""
     t = norm_text(text)
     body = re.sub(r"\s+", "", t)
-    # 年・月日・ページ番号のような小さい数字や年号を除いた「中身の数字」
     real = {v for v in numbers_in(t) if v > 31 and not (1990 <= v <= 2100 and v == int(v))}
     if len(body) < 120 and not real:
         return "divider"
@@ -77,7 +75,6 @@ def needs_llm(kind: str) -> bool:
     return kind not in ("divider", "disclaimer")
 
 
-# ---------- PDF ----------
 def load_pages(pdf_bytes: bytes, dpi: int = 110, render: bool = True) -> tuple[list[dict], dict]:
     """[{page, kind, text, png(bytes|None)}], meta。png は LLM に回すページだけ。"""
     import pypdfium2 as pdfium
@@ -100,7 +97,6 @@ def load_pages(pdf_bytes: bytes, dpi: int = 110, render: bool = True) -> tuple[l
     return pages, meta
 
 
-# ---------- プロンプト ----------
 SYSTEM = """あなたは日本の上場企業の決算説明資料を読み取り、データベース用の構造化データを作る専門家です。
 スライド画像と、そのスライドから機械抽出した文字データ (数字は正確だが並び順が崩れている) を渡します。
 画像でレイアウト (どの数字がどの項目・期間・セグメントに属するか) を読み取り、数字は必ず文字データに現れる表記をそのまま使ってください。
@@ -208,7 +204,6 @@ def page_text(page: dict) -> str:
     return f"ページ {page['page']} の文字データ:\n{text[:6000]}"
 
 
-# ---------- 出力の解析と照合 ----------
 def parse_json(s: str) -> dict:
     """応答の JSON を 1 ページ分の dict にする。1 枚を複数に分けた [{...}, {...}] や {...}, {...} は表をつないで 1 つにする。"""
     s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s.strip())
@@ -357,7 +352,6 @@ def recheck(page: dict) -> dict:
     return dict(page, facts=out["facts"], sum_checks=out["sum_checks"])
 
 
-# ---------- OCR ----------
 _OCR = None
 
 

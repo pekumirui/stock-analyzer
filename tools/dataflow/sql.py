@@ -64,7 +64,7 @@ def _tables_cached(sql: str) -> tuple[frozenset[str], frozenset[str]]:
         end = _FROM_END_RE.search(tail)
         segment = tail[: end.start()] if end else tail
         if not segment.strip() and tail.lstrip().startswith("("):
-            continue  # FROM (SELECT ...)
+            continue
         for part in segment.split(","):
             first = _FIRST_NAME_RE.match(part)
             if first:

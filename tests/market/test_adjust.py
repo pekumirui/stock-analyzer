@@ -45,7 +45,7 @@ def test_readjust_matches_jquants() -> None:
             # 権利落ちの無い銘柄は書き換えない
             _row("33330", "2026-01-05", 1000, 100),
         ])
-        assert readjust(db) == 5  # キオクシア 2 行、2 回分割 2 行、ライツイシュー 1 行
+        assert readjust(db) == 5
         db.expire_all()
 
         def adj(code, d):
@@ -58,6 +58,6 @@ def test_readjust_matches_jquants() -> None:
         assert adj("11110", "2026-01-05") == (100.0, 1000)
         assert adj("11110", "2026-02-02") == (120.0, 500)
         assert adj("22220", "2026-01-05") == (900.0, 100)
-        assert readjust(db) == 0  # 2 回目は変わる行が無い
+        assert readjust(db) == 0
     finally:
         db.close()

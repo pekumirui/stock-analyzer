@@ -176,7 +176,7 @@ def run(
                 _mark(db, st, "missing", str(exc))
                 stats["missing"] += 1
                 log(f"missing {st.disclosure_no} code={st.code} date={st.disclosed_date}")
-            except Exception as exc:  # 取得・変換の失敗は記録して次へ
+            except Exception as exc:
                 db.rollback()
                 _mark(db, st, "failed", f"{type(exc).__name__}: {exc}")
                 stats["failed"] += 1

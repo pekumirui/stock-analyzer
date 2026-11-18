@@ -255,7 +255,7 @@ def report_row(doc: EdinetDocument, rep: ParsedReport, lookup: CodeLookup,
         "joint_holders_text": rep.note("InformationAboutJointHoldersTextBlock"),
         "is_amendment": is_amendment,
         "amends_doc_id": amends if is_amendment else None,
-        "original_doc_id": doc.doc_id,   # refresh_versions が付け直す
+        "original_doc_id": doc.doc_id,
         "parse_status": "parsed",
         "parse_error": None,
         "fetched_at": fetched_at,

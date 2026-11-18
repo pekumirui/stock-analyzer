@@ -1131,7 +1131,6 @@ def _statement_roles(table, spec: SectionSpec, d: PdfDisclosure) -> list[Role | 
         any(row.cells[index] is not None and row.cells[index].value is not None for row in table.rows)
         for index in range(count)
     ]
-    # 「右端」はダッシュだけの列を数えない。
     last = max((index for index in range(count) if filled[index]), default=count - 1)
     for index, column in enumerate(table.columns):
         if not filled[index]:

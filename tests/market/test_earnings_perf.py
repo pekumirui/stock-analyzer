@@ -141,34 +141,26 @@ def test_base_is_first_open_after_earnings() -> None:
         def ev(code, d):
             return db.get(EarningsEvent, (code, D(d)))
 
-        # 場中の発表で当日はストップ高引け、翌営業日は寄らず → その次の日の始値
         e = ev("27370", "2026-07-30")
         assert (e.base_date, e.base_price) == (D("2026-08-03"), 25150)
         assert e.return_1d == round((26150 / 25150 - 1) * 100, 2)
         assert e.alpha_1d == round((26150 / 25150 - 2020 / 2000) * 100, 2)
         assert e.return_to_date == round((31150 / 25150 - 1) * 100, 2)
-        # 場中の発表 → 当日の終値。+1d は翌営業日の終値
         e = ev("55550", "2026-05-15")
         assert (e.base_date, e.base_price) == (D("2026-05-15"), 1020)
         assert e.return_1d == e.alpha_1d == round((1040 / 1020 - 1) * 100, 2)
-        # 場中の発表でストップ高引け（値幅表で判定） → 翌営業日の始値
         e = ev("66660", "2026-05-15")
         assert (e.base_date, e.base_price) == (D("2026-05-18"), 1350)
-        # 引け後の発表で翌営業日が寄らずのストップ高 → その次の日の始値
         e = ev("285A0", "2026-05-15")
         assert (e.base_date, e.base_price) == (D("2026-05-19"), 52010)
         assert e.return_1d == round((49770 / 52010 - 1) * 100, 2)
         assert e.return_5d is None
-        # 2 日続けて寄らず → さらに次の日
         e = ev("11110", "2026-05-15")
         assert (e.base_date, e.base_price) == (D("2026-05-20"), 1800)
-        # ストップ安も同じ
         e = ev("22220", "2026-05-15")
         assert (e.base_date, e.base_price) == (D("2026-05-19"), 800)
-        # 薄商いで四本値が同じだけの日は飛ばさない
         e = ev("33330", "2026-05-15")
         assert (e.base_date, e.base_price) == (D("2026-05-18"), 1010)
-        # 2024-11-05 より前の 15:00 は引け後
         e = ev("44440", "2024-05-15")
         assert (e.base_date, e.base_price) == (D("2024-05-16"), 1050)
     finally:

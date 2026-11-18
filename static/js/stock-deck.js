@@ -1,6 +1,6 @@
 // 決算説明資料の中身（KAB-350。docs/DESIGN_stock.md）。ニュースの行から開く。読み取った表・要約の復元ビュー。
 // 原本の PDF は出さない。表（列 × 行、行の of）からグラフと表を組み直す。規則は analyzer/deck_reader/view.py と同じ
-let stockDecks = null;      // null = まだ読んでいない
+let stockDecks = null;
 let stockDeckKey = "";
 
 const DECK_SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
@@ -86,7 +86,6 @@ function deckXLabels(cols, band){
   cols.forEach((c, i) => {
     const x = DECK_ML + band * (i + 0.5);
     const p = String(c.period || "");
-    // 列の幅に入らなければ空白で 2 行に分け、それでも入らなければ詰める
     let lines = [p];
     if(deckTextW(p, 11) > band - 2 && p.includes(" ")){
       const k = p.indexOf(" ");
@@ -130,7 +129,6 @@ function deckFigure(title, unit, note, legend, svg){
     + `${note ? `<span class="dk-note">${note}</span>` : ""}</figcaption>${legend}${svg}</figure>`;
 }
 
-// series: [[名前, [値…]]]。total（合計の行）があり内訳がすべてプラスなら積み上げ。マイナスが混ざれば内訳と合計を並べた棒
 function deckBarChart(cols, series, unit, title, dec, total, totalName){
   if(total && series.some(([, vs]) => vs.some(v => v != null && v < 0))){ series = series.concat([[totalName, total]]); total = null; }
   const id = `dk${++deckSvgSeq}`;
@@ -155,7 +153,7 @@ function deckBarChart(cols, series, unit, title, dec, total, totalName){
         const s = fmt(v), ym = (y0 + y1) / 2 + 3.2;
         if(y0 - y1 >= 13 && deckTextW(s, 9) <= bw - 4 && c.kind === "actual"){
           marks += `<text x="${(x + bw / 2).toFixed(1)}" y="${ym.toFixed(1)}" class="seg" fill="${deckInk(colors[k])}" text-anchor="middle">${deckEsc(s)}</text>`;
-        } else if(bw >= 11 && y0 - y1 >= deckTextW(s, 9) + 4 && c.kind === "actual"){  // 棒が細ければ縦書きで中に
+        } else if(bw >= 11 && y0 - y1 >= deckTextW(s, 9) + 4 && c.kind === "actual"){
           const tx = x + bw / 2 + 3.2, ty = (y0 + y1) / 2;
           marks += `<text x="${tx.toFixed(1)}" y="${ty.toFixed(1)}" class="seg" fill="${deckInk(colors[k])}" text-anchor="middle" transform="rotate(-90 ${tx.toFixed(1)} ${ty.toFixed(1)})">${deckEsc(s)}</text>`;
         } else side.push([ym, s, x + bw + 2, (band - bw) / 2 - 2]);
@@ -196,7 +194,6 @@ function deckBarChart(cols, series, unit, title, dec, total, totalName){
 function deckLinePaths(pts, color, fx){
   if(pts.length < 2) return "";
   if(!fx) return `<path d="M${pts.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join("L")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-  // 右の列が予想・計画のときだけ破線（その列へ入る区間）。実績どうしは実線
   let out = "", d = "", dash = false, on = false;
   const flush = () => {
     if(!on) return;
@@ -255,7 +252,6 @@ function deckLineChart(cols, series, unit, title, dec, fx){
   return deckFigure(title, unit, note, deckLegend(series.map(([nm]) => nm), colors, "line"), svg);
 }
 
-// 表 → グラフ（実績・予想・計画の列が 3 つ以上のときだけ）。内訳は積み上げ、内訳の無い金額は棒（3 本まで）、率と為替は折れ線
 function deckCharts(table){
   const cols = table.cols || [], rows = table.rows || [];
   const idx = cols.map((c, i) => DECK_SERIES_KINDS.includes(c.kind) ? i : -1).filter(i => i >= 0);

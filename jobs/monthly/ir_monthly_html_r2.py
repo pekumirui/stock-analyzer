@@ -371,7 +371,6 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
             data, page_url = _get(followed)
             time.sleep(SLEEP_SEC)
         elif not _same_url(page_url, requested):
-            # リダイレクト先が follow_re に一致し、本文に他の候補が無い。最終 URL を取り直す。
             data, page_url = _get(followed)
             time.sleep(SLEEP_SEC)
         if iss.parse:

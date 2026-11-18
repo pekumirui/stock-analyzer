@@ -13,7 +13,6 @@ const RANKING_SUBS = ["pts"];
 function stockRouteArg(raw){
   const [code, sub, id] = String(raw || "").split("/");
   if(!CODE_RE.test(code || "")) return "";
-  // 説明資料のタブは無い。中身の key 付きだけ残し、一覧の古いルートはニュースへ
   if(sub === "decks") return DECK_KEY_RE.test(id || "") ? `${code}/decks/${id}` : `${code}/news`;
   if(!STOCK_SUBS.includes(sub)) return code;
   if(sub === "news" && NEWS_ID_RE.test(id || "")) return `${code}/news/${id}`;
@@ -34,12 +33,10 @@ function routeArg(tab, raw){
 
 function parseRoute(raw){
   const {tab, rest, from} = splitRouteString(raw);
-  // チャートタブは銘柄の株価タブになった（KAB-181）。古いハッシュと ui.route を読み替える
   if(tab === "chart"){
     const code = CODE_RE.test(rest) ? rest : "";
     return {tab: "stock", code: code ? `${code}/price` : "", from};
   }
-  // PTS タブはランキングの中になった（KAB-265）。古い #pts と ui.route を読み替える
   if(tab === "pts"){
     return {tab: "ranking", code: "pts", from};
   }
@@ -94,7 +91,6 @@ function writeRoute(tab, code, from, push){
   if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
-// 銘柄はメニューに無い（ヘッダー右上の銘柄検索から開く。KAB-365）
 function showTab(tab){
   if(!TABS.includes(tab)) return;
   const b = document.querySelector(`#app-nav button[data-tab="${tab}"]`);

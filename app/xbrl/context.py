@@ -226,7 +226,6 @@ def _parse_iso_date_text(raw: str | None) -> date | None:
     if not raw:
         return None
     s = str(raw).strip()
-    # Accept plain ISO; ignore Japanese filing-date style.
     if len(s) >= 10 and s[4] == "-" and s[7] == "-":
         return parse_date(s[:10])
     return None
@@ -471,7 +470,6 @@ def infer_accounting_standard_from_namespaces(
             and not getattr(fact, "is_nil", False)
         ):
             saw_ifrs = True
-        # DEI text values sometimes name the standard explicitly.
         local = local_orig.lower().replace("_", "")
         if "accountingstandard" in local:
             raw_nfkc = unicodedata.normalize("NFKC", str(getattr(fact, "value_text", None) or ""))

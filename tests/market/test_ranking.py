@@ -56,10 +56,8 @@ def test_batch_marks_first_disclosure() -> None:
         upsert(db, Topix, [{"date": d, "open": 2000, "close": 2000} for d in days])
         compute_earnings_events(db)
         e = db.get(EarningsEvent, ("11110", D("2026-10-14")))
-        # 予想修正の 13:00 ではなく決算短信の 15:30。引け後なので翌日の始値から
         assert (e.is_first, e.disclosed_time, e.base_date) == (True, "15:30:00", D("2026-10-15"))
         assert db.get(EarningsEvent, ("11110", D("2026-10-21"))).is_first is False
-        # 次の決算（訂正の 10/21 ではなく次の期の 10/22）の前営業日 10/21 の終値まで
         assert (e.next_disclosed_date, e.end_date, e.return_to_next, e.alpha_to_next) == \
             (D("2026-10-22"), D("2026-10-21"), 5.0, 5.0)
         e = db.get(EarningsEvent, ("11110", D("2026-10-22")))
@@ -85,7 +83,6 @@ def test_earnings_perf_ranking() -> None:
         upsert(db, Stock, [{"code": c, "name": n, "market": mk, "sector33": sec} for c, n, mk, sec in
                            (("11110", "Ａ社", "プライム", "小売業"), ("22220", "B社", "グロース", "情報・通信業"),
                             ("44440", "D社", None, None))])
-        # 営業日は TOPIX の日足の日。11/3（文化の日）は無い
         upsert(db, Topix, [{"date": D(x), "close": 1} for x in
                            ("2026-09-30", "2026-10-01", "2026-10-30", "2026-11-02", "2026-11-04", "2026-11-05")])
         upsert(db, EarningsEvent, [
@@ -102,12 +99,10 @@ def test_earnings_perf_ranking() -> None:
     assert d["months"] == ["2026-10", "2026-09"]
     assert d["month"] == "2026-10" and d["as_of"] == "2026-11-05"
     got = [(r["rank"], r["code"], r["session"], r["return_to_next"]) for r in d["rows"]]
-    # 最初の決算短信でない行は出ない。値の無い D 社は最後
     assert got == [(1, "22220", "intraday", 12.5), (2, "11110", "after", 5.0), (3, "44440", "after", None)]
     top = d["rows"][0]
     assert top["name"] == "B社" and top["alpha_to_next"] == 10.0 and top["disclosed_time"] == "13:00"
     assert (top["market"], top["sector33"]) == ("グロース", "情報・通信業")
-    # 決算日 10/30 の翌営業日 11/2 から 11/5 まで（11/3 は休み）
     assert (top["next_disclosed_date"], top["end_date"], top["bdays"]) == (None, "2026-11-05", 3)
     sep = c.get("/api/ranking/earnings-perf", params={"month": "2026-09"}).json()
     assert [(r["code"], r["session"], r["end_date"], r["bdays"]) for r in sep["rows"]] == \

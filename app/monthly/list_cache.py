@@ -14,7 +14,6 @@ def get(version: int, today: date) -> list[dict] | None:
 
 
 def put(version: int, today: date, payload: list[dict]) -> None:
-    # 日付か版が変わった古い結果は残さない。
     _cache.clear()
     _cache[(version, today)] = payload
 

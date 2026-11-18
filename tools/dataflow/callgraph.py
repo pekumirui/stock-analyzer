@@ -84,7 +84,7 @@ def _api_urls_in(nodes) -> set[tuple[str, str]]:
     in_call: set[int] = set()
     for top in nodes:
         for n in ast.walk(top):
-            if isinstance(n, ast.JoinedStr):  # f-string の地の部分は、f-string ごと見る
+            if isinstance(n, ast.JoinedStr):
                 in_call.update(id(v) for v in n.values)
             if not isinstance(n, ast.Call):
                 continue

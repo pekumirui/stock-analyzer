@@ -200,7 +200,6 @@ def _doc_apply(db: Session, code: str, year_i: int, plan: dict) -> None:
                                   sort_order=next_order, unit=r["unit"]))
             next_order += 1
             db.flush()
-            # doc は行名をそのまま使う（正規化しない）
             record_element_source(db, code, year_i, r["element"], r["unit"], r["element"], "doc")
         elif r["unit"] is not None:
             _get_element(db, code, year_i, r["element"]).unit = r["unit"]

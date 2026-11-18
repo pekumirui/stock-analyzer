@@ -152,7 +152,7 @@ def test_parse_issuer() -> None:
 def test_opinion() -> None:
     v = parse_document("290", read_instance(_opinion(SUPPORT)), issuer=False)
     assert (v["opinion"], v["recommendation"]) == ("support", "recommend")
-    assert v["opinion_text"] == SUPPORT              # 意見の根拠（反対する株主…）は読まない
+    assert v["opinion_text"] == SUPPORT
     assert classify_opinion(SUPPORT_NEUTRAL) == ("support", "leave")
     assert classify_opinion("本公開買付けに反対の意見を表明し、応募しないことを推奨いたします。") == (
         "oppose", "not_recommend")
@@ -225,7 +225,6 @@ def test_run_case_lifecycle() -> None:
             "open", 3000.0, 3000.0, "support", "leave")
         assert (case.announced_date, case.period_end, case.doc_count) == (date(2026, 5, 13), date(2026, 7, 16), 2)
 
-        # 訂正届出書で価格の引き上げと期間の延長。訂正意見表明は意見表明（290）の子
         db.add_all([
             _doc(3, "S100AMD1", "250", parent_doc_id="S100NOT1", file_date=date(2026, 7, 7)),
             _doc(4, "S100OPN2", "300", parent_doc_id="S100OPN1", file_date=date(2026, 7, 7)),
@@ -240,7 +239,6 @@ def test_run_case_lifecycle() -> None:
         assert (case.period_end, case.recommendation, case.doc_count) == (date(2026, 8, 17), "recommend", 4)
         assert db.get(EdinetTenderOfferDoc, "S100OPN2").tender_offer_id == "S100NOT1"
 
-        # 報告書で成立
         db.add(_doc(5, "S100RPT1", "270", parent_doc_id="S100NOT1", file_date=date(2026, 8, 18)))
         db.commit()
         client.payloads["S100RPT1"] = _report()
@@ -251,13 +249,11 @@ def test_run_case_lifecycle() -> None:
         assert (case.result_date, case.holding_ratio_after, case.latest_doc_id) == (
             date(2026, 8, 18), 0.81, "S100RPT1")
 
-        # 再実行しても重複しない
         assert pending_documents(db, today=TODAY) == []
         _run(db, client, pending_documents(db, reparse=True, today=TODAY))
         assert db.query(EdinetTenderOfferDoc).count() == 5
         assert db.query(EdinetTenderOffer).count() == 1
 
-        # 報告書の取下げ: 案件は open に戻る
         db.query(EdinetDocument).filter_by(doc_id="S100RPT1").update({"withdrawal_status": "2"})
         db.commit()
         refresh_offers(db)
@@ -289,7 +285,7 @@ def test_withdrawal_issuer_and_doc_edit() -> None:
                              "S100ISR1": _issuer_report()})
         st, _ = _run(db, client, pending_documents(db, today=TODAY))
         assert (st["parsed"], st["meta"], st["failed"], exit_status(st)) == (3, 1, 0, 0)
-        assert "S100WDR1" not in client.calls        # 撤回届出書は中身を読まない
+        assert "S100WDR1" not in client.calls
         case = db.get(EdinetTenderOffer, "S100NOT2")
         assert (case.status, case.target_edinet_code, case.target_code) == ("withdrawn", "E77777", "23710")
         iss = db.get(EdinetTenderOffer, "S100ISS1")

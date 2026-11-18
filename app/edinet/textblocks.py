@@ -255,7 +255,7 @@ def read_instance(content: bytes) -> Instance:
 class DocMeta:
     """docID ごとにまとめた edinet_documents。修正があれば修正の行（新しいメタデータ）を使う。"""
     doc: EdinetDocument
-    gone: bool                         # 取下げ・不開示
+    gone: bool
 
 
 def doc_metas(db: Session, doc_types: tuple[str, ...]) -> dict[str, DocMeta]:

@@ -461,7 +461,6 @@ def _fold_baked_auto_rows(rows: dict[str, dict[str, Any]]) -> None:
                     r["leaf"] = hit_m + yoy
                     changed = True
                     continue
-            # #577: 既知の指標名で終わる
             hit_m = next((m for m in metrics if m and base.endswith(" " + m) and base != m), None)
             if hit_m:
                 rest = _auto_inner_name(base[:-(len(hit_m) + 1)])

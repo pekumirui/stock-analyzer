@@ -81,7 +81,6 @@ def fingerprint(path):
                 n = norm(line)
                 if is_label(n) and 2 <= len(n) <= 40:
                     headings.append(n)
-    # 表の中身が見出しとして二重計上されるのを除去
     in_table = set()
     for t in tables:
         in_table.add("".join(c for c in t["header"] if c))
@@ -117,7 +116,6 @@ def similarity(a, b):
     sa, sb = set(a["labels"]), set(b["labels"])
     hdr = SequenceMatcher(None, "|".join(a["header"]), "|".join(b["header"])).ratio()
     if not sa and not sb:
-        # 行ラベルが全て数値の表（データ専用ブロック）はヘッダーと形状だけで判定
         shape = 1.0 if a["n_cols"] == b["n_cols"] else 0.0
         return 0.6 * hdr + 0.4 * shape
     jac = len(sa & sb) / len(sa | sb) if (sa | sb) else 0.0

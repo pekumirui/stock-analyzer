@@ -594,7 +594,7 @@ def report_row(doc: EdinetDocument, rep: ParsedBuyback, lookup: CodeLookup,
         "month_amount": sum(month_amounts) if month_amounts else None,
         "is_amendment": is_amendment,
         "amends_doc_id": amends,
-        "original_doc_id": doc.doc_id,   # refresh_versions が付け直す
+        "original_doc_id": doc.doc_id,
         "parse_status": "meta" if rep.acq_omitted else "parsed",
         "parse_error": None,
         "fetched_at": fetched_at,

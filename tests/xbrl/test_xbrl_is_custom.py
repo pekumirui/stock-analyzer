@@ -43,7 +43,6 @@ def test_namespace_is_standard() -> None:
         assert namespace_is_standard(key, uri), key
     for key, uri in CUSTOM:
         assert not namespace_is_standard(key, uri), key
-    # URI が無いときはキーの完全一致
     assert namespace_is_standard("jpcrp_cor")
     assert not namespace_is_standard("jpcrp030000-asr_E02144-000")
     assert not namespace_is_standard("custom")
@@ -55,7 +54,6 @@ def test_migrate_relabels_existing_elements() -> None:
     db = SessionLocal()
     try:
         now = datetime(2026, 10, 20)  # noqa: DTZ001
-        # KAB-73 以降の誤り（会社独自が is_custom=0）と、逆向きの誤り
         rows = [(k, u, False) for k, u in CUSTOM] + [(STANDARD[0][0], STANDARD[0][1], True)]
         rows += [(STANDARD[1][0], STANDARD[1][1], False)]
         for i, (key, uri, is_custom) in enumerate(rows):

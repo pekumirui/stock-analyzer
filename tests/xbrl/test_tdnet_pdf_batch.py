@@ -144,7 +144,6 @@ def test_locked_is_retried_once_at_batch_end(capsys, monkeypatch) -> None:
     db = SessionLocal()
     try:
         numbers = _seed_reits(db, "99974", 4)
-        # 1 件目は 1 回だけ、3 件目は 2 回ロック。1 件目はやり直しで通り、3 件目だけ failed。
         calls = _lock_first(monkeypatch, {numbers[0]: 1, numbers[2]: 2})
         waits = _no_sleep(monkeypatch)
         counts = sync_pdf_filings(db, codes=["99974"], limit=10, batch=2, retry_wait=7)

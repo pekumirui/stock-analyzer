@@ -133,16 +133,12 @@ def test_code_list_links_stocks() -> None:
             "72030", "上場", "電気機器", date(2023, 4, 3))
         st = link_stocks(db)
         codes = dict(db.execute(select(Stock.code, Stock.edinet_code)).all())
-        # 同じ証券コードは「上場」の提出者を採る
         assert codes["72030"] == "E10001"
         assert st["duplicate_sec_codes"] == ["72030"]
-        # 優先株式（5 桁目 5）は普通株の提出者
         assert codes["92025"] == "E10002"
-        # TOKYO PRO MARKET は未紐付けに数えない
         assert codes["131A0"] is None
         assert st["unmatched_equity"] == ["99990"]
         assert st["linked"] == 3
-        # 2 回目は何も変わらない
         assert link_stocks(db)["changed"] == 0
     finally:
         db.close()
@@ -168,7 +164,7 @@ def test_store_listing_idempotent_and_links_code() -> None:
         r = _doc(db, "2023-03-01", 8)
         assert (r.doc_id, r.code, r.doc_type_code, r.xbrl_flag) == ("S100ORIG", "72030", "120", True)
         assert r.submit_datetime == _jst(2023, 3, 1, 9, 0)
-        assert _doc(db, "2023-03-01", 9).code == "92020"  # EDINET コード経由
+        assert _doc(db, "2023-03-01", 9).code == "92020"
         assert _doc(db, "2023-03-01", 10).code is None
         day = db.get(EdinetListDay, date(2023, 3, 1))
         assert (day.count, day.max_seq, day.finalized) == (3, 10, False)
@@ -198,16 +194,13 @@ def test_events_update_original_rows() -> None:
         r = _doc(db, "2023-03-01", 8)
         assert (r.withdrawal_status, r.doc_info_edit_status) == ("2", "2")
         assert _doc(db, "2023-03-01", 5).disclosure_status == "2"
-        # 元の日を取り直して空のメタデータが来ても消えない
         store_listing(db, date(2023, 3, 1),
                       _listing("2023-03-01", [blank, nd_orig]), lookup, FETCHED)
         r = _doc(db, "2023-03-01", 8)
         db.refresh(r)
         assert (r.filer_name, r.code, r.doc_type_code, r.withdrawal_status) == (
             "エディネット株式会社", "72030", "120", "2")
-        # 元の日を取り直しても、後の日のイベントで決め直す
         assert _doc(db, "2023-03-01", 5).disclosure_status == "2"
-        # 不開示の解除
         store_listing(db, date(2023, 4, 4),
                       _listing("2023-04-04", [_entry("entry_nondisclosure_end")]), lookup, FETCHED)
         row = _doc(db, "2023-03-01", 5)
@@ -222,7 +215,7 @@ def test_relink_codes_after_code_list() -> None:
     db = SessionLocal()
     try:
         _reset(db)
-        lookup = CodeLookup.load(db)  # コードリストがまだ無い
+        lookup = CodeLookup.load(db)
         e = _entry("entry_withdrawn_child", secCode=None, edinetCode="E10002")
         store_listing(db, date(2023, 3, 1), _listing("2023-03-01", [e]), lookup, FETCHED)
         assert _doc(db, "2023-03-01", 8).code is None
@@ -253,9 +246,8 @@ def test_finalized_and_days_to_fetch() -> None:
         client = FakeClient(listings)
         ingest_days(db, client, sorted(listings), log=lambda *_: None)
         days = days_to_fetch(db, today)
-        assert date(2023, 4, 8) not in days      # 確定済み
-        assert date(2023, 4, 9) in days          # 未確定
-        # 手で取った古い確定日に引っ張られない。古い未確定日は拾う
+        assert date(2023, 4, 8) not in days
+        assert date(2023, 4, 9) in days
         db.add(EdinetListDay(file_date=date(2020, 1, 6), count=0, finalized=True, fetched_at=FETCHED))
         db.add(EdinetListDay(file_date=date(2023, 3, 1), count=0, finalized=False, fetched_at=FETCHED))
         db.commit()
@@ -264,6 +256,6 @@ def test_finalized_and_days_to_fetch() -> None:
         assert date(2020, 1, 7) not in days
         assert days_to_fetch(db, today, date(2023, 4, 8), date(2023, 4, 8)) == []
         assert days_to_fetch(db, today, date(2023, 4, 8), date(2023, 4, 8), force=True) == [date(2023, 4, 8)]
-        assert days_to_fetch(db, today, date(2023, 4, 12)) == []  # 未来日は取らない
+        assert days_to_fetch(db, today, date(2023, 4, 12)) == []
     finally:
         db.close()

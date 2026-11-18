@@ -50,7 +50,6 @@ def test_rebuild_keeps_rows_and_index(capsys):
     assert "WITHOUT ROWID" not in _ddl().upper()
     db = SessionLocal()
     try:
-        # 日ごとに全銘柄を足す（本番の並び）
         for d in (date(2026, 1, 5), date(2026, 1, 6), date(2026, 1, 7)):
             upsert(db, DailyPrice, [
                 {"code": code, "date": d, "close": 100.0 + d.day, "adj_close": 99.0 + d.day,
@@ -61,7 +60,7 @@ def test_rebuild_keeps_rows_and_index(capsys):
         db.close()
     before = _rows()
 
-    assert job.main([]) == 0  # 見積もりだけ
+    assert job.main([]) == 0
     assert "WITHOUT ROWID" not in _ddl().upper()
 
     assert job.main(["--yes"]) == 0
@@ -72,9 +71,8 @@ def test_rebuild_keeps_rows_and_index(capsys):
         names = {r[0] for r in conn.execute(text(
             "SELECT name FROM sqlite_master WHERE name LIKE 'daily_prices%'")).fetchall()}
     assert "ix_prices_date" in idx
-    assert names == {"daily_prices"}  # __old が残らない
+    assert names == {"daily_prices"}
 
-    # 2 回目は何もしない
     assert job.main(["--yes"]) == 0
     assert "既に WITHOUT ROWID" in capsys.readouterr().out
     assert _rows() == before

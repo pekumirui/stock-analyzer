@@ -60,12 +60,11 @@ def test_overview(c) -> None:
     assert abs(q["change_pct"] - 0.02) < 1e-9 and abs(q["change"] - 10.0) < 1e-6
     assert d["next_earnings"] == {"date": "2026-11-07", "fq": "2Q"}
     m = d["metrics"]
-    assert m["per"] == 510.0 / 51.0          # 予想修正の EPS
-    assert m["pbr"] == 510.0 / 600.0         # BPS は値のある最新
+    assert m["per"] == 510.0 / 51.0
+    assert m["pbr"] == 510.0 / 600.0
     assert m["dividend_yield"] == 15.0 / 510.0
     assert m["roe"] == 0.071 and m["equity_ratio"] == 0.46
 
-    # 予定日が過ぎていれば出さない
     assert c.get("/api/stock/9999/overview?today=2026-11-08").json()["next_earnings"] is None
 
     d = c.get("/api/stock/9998/overview?today=2026-10-26").json()
@@ -82,7 +81,6 @@ def test_fy_actual_without_forecast_hides_per() -> None:
 
     fy = _st("9", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="", FEPS="")
     q3 = _st("8", "2026-02-10", "3QFinancialStatements_Consolidated_JP", FEPS="30.0")
-    # 本決算で来期予想を出していなければ、前の四半期の今期予想（終わった年度）に戻らない
     assert _forecast([(fy, json.loads(fy.raw_json)), (q3, json.loads(q3.raw_json))], "EPS")[0] is None
 
 
@@ -139,7 +137,7 @@ def test_chart_tab_moved_into_stock_price() -> None:
                'id="chart-log"', 'id="rel"',
                'id="chart"', 'id="perf-tbl" class="sheet"', 'class="evt-toggles"'):
         assert el in sub
-    assert 'onclick="loadChart()"' not in html  # 表示ボタンは無い
+    assert 'onclick="loadChart()"' not in html
     assert '"chart"' not in tabs.split("const TABS")[1].split(";")[0]
     assert 'if(tab === "chart")' in tabs and "`${code}/price`" in tabs
     assert 'showStock(code, "price", "", from)' in js

@@ -1,9 +1,7 @@
-// 銘柄タブの株価（KAB-181 / KAB-300。docs/DESIGN_stock.md「株価」）。チャートは chart-core.js
-let stockPriceCode = "";   // 描いた銘柄。違えば描き直す
+let stockPriceCode = "";
 let stockPriceAc = null;
 let stockChart = null;
 
-// ほかのタブの銘柄名から開く（決算速報・スクリーナー・ランキング・サプライ）
 function gotoChart(code){
   const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   stockSub = "price";
@@ -12,12 +10,10 @@ function gotoChart(code){
   showStock(code, "price", "", from);
 }
 
-// 株価タブを開いたとき。同じ銘柄を描いてあれば描き直さない
 function showStockPrice(){
   if(stockPriceCode !== stockCode) loadChart();
 }
 
-// 足・下段・業績の段・高安値・PERバンド・対数は localStorage に残す
 function loadChartView(){
   const v = {tf: "D", sub: "v", fund: "", hl: true, band: false, log: false};
   try { Object.assign(v, JSON.parse(localStorage.getItem("chart.view") || "{}")); } catch(e) {}
@@ -48,7 +44,6 @@ function ensureStockChart(){
   return stockChart;
 }
 
-// 対TOPIX を入れていれば TOPIX も読む（一度だけ）
 async function applyRel(signal){
   if(!$("#rel").checked){ stockChart.set({rel: false}); return; }
   try { stockChart.set({rel: true, topix: await chartTopix(signal)}); }
@@ -89,7 +84,6 @@ async function loadChart(){
   $("#perf-tbl").innerHTML = h;
 }
 
-// 操作は読み直さない。移動平均は Enter か入力から外れたとき（change）
 (function setupPriceControls(){
   const v = loadChartView();
   markTf(CHART_TF_NAMES[v.tf] ? v.tf : "D");

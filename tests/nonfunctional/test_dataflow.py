@@ -105,7 +105,6 @@ def test_domains_of_tables_and_entries():
     assert table_domain("stocks") == "market"
     assert entry_domain("jobs/monthly/x.py", "job", {"stocks": "R"}) == "monthly"
     assert entry_domain("jobs/golden_db.py", "job", {"monthly_values": "W"}) == "common"
-    # API は書く表、無ければ stocks 以外の読む表で決める
     assert entry_domain("GET /a", "api", {"stocks": "R", "xbrl_filings": "R"}) == "xbrl"
     assert entry_domain("PUT /a", "api", {"monthly_values": "W", "xbrl_filings": "R", "xbrl_facts": "R"}) == "monthly"
     assert entry_domain("GET /a", "api", {"stocks": "R"}) == "market"
@@ -137,8 +136,8 @@ def test_mermaid_draws_entry_to_table_and_skips_hub_reads():
     names = {v: k for k, v in ids.items()}
     assert f"{names['monthly/ingest.py']} --> {names['monthly_values']}" in graph
     assert f"{names['monthly/ingest.py']} -.- {names['statements']}" in graph
-    assert "stocks" not in names and "monthly/fetch.py" not in names  # stocks を読むだけの入口は図から外す
-    assert '[("statements")]:::ext' in graph  # ほかの機能の表
+    assert "stocks" not in names and "monthly/fetch.py" not in names
+    assert '[("statements")]:::ext' in graph
 
 
 def test_viewer_embeds_parseable_data():
@@ -149,4 +148,4 @@ def test_viewer_embeds_parseable_data():
     assert data["tables"]["monthly_values"] == "monthly"
     assert data["entries"][1]["rw"] == {"monthly_values": "W", "statements": "R", "stocks": "R"}
     assert "<script" not in raw
-    assert not re.search(r"""(?:src|href)=["']?(?:https?:)?//""", html)  # 外から読み込まない
+    assert not re.search(r"""(?:src|href)=["']?(?:https?:)?//""", html)

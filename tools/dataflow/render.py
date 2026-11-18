@@ -108,8 +108,6 @@ def _code(names) -> str:
     return ", ".join(f"`{n}`" for n in names)
 
 
-# --- Markdown ---------------------------------------------------------------
-
 def _mermaid(entries: list[Entry], domain: str, kind: str) -> list[str]:
     """機能の入口（バッチか API）とテーブルの図。左に入口、右に表の 2 列。書くは実線の矢印、読むだけは点線。"""
     def edges(e: Entry) -> list[str]:
@@ -262,8 +260,6 @@ def _overview(entries: list[Entry], tables: list[str], model_tables: list[str],
         lines.append("")
     return "\n".join(lines)
 
-
-# --- HTML -------------------------------------------------------------------
 
 def _viewer(entries: list[Entry], tables: list[str]) -> str:
     """テンプレートの `/*DATA*/` に観測結果の JSON を埋める。差分を読めるよう 1 入口 1 行。"""
