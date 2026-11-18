@@ -16,9 +16,25 @@ import apsw
 BLOCK = 64 * 1024
 ALIGN = 4096
 _PUNCH = 1 | 2  # FALLOC_FL_KEEP_SIZE | FALLOC_FL_PUNCH_HOLE
-_libc = ctypes.CDLL(None, use_errno=True)
-_libc.fallocate.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int64, ctypes.c_int64]
-_libc.fallocate.restype = ctypes.c_int
+_libc = None
+_libc_tried = False
+
+
+def _fallocate(fd: int, offset: int, length: int) -> int:
+    """無ければ -1。Windows など fallocate が無い環境でも import では落ちない。"""
+    global _libc, _libc_tried
+    if not _libc_tried:
+        _libc_tried = True
+        try:
+            lib = ctypes.CDLL(None, use_errno=True)
+            lib.fallocate.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int64, ctypes.c_int64]
+            lib.fallocate.restype = ctypes.c_int
+            _libc = lib
+        except (AttributeError, OSError):
+            _libc = None
+    if _libc is None:
+        return -1
+    return int(_libc.fallocate(fd, _PUNCH, offset, length))
 
 
 class StoreError(Exception):
@@ -166,7 +182,7 @@ class BlockStore:
         if offset % ALIGN or length % ALIGN:
             self._punch_ok = False
             return
-        rc = _libc.fallocate(self.f.fileno(), _PUNCH, offset, length)
+        rc = _fallocate(self.f.fileno(), offset, length)
         if rc != 0:
             self._punch_ok = False
 
@@ -183,6 +199,7 @@ def _flag_bits(flags: int | list[int] | tuple[int, ...]) -> int:
 class _File(apsw.VFSFile):
     def __init__(self, vfs: CompressVFS, name: object, flags: object) -> None:
         super().__init__("", name, flags)
+        self._vfs = vfs
         self.store: BlockStore | None = None
         bits = _flag_bits(flags)  # type: ignore[arg-type]
         if not bits & apsw.SQLITE_OPEN_MAIN_DB:
@@ -191,16 +208,28 @@ class _File(apsw.VFSFile):
         self.store = BlockStore(Path(text + ".blk"), vfs.budget)
         vfs.main = self.store
 
+    def _fail(self, exc: BaseException) -> None:
+        if self._vfs.failure is None:
+            self._vfs.failure = exc
+
     def xRead(self, amount: int, offset: int) -> bytes:
         if self.store is None:
             return super().xRead(amount, offset)
-        return self.store.read(amount, offset)
+        try:
+            return self.store.read(amount, offset)
+        except (StoreError, OSError) as exc:
+            self._fail(exc)
+            raise
 
     def xWrite(self, data: object, offset: int) -> None:
         if self.store is None:
             super().xWrite(data, offset)
             return
-        self.store.write(bytes(data), offset)  # type: ignore[arg-type]
+        try:
+            self.store.write(bytes(data), offset)  # type: ignore[arg-type]
+        except (StoreError, OSError) as exc:
+            self._fail(exc)
+            raise
 
     def xFileSize(self) -> int:
         if self.store is None:
@@ -211,13 +240,21 @@ class _File(apsw.VFSFile):
         if self.store is None:
             super().xTruncate(size)
             return
-        self.store.truncate(size)
+        try:
+            self.store.truncate(size)
+        except (StoreError, OSError) as exc:
+            self._fail(exc)
+            raise
 
     def xSync(self, flags: int) -> None:
         if self.store is not None:
-            self.store.flush()
-            self.store.f.flush()
-            os.fsync(self.store.f.fileno())
+            try:
+                self.store.flush()
+                self.store.f.flush()
+                os.fsync(self.store.f.fileno())
+            except (StoreError, OSError) as exc:
+                self._fail(exc)
+                raise
         super().xSync(flags)
 
     def xFileControl(self, op: int, ptr: int) -> bool:
@@ -228,8 +265,12 @@ class _File(apsw.VFSFile):
 
     def xClose(self) -> None:
         if self.store is not None:
-            self.store.flush()
-            self.store.f.flush()
+            try:
+                self.store.flush()
+                self.store.f.flush()
+            except (StoreError, OSError) as exc:
+                self._fail(exc)
+                raise
         super().xClose()
 
 
@@ -238,6 +279,7 @@ class CompressVFS(apsw.VFS):
         self.vfs_name = name
         self.budget = budget
         self.main: BlockStore | None = None
+        self.failure: BaseException | None = None
         super().__init__(name, "")
 
     def xOpen(self, name: object, flags: object) -> _File:

@@ -475,7 +475,7 @@ cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 
 ### SQLite 日次バックアップ
 
-WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API の宛先を圧縮してから `PRAGMA quick_check` → gzip 圧縮レベル 1（非圧縮の複製は置かない）。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（失敗時はサイズ）で確認する。世代数は OneDrive（日次 7・週次 4）。確認と OneDrive 側の世代整理が成功したら、今回の gzip は VPS から消す。失敗したときは今回のファイルを残し、`fail cron` が `#alerts-batch` に page する。それより前からあるローカルの世代は消さない。rclone / remote が無いときは警告してスキップ（今回のファイルも残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
+WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API の宛先を圧縮してから `PRAGMA quick_check` → gzip 圧縮レベル 1（非圧縮の複製は置かない）。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（ハッシュが使えないときだけサイズ。差分ありは失敗）で確認する。世代数は OneDrive（日次 7・週次 4）。確認と OneDrive 側の世代整理が成功したら、今回の gzip は VPS から消す。失敗したときは今回のファイルを残し、`fail cron` が `#alerts-batch` に page する。それより前からあるローカルの世代は消さない。rclone / remote が無いときは警告してスキップ（今回のファイルも残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
 
 `deploy/crontab` は `provision.sh` が `crontab -u stock` で入れる。デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
 

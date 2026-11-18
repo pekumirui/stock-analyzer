@@ -1,6 +1,7 @@
 """backup_db は送信できたら今回のローカルだけ消し、失敗なら残す。本番 VPS には出ない。"""
 from __future__ import annotations
 
+import errno
 import fcntl
 import gzip
 import io
@@ -36,19 +37,17 @@ from jobs.ops.backup_db import (  # noqa: E402
     clip_cmd_output,
     default_db_path,
     keep_from_env,
+    Deadline,
     list_generations,
     listed_remotes,
     main,
     offsite_settings_from_env,
-    prune_generations,
-    quick_check,
     required_bytes,
     run,
     source_bytes,
-    sqlite_backup,
-    sqlite_sidecar_paths,
     sync_offsite,
     tmp_dir,
+    write_consistent_gzip,
 )
 from jobs.ops.backup_store import BlockStore, StoreError  # noqa: E402
 
@@ -115,8 +114,8 @@ def _gunzip_names(path: Path) -> list[str]:
             conn.close()
     finally:
         tmp.unlink(missing_ok=True)
-        for sidecar in sqlite_sidecar_paths(tmp)[1:]:
-            sidecar.unlink(missing_ok=True)
+        for suffix in ("-wal", "-shm", "-journal"):
+            Path(str(tmp) + suffix).unlink(missing_ok=True)
 
 
 class MemoryOffsite:
@@ -257,22 +256,6 @@ def test_default_db_path(tmp_path: Path) -> None:
         _fail(f"non-sqlite {got}")
 
 
-def test_prune_keeps_newest_and_ignores_noise(tmp_path: Path) -> None:
-    folder = tmp_path / "daily"
-    days = [f"2026-10-{n:02d}" for n in range(3, 11)]
-    _seed_gz(folder, days)
-    (folder / "notes.txt").write_text("no", encoding="utf-8")
-    (folder / "stock-foo.db.gz").write_bytes(b"x")
-    removed = prune_generations(folder, 7)
-    names = _gz_names(folder)
-    if names != [backup_name(f"2026-10-{n:02d}") for n in range(10, 3, -1)]:
-        _fail(f"kept {names}")
-    if [p.name for p in removed] != [backup_name("2026-10-03")]:
-        _fail(f"removed {[p.name for p in removed]}")
-    if not (folder / "notes.txt").is_file() or not (folder / "stock-foo.db.gz").is_file():
-        _fail("noise files must remain")
-
-
 def test_wal_backup_roundtrip(tmp_path: Path) -> None:
     db = tmp_path / "stock.db"
     dest = tmp_path / "backups"
@@ -306,15 +289,17 @@ def test_wal_backup_roundtrip(tmp_path: Path) -> None:
         _fail("remote daily missing")
     if _gunzip_bytes(payload, tmp_path) != ["alpha", "beta"]:
         _fail("roundtrip rows")
-    raw = tmp_path / "raw.db"
-    sqlite_backup(db, raw)
-    ok, msg = quick_check(raw)
-    if not ok:
-        _fail(f"quick_check {msg}")
-    for sidecar in sqlite_sidecar_paths(raw)[1:]:
-        if sidecar.exists():
-            _fail(f"backup dest sidecar {sidecar.name}")
-    raw.unlink()
+    out = tmp_path / "out.db"
+    out.write_bytes(gzip.decompress(payload))
+    checked = sqlite3.connect(out)
+    try:
+        ok = checked.execute("PRAGMA quick_check").fetchone()
+        if not ok or ok[0] != "ok":
+            _fail(f"quick_check {ok}")
+        if checked.execute("PRAGMA journal_mode").fetchone()[0] != "delete":
+            _fail("journal")
+    finally:
+        checked.close()
 
 
 def test_upload_success_drops_this_run_and_keeps_older_local(tmp_path: Path) -> None:
@@ -659,7 +644,7 @@ def test_rclone_check_falls_back_to_size(tmp_path: Path) -> None:
                 _fail(f"copy dest {argv}")
             return CmdResult(0, "", "")
         if cmd == "check":
-            return CmdResult(1, "", "hash not supported")
+            return CmdResult(1, "", "NOTICE: hash not supported")
         if cmd == "lsjson":
             return CmdResult(0, '[{"Name":"x","Size":3}]', "")
         if cmd == "lsf":
@@ -807,11 +792,13 @@ def test_writer_commits_during_backup(tmp_path: Path) -> None:
     conn = sqlite3.connect(db)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+    blob = os.urandom(2048)
     conn.executemany(
         "INSERT INTO items (name) VALUES (?)",
-        [(f"base-{i}",) for i in range(20_000)],
+        [(f"base-{i}-{blob.hex()}",) for i in range(4_000)],
     )
     conn.commit()
+    base_count = conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]
     conn.close()
     script = tmp_path / "writer.py"
     script.write_text(
@@ -820,7 +807,7 @@ def test_writer_commits_during_backup(tmp_path: Path) -> None:
         "c = sqlite3.connect(db, timeout=5)\n"
         "c.execute('PRAGMA busy_timeout=3000')\n"
         "n = 0\n"
-        "end = time.time() + 1.5\n"
+        "end = time.time() + 8\n"
         "while time.time() < end:\n"
         "    try:\n"
         "        c.execute('INSERT INTO items (name) VALUES (?)', (f'live-{n}',))\n"
@@ -833,22 +820,27 @@ def test_writer_commits_during_backup(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     proc = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, text=True)
-    time.sleep(0.05)
+    time.sleep(0.2)
     offsite = _ok_offsite()
+    limits = BackupLimits(overall_s=30, copy_s=4, check_s=20, gzip_s=20, offsite_copy_s=20, offsite_check_s=20)
     try:
         rc, out = _run_out(
             db=db,
             dest=dest,
             now=datetime(2026, 10, 9, 5, 0, tzinfo=JST),
             offsite=offsite,
+            limits=limits,
         )
+        still_writing = proc.poll() is None
     finally:
-        stdout, _stderr = proc.communicate(timeout=10)
+        stdout, _stderr = proc.communicate(timeout=15)
     if proc.returncode != 0:
-        _fail(f"writer rc {proc.returncode}")
+        _fail(f"writer rc {proc.returncode} {stdout}")
     commits = int(stdout.strip() or "0")
     if rc != 0:
         _fail(out)
+    if not still_writing:
+        _fail(f"backup waited for the writer to stop {out}")
     if commits < 1:
         _fail(f"writer made no progress {stdout!r}")
     live = sqlite3.connect(db)
@@ -868,8 +860,11 @@ def test_writer_commits_during_backup(tmp_path: Path) -> None:
         if not ok or ok[0] != "ok":
             _fail(f"concurrent quick_check {ok}")
         base = checked.execute("SELECT COUNT(*) FROM items WHERE name LIKE 'base-%'").fetchone()[0]
-        if base != 20_000:
+        if base != base_count:
             _fail(f"base rows {base}")
+        snapped = checked.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+        if snapped >= base_count + commits:
+            _fail(f"snapshot includes commits after the writer stopped {snapped} {commits}")
     finally:
         checked.close()
 
@@ -930,6 +925,158 @@ def test_second_run_skips_while_locked(tmp_path: Path) -> None:
         _fail("locked run wrote a generation")
 
 
+def test_copy_budget_names_the_cause(tmp_path: Path) -> None:
+    db = tmp_path / "stock.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, blob BLOB)")
+    conn.executemany(
+        "INSERT INTO items (blob) VALUES (?)",
+        [(os.urandom(4096),) for _ in range(64)],
+    )
+    conn.commit()
+    conn.close()
+    try:
+        write_consistent_gzip(
+            db,
+            tmp_path / "work.db",
+            tmp_path / "out.db.gz.part",
+            budget=4096,
+            deadline=Deadline(BackupLimits(), time.monotonic()),
+        )
+    except BackupError as exc:
+        text = str(exc)
+        if "compress budget exceeded" not in text or "SQL logic error" in text:
+            _fail(text)
+    else:
+        _fail("small budget must fail")
+    if (tmp_path / "work.db").exists() or (tmp_path / "work.db.blk").exists():
+        _fail("budget failure left the store")
+    if (tmp_path / "out.db.gz.part").exists():
+        _fail("budget failure left the part")
+
+
+def test_disk_full_names_the_cause(tmp_path: Path) -> None:
+    import jobs.ops.backup_store as store_mod
+
+    db = tmp_path / "stock.db"
+    _make_db(db, ["ok"])
+    original = store_mod.BlockStore.write
+
+    def full(self, data: bytes, offset: int) -> None:  # noqa: ARG001
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    store_mod.BlockStore.write = full  # type: ignore[method-assign]
+    try:
+        write_consistent_gzip(
+            db,
+            tmp_path / "work.db",
+            tmp_path / "out.db.gz.part",
+            budget=8 * 1024 * 1024,
+            deadline=Deadline(BackupLimits(), time.monotonic()),
+        )
+    except BackupError as exc:
+        text = str(exc)
+        if "disk full" not in text or "SQL logic error" in text:
+            _fail(text)
+    else:
+        _fail("disk full must fail")
+    finally:
+        store_mod.BlockStore.write = original  # type: ignore[method-assign]
+
+
+def test_hash_mismatch_does_not_accept_size(tmp_path: Path) -> None:
+    gz = tmp_path / "stock-2026-10-09.db.gz"
+    gz.write_bytes(b"abc")
+    settings = OffsiteSettings(remote="remote-a", root="root-b")
+
+    def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+        cmd = argv[0]
+        if cmd == "listremotes":
+            return CmdResult(0, f"{settings.remote}:\n", "")
+        if cmd == "copy":
+            return CmdResult(0, "", "")
+        if cmd == "check":
+            return CmdResult(1, "", "ERROR : stock-2026-10-09.db.gz: hashes differ")
+        if cmd == "lsjson":
+            _fail("size fallback on a hash mismatch")
+        _fail(f"unexpected {argv!r}")
+        return CmdResult(1, "", "")
+
+    try:
+        sync_offsite(
+            [(gz, "daily")],
+            keep=BackupKeep(offsite_daily=2, offsite_weekly=2),
+            settings=settings,
+            which=lambda _name: "/usr/bin/rclone",
+            run=fake_run,
+        )
+    except BackupError as exc:
+        if "hashes differ" not in str(exc):
+            _fail(exc)
+    else:
+        _fail("hash mismatch must fail")
+
+
+def test_offsite_timeout_uses_overall_remaining(tmp_path: Path) -> None:
+    gz = tmp_path / "stock-2026-10-09.db.gz"
+    gz.write_bytes(b"abc")
+    settings = OffsiteSettings(remote="remote-a", root="root-b")
+    seen: list[tuple[str, float]] = []
+
+    def fake_run(argv: list[str], timeout: float) -> CmdResult:
+        seen.append((argv[0], timeout))
+        if argv[0] == "listremotes":
+            return CmdResult(0, f"{settings.remote}:\n", "")
+        if argv[0] == "lsf":
+            return CmdResult(1, "", "directory not found")
+        return CmdResult(0, "", "")
+
+    started = time.monotonic() - 80
+    deadline = Deadline(BackupLimits(overall_s=100, offsite_copy_s=10_000, offsite_check_s=5_000), started)
+    deadline.enter("offsite")
+    sync_offsite(
+        [(gz, "daily"), (gz, "weekly")],
+        keep=BackupKeep(offsite_daily=1, offsite_weekly=1),
+        settings=settings,
+        which=lambda _name: "/usr/bin/rclone",
+        run=fake_run,
+        copy_timeout=10_000,
+        check_timeout=5_000,
+        deadline=deadline,
+    )
+    copies = [timeout for cmd, timeout in seen if cmd == "copy"]
+    checks = [timeout for cmd, timeout in seen if cmd == "check"]
+    if len(copies) != 2 or len(checks) != 2:
+        _fail(f"calls {seen}")
+    if copies[0] >= 10_000 or copies[0] > 25:
+        _fail(f"copy ignored overall remaining {seen}")
+    if checks[0] >= 5_000 or checks[0] > 25:
+        _fail(f"check ignored overall remaining {seen}")
+    if copies[1] > copies[0] + 1:
+        _fail(f"second copy grew {seen}")
+
+
+def test_import_does_not_load_apsw() -> None:
+    code = (
+        "import sys\n"
+        "import jobs.ops.backup_db\n"
+        "import jobs.ops.backup_data\n"
+        "import jobs.market.briefing_offsite\n"
+        "import tools.briefing.irbank_ingest\n"
+        "raise SystemExit(1 if 'apsw' in sys.modules or 'jobs.ops.backup_store' in sys.modules else 0)\n"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        _fail(f"import loaded apsw rc={proc.returncode} {proc.stderr}")
+
+
 def main_tests() -> None:
     test_constants()
     test_keep_and_offsite_from_env()
@@ -937,8 +1084,6 @@ def main_tests() -> None:
     test_rclone_missing_remote_skips()
     with TemporaryDirectory() as d:
         test_default_db_path(Path(d))
-    with TemporaryDirectory() as d:
-        test_prune_keeps_newest_and_ignores_noise(Path(d))
     with TemporaryDirectory() as d:
         test_wal_backup_roundtrip(Path(d))
     with TemporaryDirectory() as d:
@@ -974,6 +1119,15 @@ def main_tests() -> None:
         test_timeout_names_the_stage(Path(d))
     with TemporaryDirectory() as d:
         test_second_run_skips_while_locked(Path(d))
+    with TemporaryDirectory() as d:
+        test_copy_budget_names_the_cause(Path(d))
+    with TemporaryDirectory() as d:
+        test_disk_full_names_the_cause(Path(d))
+    with TemporaryDirectory() as d:
+        test_hash_mismatch_does_not_accept_size(Path(d))
+    with TemporaryDirectory() as d:
+        test_offsite_timeout_uses_overall_remaining(Path(d))
+    test_import_does_not_load_apsw()
     print("ok: backup_db")
 
 

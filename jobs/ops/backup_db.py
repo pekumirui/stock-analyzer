@@ -4,8 +4,9 @@
   python jobs/ops/backup_db.py
   python jobs/ops/backup_db.py --db /path/stock.db --dest /tmp/backups
 
-sqlite3 backup API の宛先は圧縮 VFS（非圧縮の複製は置かない）。
-quick_check のあと gzip 圧縮レベル 1 で保存し、rclone で OneDrive へ送る
+sqlite3 backup API のソースと宛先はどちらも APSW。宛先は圧縮 VFS
+（非圧縮の複製は置かない）。quick_check のあと gzip 圧縮レベル 1 で保存し、
+rclone で OneDrive へ送る
 （既定 onedrive:stock-analyzer-backups/{daily,weekly}）。トークンは
 rclone のユーザ設定（リポジトリと CI には置かない）。
 今回書いた gzip を消すのは、送信・確認と OneDrive 側の世代整理が
@@ -22,9 +23,9 @@ import fcntl
 import gzip
 import json
 import os
+import errno
 import re
 import shutil
-import sqlite3
 import subprocess
 import sys
 import time
@@ -38,10 +39,6 @@ from zoneinfo import ZoneInfo
 _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
-
-import apsw  # noqa: E402
-
-from jobs.ops.backup_store import BlockStore, CompressVFS, StoreError, remove_work  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -73,8 +70,6 @@ RCLONE_PROBE_TIMEOUT_S = 30.0
 _LOCK_NAME = ".backup_db.lock"
 
 FreeBytesFn = Callable[[Path], int]
-BackupFn = Callable[[Path, Path], None]
-CheckFn = Callable[[Path], tuple[bool, str]]
 SnapshotFn = Callable[[Path, Path], None]
 WhichFn = Callable[[str], str | None]
 
@@ -218,13 +213,18 @@ class Deadline:
             "quick_check": self.limits.check_s,
             "gzip": self.limits.gzip_s,
             "gzip-test": self.limits.gzip_s,
-            "offsite": self.limits.offsite_copy_s,
         }.get(self.stage)
         return limit is not None and now - self.stage_started >= limit
 
     def check(self) -> None:
         if self.over():
             raise BackupError(f"timeout at {self.stage}")
+
+    def allow(self, cap: float) -> float:
+        """この呼び出しの上限と、全体の残り時間の短い方。"""
+        self.check()
+        left = self.limits.overall_s - (time.monotonic() - self.started)
+        return min(cap, max(left, 0.0))
 
 
 def _elapsed(started: float) -> str:
@@ -264,19 +264,6 @@ def list_generations(folder: Path) -> list[Path]:
     return [path for _, path in found]
 
 
-def prune_generations(folder: Path, keep: int) -> list[Path]:
-    """新しい keep 件を残し、それより古い世代だけ消す。"""
-    kept: list[Path] = []
-    removed: list[Path] = []
-    for index, path in enumerate(list_generations(folder)):
-        if index < keep:
-            kept.append(path)
-            continue
-        path.unlink()
-        removed.append(path)
-    return removed
-
-
 def drop_uploaded(items: list[tuple[Path, str]]) -> tuple[int, int]:
     """今回送った gzip だけ消す。別の日のファイルは渡さない。"""
     daily = 0
@@ -290,57 +277,19 @@ def drop_uploaded(items: list[tuple[Path, str]]) -> tuple[int, int]:
     return daily, weekly
 
 
-def sqlite_sidecar_paths(path: Path) -> tuple[Path, ...]:
-    """本体と SQLite が横に置く -wal / -shm / -journal。"""
-    text = str(path)
-    return (path, Path(text + "-wal"), Path(text + "-shm"), Path(text + "-journal"))
+def _remove_work(path: Path) -> None:
+    from jobs.ops.backup_store import remove_work
+
+    remove_work(path)
 
 
-def unlink_sqlite(path: Path) -> None:
-    """接続を閉じたあとに本体と添えファイルを消す。欠ファイルは無視。"""
-    for candidate in sqlite_sidecar_paths(path):
-        try:
-            candidate.unlink()
-        except FileNotFoundError:
-            continue
+def _disk_message(exc: OSError) -> str:
+    if exc.errno == errno.ENOSPC:
+        return f"disk full {exc.strerror or exc}"
+    return f"disk write failed {exc.strerror or exc}"
 
 
-def sqlite_backup(src: Path, dest: Path) -> None:
-    """WAL 込みの整合コピー。pages を区切ってライターを長く止めない。
-
-    コピー先は journal_mode=DELETE にして単一ファイルにする。ソースの WAL は触らない。
-    """
-    unlink_sqlite(dest)
-    src_conn = sqlite3.connect(str(src), timeout=BUSY_TIMEOUT_MS / 1000)
-    try:
-        src_conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
-        dest_conn = sqlite3.connect(str(dest), timeout=BUSY_TIMEOUT_MS / 1000)
-        try:
-            dest_conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
-            src_conn.backup(dest_conn, pages=BACKUP_PAGES, sleep=BACKUP_SLEEP_S)
-            # backup はソースの WAL フラグをヘッダにコピーする。gzip 前に単一ファイルへ戻す。
-            dest_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            dest_conn.execute("PRAGMA journal_mode=DELETE")
-        finally:
-            dest_conn.close()
-    finally:
-        src_conn.close()
-    for leftover in sqlite_sidecar_paths(dest)[1:]:
-        leftover.unlink(missing_ok=True)
-
-
-def quick_check(path: Path) -> tuple[bool, str]:
-    uri = f"file:{path.resolve().as_posix()}?mode=ro"
-    conn = sqlite3.connect(uri, uri=True, timeout=BUSY_TIMEOUT_MS / 1000)
-    try:
-        row = conn.execute("PRAGMA quick_check").fetchone()
-        msg = str(row[0]) if row else "empty"
-        return msg == "ok", msg
-    finally:
-        conn.close()
-
-
-def _gzip_store(store: BlockStore, part: Path, *, budget: int, deadline: Deadline) -> None:
+def _gzip_store(store: object, part: Path, *, budget: int, deadline: Deadline) -> None:
     store.flush()
     logical = store.logical
     with gzip.open(part, "wb", compresslevel=COMPRESSLEVEL) as fout:
@@ -374,6 +323,34 @@ def _validate_gzip(path: Path, deadline: Deadline) -> None:
         raise BackupError(f"gzip test {exc}") from exc
 
 
+def _raise_vfs(vfs: object, exc: BaseException) -> None:
+    from jobs.ops.backup_store import StoreError
+
+    remembered = getattr(vfs, "failure", None)
+    if isinstance(remembered, StoreError):
+        raise BackupError(str(remembered)) from exc
+    if isinstance(remembered, OSError):
+        raise BackupError(_disk_message(remembered)) from exc
+    if remembered is not None:
+        raise BackupError(str(remembered)) from exc
+    raise BackupError(str(exc)) from exc
+
+
+def _release_source(conn: object) -> None:
+    rollback = getattr(conn, "execute", None)
+    close = getattr(conn, "close", None)
+    if rollback is not None:
+        try:
+            list(rollback("ROLLBACK"))
+        except Exception:
+            pass
+    if close is not None:
+        try:
+            close()
+        except Exception:
+            pass
+
+
 def write_consistent_gzip(
     src: Path,
     work: Path,
@@ -382,9 +359,17 @@ def write_consistent_gzip(
     budget: int,
     deadline: Deadline,
 ) -> None:
-    """backup API の宛先を圧縮し、quick_check してから gzip にする。ソースは読み取り専用。"""
+    """backup API の宛先を圧縮し、quick_check してから gzip にする。
+
+    ソースは読み取り専用。copy のあいだ読み取りトランザクションを開けたままにする。
+    閉じると別プロセスの commit のたびにページ 1 からやり直す。
+    """
+    import apsw
+
+    from jobs.ops.backup_store import CompressVFS, StoreError
+
     work.parent.mkdir(parents=True, exist_ok=True)
-    remove_work(work)
+    _remove_work(work)
     vfs = CompressVFS(f"backup{os.getpid()}{time.monotonic_ns()}", budget)
     src_conn = None
     dest = None
@@ -395,11 +380,14 @@ def write_consistent_gzip(
         src_conn = apsw.Connection(str(src), flags=apsw.SQLITE_OPEN_READONLY)
         src_conn.set_busy_timeout(BUSY_TIMEOUT_MS)
         list(src_conn.execute("PRAGMA query_only=ON"))
+        list(src_conn.execute("BEGIN"))
+        list(src_conn.execute("SELECT 1 FROM sqlite_master LIMIT 1"))
         flags = apsw.SQLITE_OPEN_READWRITE | apsw.SQLITE_OPEN_CREATE
         dest = apsw.Connection(str(work), flags=flags, vfs=vfs.vfs_name)
         dest.set_busy_timeout(BUSY_TIMEOUT_MS)
         backup = dest.backup("main", src_conn, "main")
         busy_logged = False
+        failed: BackupError | None = None
         try:
             while True:
                 deadline.check()
@@ -411,10 +399,20 @@ def write_consistent_gzip(
                         busy_logged = True
                     time.sleep(BACKUP_SLEEP_S)
                     continue
+                except apsw.Error as exc:
+                    _raise_vfs(vfs, exc)
                 if done:
                     break
-        finally:
+        except BackupError as exc:
+            failed = exc
+        try:
             backup.finish()
+        except apsw.Error as exc:
+            if failed is None:
+                _raise_vfs(vfs, exc)
+        if failed is not None:
+            raise failed
+        list(src_conn.execute("COMMIT"))
         src_conn.close()
         src_conn = None
         store = vfs.main
@@ -435,6 +433,8 @@ def write_consistent_gzip(
             checked = list(dest.execute("PRAGMA quick_check"))
         except apsw.InterruptError as exc:
             raise BackupError(f"timeout at {deadline.stage}") from exc
+        except apsw.Error as exc:
+            _raise_vfs(vfs, exc)
         msg = " ".join(str(row[0]) for row in checked) if checked else "empty"
         if msg != "ok":
             raise BackupError(f"quick_check {msg}")
@@ -454,9 +454,12 @@ def write_consistent_gzip(
         )
     except StoreError as exc:
         raise BackupError(str(exc)) from exc
+    except OSError as exc:
+        raise BackupError(_disk_message(exc)) from exc
     finally:
+        if src_conn is not None:
+            _release_source(src_conn)
         for close in (
-            None if src_conn is None else src_conn.close,
             None if dest is None else dest.close,
             None if vfs.main is None else vfs.main.close,
             vfs.unregister,
@@ -467,7 +470,7 @@ def write_consistent_gzip(
                 close()
             except Exception:
                 pass
-        remove_work(work)
+        _remove_work(work)
 
 
 def link_or_copy(src: Path, dest: Path) -> str:
@@ -616,12 +619,13 @@ def probe_offsite(
     *,
     which: WhichFn,
     run: RcloneRunFn,
+    deadline: Deadline | None = None,
 ) -> None:
     if not settings.enabled:
         raise OffsiteSkip("BACKUP_OFFSITE disabled")
     if not rclone_available(settings.rclone_bin, which):
         raise OffsiteSkip("rclone not installed")
-    result = run(["listremotes"], RCLONE_PROBE_TIMEOUT_S)
+    result = _call_rclone(run, ["listremotes"], RCLONE_PROBE_TIMEOUT_S, deadline)
     if result.returncode != 0:
         raise BackupError(
             f"rclone listremotes exit={result.returncode} {clip_cmd_output(result.stderr)}"
@@ -651,6 +655,43 @@ def _lsjson_size(payload: str) -> int | None:
     return size
 
 
+def _call_rclone(
+    run: RcloneRunFn,
+    argv: Sequence[str],
+    cap: float,
+    deadline: Deadline | None,
+) -> CmdResult:
+    if deadline is None:
+        return run(argv, cap)
+    timeout = deadline.allow(cap)
+    limited_by_overall = timeout < cap
+    try:
+        return run(argv, timeout)
+    except BackupError as exc:
+        if limited_by_overall and str(exc).startswith("rclone timeout"):
+            raise BackupError(f"timeout at {deadline.stage}") from exc
+        raise
+
+
+def _hash_unavailable(text: str) -> bool:
+    low = text.lower()
+    needles = (
+        "hash not supported",
+        "hash unsupported",
+        "unsupported hash",
+        "hash type not supported",
+        "failed to calculate hash",
+        "could not calculate hash",
+        "no hash",
+    )
+    return any(needle in low for needle in needles)
+
+
+def _check_difference(text: str) -> bool:
+    low = text.lower()
+    return "differ" in low or "corrupted on transfer" in low
+
+
 def copy_and_verify(
     local: Path,
     kind: str,
@@ -659,15 +700,17 @@ def copy_and_verify(
     *,
     copy_timeout: float = RCLONE_COPY_TIMEOUT_S,
     check_timeout: float = RCLONE_CHECK_TIMEOUT_S,
+    deadline: Deadline | None = None,
 ) -> None:
     dest_dir = settings.dest(kind)
     flags = rclone_flags()
-    copied = run(["copy", str(local), dest_dir, *flags], copy_timeout)
+    copied = _call_rclone(run, ["copy", str(local), dest_dir, *flags], copy_timeout, deadline)
     if copied.returncode != 0:
         raise BackupError(
             f"rclone copy {kind} exit={copied.returncode} {clip_cmd_output(copied.stderr)}"
         )
-    checked = run(
+    checked = _call_rclone(
+        run,
         [
             "check",
             str(local.parent),
@@ -678,22 +721,28 @@ def copy_and_verify(
             *flags,
         ],
         check_timeout,
+        deadline,
     )
     if checked.returncode == 0:
         print(f"offsite ok {kind} {local.name} bytes={local.stat().st_size}", flush=True)
         return
-    listed = run(
-        ["lsjson", dest_dir, "--files-only", "--include", local.name, *flags],
-        RCLONE_LIST_TIMEOUT_S,
-    )
-    remote_size = _lsjson_size(listed.stdout) if listed.returncode == 0 else None
+    detail = f"{checked.stdout}\n{checked.stderr}"
     local_size = local.stat().st_size
-    if remote_size == local_size:
-        print(
-            f"offsite ok {kind} {local.name} bytes={local_size} via size",
-            flush=True,
+    remote_size: int | None = None
+    if not _check_difference(detail) and _hash_unavailable(detail):
+        listed = _call_rclone(
+            run,
+            ["lsjson", dest_dir, "--files-only", "--include", local.name, *flags],
+            RCLONE_LIST_TIMEOUT_S,
+            deadline,
         )
-        return
+        remote_size = _lsjson_size(listed.stdout) if listed.returncode == 0 else None
+        if remote_size == local_size:
+            print(
+                f"offsite ok {kind} {local.name} bytes={local_size} via size",
+                flush=True,
+            )
+            return
     raise BackupError(
         f"rclone check {kind} exit={checked.returncode} "
         f"local={local_size} remote={remote_size} {clip_cmd_output(checked.stderr)}"
@@ -705,10 +754,12 @@ def prune_offsite(
     keep: int,
     settings: OffsiteSettings,
     run: RcloneRunFn,
+    *,
+    deadline: Deadline | None = None,
 ) -> list[str]:
     dest_dir = settings.dest(kind)
     flags = rclone_flags()
-    listed = run(["lsf", "--files-only", dest_dir, *flags], RCLONE_LIST_TIMEOUT_S)
+    listed = _call_rclone(run, ["lsf", "--files-only", dest_dir, *flags], RCLONE_LIST_TIMEOUT_S, deadline)
     if listed.returncode != 0:
         if _not_found(listed.stderr):
             return []
@@ -725,7 +776,9 @@ def prune_offsite(
     names.sort(key=lambda item: item[0], reverse=True)
     removed: list[str] = []
     for _, name in names[keep:]:
-        deleted = run(["deletefile", f"{dest_dir}/{name}", *flags], RCLONE_LIST_TIMEOUT_S)
+        deleted = _call_rclone(
+            run, ["deletefile", f"{dest_dir}/{name}", *flags], RCLONE_LIST_TIMEOUT_S, deadline
+        )
         if deleted.returncode != 0:
             raise BackupError(
                 f"rclone deletefile {kind}/{name} exit={deleted.returncode} "
@@ -744,8 +797,9 @@ def sync_offsite(
     run: RcloneRunFn,
     copy_timeout: float = RCLONE_COPY_TIMEOUT_S,
     check_timeout: float = RCLONE_CHECK_TIMEOUT_S,
+    deadline: Deadline | None = None,
 ) -> None:
-    probe_offsite(settings, which=which, run=run)
+    probe_offsite(settings, which=which, run=run, deadline=deadline)
     for path, kind in items:
         copy_and_verify(
             path,
@@ -754,9 +808,10 @@ def sync_offsite(
             run,
             copy_timeout=copy_timeout,
             check_timeout=check_timeout,
+            deadline=deadline,
         )
     for kind, count in (("daily", keep.offsite_daily), ("weekly", keep.offsite_weekly)):
-        removed = prune_offsite(kind, count, settings, run)
+        removed = prune_offsite(kind, count, settings, run, deadline=deadline)
         print(f"offsite pruned {kind}={len(removed)}", flush=True)
 
 
@@ -769,6 +824,7 @@ def default_offsite(
     run: RcloneRunFn | None = None,
     copy_timeout: float = OFFSITE_COPY_TIMEOUT_S,
     check_timeout: float = OFFSITE_CHECK_TIMEOUT_S,
+    deadline: Deadline | None = None,
 ) -> None:
     runner = run or make_rclone_runner(settings.rclone_bin)
     sync_offsite(
@@ -779,6 +835,7 @@ def default_offsite(
         run=runner,
         copy_timeout=copy_timeout,
         check_timeout=check_timeout,
+        deadline=deadline,
     )
 
 
@@ -881,7 +938,7 @@ def _run(
         try:
             deadline.enter("offsite")
             print("backup_db stage=offsite start", flush=True)
-            _push_offsite(items, policy, settings, offsite, limits)
+            _push_offsite(items, policy, settings, offsite, limits, deadline)
             print("backup_db stage=offsite done", flush=True)
         except OffsiteSkip as exc:
             print(f"warn backup_db offsite skipped: {exc}", flush=True)
@@ -899,7 +956,7 @@ def _run(
     finally:
         if not installed:
             part.unlink(missing_ok=True)
-        remove_work(work)
+        _remove_work(work)
 
 
 def _push_offsite(
@@ -908,6 +965,7 @@ def _push_offsite(
     settings: OffsiteSettings,
     offsite: OffsiteFn | bool | None,
     limits: BackupLimits,
+    deadline: Deadline,
 ) -> None:
     if offsite is False:
         raise OffsiteSkip("offsite disabled")
@@ -918,6 +976,7 @@ def _push_offsite(
             settings=settings,
             copy_timeout=limits.offsite_copy_s,
             check_timeout=limits.offsite_check_s,
+            deadline=deadline,
         )
         return
     offsite(items, policy)

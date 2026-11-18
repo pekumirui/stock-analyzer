@@ -12,9 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 VENDOR = ("app/xbrlp/", "app/edinet_wrapper/")
 
 # ファイル → 許す理由
-SQLITE3_ALLOWED = {
-    "jobs/ops/backup_db.py": "SQLite のバックアップ API（Connection.backup）と PRAGMA quick_check。テーブルを読み書きする SQL は出さない",
-}
+SQLITE3_ALLOWED: dict[str, str] = {}
 RAW_ALLOWED = {
     "app/db.py": "接続ごとの PRAGMA（apply_sqlite_pragmas）。テーブルを読み書きする SQL は出さない",
 }
