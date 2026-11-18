@@ -2,12 +2,12 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
 erDiagram
   edinet_archives {
-    String doc_id PK
+    String doc_id PK, FK
     Integer file_type PK
   }
   edinet_buyback_resolutions {
@@ -15,11 +15,15 @@ erDiagram
     Integer resolution_no PK
   }
   edinet_buybacks {
-    String doc_id PK
+    String doc_id PK, FK
+    String amends_doc_id FK
+    String original_doc_id FK
   }
   edinet_documents {
-    Date file_date PK
+    Date file_date PK, FK
     Integer seq_number PK
+    String doc_id 
+    String parent_doc_id FK
   }
   edinet_filers {
     String edinet_code PK
@@ -28,15 +32,16 @@ erDiagram
     Date file_date PK
   }
   edinet_tender_offer_docs {
-    String doc_id PK
+    String doc_id PK, FK
     String tender_offer_id FK
+    String parent_doc_id FK
   }
   edinet_tender_offers {
-    String tender_offer_id PK
+    String tender_offer_id PK, FK
     String latest_doc_id FK
   }
   large_holding_reports {
-    String doc_id PK
+    String doc_id PK, FK
     String amends_doc_id FK
     String original_doc_id FK
   }
@@ -44,8 +49,18 @@ erDiagram
     String doc_id PK, FK
     Integer holder_no PK
   }
+  edinet_buybacks |o..o{ edinet_buybacks : amends_doc_id
   edinet_buybacks ||..o{ edinet_buyback_resolutions : doc_id
+  edinet_buybacks ||..o{ edinet_buybacks : original_doc_id
+  edinet_documents }o..o{ edinet_documents : parent_doc_id
+  edinet_documents }|..o{ edinet_archives : doc_id
+  edinet_documents }|..o{ edinet_buybacks : doc_id
+  edinet_documents }|..o{ edinet_tender_offer_docs : doc_id
+  edinet_documents }|..o{ large_holding_reports : doc_id
+  edinet_list_days ||..o{ edinet_documents : file_date
+  edinet_tender_offer_docs |o..o{ edinet_tender_offer_docs : parent_doc_id
   edinet_tender_offer_docs |o..o{ edinet_tender_offers : latest_doc_id
+  edinet_tender_offer_docs ||..o{ edinet_tender_offers : tender_offer_id
   edinet_tender_offers ||..o{ edinet_tender_offer_docs : tender_offer_id
   large_holding_reports |o..o{ large_holding_reports : amends_doc_id
   large_holding_reports ||..o{ large_holding_reports : original_doc_id
@@ -58,7 +73,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `doc_id` | VARCHAR(8) |  | PK |  |  |
+| `doc_id` | VARCHAR(8) |  | PK / → `edinet_documents.doc_id`（制約なし） |  |  |
 | `file_type` | INTEGER |  | PK |  |  |
 | `doc_type_code` | VARCHAR(3) | 可 |  |  |  |
 | `rel_path` | TEXT |  |  |  |  |
@@ -92,13 +107,13 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `doc_id` | VARCHAR(8) |  | PK |  |  |
+| `doc_id` | VARCHAR(8) |  | PK / → `edinet_documents.doc_id`（制約なし） |  |  |
 | `file_date` | DATE |  |  |  |  |
 | `submit_datetime` | DATETIME | 可 |  |  |  |
 | `doc_type_code` | VARCHAR(3) |  |  |  |  |
 | `form_code` | VARCHAR(6) | 可 |  |  |  |
 | `code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
-| `edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `filer_name` | VARCHAR | 可 |  |  |  |
 | `report_month` | VARCHAR(7) | 可 |  |  |  |
 | `period_start` | DATE | 可 |  |  |  |
@@ -109,8 +124,8 @@ erDiagram
 | `month_shares` | BIGINT | 可 |  |  |  |
 | `month_amount` | BIGINT | 可 |  |  |  |
 | `is_amendment` | BOOLEAN |  |  |  | `False` |
-| `amends_doc_id` | VARCHAR(8) | 可 |  |  |  |
-| `original_doc_id` | VARCHAR(8) |  |  |  |  |
+| `amends_doc_id` | VARCHAR(8) | 可 | → `edinet_buybacks.doc_id`（制約なし） |  |  |
+| `original_doc_id` | VARCHAR(8) |  | → `edinet_buybacks.doc_id`（制約なし） |  |  |
 | `is_latest` | BOOLEAN |  |  |  | `False` |
 | `withdrawn` | BOOLEAN |  |  |  | `False` |
 | `parse_status` | VARCHAR |  |  | `parsed` / `meta` / `failed` |  |
@@ -127,12 +142,12 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `file_date` | DATE |  | PK |  |  |
+| `file_date` | DATE |  | PK / → `edinet_list_days.file_date`（制約なし） |  |  |
 | `seq_number` | INTEGER |  | PK |  |  |
 | `doc_id` | VARCHAR(8) |  |  |  |  |
 | `code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
-| `edinet_code` | VARCHAR(6) | 可 |  |  |  |
-| `sec_code` | VARCHAR(5) | 可 |  |  |  |
+| `edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
+| `sec_code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
 | `jcn` | VARCHAR(13) | 可 |  |  |  |
 | `filer_name` | VARCHAR | 可 |  |  |  |
 | `fund_code` | VARCHAR(6) | 可 |  |  |  |
@@ -143,11 +158,11 @@ erDiagram
 | `period_end` | DATE | 可 |  |  |  |
 | `submit_datetime` | DATETIME | 可 |  |  |  |
 | `doc_description` | TEXT | 可 |  |  |  |
-| `issuer_edinet_code` | VARCHAR(6) | 可 |  |  |  |
-| `subject_edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `issuer_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
+| `subject_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `subsidiary_edinet_codes` | TEXT | 可 |  |  |  |
 | `current_report_reasons` | TEXT | 可 |  |  |  |
-| `parent_doc_id` | VARCHAR(8) | 可 |  |  |  |
+| `parent_doc_id` | VARCHAR(8) | 可 | → `edinet_documents.doc_id`（制約なし） |  |  |
 | `ope_datetime` | DATETIME | 可 |  |  |  |
 | `withdrawal_status` | VARCHAR(1) |  |  |  |  |
 | `doc_info_edit_status` | VARCHAR(1) |  |  |  |  |
@@ -207,7 +222,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `doc_id` | VARCHAR(8) |  | PK |  |  |
+| `doc_id` | VARCHAR(8) |  | PK / → `edinet_documents.doc_id`（制約なし） |  |  |
 | `tender_offer_id` | VARCHAR(8) |  | → `edinet_tender_offers.tender_offer_id`（制約なし） |  |  |
 | `file_date` | DATE |  |  |  |  |
 | `submit_datetime` | DATETIME | 可 |  |  |  |
@@ -215,10 +230,10 @@ erDiagram
 | `ordinance_code` | VARCHAR(3) | 可 |  |  |  |
 | `form_code` | VARCHAR(6) | 可 |  |  |  |
 | `title` | TEXT | 可 |  |  |  |
-| `filer_edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `filer_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `filer_name` | VARCHAR | 可 |  |  |  |
-| `subject_edinet_code` | VARCHAR(6) | 可 |  |  |  |
-| `parent_doc_id` | VARCHAR(8) | 可 |  |  |  |
+| `subject_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
+| `parent_doc_id` | VARCHAR(8) | 可 | → `edinet_tender_offer_docs.doc_id`（制約なし） |  |  |
 | `withdrawn` | BOOLEAN |  |  |  | `False` |
 | `period_start` | DATE | 可 |  |  |  |
 | `period_end` | DATE | 可 |  |  |  |
@@ -246,12 +261,12 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `tender_offer_id` | VARCHAR(8) |  | PK |  |  |
+| `tender_offer_id` | VARCHAR(8) |  | PK / → `edinet_tender_offer_docs.doc_id`（制約なし） |  |  |
 | `is_issuer` | BOOLEAN |  |  |  | `False` |
-| `offeror_edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `offeror_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `offeror_name` | VARCHAR | 可 |  |  |  |
 | `offeror_code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
-| `target_edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `target_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `target_name` | VARCHAR | 可 |  |  |  |
 | `target_code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
 | `announced_date` | DATE | 可 |  |  |  |
@@ -283,16 +298,16 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `doc_id` | VARCHAR(8) |  | PK |  |  |
+| `doc_id` | VARCHAR(8) |  | PK / → `edinet_documents.doc_id`（制約なし） |  |  |
 | `file_date` | DATE |  |  |  |  |
 | `submit_datetime` | DATETIME | 可 |  |  |  |
 | `doc_type_code` | VARCHAR(3) |  |  |  |  |
 | `form_code` | VARCHAR(6) | 可 |  |  |  |
 | `title` | TEXT | 可 |  |  |  |
-| `filer_edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `filer_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `filer_name` | VARCHAR | 可 |  |  |  |
-| `issuer_edinet_code` | VARCHAR(6) | 可 |  |  |  |
-| `issuer_sec_code` | VARCHAR(5) | 可 |  |  |  |
+| `issuer_edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
+| `issuer_sec_code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
 | `issuer_name` | VARCHAR | 可 |  |  |  |
 | `code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
 | `obligation_date` | DATE | 可 |  |  |  |
@@ -328,7 +343,7 @@ erDiagram
 |---|---|---|---|---|---|
 | `doc_id` | VARCHAR(8) |  | PK / → `large_holding_reports.doc_id`（制約なし） |  |  |
 | `holder_no` | INTEGER |  | PK |  |  |
-| `edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 | `name` | VARCHAR | 可 |  |  |  |
 | `holder_type` | VARCHAR | 可 |  |  |  |
 | `shares_held` | BIGINT | 可 |  |  |  |

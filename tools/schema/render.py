@@ -13,6 +13,7 @@ OVERVIEW = "docs/SCHEMA.md"
 PAGE_DIR = "docs/schema"
 REBUILD = "python -m tools.schema.render"
 _DIALECT = sqlite.dialect()
+MASTERS = HUB | {"edinet_filers"}
 
 
 def _tables() -> list[Table]:
@@ -37,15 +38,29 @@ def _default(col) -> str:
     return "（関数）"
 
 
-def _declared(col) -> str | None:
-    return col.info.get("ref")
+def _names(text: str) -> tuple[str, ...]:
+    return tuple(n.strip() for n in text.split(","))
+
+
+def _target(spec: str) -> tuple[str, tuple[str, ...]]:
+    table, _, cols = spec.partition(".")
+    return table, _names(cols)
+
+
+def declared_refs(t: Table) -> list[tuple[tuple[str, ...], str, tuple[str, ...]]]:
+    out = [((c.name,), *_target(c.info["ref"])) for c in t.columns if "ref" in c.info]
+    out += [(_names(cols), *_target(spec)) for cols, spec in t.info.get("ref", {}).items()]
+    return out
+
+
+def _spell(table: str, cols: tuple[str, ...]) -> str:
+    return f"{table}.{cols[0]}" if len(cols) == 1 else f"{table}.({', '.join(cols)})"
 
 
 def _key(col) -> str:
     out = ["PK"] if col.primary_key else []
     out += [f"FK → `{r}`" for r in _refs(col)]
-    if _declared(col):
-        out.append(f"→ `{_declared(col)}`（制約なし）")
+    out += dict.fromkeys(f"→ `{_spell(table, to)}`（制約なし）" for cols, table, to in declared_refs(col.table) if col.name in cols)
     return " / ".join(out)
 
 
@@ -84,30 +99,44 @@ def _table_section(t: Table) -> list[str]:
 def _links(t: Table):
     for c in t.columns:
         for fk in c.foreign_keys:
-            yield c, fk.column.table, "--"
-        if _declared(c):
-            target = Base.metadata.tables[_declared(c).split(".")[0]]
-            if target.name not in HUB:
-                yield c, target, ".."
+            yield (c.name,), fk.column.table, (fk.column.name,), "--"
+    for cols, table, to in declared_refs(t):
+        if table not in MASTERS:
+            yield cols, Base.metadata.tables[table], to, ".."
+
+
+def _unique(t: Table, cols: tuple[str, ...]) -> bool:
+    keys = [{c.name for c in t.primary_key.columns}]
+    keys += [{c.name for c in u.columns} for u in t.constraints if type(u).__name__ == "UniqueConstraint"]
+    keys += [{c.name for c in i.columns} for i in t.indexes if i.unique]
+    return set(cols) in keys
 
 
 def _mermaid(own: list[Table]) -> list[str]:
     own_names = {t.name for t in own}
     edges = []
-    outside = {}
+    shown: dict[str, set[str]] = {t.name: set() for t in own}
+    linked: dict[str, set[str]] = {t.name: set() for t in own}
+    tables = {t.name: t for t in own}
     for t in own:
-        for c, target, line in _links(t):
-            if target.name not in own_names:
-                outside[target.name] = target
-            left = "|o" if c.nullable else "||"
-            edges.append(f"  {target.name} {left}{line}o{{ {t.name} : {c.name}")
+        for cols, target, to, line in _links(t):
+            tables[target.name] = target
+            shown.setdefault(target.name, set()).update(to)
+            linked[t.name].update(cols)
+            optional = any(t.columns[c].nullable for c in cols)
+            many = not _unique(target, to)
+            left = ("}" if many else "|") + ("o" if optional else "|")
+            label = cols[0] if len(cols) == 1 else f'"{", ".join(cols)}"'
+            edges.append(f"  {target.name} {left}{line}o{{ {t.name} : {label}")
     lines = ["```mermaid", "erDiagram"]
-    for t in sorted([*own, *outside.values()], key=lambda t: t.name):
-        linked = {c.name for c, _, _ in _links(t)} if t.name in own_names else set()
-        cols = [c for c in t.columns if c.primary_key or c.name in linked]
-        lines.append(f"  {t.name} {{")
+    for name in sorted(tables):
+        t = tables[name]
+        keep = linked.get(name, set()) | shown[name]
+        cols = [c for c in t.columns if c.primary_key or c.name in keep]
+        lines.append(f"  {name} {{")
         for c in cols:
-            mark = ", ".join(m for m, on in (("PK", c.primary_key), ("FK", c.name in linked)) if on)
+            fk = name in own_names and c.name in linked[name]
+            mark = ", ".join(m for m, on in (("PK", c.primary_key), ("FK", fk)) if on)
             lines.append(f"    {type(c.type).__name__} {c.name} {mark}")
         lines.append("  }")
     lines += sorted(edges)
@@ -121,7 +150,7 @@ def _page(key: str, label: str, own: list[Table]) -> str:
         "",
         f"**自動生成。手で直さない。** 正は `app/models.py`。作り直しは `{REBUILD}`。全体は [SCHEMA.md](../SCHEMA.md)。",
         "",
-        "図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。",
+        "図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。",
         "",
         *_mermaid(own),
         "",

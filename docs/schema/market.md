@@ -2,7 +2,7 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
 erDiagram
@@ -11,16 +11,19 @@ erDiagram
     String document_id PK
   }
   briefing_extracts {
-    String document_id PK
+    String document_id PK, FK
+    String source FK
   }
   briefing_facts {
     Integer id PK
+    String document_id FK
+    Integer page FK
   }
   briefing_irbank_scans {
     String code PK
   }
   briefing_pages {
-    String document_id PK
+    String document_id PK, FK
     Integer page PK
   }
   daily_prices {
@@ -36,11 +39,14 @@ erDiagram
   earnings_date_pubs {
     String code PK
     String fq_name PK
-    Date pub_date PK
+    Date pub_date PK, FK
   }
   earnings_events {
-    String code PK
-    Date disclosed_date PK
+    String code PK, FK
+    Date disclosed_date PK, FK
+    Date base_date FK
+    Date next_disclosed_date FK
+    Date end_date FK
   }
   fx_rates {
     Date date PK
@@ -50,8 +56,8 @@ erDiagram
     String code PK
   }
   indicators {
-    String code PK
-    Date date PK
+    String code PK, FK
+    Date date PK, FK
   }
   pts_snapshots {
     DateTime fetched_at PK
@@ -60,6 +66,8 @@ erDiagram
   }
   statements {
     String disclosure_no PK
+    String code 
+    Date disclosed_date 
   }
   stocks {
     String code PK
@@ -70,6 +78,15 @@ erDiagram
   topix {
     Date date PK
   }
+  briefing_documents ||..o{ briefing_extracts : "source, document_id"
+  briefing_extracts ||..o{ briefing_pages : document_id
+  briefing_pages ||..o{ briefing_facts : "document_id, page"
+  daily_prices |o..o{ earnings_events : "code, base_date"
+  daily_prices |o..o{ earnings_events : "code, end_date"
+  daily_prices ||..o{ indicators : "code, date"
+  earnings_date_fetches ||..o{ earnings_date_pubs : pub_date
+  statements }o..o{ earnings_events : "code, next_disclosed_date"
+  statements }|..o{ earnings_events : "code, disclosed_date"
 ```
 
 ## テーブル
@@ -80,7 +97,7 @@ erDiagram
 |---|---|---|---|---|---|
 | `source` | VARCHAR(16) |  | PK | `tdnet` / `irbank` / `homepage` |  |
 | `document_id` | VARCHAR(80) |  | PK |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `company_name` | VARCHAR | 可 |  |  |  |
 | `pubdate` | VARCHAR(32) |  |  |  |  |
 | `title` | TEXT |  |  |  |  |
@@ -100,9 +117,9 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `document_id` | VARCHAR(80) |  | PK |  |  |
-| `source` | VARCHAR(16) |  |  |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `document_id` | VARCHAR(80) |  | PK / → `briefing_documents.(source, document_id)`（制約なし） |  |  |
+| `source` | VARCHAR(16) |  | → `briefing_documents.(source, document_id)`（制約なし） |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `status` | VARCHAR(16) |  |  | `submitted` / `done` / `failed` |  |
 | `batch_id` | VARCHAR(80) | 可 |  |  |  |
 | `request_key` | VARCHAR(24) |  |  |  |  |
@@ -131,8 +148,8 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |
-| `document_id` | VARCHAR(80) |  |  |  |  |
-| `page` | INTEGER |  |  |  |  |
+| `document_id` | VARCHAR(80) |  | → `briefing_pages.(document_id, page)`（制約なし） |  |  |
+| `page` | INTEGER |  | → `briefing_pages.(document_id, page)`（制約なし） |  |  |
 | `metric` | TEXT |  |  |  |  |
 | `segment` | TEXT | 可 |  |  |  |
 | `period` | TEXT | 可 |  |  |  |
@@ -152,7 +169,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
 | `scanned_at` | DATETIME |  |  |  |  |
 | `listed` | INTEGER |  |  |  |  |
 | `saved` | INTEGER |  |  |  |  |
@@ -165,7 +182,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `document_id` | VARCHAR(80) |  | PK |  |  |
+| `document_id` | VARCHAR(80) |  | PK / → `briefing_extracts.document_id`（制約なし） |  |  |
 | `page` | INTEGER |  | PK |  |  |
 | `kind` | VARCHAR(24) |  |  | `divider` / `disclaimer` / `chart_or_table` / `table_or_text` / `text` |  |
 | `title` | TEXT | 可 |  |  |  |
@@ -180,7 +197,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
 | `date` | DATE |  | PK |  |  |
 | `open` | FLOAT | 可 |  |  |  |
 | `high` | FLOAT | 可 |  |  |  |
@@ -221,9 +238,9 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
 | `fq_name` | VARCHAR(8) |  | PK |  |  |
-| `pub_date` | DATE |  | PK |  |  |
+| `pub_date` | DATE |  | PK / → `earnings_date_fetches.pub_date`（制約なし） |  |  |
 | `sch_date` | DATE | 可 |  |  |  |
 | `fye` | VARCHAR(4) |  |  |  |  |
 | `co_name` | VARCHAR |  |  |  |  |
@@ -236,9 +253,9 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
-| `disclosed_date` | DATE |  | PK |  |  |
-| `base_date` | DATE | 可 |  |  |  |
+| `code` | VARCHAR(5) |  | PK / → `statements.(code, disclosed_date)`（制約なし） / → `daily_prices.(code, date)`（制約なし） |  |  |
+| `disclosed_date` | DATE |  | PK / → `statements.(code, disclosed_date)`（制約なし） |  |  |
+| `base_date` | DATE | 可 | → `daily_prices.(code, date)`（制約なし） |  |  |
 | `base_price` | FLOAT | 可 |  |  |  |
 | `return_1d` | FLOAT | 可 |  |  |  |
 | `return_5d` | FLOAT | 可 |  |  |  |
@@ -252,8 +269,8 @@ erDiagram
 | `alpha_to_date` | FLOAT | 可 |  |  |  |
 | `disclosed_time` | VARCHAR | 可 |  |  |  |
 | `is_first` | BOOLEAN | 可 |  |  |  |
-| `next_disclosed_date` | DATE | 可 |  |  |  |
-| `end_date` | DATE | 可 |  |  |  |
+| `next_disclosed_date` | DATE | 可 | → `statements.(code, disclosed_date)`（制約なし） |  |  |
+| `end_date` | DATE | 可 | → `daily_prices.(code, date)`（制約なし） |  |  |
 | `return_to_next` | FLOAT | 可 |  |  |  |
 | `alpha_to_next` | FLOAT | 可 |  |  |  |
 
@@ -273,7 +290,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
 | `url` | TEXT |  |  |  |  |
 | `host` | VARCHAR(255) |  |  |  |  |
 | `source` | VARCHAR(32) |  |  | `manual` / `xbrl_url` / `tanshin_html` |  |
@@ -285,8 +302,8 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
-| `date` | DATE |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `daily_prices.(code, date)`（制約なし） |  |  |
+| `date` | DATE |  | PK / → `daily_prices.(code, date)`（制約なし） |  |  |
 | `close` | FLOAT | 可 |  |  |  |
 | `ma50` | FLOAT | 可 |  |  |  |
 | `ma150` | FLOAT | 可 |  |  |  |
@@ -329,7 +346,7 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `disclosure_no` | VARCHAR |  | PK |  |  |
-| `code` | VARCHAR(5) | 可 |  |  |  |
+| `code` | VARCHAR(5) | 可 | → `stocks.code`（制約なし） |  |  |
 | `disclosed_date` | DATE | 可 |  |  |  |
 | `disclosed_time` | VARCHAR | 可 |  |  |  |
 | `type_of_period` | VARCHAR | 可 |  |  |  |
@@ -375,14 +392,14 @@ erDiagram
 | `scale_category` | VARCHAR | 可 |  |  |  |
 | `margin_type` | VARCHAR | 可 |  |  |  |
 | `product_category` | VARCHAR | 可 |  |  |  |
-| `edinet_code` | VARCHAR(6) | 可 |  |  |  |
+| `edinet_code` | VARCHAR(6) | 可 | → `edinet_filers.edinet_code`（制約なし） |  |  |
 
 ### tanshin_covers
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `disclosure_no` | VARCHAR(32) |  | PK |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `disclosed_at` | DATETIME | 可 |  |  |  |
 | `title` | TEXT | 可 |  |  |  |
 | `source` | VARCHAR(16) |  |  | `xbrl_summary` / `tdnet_pdf` |  |

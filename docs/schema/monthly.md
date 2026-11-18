@@ -2,19 +2,20 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
 erDiagram
   monthly_element_sources {
-    String code PK
-    Integer year PK
+    String code PK, FK
+    Integer year PK, FK
     String source_label PK
     String unit PK
+    String element FK
   }
   monthly_elements {
-    String code PK
-    Integer year PK
+    String code PK, FK
+    Integer year PK, FK
     String element PK
   }
   monthly_issuers {
@@ -25,11 +26,14 @@ erDiagram
     Integer year PK
   }
   monthly_values {
-    String code PK
-    Integer year PK
-    String element PK
+    String code PK, FK
+    Integer year PK, FK
+    String element PK, FK
     Integer month PK
   }
+  monthly_elements ||..o{ monthly_element_sources : "code, year, element"
+  monthly_elements ||..o{ monthly_values : "code, year, element"
+  monthly_tables ||..o{ monthly_elements : "code, year"
 ```
 
 ## テーブル
@@ -38,11 +42,11 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
-| `year` | INTEGER |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
+| `year` | INTEGER |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
 | `source_label` | VARCHAR(50) |  | PK |  |  |
 | `unit` | VARCHAR(16) |  | PK |  |  |
-| `element` | VARCHAR(50) |  |  |  |  |
+| `element` | VARCHAR(50) |  | → `monthly_elements.(code, year, element)`（制約なし） |  |  |
 | `via` | VARCHAR(16) |  |  |  |  |
 | `first_seen_at` | DATETIME |  |  |  |  |
 | `last_seen_at` | DATETIME |  |  |  |  |
@@ -55,8 +59,8 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
-| `year` | INTEGER |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |
+| `year` | INTEGER |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |
 | `element` | VARCHAR(50) |  | PK |  |  |
 | `sort_order` | INTEGER |  |  |  |  |
 | `unit` | VARCHAR(16) |  |  |  | `number`（DB） |
@@ -65,7 +69,7 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
 | `industry` | VARCHAR(50) |  |  |  | `その他`（DB） |
 | `last_ingested_at` | DATETIME | 可 |  |  |  |
 
@@ -73,15 +77,15 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |
 | `year` | INTEGER |  | PK |  |  |
 
 ### monthly_values
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |  |
-| `year` | INTEGER |  | PK |  |  |
-| `element` | VARCHAR(50) |  | PK |  |  |
+| `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
+| `year` | INTEGER |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
+| `element` | VARCHAR(50) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |
 | `month` | INTEGER |  | PK |  |  |
 | `value` | FLOAT |  |  |  |  |

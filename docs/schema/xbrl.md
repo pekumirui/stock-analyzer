@@ -2,12 +2,15 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` と `edinet_filers` への参照は線にしない（表には出す）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。
 
 ```mermaid
 erDiagram
-  tdnet_pdf_documents {
+  statements {
     String disclosure_no PK
+  }
+  tdnet_pdf_documents {
+    String disclosure_no PK, FK
   }
   xbrl_contexts {
     Integer id PK
@@ -65,6 +68,9 @@ erDiagram
   }
   xbrl_shareholder_filings {
     Integer filing_id PK, FK
+    String doc_id 
+    String amends_doc_id FK
+    String original_doc_id FK
   }
   xbrl_shareholding_by_category {
     Integer filing_id PK, FK
@@ -74,6 +80,7 @@ erDiagram
   xbrl_std_items {
     Integer id PK
   }
+  statements ||..o{ tdnet_pdf_documents : disclosure_no
   xbrl_contexts ||--o{ xbrl_facts : context_id
   xbrl_elements |o--o{ xbrl_financials : source_element_id
   xbrl_elements |o--o{ xbrl_segments : source_element_id
@@ -91,6 +98,8 @@ erDiagram
   xbrl_filings ||--o{ xbrl_segments : filing_id
   xbrl_filings ||--o{ xbrl_shareholder_filings : filing_id
   xbrl_filings ||--o{ xbrl_shareholding_by_category : filing_id
+  xbrl_shareholder_filings }o..o{ xbrl_shareholder_filings : amends_doc_id
+  xbrl_shareholder_filings }|..o{ xbrl_shareholder_filings : original_doc_id
   xbrl_std_items ||--o{ xbrl_element_mappings : std_item_id
   xbrl_std_items ||--o{ xbrl_financials : std_item_id
   xbrl_std_items ||--o{ xbrl_segments : std_item_id
@@ -102,8 +111,8 @@ erDiagram
 
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
-| `disclosure_no` | VARCHAR(14) |  | PK |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `disclosure_no` | VARCHAR(14) |  | PK / → `statements.disclosure_no`（制約なし） |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `disclosed_date` | DATE | 可 |  |  |  |
 | `disclosed_time` | VARCHAR(8) | 可 |  |  |  |
 | `title` | TEXT | 可 |  |  |  |
@@ -221,7 +230,7 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `source` | VARCHAR(16) |  |  |  | `'tdnet'` |
 | `doc_id` | VARCHAR(64) |  |  |  |  |
 | `doc_type` | VARCHAR(32) |  |  |  | `'other'` |
@@ -253,7 +262,7 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
 | `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |
 | `is_consolidated` | BOOLEAN |  |  |  |  |
@@ -312,7 +321,7 @@ erDiagram
 |---|---|---|---|---|---|
 | `fact_id` | INTEGER |  | PK / FK → `xbrl_facts.id` |  |  |
 | `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `is_consolidated` | BOOLEAN |  |  |  |  |
 | `statement` | VARCHAR(8) |  |  |  |  |
 | `element_key` | VARCHAR(300) | 可 |  |  |  |
@@ -344,7 +353,7 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |  |
 | `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |  |
 | `axis` | VARCHAR(255) |  |  |  |  |
@@ -372,14 +381,14 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 |
 |---|---|---|---|---|---|
 | `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |
-| `code` | VARCHAR(5) |  |  |  |  |
+| `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |
 | `doc_id` | VARCHAR(64) |  |  |  |  |
 | `as_of` | DATE | 可 |  |  |  |
 | `basis` | VARCHAR(16) |  |  | `shares` / `voting_rights` / `both` |  |
 | `shares_per_unit` | INTEGER | 可 |  |  |  |
 | `is_amendment` | BOOLEAN |  |  |  | `False` |
-| `amends_doc_id` | VARCHAR(8) | 可 |  |  |  |
-| `original_doc_id` | VARCHAR(8) |  |  |  |  |
+| `amends_doc_id` | VARCHAR(8) | 可 | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |
+| `original_doc_id` | VARCHAR(8) |  | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |
 | `is_latest` | BOOLEAN |  |  |  | `False` |
 | `withdrawn` | BOOLEAN |  |  |  | `False` |
 | `generated_at` | DATETIME |  |  |  |  |
