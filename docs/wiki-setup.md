@@ -28,7 +28,7 @@ wiki に無いファイルへの相対リンクは **コピー側だけ** 外す
 .venv/bin/mkdocs serve -a 127.0.0.1:8001
 ```
 
-`mkdocs build` が `tools/wiki/mkdocs_hook.py` で Markdown を集める（`docs/` の画像と HTML も。HTML は自動生成の `docs/dataflow/viewer.html`）。mermaid の図は material が描く（mermaid.js は CDN から読む）。`.wiki-docs/` と `site/` は gitignore。
+`mkdocs build` が `tools/wiki/mkdocs_hook.py` で Markdown を集める（`docs/` の画像と HTML も。HTML は自動生成の `docs/dataflow/viewer.html`）。mermaid の図は `docs/assets/mermaid-elk.js` が読み込む mermaid.js が描く（CDN から読む。ER 図の並べ方に使う ELK も一緒に読む）。`.wiki-docs/` と `site/` は gitignore。
 
 ## Cloudflare Pages プロジェクト（Direct Upload）
 
