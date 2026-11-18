@@ -14,14 +14,14 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-golden-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import text  # noqa: E402
+from fastapi.testclient import TestClient
+from sqlalchemy import text
 
-from app.db import engine  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import Base  # noqa: E402
-from jobs import golden_db  # noqa: E402
-from tools.golden.build_golden_db import load_codes  # noqa: E402
+from app.db import engine
+from app.main import app
+from app.models import Base
+from jobs import golden_db
+from tools.golden.build_golden_db import load_codes
 
 GOLDEN = ROOT / "tests" / "golden" / "db"
 
@@ -59,7 +59,7 @@ def test_load_and_serve() -> None:
     manifest = json.loads((GOLDEN / "manifest.json").read_text(encoding="utf-8"))
     with engine.connect() as conn:
         for table, n in manifest["counts"].items():
-            got = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()  # nosec B608 (manifest の表名)
+            got = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
             if got != n:
                 _fail(f"{table}: manifest {n} / loaded {got}")
         if not conn.execute(text("SELECT COUNT(*) FROM indicators")).scalar():

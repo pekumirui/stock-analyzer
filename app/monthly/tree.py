@@ -313,7 +313,7 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
     """
     have = set(metrics)
     dom = set(domestic)
-    join = lambda *parts: " ".join(p for p in parts if p)  # noqa: E731
+    join = lambda *parts: " ".join(p for p in parts if p)
     out: dict[str, str] = {}
     for m in metrics:
         country, channel, rest = _metric_parts(m)

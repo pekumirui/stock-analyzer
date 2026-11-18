@@ -15,21 +15,21 @@ sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
 # 直接走らせたときは自分の空 DB。pytest では conftest がファイルごとに DB を空にする
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-units-')}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import XbrlFiling, XbrlJobRun  # noqa: E402
-from app.xbrl.context import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.models import XbrlFiling, XbrlJobRun
+from app.xbrl.context import (
     ParsedContext,
     fiscal_year_end_from_dei,
     fiscal_year_end_from_duration_contexts,
     fiscal_year_end_from_pl_contexts,
     resolve_fiscal_year_end,
 )
-from app.xbrl.jobs import finish_run, report_unmapped, start_run  # noqa: E402
-from app.xbrl.normalize import _dims, rebuild_all  # noqa: E402
-from app.xbrl.parser import find_manifest, namespace_is_standard, package_meta  # noqa: E402
-from app.xbrl.store import mark_failed  # noqa: E402
-import fetch_xbrl_golden as fetch_mod  # noqa: E402
-import xbrl_match_rate as mr  # noqa: E402
+from app.xbrl.jobs import finish_run, report_unmapped, start_run
+from app.xbrl.normalize import _dims, rebuild_all
+from app.xbrl.parser import find_manifest, namespace_is_standard, package_meta
+from app.xbrl.store import mark_failed
+import fetch_xbrl_golden as fetch_mod
+import xbrl_match_rate as mr
 
 
 def _fail(msg: object) -> None:

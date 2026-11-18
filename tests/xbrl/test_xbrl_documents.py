@@ -67,7 +67,7 @@ def _seed(db, tmp: Path) -> tuple[XbrlFiling, ...]:
     _zip(tmp / "b.zip", [SUMMARY, PL, BS])
     _zip(tmp / "d.zip", [RVFC])
     _zip(tmp / "e.zip", [])
-    now = datetime(2026, 10, 20, 15, 30)  # noqa: DTZ001
+    now = datetime(2026, 10, 20, 15, 30)
     rows = []
     for i, (raw, err) in enumerate([
         ("a.zip", None), ("b.zip", None), ("gone.zip", None), ("c.zip", "no-ixbrl"), ("d.zip", None), ("e.zip", None),

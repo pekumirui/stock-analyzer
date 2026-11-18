@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_monthly import (  # noqa: E402
+from jobs.monthly.html_monthly import (
     _sticky_section_fy,
     decode_html_bytes,
     dumps_ingest,
@@ -20,24 +20,24 @@ from jobs.monthly.html_monthly import (  # noqa: E402
     parse_number,
     parse_tables,
 )
-from jobs.monthly.html_issuers import parse_issuer  # noqa: E402
-from jobs.monthly.html_issuers.i3148 import parse as parse_3148  # noqa: E402
-from jobs.monthly.html_issuers.i7522 import parse as parse_7522  # noqa: E402
-from jobs.monthly.html_issuers.i7561 import parse as parse_7561  # noqa: E402
-from jobs.monthly.html_issuers.i8179 import parse as parse_8179  # noqa: E402
-from jobs.monthly.html_issuers.i8278 import parse as parse_8278  # noqa: E402
-from jobs.monthly.html_issuers.i9946 import parse as parse_9946  # noqa: E402
-from jobs.monthly.html_issuers.i9948 import parse as parse_9948  # noqa: E402
-from jobs.monthly.html_issuers.i9993 import parse as parse_9993  # noqa: E402
-from jobs.monthly.html_issuers.i9994 import parse as parse_9994  # noqa: E402
-from monthly_html_fixtures import (  # noqa: E402
+from jobs.monthly.html_issuers import parse_issuer
+from jobs.monthly.html_issuers.i3148 import parse as parse_3148
+from jobs.monthly.html_issuers.i7522 import parse as parse_7522
+from jobs.monthly.html_issuers.i7561 import parse as parse_7561
+from jobs.monthly.html_issuers.i8179 import parse as parse_8179
+from jobs.monthly.html_issuers.i8278 import parse as parse_8278
+from jobs.monthly.html_issuers.i9946 import parse as parse_9946
+from jobs.monthly.html_issuers.i9948 import parse as parse_9948
+from jobs.monthly.html_issuers.i9993 import parse as parse_9993
+from jobs.monthly.html_issuers.i9994 import parse as parse_9994
+from monthly_html_fixtures import (
     CAWACHI_HTML,
     COLOWIDE_HTML,
     MOS_HTML,
     ROYAL_DUAL_BRAND_HTML,
     SEKISUI_MONTH_HTML,
 )
-from monthly_html_fixtures import module_force_units as _module_force_units  # noqa: E402
+from monthly_html_fixtures import module_force_units as _module_force_units
 
 
 HALOWS_HTML = """

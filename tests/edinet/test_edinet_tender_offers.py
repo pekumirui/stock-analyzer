@@ -15,10 +15,10 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-tob-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete  # noqa: E402
+from sqlalchemy import delete
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.tender_offers import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.tender_offers import (
     classify_opinion,
     exit_status,
     parse_document,
@@ -26,18 +26,18 @@ from app.edinet.tender_offers import (  # noqa: E402
     refresh_offers,
     run,
 )
-from app.edinet.textblocks import read_instance  # noqa: E402
-from app.models import (  # noqa: E402
+from app.edinet.textblocks import read_instance
+from app.models import (
     EdinetDocument,
     EdinetFiler,
     EdinetTenderOffer,
     EdinetTenderOfferDoc,
     Stock,
 )
-from tests.edinet.test_edinet_large_holdings import _ErrClient  # noqa: E402
-from tests.edinet.xbrl_fixture import para, table, xbrl_zip  # noqa: E402
+from tests.edinet.test_edinet_large_holdings import _ErrClient
+from tests.edinet.xbrl_fixture import para, table, xbrl_zip
 
-FETCHED = datetime(2026, 10, 15, 18, 0)  # noqa: DTZ001
+FETCHED = datetime(2026, 10, 15, 18, 0)
 TODAY = date(2026, 10, 22)
 TON, TOR, PST, TOI = "jptoo-ton_cor", "jptoo-tor_cor", "jptoo-pst_cor", "jptoi_cor"
 
@@ -180,7 +180,7 @@ def _doc(seq: int, doc_id: str, doc_type: str, **over) -> EdinetDocument:
         "subject_edinet_code": "E77777" if offeror else "E88888",
         "doc_type_code": doc_type, "ordinance_code": "040", "form_code": "020000",
         "doc_description": desc,
-        "submit_datetime": datetime(2026, 5, 13, 9, seq),  # noqa: DTZ001
+        "submit_datetime": datetime(2026, 5, 13, 9, seq),
         "withdrawal_status": "0", "doc_info_edit_status": "0", "disclosure_status": "0",
         "xbrl_flag": True, "pdf_flag": True, "attach_doc_flag": False, "english_doc_flag": False,
         "csv_flag": True, "legal_status": "1", "fetched_at": FETCHED,
@@ -273,7 +273,7 @@ def test_withdrawal_issuer_and_doc_edit() -> None:
             _doc(1, "S100NOT2", "240", subject_edinet_code="E66666"),
             # 書類情報修正で対象者を付け替え（新しいメタデータは修正の行）
             _doc(2, "S100NOT2", "240", doc_info_edit_status="1", file_date=date(2026, 5, 14),
-                 ope_datetime=datetime(2026, 5, 14, 10, 0)),  # noqa: DTZ001
+                 ope_datetime=datetime(2026, 5, 14, 10, 0)),
             _doc(3, "S100WDR1", "260", parent_doc_id="S100NOT2", file_date=date(2026, 5, 20)),
             _doc(4, "S100ISS1", "240", ordinance_code="050", edinet_code="E77777", subject_edinet_code="E77777",
                  sec_code="23710", code="23710", filer_name="株式会社サンプル"),

@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs._r2common import (  # noqa: E402
+from jobs._r2common import (
     BROWSER_UA,
     HTTP_RETRY_ATTEMPTS,
     USER_AGENT,
@@ -20,7 +20,7 @@ from jobs._r2common import (  # noqa: E402
     retry_after_seconds,
     ssl_context_with_aia,
 )
-from jobs.monthly.ir_monthly_r2 import (  # noqa: E402
+from jobs.monthly.ir_monthly_r2 import (
     FileLink,
     Issuer,
     dest_filename,
@@ -38,7 +38,7 @@ from jobs.monthly.ir_monthly_r2 import (  # noqa: E402
     sha256_bytes,
     url_stem,
 )
-from jobs.monthly.tdnet_monthly_r2 import display_code  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import display_code
 
 KURA_HTML = """
 <html><body>
@@ -325,7 +325,7 @@ def test_hash_skip_and_xlsx_priority_fetch(tmp: Path) -> None:
     }
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         if url not in bodies:
             raise RuntimeError(f"unexpected url {url}")
@@ -333,7 +333,7 @@ def test_hash_skip_and_xlsx_priority_fetch(tmp: Path) -> None:
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = Issuer(
@@ -397,7 +397,7 @@ def test_xls_hash_skip_fetch(tmp: Path) -> None:
     }
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         if url not in bodies:
             raise RuntimeError(f"unexpected url {url}")
@@ -405,7 +405,7 @@ def test_xls_hash_skip_fetch(tmp: Path) -> None:
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = Issuer(
@@ -442,7 +442,7 @@ def test_http_get_falls_back_on_403() -> None:
 
     uas: list[str] = []
 
-    def fake_urlopen(req, timeout=30.0):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0):
         ua = req.get_header("User-agent") or req.get_header("User-Agent")
         uas.append(ua)
         if ua == USER_AGENT:
@@ -467,7 +467,7 @@ def test_http_get_result_returns_redirect_url() -> None:
 
     from jobs._r2common import http_get_result
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         cm = MagicMock()
         resp = cm.__enter__.return_value
         resp.read.return_value = b"year-page"
@@ -572,7 +572,7 @@ def test_aia_rejects_untrusted_and_accepts_system_ca() -> None:
     octet = _tlv(0x30, acc_ca)
     leaf = _tlv(0x06, aia_oid) + _tlv(0x04, octet)
 
-    def fake_urlopen(req, timeout=30.0):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0):
         cm = MagicMock()
         cm.__enter__.return_value.read.return_value = self_pem
         cm.__exit__.return_value = False
@@ -597,7 +597,7 @@ def test_http_get_aia_on_incomplete_chain() -> None:
 
     contexts: list[object] = []
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         contexts.append(context)
         if context is None:
             raise URLError(
@@ -675,7 +675,7 @@ def test_http_get_retries_429_then_succeeds() -> None:
     uas: list[str] = []
     calls = {"n": 0}
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         uas.append(req.get_header("User-agent") or req.get_header("User-Agent"))
         calls["n"] += 1
         if calls["n"] == 1:
@@ -710,7 +710,7 @@ def test_http_get_honors_retry_after() -> None:
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     calls = {"n": 0}
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         calls["n"] += 1
         if calls["n"] == 1:
             raise _http_err(req.full_url, 503, "Service Unavailable", "3")
@@ -738,7 +738,7 @@ def test_http_get_429_exhausted_raises() -> None:
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     uas: list[str] = []
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         uas.append(req.get_header("User-agent") or req.get_header("User-Agent"))
         raise _http_err(req.full_url, 429, "Too Many Requests")
 
@@ -771,7 +771,7 @@ def test_http_get_404_does_not_retry() -> None:
 
     calls = {"n": 0}
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         calls["n"] += 1
         raise _http_err(req.full_url, 404, "Not Found")
 
@@ -794,12 +794,12 @@ def test_http_get_404_does_not_retry() -> None:
 def test_unknown_stock_skip(tmp: Path) -> None:
     import jobs.monthly.ir_monthly_r2 as mod
 
-    def boom(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def boom(url: str, timeout: float = 30.0) -> bytes:
         raise RuntimeError(f"network {url}")
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = boom  # type: ignore[assignment]
+    mod.http_get = boom
     mod.SLEEP_SEC = 0
     try:
         iss = Issuer(
@@ -853,15 +853,15 @@ def test_run_only_and_dry_run(tmp: Path) -> None:
     }
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         return bodies[url]
 
     orig = mod.http_get
     orig_map = mod.load_stock_product_map
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
-    mod.load_stock_product_map = lambda **_k: {"33820": ("011", "セブン"), "26950": ("011", "くら寿司")}  # type: ignore[assignment]
+    mod.http_get = fake_get
+    mod.load_stock_product_map = lambda **_k: {"33820": ("011", "セブン"), "26950": ("011", "くら寿司")}
     mod.SLEEP_SEC = 0
     try:
         rc = run(tmp / "out", cfg, only=["3382"], dry_run=True, today=date(2026, 9, 12))

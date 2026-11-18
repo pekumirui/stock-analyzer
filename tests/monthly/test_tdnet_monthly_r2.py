@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.tdnet_monthly_r2 import (  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import (
     INCLUDE_EXTRA,
     already_have,
     date_window,
@@ -465,7 +465,7 @@ def test_http_get_uses_job_ua_then_browser() -> None:
 
     uas: list[str] = []
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         ua = req.get_header("User-agent") or req.get_header("User-Agent")
         uas.append(ua)
         if ua == mod.USER_AGENT:

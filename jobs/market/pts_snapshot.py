@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.market.pts import client, snapshot_all  # noqa: E402
+from app.db import SessionLocal
+from app.market.pts import client, snapshot_all
 
 
 def main() -> int:

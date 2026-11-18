@@ -43,13 +43,13 @@ from typing import Iterable
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.config import XBRL_CACHE_DIR, XBRL_DEST  # noqa: E402
-from app.xbrl.parser import (  # noqa: E402
+from app.config import XBRL_CACHE_DIR, XBRL_DEST
+from app.xbrl.parser import (
     RecordingFileLoader,
     collect_parser_taxonomy_urls,
     extract_zip,
 )
-from app.xbrlp.file_loader import FileLoader  # noqa: E402
+from app.xbrlp.file_loader import FileLoader
 
 
 def cache_path_for(cache_dir: Path, url: str) -> Path:

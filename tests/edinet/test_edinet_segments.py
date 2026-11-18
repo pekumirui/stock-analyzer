@@ -16,15 +16,15 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-seg-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.xbrl import keep_fact, pending_documents, run  # noqa: E402
-from app.models import XbrlFiling, XbrlFinancial, XbrlSegment, XbrlStdItem  # noqa: E402
-from app.xbrl.context import ParsedContext  # noqa: E402
-from app.xbrl.normalize import rebuild_all  # noqa: E402
-from app.xbrl.parser import ParsedFact  # noqa: E402
-from app.xbrl.segments import member_kind  # noqa: E402
-from tests.edinet.test_edinet_xbrl import FakeClient, _doc, _reset  # noqa: E402
-from tests.xbrl.test_xbrl_parse import MANUFACTURING, _ixbrl_html  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.xbrl import keep_fact, pending_documents, run
+from app.models import XbrlFiling, XbrlFinancial, XbrlSegment, XbrlStdItem
+from app.xbrl.context import ParsedContext
+from app.xbrl.normalize import rebuild_all
+from app.xbrl.parser import ParsedFact
+from app.xbrl.segments import member_kind
+from tests.edinet.test_edinet_xbrl import FakeClient, _doc, _reset
+from tests.xbrl.test_xbrl_parse import MANUFACTURING, _ixbrl_html
 
 CO = "jpcrp030000-asr_E02144-000"
 AXIS = "jpcrp_cor:OperatingSegmentsAxis"

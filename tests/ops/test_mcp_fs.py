@@ -13,10 +13,10 @@ sys.path.insert(0, str(ROOT / "mcp"))
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 os.environ["MCP_APP_DIR"] = str(ROOT)
 
-from starlette.testclient import TestClient  # noqa: E402
+from starlette.testclient import TestClient
 
-import fs_tools as fs  # noqa: E402
-import log_mcp as m  # noqa: E402
+import fs_tools as fs
+import log_mcp as m
 
 
 def _rpc(client: TestClient, method: str, params: dict | None = None, token: str = "test-token-for-ci-only", req_id: int = 1):

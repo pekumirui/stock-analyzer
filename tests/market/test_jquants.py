@@ -16,9 +16,9 @@ _tmp = tempfile.mkdtemp(prefix="stock-analyzer-jquants-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 os.environ.setdefault("JQUANTS_API_KEY", "test-key")
 
-from app.config import load_dotenv  # noqa: E402
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.market.ingest import (  # noqa: E402
+from app.config import load_dotenv
+from app.db import SessionLocal, init_db
+from app.market.ingest import (
     ingest_master,
     ingest_prices_for_code,
     ingest_prices_for_date,
@@ -26,8 +26,8 @@ from app.market.ingest import (  # noqa: E402
     ingest_topix,
     run_daily,
 )
-from app.market.jquants import JQuantsClient, RateLimiter  # noqa: E402
-from app.models import DailyPrice, Statement, Stock, Topix  # noqa: E402
+from app.market.jquants import JQuantsClient, RateLimiter
+from app.models import DailyPrice, Statement, Stock, Topix
 
 
 def _fail(msg: object) -> None:
@@ -94,7 +94,7 @@ def test_get_all_pages_and_429() -> None:
         _Resp(200, {"data": [{"Code": "72030"}], "pagination_key": "p2"}),
         _Resp(200, {"data": [{"Code": "99840"}]}),
     ])
-    jq._client = fake  # type: ignore[assignment]
+    jq._client = fake
     slept: list[float] = []
     with patch("app.market.jquants.time.sleep", slept.append), patch.object(jq._limiters["default"], "acquire", lambda: None):
         rows = jq.get_all("/equities/master", {"date": "2026-09-01"})
@@ -116,7 +116,7 @@ def test_get_all_pages_and_429() -> None:
 def test_429_backoff_gives_up_after_six() -> None:
     jq = JQuantsClient(api_key="x")
     fake = _FakeHTTP([_Resp(429)] * 6)
-    jq._client = fake  # type: ignore[assignment]
+    jq._client = fake
     slept: list[float] = []
     with patch("app.market.jquants.time.sleep", slept.append), patch.object(jq._limiters["fins"], "acquire", lambda: None):
         try:
@@ -132,7 +132,7 @@ def test_429_backoff_gives_up_after_six() -> None:
 
 def test_fins_uses_its_own_bucket() -> None:
     jq = JQuantsClient(api_key="x")
-    jq._client = _FakeHTTP([_Resp(200, {"data": []}), _Resp(200, {"data": []})])  # type: ignore[assignment]
+    jq._client = _FakeHTTP([_Resp(200, {"data": []}), _Resp(200, {"data": []})])
     used: list[str] = []
     with patch.object(jq._limiters["default"], "acquire", lambda: used.append("default")), \
             patch.object(jq._limiters["fins"], "acquire", lambda: used.append("fins")):
@@ -145,9 +145,9 @@ def test_fins_uses_its_own_bucket() -> None:
 def test_endpoints_and_params() -> None:
     fake = _FakeHTTP([_Resp(200, {"data": [{"Date": "2026-09-01", "HolDiv": "1"}]})] * 6)
     with JQuantsClient(api_key="x") as jq:
-        jq._client = fake  # type: ignore[assignment]
+        jq._client = fake
         for lim in jq._limiters.values():
-            lim.acquire = lambda: None  # type: ignore[method-assign]
+            lim.acquire = lambda: None
         jq.equities_master("2026-09-01")
         jq.bars_daily(code="72030", from_="2026-08-01", to="2026-09-01")
         jq.topix(from_="2026-01-01", to="2026-01-31")
@@ -205,13 +205,13 @@ def test_ingest_writes_price_and_statement_rows() -> None:
             }]
 
     try:
-        n = ingest_master(db, JQ())  # type: ignore[arg-type]
+        n = ingest_master(db, JQ())
         if n != 1:
             _fail(f"master {n}")
         st = db.get(Stock, "72030")
         if st is None or st.name != "トヨタ" or st.product_category != "011":
             _fail(st)
-        n = ingest_prices_for_date(db, JQ(), "2026-09-01")  # type: ignore[arg-type]
+        n = ingest_prices_for_date(db, JQ(), "2026-09-01")
         if n != 1:
             _fail(f"prices {n}")
         px = db.get(DailyPrice, ("72030", date(2026, 9, 1)))
@@ -221,16 +221,16 @@ def test_ingest_writes_price_and_statement_rows() -> None:
             _fail(f"missing-value mark must be NULL: open={px.open} adj_factor={px.adj_factor}")
         if db.get(DailyPrice, ("99990", date(2026, 9, 1))) is not None:
             _fail("halt day inserted")
-        n = ingest_prices_for_code(db, JQ(), "72030", from_="2026-09-01", to="2026-09-01")  # type: ignore[arg-type]
+        n = ingest_prices_for_code(db, JQ(), "72030", from_="2026-09-01", to="2026-09-01")
         if n != 1:
             _fail(f"code prices {n}")
-        n = ingest_topix(db, JQ(), from_="2026-09-01", to="2026-09-01")  # type: ignore[arg-type]
+        n = ingest_topix(db, JQ(), from_="2026-09-01", to="2026-09-01")
         if n != 1:
             _fail(f"topix {n}")
         tx = db.get(Topix, date(2026, 9, 1))
         if tx is None or tx.close != 2805.0:
             _fail(tx)
-        n = ingest_statements_for_code(db, JQ(), "72030")  # type: ignore[arg-type]
+        n = ingest_statements_for_code(db, JQ(), "72030")
         if n != 2:
             _fail(f"stmt {n}")
         stmt = db.get(Statement, "D1")

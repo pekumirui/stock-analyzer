@@ -17,18 +17,18 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-period-fixes-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.market.ingest import _statement_row, ingest_statements_for_date, upsert_statements  # noqa: E402
-from app.market.period_fixes import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.market.ingest import _statement_row, ingest_statements_for_date, upsert_statements
+from app.market.period_fixes import (
     apply_period_fix,
     load_period_fixes,
     next_year,
     period_candidates,
 )
-from app.models import Statement  # noqa: E402
-from app.xbrl.statements import RAW_MARKER, SOURCE_XBRL  # noqa: E402
-from deploy.alert_patterns import ALERT_PATTERNS  # noqa: E402
-from tools.market.fix_statement_periods import plan, scan_candidates, write  # noqa: E402
+from app.models import Statement
+from app.xbrl.statements import RAW_MARKER, SOURCE_XBRL
+from deploy.alert_patterns import ALERT_PATTERNS
+from tools.market.fix_statement_periods import plan, scan_candidates, write
 
 FY_2121 = {
     "DiscDate": "2024-05-10", "DiscTime": "15:00", "Code": "21210", "DiscNo": "20240508585107",
@@ -171,14 +171,14 @@ def test_ingest_warns_once_for_new_disclosures(db, capsys) -> None:
     db.add(Statement(disclosure_no="F1", code="11110", disclosed_date=date(2024, 5, 10),
                      raw_json=json.dumps(xbrl_raw), source=SOURCE_XBRL))
     db.commit()
-    ingest_statements_for_date(db, _JQ(raws), "2024-05-10", warn=True)  # type: ignore[arg-type]
+    ingest_statements_for_date(db, _JQ(raws), "2024-05-10", warn=True)
     out = capsys.readouterr().out
     assert out.count("period-candidate") == 1 and "disclosure_no=F1" in out
-    ingest_statements_for_date(db, _JQ(raws), "2024-05-10", warn=True)  # type: ignore[arg-type]
+    ingest_statements_for_date(db, _JQ(raws), "2024-05-10", warn=True)
     assert "period-candidate" not in capsys.readouterr().out
     db.query(Statement).filter(Statement.disclosure_no == "F1").delete()
     db.commit()
-    ingest_statements_for_date(db, _JQ(raws), "2024-05-10")  # type: ignore[arg-type]
+    ingest_statements_for_date(db, _JQ(raws), "2024-05-10")
     assert "period-candidate" not in capsys.readouterr().out
     st = db.get(Statement, "20240508585107")
     assert st.period_end == date(2024, 3, 31)

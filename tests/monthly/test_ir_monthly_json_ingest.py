@@ -10,14 +10,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.monthly.ingest import (  # noqa: E402
+from app.monthly.ingest import (
     apply_issuer_aliases,
     canonicalize_element_label,
     plan_column_years,
 )
-from app.api.monthly.ingest import INGEST_VIAS  # noqa: E402
-from app.monthly.store import SOURCE_VIAS  # noqa: E402
-from jobs.monthly.ir_monthly_json_ingest import (  # noqa: E402
+from app.api.monthly.ingest import INGEST_VIAS
+from app.monthly.store import SOURCE_VIAS
+from jobs.monthly.ir_monthly_json_ingest import (
     calendar_year,
     fy_start_year,
     ingest_body,

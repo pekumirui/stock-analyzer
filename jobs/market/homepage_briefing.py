@@ -58,21 +58,21 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from app.market.briefing_store import (  # noqa: E402
+from app.market.briefing_store import (
     JST,
     SOURCE_HOMEPAGE,
     has_saved,
     record_briefing,
 )
-from app.market.briefing_title import is_english_version, is_material_title, spaced_title  # noqa: E402
-from jobs._r2common import (  # noqa: E402
+from app.market.briefing_title import is_english_version, is_material_title, spaced_title
+from jobs._r2common import (
     abort_if_disconnected,
     fail_if_mount_down,
     http_get as _http_get,
     http_get_result as _http_get_result,
 )
-from jobs.monthly.tdnet_monthly_r2 import dest_path, jq_lookup_code  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import dest_path, jq_lookup_code
+from jobs.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("briefing"))
 DEFAULT_CONFIG = SCRIPT_DIR.parents[1] / "config" / "market" / "briefing_pages.json"
@@ -322,7 +322,7 @@ def years_ago(now: datetime, years: int) -> datetime:
         start = day.replace(year=day.year - years)
     except ValueError:
         start = day.replace(year=day.year - years, day=28)
-    return datetime(start.year, start.month, start.day)  # noqa: DTZ001
+    return datetime(start.year, start.month, start.day)
 
 
 def disk_is_low(dest: Path, disk_usage: DiskUsage) -> bool:
@@ -365,7 +365,7 @@ def parse_pdf_date(value: str | None) -> datetime | None:
         return None
     year, month, day, hour, minute, second, zulu, sign, off_h, off_m = match.groups()
     try:
-        when = datetime(  # noqa: DTZ001
+        when = datetime(
             int(year), int(month or 1), int(day or 1),
             int(hour or 0), int(minute or 0), int(second or 0),
         )
@@ -395,7 +395,7 @@ def pdf_date(data: bytes) -> datetime | None:
 def url_date(url: str) -> datetime | None:
     for year, month, day in _URL_DAY.findall(unquote(urlparse(url).path)):
         try:
-            return datetime(int(year), int(month), int(day))  # noqa: DTZ001
+            return datetime(int(year), int(month), int(day))
         except ValueError:
             continue
     return None

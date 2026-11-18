@@ -16,11 +16,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-earnings-perf-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db, upsert  # noqa: E402
-from app.market.analytics import compute_earnings_events, no_open_days  # noqa: E402
-from app.market.ingest import _price_row  # noqa: E402
-from app.market.price_limit import at_limit, price_limit  # noqa: E402
-from app.models import DailyPrice, EarningsEvent, Statement, Topix  # noqa: E402
+from app.db import SessionLocal, init_db, upsert
+from app.market.analytics import compute_earnings_events, no_open_days
+from app.market.ingest import _price_row
+from app.market.price_limit import at_limit, price_limit
+from app.models import DailyPrice, EarningsEvent, Statement, Topix
 
 D = date.fromisoformat
 

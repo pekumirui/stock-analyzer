@@ -17,11 +17,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import text
 
-from app.db import SessionLocal  # noqa: E402
-from app.market.intraday import collect, daily_context, fetch, store  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+from app.db import SessionLocal
+from app.market.intraday import collect, daily_context, fetch, store
+from jobs.share_paths import share_path
 
 DOMESTIC = "011"
 

@@ -14,13 +14,13 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-analytics-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from sqlalchemy import select  # noqa: E402
+from sqlalchemy import select
 
-from app.api.earnings import prefetch_list_history  # noqa: E402
-from app.config import EARNINGS_PARAMS as EP  # noqa: E402
-from app.market.analytics import (  # noqa: E402
+from app.api.earnings import prefetch_list_history
+from app.config import EARNINGS_PARAMS as EP
+from app.market.analytics import (
     calendar_label,
     calendar_span,
     compute_earnings_events,
@@ -45,10 +45,10 @@ from app.market.analytics import (  # noqa: E402
     single_metrics,
     statement_history,
 )
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.db import upsert  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import DailyPrice, EarningsEvent, Indicator, Statement, Stock, Topix  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.db import upsert
+from app.main import app
+from app.models import DailyPrice, EarningsEvent, Indicator, Statement, Stock, Topix
 
 DOC = "FYFinancialStatements_Consolidated_JP"
 CODE = "72030"

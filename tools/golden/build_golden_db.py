@@ -30,9 +30,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy import create_engine
 
-from app.models import Base  # noqa: E402
+from app.models import Base
 
 OUT = ROOT / "tests" / "golden" / "db"
 CODES = OUT / "codes.txt"
@@ -78,7 +78,7 @@ def _dump(con: sqlite3.Connection, out: Path, table: str, where: str = "", args:
     have = {r[1] for r in con.execute(f"PRAGMA table_info({table})")}
     sel = ", ".join(c if c in have else "NULL" for c in cols)
     order = ", ".join(c.name for c in Base.metadata.tables[table].primary_key.columns)
-    rows = list(con.execute(f"SELECT {sel} FROM {table} {where} ORDER BY {order}", args))  # nosec B608 (表と列はモデルから)
+    rows = list(con.execute(f"SELECT {sel} FROM {table} {where} ORDER BY {order}", args))
     return write_csv(out, table, rows)
 
 
@@ -137,7 +137,7 @@ def build_monthly(origin: str, out: Path) -> dict[str, int]:
 
 def _run_job(db: Path, argv: list[str]) -> None:
     env = {**os.environ, "DATABASE_URL": f"sqlite:///{db}"}
-    subprocess.run([sys.executable, *argv], cwd=ROOT, env=env, check=True)  # nosec B603 (固定のジョブ)
+    subprocess.run([sys.executable, *argv], cwd=ROOT, env=env, check=True)
 
 
 def build_job_tables(out: Path, argv: list[str], tables: tuple[str, ...]) -> dict[str, int]:

@@ -20,7 +20,7 @@ from jobs.market.tanshin_covers import parse_args, since_from_days
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "tests" / "golden" / "tdnet_pdf" / "html"
-NOW = datetime(2026, 11, 2, 12, 0)  # noqa: DTZ001
+NOW = datetime(2026, 11, 2, 12, 0)
 
 
 @pytest.fixture(autouse=True)
@@ -191,11 +191,11 @@ def test_sync_prefers_same_day_readable_cover_and_skips_amendment() -> None:
         )
         _filing(
             db, "72030", "081220261101000001", "2026年3月期 決算短信〔日本基準〕（連結）",
-            datetime(2026, 11, 1, 15, 30), _ixbrl("有", "有", "アナリスト向け"),  # noqa: DTZ001
+            datetime(2026, 11, 1, 15, 30), _ixbrl("有", "有", "アナリスト向け"),
         )
         _filing(
             db, "72030", "081220261102000002", "「2026年3月期 決算短信」の修正について",
-            datetime(2026, 11, 2, 9, 0), _ixbrl("無", "無"),  # noqa: DTZ001
+            datetime(2026, 11, 2, 9, 0), _ixbrl("無", "無"),
         )
         report = sync_covers(db, ["7203"], dry_run=False)
         row = db.get(TanshinCover, "081220261101000001")
@@ -224,7 +224,7 @@ def test_newer_quarter_keeps_the_older_row() -> None:
         assert db.get(TanshinCover, "20261001000001").has_material is True
         _filing(
             db, "67580", "081220261101000009", "2026年3月期 第2四半期決算短信〔日本基準〕（連結）",
-            datetime(2026, 11, 1, 15, 0), "<html><body><p>本文だけ</p></body></html>",  # noqa: DTZ001
+            datetime(2026, 11, 1, 15, 0), "<html><body><p>本文だけ</p></body></html>",
         )
         sync_covers(db, ["67580"])
         newer = db.get(TanshinCover, "081220261101000009")
@@ -289,8 +289,8 @@ def test_parse_args_rejects_a_full_fetch() -> None:
 
 
 def test_days_window_includes_today() -> None:
-    assert since_from_days(1, NOW) == datetime(2026, 11, 2)  # noqa: DTZ001
-    assert since_from_days(3, NOW) == datetime(2026, 10, 31)  # noqa: DTZ001
+    assert since_from_days(1, NOW) == datetime(2026, 11, 2)
+    assert since_from_days(3, NOW) == datetime(2026, 10, 31)
 
 
 def test_since_takes_companies_that_filed_in_the_window() -> None:
@@ -303,13 +303,13 @@ def test_since_takes_companies_that_filed_in_the_window() -> None:
         yes = _pdf_html(["決算補足説明資料作成の有無：有", "決算説明会開催の有無：無"])
         _filing(
             db, "72030", "081220261101000001", "2026年3月期 第2四半期決算短信〔日本基準〕（連結）",
-            datetime(2026, 11, 1, 15, 30), _ixbrl("有", "有"),  # noqa: DTZ001
+            datetime(2026, 11, 1, 15, 30), _ixbrl("有", "有"),
         )
         _pdf(db, "67580", "20261031000002", "2026年3月期 第2四半期決算短信", date(2026, 10, 31), yes)
         _pdf(db, "99840", "20261030000003", "2026年3月期 第2四半期決算短信", date(2026, 10, 30), yes)
         _pdf(db, "22370", "etf-1", "2026年9月期 決算短信", date(2026, 11, 1), yes)
         _pdf(db, "67580", "20261101000004", "業績予想の修正に関するお知らせ", date(2026, 11, 1), yes)
-        report = sync_covers(db, None, since=datetime(2026, 10, 31))  # noqa: DTZ001
+        report = sync_covers(db, None, since=datetime(2026, 10, 31))
         assert report.written == 2
         assert report.skipped == 1
         assert db.get(TanshinCover, "081220261101000001").has_material is True

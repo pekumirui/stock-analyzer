@@ -18,11 +18,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-lvh-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete, select  # noqa: E402
+from sqlalchemy import delete, select
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.documents import CodeLookup  # noqa: E402
-from app.edinet.large_holdings import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.documents import CodeLookup
+from app.edinet.large_holdings import (
     ObligationDateFix,
     apply_obligation_date_fix,
     exit_status,
@@ -38,21 +38,21 @@ from app.edinet.large_holdings import (  # noqa: E402
     sec_code5,
     warn_late_obligation_dates,
 )
-from app.edinet_wrapper.errors import (  # noqa: E402
+from app.edinet_wrapper.errors import (
     EdinetNotFoundError,
     EdinetServerError,
     EdinetTransportError,
 )
-from app.models import (  # noqa: E402
+from app.models import (
     EdinetDocument,
     EdinetFiler,
     LargeHolding,
     LargeHoldingReport,
     Stock,
 )
-from tests.edinet.test_edinet_xbrl import FakeClient  # noqa: E402
+from tests.edinet.test_edinet_xbrl import FakeClient
 
-FETCHED = datetime(2026, 10, 15, 18, 0)  # noqa: DTZ001
+FETCHED = datetime(2026, 10, 15, 18, 0)
 FDI = "FilingDateInstant"
 HEAD = ["要素ID", "項目名", "コンテキストID", "相対年度", "連結・個別", "期間・時点", "ユニットID", "単位", "値"]
 
@@ -139,7 +139,7 @@ def _doc(seq: int, doc_id: str, **over) -> EdinetDocument:
         "edinet_code": "E99999", "filer_name": "大量保有証券株式会社", "doc_type_code": "350",
         "form_code": "010002", "ordinance_code": "060", "doc_description": "変更報告書",
         "issuer_edinet_code": "E11111",
-        "submit_datetime": datetime(2026, 10, 15, 9, 0 + seq),  # noqa: DTZ001
+        "submit_datetime": datetime(2026, 10, 15, 9, 0 + seq),
         "withdrawal_status": "0", "doc_info_edit_status": "0", "disclosure_status": "0",
         "xbrl_flag": True, "pdf_flag": True, "attach_doc_flag": False, "english_doc_flag": False,
         "csv_flag": True, "legal_status": "1", "fetched_at": FETCHED,
@@ -386,7 +386,7 @@ def test_outside_window_marked_without_download() -> None:
 def _report(doc_id: str, **over) -> LargeHoldingReport:
     row = {
         "doc_id": doc_id, "file_date": date(2026, 10, 15),
-        "submit_datetime": datetime(2026, 10, 15, 9, 0),  # noqa: DTZ001
+        "submit_datetime": datetime(2026, 10, 15, 9, 0),
         "doc_type_code": "350", "filer_name": "大量保有証券株式会社", "code": "190A0",
         "obligation_date": date(2026, 10, 7), "is_amendment": False,
         "original_doc_id": doc_id, "is_latest": True, "withdrawn": False,

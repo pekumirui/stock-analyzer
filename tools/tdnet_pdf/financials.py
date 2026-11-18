@@ -21,10 +21,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
-from app.xbrl.pdf import SyncOutcome, sync_pdf_filings  # noqa: E402
-from app.xbrl.pdf_matches import rebuild_matches, summary  # noqa: E402
+from app.db import SessionLocal
+from app.xbrl.mappings import apply_mappings
+from app.xbrl.pdf import SyncOutcome, sync_pdf_filings
+from app.xbrl.pdf_matches import rebuild_matches, summary
 
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 

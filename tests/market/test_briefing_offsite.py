@@ -119,7 +119,7 @@ class _Rclone:
         self.by_rel: dict[str, bytes] = {}
         self.files_from: list[list[str]] = []
 
-    def __call__(self, argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG002
+    def __call__(self, argv: list[str], timeout: float) -> CmdResult:
         op = argv[0]
         self.calls.append(list(argv))
         if op in ("copyto", "size", "move", "delete", "deletefile"):
@@ -252,7 +252,7 @@ def test_dry_run_changes_nothing(tmp_path: Path) -> None:
     )
     body = (root / rel).read_bytes()
 
-    def boom(argv, timeout):  # noqa: ARG001
+    def boom(argv, timeout):
         raise AssertionError(argv)
 
     rc, out = _run(root, boom, dry_run=True)
@@ -280,7 +280,7 @@ def test_missing_file_is_logged_and_does_not_fail(tmp_path: Path) -> None:
     _add(root, code="13320", rel=fresh, pubdate="2026-03-01 15:00:00", document_id="fresh")
     rclone = _Rclone(root)
 
-    def boom(argv, timeout):  # noqa: ARG001
+    def boom(argv, timeout):
         raise AssertionError(argv)
 
     rc, out = _run(root, boom)
@@ -637,7 +637,7 @@ def test_fetch_docs_reads_moved_pdf_and_still_downloads_the_rest(tmp_path: Path,
 
     opened: list[str] = []
 
-    def urlopen(url, timeout=60):  # noqa: ARG001
+    def urlopen(url, timeout=60):
         opened.append(url)
         raise AssertionError(url)
 

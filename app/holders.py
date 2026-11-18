@@ -90,7 +90,7 @@ def classify_move(ratio: float | None, prev: float | None, form_code: str | None
     return None
 
 
-_DT_MIN = datetime(1, 1, 1)  # noqa: DTZ001
+_DT_MIN = datetime(1, 1, 1)
 
 
 def _report_key(file_date: date | None, submitted: datetime | None, obligation: date | None):

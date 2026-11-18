@@ -14,9 +14,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal  # noqa: E402
-from app.xbrl.statements import sync_statements  # noqa: E402
-from jobs._r2common import jst_today  # noqa: E402
+from app.db import SessionLocal
+from app.xbrl.statements import sync_statements
+from jobs._r2common import jst_today
 
 DEFAULT_DAYS = 3
 

@@ -35,16 +35,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs._r2common import (  # noqa: E402
+from jobs._r2common import (
     MountDisconnected,
     fail_if_mount_down,
     is_mount_disconnect_error,
     jst_today,
     with_mount_retry,
 )
-from jobs.monthly.html_monthly import _is_prior_year_absolute  # noqa: E402
-from jobs.monthly.ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, sha256_bytes  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import display_code  # noqa: E402
+from jobs.monthly.html_monthly import _is_prior_year_absolute
+from jobs.monthly.ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, sha256_bytes
+from jobs.monthly.tdnet_monthly_r2 import display_code
 
 DEFAULT_LEDGER = Path("/tmp/html_ingest_ledger.json")
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
@@ -543,7 +543,7 @@ def _parse_post_ok(code: str, payload: Any) -> PostOk | None:
 
 
 class _RejectRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise urllib.error.HTTPError(newurl, code, "redirect not allowed", headers, fp)
 
 

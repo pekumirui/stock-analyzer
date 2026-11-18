@@ -31,13 +31,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.config import XBRL_DEST  # noqa: E402
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.client import skip_on_maintenance  # noqa: E402
-from app.xbrl.presentation_backfill import SOURCES, line, origins, run, targets  # noqa: E402
-from app.xbrl.presentation_backfill import edinet_fetcher, stage_offsite, tdnet_fetcher  # noqa: E402
-from jobs._r2common import fail_if_mount_down  # noqa: E402
-from jobs.xbrl.tdnet_xbrl_r2 import jq_lookup_code  # noqa: E402
+from app.config import XBRL_DEST
+from app.db import SessionLocal, init_db
+from app.edinet.client import skip_on_maintenance
+from app.xbrl.presentation_backfill import SOURCES, line, origins, run, targets
+from app.xbrl.presentation_backfill import edinet_fetcher, stage_offsite, tdnet_fetcher
+from jobs._r2common import fail_if_mount_down
+from jobs.xbrl.tdnet_xbrl_r2 import jq_lookup_code
 
 JOB = "xbrl_presentation"
 

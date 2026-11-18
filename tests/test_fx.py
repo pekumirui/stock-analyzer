@@ -14,8 +14,8 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-fx-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.fx import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.fx import (
     FX_EARLIEST,
     FrankfurterClient,
     FxLookupError,
@@ -32,8 +32,8 @@ from app.fx import (  # noqa: E402
     resolve_start,
     rows_from_series,
 )
-from app.db import upsert  # noqa: E402
-from app.models import FxRate  # noqa: E402
+from app.db import upsert
+from app.models import FxRate
 
 
 def _fail(msg: object) -> None:
@@ -59,7 +59,7 @@ class _FakeHTTP:
         self.calls: list[str] = []
         self.closed = False
 
-    def get(self, path: str, params: dict | None = None) -> _Resp:  # noqa: ARG002
+    def get(self, path: str, params: dict | None = None) -> _Resp:
         self.calls.append(path)
         if not self.replies:
             _fail(f"unexpected GET {path}")
@@ -202,7 +202,7 @@ def test_client_timeseries_and_429() -> None:
             },
         }),
     ])
-    client._client = fake  # type: ignore[assignment]
+    client._client = fake
     slept: list[float] = []
     with patch("app.fx.time.sleep", slept.append):
         series = client.timeseries(date(2024, 1, 4), date(2024, 1, 5))
@@ -215,14 +215,14 @@ def test_client_timeseries_and_429() -> None:
     single = _FakeHTTP([_Resp(200, {
         "base": "EUR", "date": "2024-01-04", "rates": {"USD": 1.1},
     })])
-    client._client = single  # type: ignore[assignment]
+    client._client = single
     one = client.timeseries(date(2024, 1, 4), date(2024, 1, 4))
     if single.calls != ["/2024-01-04"]:
         _fail(single.calls)
     if date(2024, 1, 4) not in one:
         _fail(one)
     missing = _FakeHTTP([_Resp(404)])
-    client._client = missing  # type: ignore[assignment]
+    client._client = missing
     if client.timeseries(date(1999, 1, 1), date(1999, 1, 1)) != {}:
         _fail("404 should be empty")
     client.close()

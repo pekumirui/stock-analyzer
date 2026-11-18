@@ -158,11 +158,11 @@
   "docstring": 1
  },
  "app/edinet/archive.py": {
-  "comment": 4,
+  "comment": 2,
   "docstring": 8
  },
  "app/edinet/buybacks.py": {
-  "comment": 12,
+  "comment": 11,
   "docstring": 23
  },
  "app/edinet/client.py": {
@@ -176,7 +176,7 @@
   "docstring": 9
  },
  "app/edinet/large_holdings.py": {
-  "comment": 5,
+  "comment": 4,
   "docstring": 17
  },
  "app/edinet/tender_offers.py": {
@@ -184,7 +184,7 @@
   "docstring": 20
  },
  "app/edinet/textblocks.py": {
-  "comment": 3,
+  "comment": 2,
   "docstring": 19
  },
  "app/edinet/xbrl.py": {
@@ -213,7 +213,7 @@
   "docstring": 36
  },
  "app/market/briefing_batch.py": {
-  "comment": 5,
+  "comment": 3,
   "docstring": 9
  },
  "app/market/briefing_extract.py": {
@@ -221,7 +221,6 @@
   "docstring": 15
  },
  "app/market/briefing_files.py": {
-  "comment": 1,
   "docstring": 6
  },
  "app/market/briefing_store.py": {
@@ -240,7 +239,7 @@
   "docstring": 24
  },
  "app/market/homepages.py": {
-  "comment": 11,
+  "comment": 10,
   "docstring": 14
  },
  "app/market/ingest.py": {
@@ -248,7 +247,7 @@
   "docstring": 12
  },
  "app/market/intraday.py": {
-  "comment": 4,
+  "comment": 3,
   "docstring": 11
  },
  "app/market/jquants.py": {
@@ -390,7 +389,6 @@
   "docstring": 4
  },
  "app/xbrl/shareholders.py": {
-  "comment": 1,
   "docstring": 5
  },
  "app/xbrl/statements.py": {
@@ -450,7 +448,7 @@
   "docstring": 3
  },
  "jobs/_r2common.py": {
-  "comment": 5,
+  "comment": 4,
   "docstring": 17
  },
  "jobs/_tdnet.py": {
@@ -724,7 +722,7 @@
   "docstring": 3
  },
  "jobs/monthly/tdnet_monthly_pdf_sidecar.py": {
-  "comment": 4,
+  "comment": 3,
   "docstring": 22
  },
  "jobs/monthly/tdnet_monthly_r2.py": {
@@ -736,7 +734,7 @@
   "docstring": 3
  },
  "jobs/ops/backup_db.py": {
-  "comment": 2,
+  "comment": 1,
   "docstring": 10
  },
  "jobs/ops/backup_store.py": {
@@ -747,11 +745,10 @@
   "docstring": 1
  },
  "jobs/ops/rebuild_daily_prices.py": {
-  "comment": 2,
+  "comment": 1,
   "docstring": 3
  },
  "jobs/ops/vps_packages_r2.py": {
-  "comment": 1,
   "docstring": 1
  },
  "jobs/share_paths.py": {
@@ -785,7 +782,7 @@
   "docstring": 2
  },
  "mcp/log_mcp.py": {
-  "comment": 29,
+  "comment": 28,
   "docstring": 24
  },
  "mcp/xbrl_compare.py": {
@@ -1231,7 +1228,6 @@
   "docstring": 1
  },
  "tests/test_golden_db.py": {
-  "comment": 1,
   "docstring": 2
  },
  "tests/test_smoke.py": {
@@ -1406,7 +1402,7 @@
   "docstring": 1
  },
  "tools/golden/build_golden_db.py": {
-  "comment": 5,
+  "comment": 3,
   "docstring": 1
  },
  "tools/market/check_api.py": {
@@ -1450,7 +1446,7 @@
   "docstring": 1
  },
  "tools/tdnet_pdf/golden_check.py": {
-  "comment": 14,
+  "comment": 13,
   "docstring": 8
  },
  "tools/tdnet_pdf/ingest.py": {

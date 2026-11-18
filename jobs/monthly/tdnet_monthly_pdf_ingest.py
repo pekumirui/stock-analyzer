@@ -28,7 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs.monthly.ir_monthly_html_ingest import (  # noqa: E402
+from jobs.monthly.ir_monthly_html_ingest import (
     DEFAULT_BASE_URL,
     HttpClient,
     PostErr,
@@ -37,8 +37,8 @@ from jobs.monthly.ir_monthly_html_ingest import (  # noqa: E402
     post_body,
     run,
 )
-from jobs.monthly.tdnet_monthly_pdf_sidecar import SIDECAR_SUFFIX  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST  # noqa: E402
+from jobs.monthly.tdnet_monthly_pdf_sidecar import SIDECAR_SUFFIX
+from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST
 
 DEFAULT_LEDGER = Path("/tmp/pdf_ingest_ledger.json")
 LABEL = "tdnet_monthly_pdf_ingest"

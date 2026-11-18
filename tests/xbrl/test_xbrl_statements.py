@@ -17,7 +17,7 @@ H1_END = date(2026, 9, 30)
 
 
 def _filing(doc_type: str, period_type: str, *, doc_id="081220261030561115", title="決算短信〔日本基準〕（連結）",
-            standard="JPGAAP", submitted=datetime(2026, 11, 5, 13, 55)):  # noqa: DTZ001
+            standard="JPGAAP", submitted=datetime(2026, 11, 5, 13, 55)):
     return SimpleNamespace(
         doc_id=doc_id, code="72030", doc_type=doc_type, period_type=period_type,
         fiscal_year_end=H1_END, submitted_at=submitted, title=title, accounting_standard=standard,
@@ -145,16 +145,16 @@ def test_no_actuals_no_row() -> None:
 def _seed_filing(db, doc_id: str, rows) -> XbrlFiling:
     std = {s.code: s.id for s in db.query(XbrlStdItem).all()}
     f = XbrlFiling(code="72030", source="tdnet", doc_id=doc_id, doc_type="quarterly", period_type="Q2",
-                   fiscal_year_end=H1_END, submitted_at=datetime(2026, 11, 5, 13, 55),  # noqa: DTZ001
+                   fiscal_year_end=H1_END, submitted_at=datetime(2026, 11, 5, 13, 55),
                    title="2027年3月期 第2四半期決算短信〔IFRS〕（連結）", accounting_standard="IFRS",
-                   is_amendment=False, raw_path="x.zip", parse_status="parsed", created_at=datetime(2026, 11, 5))  # noqa: DTZ001
+                   is_amendment=False, raw_path="x.zip", parse_status="parsed", created_at=datetime(2026, 11, 5))
     db.add(f)
     db.flush()
     for r in rows:
         db.add(XbrlFinancial(code="72030", filing_id=f.id, std_item_id=std[r.code], is_consolidated=bool(r.is_consolidated),
                              period_type="Q2", period_start=r.period_start, period_end=r.period_end, value=r.value,
                              unit="JPY", value_kind=r.value_kind, range_side="point", target_period=r.target_period,
-                             generated_at=datetime(2026, 11, 5)))  # noqa: DTZ001
+                             generated_at=datetime(2026, 11, 5)))
     db.commit()
     return f
 

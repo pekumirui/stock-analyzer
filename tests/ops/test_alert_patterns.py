@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "deploy"))
 
-from alert_patterns import (  # noqa: E402
+from alert_patterns import (
     ALERT_PATTERNS,
     EXPECTED_NGINX_DENY_REGEXES,
     GREP_FIELD,

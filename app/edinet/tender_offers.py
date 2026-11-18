@@ -415,7 +415,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
 def _newest(docs: list[EdinetTenderOfferDoc], types: tuple[str, ...]) -> list[EdinetTenderOfferDoc]:
     """その種別の parsed の書類を新しい順に。"""
     got = [d for d in docs if d.doc_type_code in types and d.parse_status == "parsed" and not d.withdrawn]
-    return sorted(got, key=lambda d: (d.submit_datetime or datetime.min, d.doc_id), reverse=True)  # noqa: DTZ901
+    return sorted(got, key=lambda d: (d.submit_datetime or datetime.min, d.doc_id), reverse=True)
 
 
 def _first(docs: list[EdinetTenderOfferDoc], attr: str):
@@ -433,7 +433,7 @@ def offer_row(case_id: str, docs: list[EdinetTenderOfferDoc], metas: dict[str, D
     alive = [d for d in docs if not d.withdrawn]
     notif = _newest(docs, NOTIFICATION)
     first_notif = sorted((d for d in alive if d.doc_type_code == "240"),
-                         key=lambda d: d.submit_datetime or datetime.min)  # noqa: DTZ901
+                         key=lambda d: d.submit_datetime or datetime.min)
     base = first_notif[0] if first_notif else None
     issuer = any(d.ordinance_code == ISSUER_ORDINANCE for d in docs)
 
@@ -477,7 +477,7 @@ def offer_row(case_id: str, docs: list[EdinetTenderOfferDoc], metas: dict[str, D
         status = "succeeded" if reports[0].success else "failed"
     else:
         status = "open"
-    latest = max(docs, key=lambda d: (d.submit_datetime or datetime.min, d.doc_id))  # noqa: DTZ901
+    latest = max(docs, key=lambda d: (d.submit_datetime or datetime.min, d.doc_id))
     return {
         "tender_offer_id": case_id,
         "is_issuer": issuer,

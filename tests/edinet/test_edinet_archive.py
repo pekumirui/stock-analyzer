@@ -13,12 +13,12 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{Path(tempfile.mkdtemp()) / 'stock.db'}")
 
-import pytest  # noqa: E402
-from sqlalchemy import delete  # noqa: E402
+import pytest
+from sqlalchemy import delete
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet import archive  # noqa: E402
-from app.edinet.archive import (  # noqa: E402
+from app.db import SessionLocal
+from app.edinet import archive
+from app.edinet.archive import (
     GONE,
     SAVED,
     archive_dir,
@@ -28,9 +28,9 @@ from app.edinet.archive import (  # noqa: E402
     offsite_root,
     rel_path,
 )
-from app.edinet.large_holdings import ingest_document  # noqa: E402
-from app.models import EdinetArchive, LargeHoldingReport  # noqa: E402
-from tests.edinet.test_edinet_large_holdings import (  # noqa: E402
+from app.edinet.large_holdings import ingest_document
+from app.models import EdinetArchive, LargeHoldingReport
+from tests.edinet.test_edinet_large_holdings import (
     EdinetNotFoundError,
     _api_err,
     _doc,
@@ -159,7 +159,7 @@ def _lookup(db):
 def test_backfill_order_and_gone(db) -> None:
     from datetime import datetime
 
-    fetched = datetime(2026, 10, 30)  # noqa: DTZ001
+    fetched = datetime(2026, 10, 30)
     lvh = _doc(1, "S100LVH1", file_date=date(2024, 1, 10))
     bb = _doc(2, "S100BB01", file_date=date(2026, 3, 1), doc_type_code="220")
     done = _doc(3, "S100DONE")

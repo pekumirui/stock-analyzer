@@ -18,20 +18,20 @@ sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-fc-')}/stock.db")
 
-from app.db import SessionLocal, init_db, migrate_xbrl_financials_unique  # noqa: E402
-from app.db import upsert  # noqa: E402
-from app.models import Stock, XbrlFinancial, XbrlStdItem  # noqa: E402
-from app.xbrl.context import classify_title  # noqa: E402
-from app.xbrl.jobs import run_normalize  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
-from app.xbrl.normalize import (  # noqa: E402
+from app.db import SessionLocal, init_db, migrate_xbrl_financials_unique
+from app.db import upsert
+from app.models import Stock, XbrlFinancial, XbrlStdItem
+from app.xbrl.context import classify_title
+from app.xbrl.jobs import run_normalize
+from app.xbrl.mappings import apply_mappings
+from app.xbrl.normalize import (
     LEGACY_PRIMARY_CODES,
     classify_context,
     infer_target_period,
 )
-from app.xbrl.store import parse_zip_into_filing  # noqa: E402
-from app.models import XbrlContext, XbrlFiling  # noqa: E402
-import xbrl_vs_statements as vs  # noqa: E402
+from app.xbrl.store import parse_zip_into_filing
+from app.models import XbrlContext, XbrlFiling
+import xbrl_vs_statements as vs
 
 JP_NS = "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/jppfs_cor"
 IFRS_NS = "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2024-11-01/jpigp_cor"

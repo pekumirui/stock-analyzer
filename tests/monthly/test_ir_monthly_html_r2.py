@@ -11,11 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_monthly import (  # noqa: E402
+from jobs.monthly.html_monthly import (
     decode_html_bytes,
 )
-from jobs.monthly.html_issuers import parse_issuer  # noqa: E402
-from jobs.monthly.ir_monthly_html_r2 import (  # noqa: E402
+from jobs.monthly.html_issuers import parse_issuer
+from jobs.monthly.ir_monthly_html_r2 import (
     HtmlIssuer,
     eir_url,
     existing_html_hashes,
@@ -31,15 +31,15 @@ from jobs.monthly.ir_monthly_html_r2 import (  # noqa: E402
     write_ingest,
 )
 
-from jobs.monthly.ir_monthly_r2 import dest_filename, dest_path, looks_like_file  # noqa: E402
-from monthly_html_fixtures import (  # noqa: E402
+from jobs.monthly.ir_monthly_r2 import dest_filename, dest_path, looks_like_file
+from monthly_html_fixtures import (
     CAWACHI_HTML,
     COLOWIDE_HTML,
     MOS_HTML,
     ROYAL_DUAL_BRAND_HTML,
     SEKISUI_MONTH_HTML,
 )
-from monthly_html_fixtures import module_force_units as _module_force_units  # noqa: E402
+from monthly_html_fixtures import module_force_units as _module_force_units
 
 
 EIR_JSONP = (
@@ -158,13 +158,13 @@ def test_hash_skip_and_reparse(tmp: Path) -> None:
     bodies = {"https://example.test/ir/": html}
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         return bodies[url]
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = HtmlIssuer(
@@ -248,12 +248,12 @@ def test_hash_skip_refreshes_stale_sidecar(tmp: Path) -> None:
     dest = tmp / "stale_sidecar" / "monthly"
     bodies = {"https://example.test/royal/": ROYAL_DUAL_BRAND_HTML.encode("utf-8")}
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         return bodies[url]
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = HtmlIssuer(
@@ -332,12 +332,12 @@ def test_force_resaves_unchanged_html(tmp: Path) -> None:
     dest = tmp / "force_resave" / "monthly"
     bodies = {"https://example.test/ir/": CAWACHI_HTML.encode("utf-8")}
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         return bodies[url]
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = _cawachi_issuer()
@@ -406,8 +406,8 @@ def test_run_force_requires_only_and_skips_reparse(tmp: Path) -> None:
 
     orig_get = mod.http_get
     orig_map = mod.load_stock_product_map
-    mod.http_get = boom  # type: ignore[assignment]
-    mod.load_stock_product_map = boom  # type: ignore[assignment]
+    mod.http_get = boom
+    mod.load_stock_product_map = boom
     try:
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -447,15 +447,15 @@ def test_run_force_requires_only_and_skips_reparse(tmp: Path) -> None:
     )
     hits: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         hits.append(url)
         return b"<html></html>"
 
     orig_get = mod.http_get
     orig_map = mod.load_stock_product_map
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
-    mod.load_stock_product_map = lambda **_k: {"26640": ("011", "カワチ薬品")}  # type: ignore[assignment]
+    mod.http_get = fake_get
+    mod.load_stock_product_map = lambda **_k: {"26640": ("011", "カワチ薬品")}
     mod.SLEEP_SEC = 0
     try:
         buf = io.StringIO()
@@ -482,14 +482,14 @@ def test_eir_fetch_saves_item_html(tmp: Path) -> None:
     dest = tmp / "monthly"
     url = eir_url("7616", 0)
 
-    def fake_get(u: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(u: str, timeout: float = 30.0) -> bytes:
         if u != url:
             raise RuntimeError(u)
         return EIR_JSONP.encode("utf-8")
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = HtmlIssuer(
@@ -524,11 +524,11 @@ def test_eir_fetch_saves_item_html(tmp: Path) -> None:
 def test_unknown_stock_skip(tmp: Path) -> None:
     import jobs.monthly.ir_monthly_html_r2 as mod
 
-    def boom(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def boom(url: str, timeout: float = 30.0) -> bytes:
         raise RuntimeError(f"network {url}")
 
     orig = mod.http_get
-    mod.http_get = boom  # type: ignore[assignment]
+    mod.http_get = boom
     try:
         iss = HtmlIssuer(
             code="2664",
@@ -583,7 +583,7 @@ def test_fetch_issuer_retries_429_then_saves(tmp: Path) -> None:
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     calls = {"n": 0}
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         calls["n"] += 1
         if calls["n"] == 1:
             raise _http_err(req.full_url, 429, "Too Many Requests")
@@ -634,7 +634,7 @@ def test_fetch_issuer_exhausted_429_is_skipped(tmp: Path) -> None:
     from jobs import _r2common
     import jobs.monthly.ir_monthly_html_r2 as mod
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         raise _http_err(req.full_url, 429, "Too Many Requests")
 
     orig_sleep = mod.SLEEP_SEC
@@ -675,7 +675,7 @@ def test_fetch_issuer_exhausted_404_stays_failed(tmp: Path) -> None:
 
     import jobs.monthly.ir_monthly_html_r2 as mod
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         raise _http_err(req.full_url, 404, "Not Found")
 
     orig_sleep = mod.SLEEP_SEC
@@ -734,7 +734,7 @@ def test_run_persistent_429_does_not_fail_job(tmp: Path) -> None:
     )
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         if url == srs_url:
             raise _http_err(url, 429, "Too Many Requests")
@@ -745,8 +745,8 @@ def test_run_persistent_429_does_not_fail_job(tmp: Path) -> None:
     orig = mod.http_get
     orig_map = mod.load_stock_product_map
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
-    mod.load_stock_product_map = lambda **_k: {  # type: ignore[assignment]
+    mod.http_get = fake_get
+    mod.load_stock_product_map = lambda **_k: {
         "81630": ("011", "ＳＲＳホールディングス"),
         "26640": ("011", "カワチ薬品"),
     }
@@ -815,15 +815,15 @@ def test_run_host_cooldown_skips_same_host(tmp: Path) -> None:
     )
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         raise _http_err(url, 429, "Too Many Requests")
 
     orig = mod.http_get
     orig_map = mod.load_stock_product_map
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
-    mod.load_stock_product_map = lambda **_k: {  # type: ignore[assignment]
+    mod.http_get = fake_get
+    mod.load_stock_product_map = lambda **_k: {
         "81630": ("011", "ＳＲＳホールディングス"),
         "81640": ("011", "同一ホスト"),
     }
@@ -870,14 +870,14 @@ def test_run_404_still_exits_1(tmp: Path) -> None:
         encoding="utf-8",
     )
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         raise _http_err(url, 404, "Not Found")
 
     orig = mod.http_get
     orig_map = mod.load_stock_product_map
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
-    mod.load_stock_product_map = lambda **_k: {"81630": ("011", "ＳＲＳホールディングス")}  # type: ignore[assignment]
+    mod.http_get = fake_get
+    mod.load_stock_product_map = lambda **_k: {"81630": ("011", "ＳＲＳホールディングス")}
     mod.SLEEP_SEC = 0
     buf = io.StringIO()
     try:
@@ -924,15 +924,15 @@ def test_run_only_dry_run(tmp: Path) -> None:
     )
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         return b"<html></html>"
 
     orig = mod.http_get
     orig_map = mod.load_stock_product_map
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
-    mod.load_stock_product_map = lambda **_k: {"26640": ("011", "カワチ"), "27420": ("011", "ハローズ")}  # type: ignore[assignment]
+    mod.http_get = fake_get
+    mod.load_stock_product_map = lambda **_k: {"26640": ("011", "カワチ"), "27420": ("011", "ハローズ")}
     mod.SLEEP_SEC = 0
     try:
         rc = run(tmp / "out", cfg, only=["2664"], dry_run=True, today=date(2026, 9, 14))
@@ -1169,7 +1169,7 @@ def test_follow_year_then_latest_month(tmp: Path) -> None:
     }
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         if url not in bodies:
             raise RuntimeError(url)
@@ -1177,7 +1177,7 @@ def test_follow_year_then_latest_month(tmp: Path) -> None:
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         iss = HtmlIssuer(
@@ -1254,7 +1254,7 @@ def test_follow_index_redirect_shell_then_year_then_month(tmp: Path) -> None:
     }
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         calls.append(url)
         if url not in bodies:
             raise RuntimeError(url)
@@ -1262,7 +1262,7 @@ def test_follow_index_redirect_shell_then_year_then_month(tmp: Path) -> None:
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         n, s, k, f = fetch_issuer(
@@ -1313,7 +1313,7 @@ def test_follow_index_redirect_final_url_without_canonical(tmp: Path) -> None:
     }
     calls: list[str] = []
 
-    def fake_get(url: str, timeout: float = 30.0):  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0):
         calls.append(url)
         if url == index:
             return shell, year
@@ -1323,7 +1323,7 @@ def test_follow_index_redirect_final_url_without_canonical(tmp: Path) -> None:
 
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.http_get = fake_get
     mod.SLEEP_SEC = 0
     try:
         n, s, k, f = fetch_issuer(
@@ -1354,7 +1354,7 @@ def test_parse_false_saves_html_without_json(tmp: Path) -> None:
     dest = tmp / "monthly"
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = lambda url, timeout=30.0: b"<html><body><p>graph only</p></body></html>"  # noqa: ARG005
+    mod.http_get = lambda url, timeout=30.0: b"<html><body><p>graph only</p></body></html>"
     mod.SLEEP_SEC = 0
     try:
         iss = HtmlIssuer(
@@ -1407,7 +1407,7 @@ def test_no_as_of_does_not_write_json(tmp: Path) -> None:
     dest = tmp / "no-as-of"
     orig = mod.http_get
     orig_sleep = mod.SLEEP_SEC
-    mod.http_get = lambda url, timeout=30.0: bare.encode("utf-8")  # noqa: ARG005
+    mod.http_get = lambda url, timeout=30.0: bare.encode("utf-8")
     mod.SLEEP_SEC = 0
     try:
         iss = HtmlIssuer(

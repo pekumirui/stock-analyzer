@@ -262,7 +262,7 @@ def check_sums(facts: list[dict]) -> list[dict]:
         elif _two_breakdowns([x["value_num"] for x in parts], value, tol):
             status = "split"
         else:
-            signed = lambda x: -abs(x["value_num"]) if _paren(x["value"]) else x["value_num"]  # noqa: E731
+            signed = lambda x: -abs(x["value_num"]) if _paren(x["value"]) else x["value_num"]
             alt = sum(signed(x) for x in parts)
             if abs(alt - signed(parent)) <= tol and any(_paren(x["value"]) for x in [parent, *parts]):
                 status, total = "paren", alt

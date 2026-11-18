@@ -32,7 +32,7 @@ sys.path.insert(0, str(ROOT / "mcp"))
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 os.environ["MCP_APP_DIR"] = str(ROOT)
 
-import log_mcp as m  # noqa: E402
+import log_mcp as m
 
 FAKE_URI = "/services/TFAKE/BFAKE/notarealsecret"
 FORBIDDEN_WEBHOOK_PREFIX = "hooks.slack.com" + "/services/"
@@ -85,10 +85,10 @@ class _Recorder(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(type(self).reply)
 
-    do_GET = _record  # noqa: N815
-    do_POST = _record  # noqa: N815
+    do_GET = _record
+    do_POST = _record
 
-    def log_message(self, *_args) -> None:  # noqa: ANN002
+    def log_message(self, *_args) -> None:
         return
 
 
@@ -428,7 +428,7 @@ def _vector_reply() -> bytes:
     }).encode()
 
 
-def test_metrics_query_reads_loopback_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ARG001
+def test_metrics_query_reads_loopback_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     class Handler(_Recorder):
         calls: ClassVar[list[tuple[str, str, bytes]]] = []
         reply = _vector_reply()
