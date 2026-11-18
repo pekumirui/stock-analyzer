@@ -4,7 +4,7 @@
 
 | 何 | 正本 |
 |---|---|
-| 設計・スキーマ・取込・API | `DESIGN.md` |
+| 設計・取込・API | `DESIGN.md` |
 | どのバッチ・API がどのテーブルを読み書きするか | `docs/DATA_FLOW.md` と機能ごとの `docs/dataflow/<機能>.md`（テストから自動生成。手で直さない。テーブルを読み書きする変更をしたら `python -m pytest tests --dataflow=write`）。`docs/dataflow/viewer.html` は人が見る用なので読まない |
 | テーブル・列・索引の一覧と ER 図 | `docs/SCHEMA.md` と機能ごとの `docs/schema/<機能>.md`（`app/models.py` から自動生成。手で直さない。モデルを変えたら `python -m tools.schema.render`）。拡大・検索できる ER 図は wiki の `schema/erd/`（Liam ERD。入力の `docs/schema/tbls.json` も同じコマンドで作る） |
 | J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
