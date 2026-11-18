@@ -130,6 +130,12 @@ def main() -> None:
         _write("stock", "overview.json", "GET", ov_url, ost, obody)
         if ost != 200:
             raise SystemExit(f"stock {code} overview status={ost}")
+        fs_url = f"{base}/api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto"
+        fst, fbody = _get(fs_url)
+        _write("stock", "financials.json", "GET", fs_url, fst, fbody)
+        if fst != 200 or not isinstance(fbody, dict):
+            raise SystemExit(f"stock {code} financials status={fst}")
+        fs_n = len(fbody.get("periods") or [])
         url = f"{base}/api/stock/{code}/filings"
         status, body = _get(url)
         path = _write("stock", "filings.json", "GET", url, status, body)
@@ -138,7 +144,7 @@ def main() -> None:
             raise SystemExit(f"stock {code} failed status={status}")
         docs = [d for f in filings for d in (f.get("documents") or [])]
         (ART / "stock" / "document.html").unlink(missing_ok=True)
-        req = f"GET {ov_url}\nstatus {ost}\nGET {url}\nstatus {status}\n"
+        req = f"GET {ov_url}\nstatus {ost}\nGET {fs_url}\nstatus {fst}\nGET {url}\nstatus {status}\n"
         if docs:
             doc_url = base + docs[0]["url"]
             with urllib.request.urlopen(doc_url, timeout=30) as r:
@@ -153,8 +159,8 @@ def main() -> None:
             raise SystemExit(f"stock {code} decks status={dst}")
         req += f"GET {decks_url}\nstatus {dst}\n"
         (ART / "stock" / "request.txt").write_text(req, encoding="utf-8")
-        # xbrl_documents / briefing_documents が空の DB でも 200。件数を出して判断を任せる
-        print(path, f"filings={len(filings)} documents={len(docs)} decks={len(decks)}")
+        # xbrl_documents / briefing_documents / 財務3表が空の DB でも 200。件数を出して判断を任せる
+        print(path, f"filings={len(filings)} documents={len(docs)} decks={len(decks)} financials={fs_n}")
         return
 
     if args.feature == "monthly":
