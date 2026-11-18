@@ -67,13 +67,13 @@ def test_upsert_and_filter_fail_on_an_unlisted_value():
             db.execute(select(PtsSnapshot).where(PtsSnapshot.ranking == "night_sideways")).all()
 
 
-def test_jst_datetime_is_a_plain_datetime_column():
+def test_time_types_are_plain_datetime_columns():
     from sqlalchemy.dialects import sqlite
 
-    from app.models import JstDateTime
+    from app.models import JstDateTime, UtcDateTime
 
-    cols = [c for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, JstDateTime)]
-    assert cols
+    cols = [c for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, (JstDateTime, UtcDateTime))]
+    assert {type(c.type) for c in cols} == {JstDateTime, UtcDateTime}
     assert {c.type.compile(dialect=sqlite.dialect()) for c in cols} == {"DATETIME"}
     init_db()
     when = datetime(2026, 1, 5, 17, 30)

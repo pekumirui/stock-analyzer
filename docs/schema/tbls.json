@@ -1060,7 +1060,8 @@
      "name": "is_first",
      "type": "BOOLEAN",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽"
     },
     {
      "name": "next_disclosed_date",
@@ -1530,7 +1531,8 @@
      "name": "is_latest",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "大元ごとの最新の 1 件"
     },
     {
      "name": "withdrawn",
@@ -2201,7 +2203,8 @@
      "name": "finalized",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "file_date より後に取った = その日の一覧は確定"
     },
     {
      "name": "fetched_at",
@@ -3249,7 +3252,8 @@
      "name": "is_latest",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "大元ごとに取下げでない最新の 1 件"
     },
     {
      "name": "withdrawn",
@@ -3659,7 +3663,8 @@
      "name": "updated_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -3744,7 +3749,8 @@
      "name": "updated_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -4798,7 +4804,8 @@
      "name": "created_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5073,7 +5080,8 @@
      "name": "created_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -5264,7 +5272,8 @@
      "name": "first_seen_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5566,7 +5575,8 @@
      "name": "parsed_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     },
     {
      "name": "documents_status",
@@ -5585,7 +5595,8 @@
      "name": "created_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5776,7 +5787,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -5933,13 +5945,15 @@
      "name": "started_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     },
     {
      "name": "finished_at",
      "type": "DATETIME",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -6118,7 +6132,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -6252,7 +6267,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [],
@@ -6396,7 +6412,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [
@@ -6580,7 +6597,8 @@
      "name": "is_latest",
      "type": "BOOLEAN",
      "nullable": false,
-     "default": "False"
+     "default": "False",
+     "comment": "同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件"
     },
     {
      "name": "withdrawn",
@@ -6592,7 +6610,8 @@
      "name": "generated_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
     }
    ],
    "indexes": [

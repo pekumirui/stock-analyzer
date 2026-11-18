@@ -129,6 +129,8 @@ erDiagram
 
 見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
 
+`UtcDateTime`: UTC をタイムゾーンなしで持つ。
+
 ### tdnet_pdf_documents
 
 TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
@@ -149,7 +151,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `pdf_bytes` | INTEGER | 可 |  |  |  |  |
 | `pdf_sha256` | VARCHAR(64) | 可 |  |  |  |  |
 | `converter` | VARCHAR(16) | 可 |  |  |  | 変換器の版（tools/tdnet_pdf/convert.py CONVERTER） |
-| `created_at` | DATETIME |  |  |  |  |  |
+| `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -189,7 +191,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `html_gz` | BLOB |  |  |  |  | 元の HTML を gzip。script などの除去は表示のとき |
 | `bytes` | INTEGER |  |  |  |  | 圧縮前 |
 | `sha256` | VARCHAR(64) |  |  |  |  | 圧縮前 |
-| `created_at` | DATETIME |  |  |  |  |  |
+| `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 ### xbrl_element_mappings
 
@@ -221,7 +223,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `label_en` | TEXT | 可 |  |  |  |  |
 | `item_type` | VARCHAR(16) | 可 |  |  |  |  |
 | `is_custom` | BOOLEAN |  |  |  | `False` |  |
-| `first_seen_at` | DATETIME |  |  |  |  |  |
+| `first_seen_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -270,10 +272,10 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `raw_sha256` | VARCHAR(64) | 可 |  |  |  |  |
 | `parse_status` | VARCHAR(16) |  |  |  | `'pending'` |  |
 | `parse_error` | TEXT | 可 |  |  |  |  |
-| `parsed_at` | DATETIME | 可 |  |  |  |  |
+| `parsed_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |
 | `documents_status` | VARCHAR(16) | 可 |  | `stored` / `empty` |  | 原文。NULL=まだ / empty=選べる HTML が 0 件 |
 | `presentation_status` | VARCHAR(8) | 可 |  |  |  |  |
-| `created_at` | DATETIME |  |  |  |  |  |
+| `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -303,7 +305,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |  |
 | `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |  |
 | `source_layer` | VARCHAR(16) | 可 |  |  |  | primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL |
-| `generated_at` | DATETIME |  |  |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -320,8 +322,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `processed_count` | INTEGER | 可 |  |  | `0` |  |
 | `error_count` | INTEGER | 可 |  |  | `0` |  |
 | `message` | TEXT | 可 |  |  |  |  |
-| `started_at` | DATETIME |  |  |  |  |  |
-| `finished_at` | DATETIME | 可 |  |  |  |  |
+| `started_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
+| `finished_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |
 
 ### xbrl_major_shareholders
 
@@ -355,7 +357,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `element_key` | VARCHAR(300) | 可 |  |  |  |  |
 | `sign` | INTEGER |  |  |  | `1` |  |
 | `matched_by` | VARCHAR(8) | 可 |  |  |  |  |
-| `generated_at` | DATETIME |  |  |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -376,7 +378,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `is_consolidated` | BOOLEAN |  |  |  |  |  |
 | `is_ifrs` | BOOLEAN |  |  |  |  |  |
 | `items_json` | TEXT |  |  |  |  | 区分の要素を表示の順に並べた JSON の配列。1 要素は [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null, 深さ, 見出しの表示名 or null]。深さは区分の根からの段（0 から。落とした構造の要素は数えない）。表示名は見出しの要素（名前に Abstract）だけ。深さと表示名の無い古い行は 4 つ |
-| `generated_at` | DATETIME |  |  |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 ### xbrl_segments
 
@@ -400,7 +402,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `unit` | VARCHAR(32) |  |  |  | `'JPY'` |  |
 | `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |  |
 | `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |  |
-| `generated_at` | DATETIME |  |  |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -423,9 +425,9 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `is_amendment` | BOOLEAN |  |  |  | `False` |  |
 | `amends_doc_id` | VARCHAR(8) | 可 | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |  |
 | `original_doc_id` | VARCHAR(8) |  | → `xbrl_shareholder_filings.doc_id`（制約なし） |  |  |  |
-| `is_latest` | BOOLEAN |  |  |  | `False` |  |
+| `is_latest` | BOOLEAN |  |  |  | `False` | 同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件 |
 | `withdrawn` | BOOLEAN |  |  |  | `False` |  |
-| `generated_at` | DATETIME |  |  |  |  |  |
+| `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|

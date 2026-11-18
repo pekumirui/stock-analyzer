@@ -29,6 +29,8 @@ erDiagram
 
 見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
 
+`UtcDateTime`: UTC をタイムゾーンなしで持つ。
+
 ### material_monthly
 
 サプライタブの素材ごとの月次量
@@ -44,7 +46,7 @@ erDiagram
 | `revision` | INTEGER |  |  |  |  | 1 速報 / 2 確報 / 3 年報（年間補正後） |
 | `origin` | VARCHAR | 可 |  |  |  | 取り込んだ e-Stat の表 ID か Excel のファイル名 |
 | `is_estimate` | BOOLEAN |  |  |  | `False` | 按分の推計値 |
-| `updated_at` | DATETIME | 可 |  |  |  |  |
+| `updated_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |
 
 ### material_trade_country
 
@@ -61,4 +63,4 @@ erDiagram
 | `unit` | VARCHAR |  |  |  |  |  |
 | `revision` | INTEGER |  |  |  |  | 1 速報 / 2 確報 |
 | `origin` | VARCHAR | 可 |  |  |  |  |
-| `updated_at` | DATETIME | 可 |  |  |  |  |
+| `updated_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |

@@ -8,7 +8,7 @@ from pathlib import Path
 from sqlalchemy import Enum, Table
 from sqlalchemy.dialects import sqlite
 
-from app.models import Base, JstDateTime
+from app.models import Base, JstDateTime, UtcDateTime
 from tools.schema.erd import ERD_DIR, TBLS
 from tools.dataflow.render import DOMAINS, table_domain
 
@@ -19,7 +19,10 @@ REBUILD = "python -m tools.schema.render"
 ERD_PAGE = f"{ERD_DIR}/index.html"
 _DIALECT = sqlite.dialect()
 LAYOUT = ["---", "config:", "  layout: elk", "---"]
-TYPE_NOTES = {JstDateTime: "日本時間をタイムゾーンなしで持つ"}
+TYPE_NOTES = {
+    JstDateTime: "日本時間をタイムゾーンなしで持つ",
+    UtcDateTime: "UTC をタイムゾーンなしで持つ",
+}
 
 
 def _tables() -> list[Table]:

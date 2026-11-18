@@ -182,7 +182,7 @@ EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet �
 | `is_amendment` | BOOLEAN |  |  |  | `False` |  |
 | `amends_doc_id` | VARCHAR(8) | 可 | → `edinet_buybacks.doc_id`（制約なし） |  |  |  |
 | `original_doc_id` | VARCHAR(8) |  | → `edinet_buybacks.doc_id`（制約なし） |  |  |  |
-| `is_latest` | BOOLEAN |  |  |  | `False` |  |
+| `is_latest` | BOOLEAN |  |  |  | `False` | 大元ごとの最新の 1 件 |
 | `withdrawn` | BOOLEAN |  |  |  | `False` |  |
 | `parse_status` | VARCHAR |  |  | `parsed` / `meta` / `failed` |  | meta は取得状況が対象外の訂正 |
 | `parse_error` | TEXT | 可 |  |  |  |  |
@@ -277,7 +277,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 | `count` | INTEGER |  |  |  |  | metadata.resultset.count |
 | `max_seq` | INTEGER | 可 |  |  |  |  |
 | `process_datetime` | DATETIME（`JstDateTime`） | 可 |  |  |  | EDINET 側の一覧作成時刻 |
-| `finalized` | BOOLEAN |  |  |  |  |  |
+| `finalized` | BOOLEAN |  |  |  |  | file_date より後に取った = その日の一覧は確定 |
 | `fetched_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 
 ### edinet_tender_offer_docs
@@ -391,7 +391,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 | `is_amendment` | BOOLEAN |  |  |  | `False` |  |
 | `amends_doc_id` | VARCHAR(8) | 可 | → `large_holding_reports.doc_id`（制約なし） |  |  | 訂正の対象（DEI の IdentificationOfDocumentSubjectToAmendment） |
 | `original_doc_id` | VARCHAR(8) |  | → `large_holding_reports.doc_id`（制約なし） |  |  | 訂正をたどった大元。訂正でなければ自分 |
-| `is_latest` | BOOLEAN |  |  |  | `False` |  |
+| `is_latest` | BOOLEAN |  |  |  | `False` | 大元ごとに取下げでない最新の 1 件 |
 | `withdrawn` | BOOLEAN |  |  |  | `False` | 取下げ・不開示（edinet_documents から） |
 | `parse_status` | VARCHAR |  |  | `parsed` / `failed` |  |  |
 | `parse_error` | TEXT | 可 |  |  |  |  |

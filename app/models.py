@@ -25,6 +25,10 @@ class JstDateTime(DateTime):
     pass
 
 
+class UtcDateTime(DateTime):
+    pass
+
+
 def _one_of(*values: str, length: int | None = None) -> Enum:
     return Enum(*values, native_enum=False, validate_strings=True, create_constraint=False, length=length)
 
@@ -359,7 +363,7 @@ class EarningsEvent(Base):
     alpha_60d = Column(Float, comment="対TOPIX超過リターン")
     alpha_to_date = Column(Float, comment="対TOPIX超過リターン")
     disclosed_time = Column(String, comment="その日の決算短信のうち一番早い発表時刻")
-    is_first = Column(Boolean)
+    is_first = Column(Boolean, comment="その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽")
     next_disclosed_date = Column(Date, comment="同じ銘柄の次の期の最初の決算短信の日。まだ無ければ NULL")
     end_date = Column(Date, comment="return_to_next の終点（次の決算の前営業日。無ければ株価の最終日）")
     return_to_next = Column(Float, comment="次の決算の前日終値まで（%）")
@@ -455,12 +459,12 @@ class XbrlFiling(Base):
     raw_sha256 = Column(String(64))
     parse_status = Column(String(16), nullable=False, default="pending")
     parse_error = Column(Text)
-    parsed_at = Column(DateTime)
+    parsed_at = Column(UtcDateTime)
     documents_status = Column(
         _one_of("stored", "empty", length=16), comment="原文。NULL=まだ / empty=選べる HTML が 0 件",
     )
     presentation_status = Column(String(8))
-    created_at = Column(DateTime, nullable=False)
+    created_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint("source", "doc_id", name="uq_xbrl_filings_source_doc"),
         Index("idx_xbrl_filings_code_submitted", "code", "submitted_at"),
@@ -488,7 +492,7 @@ class XbrlDocument(Base):
     html_gz = Column(LargeBinary, nullable=False, comment="元の HTML を gzip。script などの除去は表示のとき")
     bytes = Column(Integer, nullable=False, comment="圧縮前")
     sha256 = Column(String(64), nullable=False, comment="圧縮前")
-    created_at = Column(DateTime, nullable=False)
+    created_at = Column(UtcDateTime, nullable=False)
 
 
 class TdnetPdfDocument(Base):
@@ -513,7 +517,7 @@ class TdnetPdfDocument(Base):
     pdf_bytes = Column(Integer)
     pdf_sha256 = Column(String(64))
     converter = Column(String(16), comment="変換器の版（tools/tdnet_pdf/convert.py CONVERTER）")
-    created_at = Column(DateTime, nullable=False)
+    created_at = Column(UtcDateTime, nullable=False)
 
 
 class XbrlElement(Base):
@@ -526,7 +530,7 @@ class XbrlElement(Base):
     label_en = Column(Text)
     item_type = Column(String(16))
     is_custom = Column(Boolean, nullable=False, default=False)
-    first_seen_at = Column(DateTime, nullable=False)
+    first_seen_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint("namespace_uri", "local_name", name="uq_xbrl_elements_ns_local"),
         Index("idx_xbrl_elements_key", "namespace_key", "local_name"),
@@ -603,7 +607,7 @@ class XbrlPresentationRole(Base):
             "表示名は見出しの要素（名前に Abstract）だけ。深さと表示名の無い古い行は 4 つ"
         ),
     )
-    generated_at = Column(DateTime, nullable=False)
+    generated_at = Column(UtcDateTime, nullable=False)
 
 
 class XbrlStdItem(Base):
@@ -678,7 +682,7 @@ class XbrlFinancial(Base):
     source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
     source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
     source_layer = Column(String(16), comment="primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL")
-    generated_at = Column(DateTime, nullable=False)
+    generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint(
             "filing_id", "std_item_id", "is_consolidated", "period_end",
@@ -703,7 +707,7 @@ class XbrlPdfMatch(Base):
     element_key = Column(String(300))
     sign = Column(Integer, nullable=False, default=1)
     matched_by = Column(String(8))
-    generated_at = Column(DateTime, nullable=False)
+    generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         Index("idx_xbrl_pdf_matches_filing", "filing_id"),
         Index("idx_xbrl_pdf_matches_code", "code"),
@@ -735,7 +739,7 @@ class XbrlSegment(Base):
     unit = Column(String(32), nullable=False, default="JPY")
     source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
     source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
-    generated_at = Column(DateTime, nullable=False)
+    generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint(
             "filing_id", "std_item_id", "axis", "member", "is_consolidated", "period_end",
@@ -758,9 +762,9 @@ class XbrlShareholderFiling(Base):
     is_amendment = Column(Boolean, nullable=False, default=False)
     amends_doc_id = Column(String(8), info={"ref": "xbrl_shareholder_filings.doc_id"})
     original_doc_id = Column(String(8), nullable=False, info={"ref": "xbrl_shareholder_filings.doc_id"})
-    is_latest = Column(Boolean, nullable=False, default=False)
+    is_latest = Column(Boolean, nullable=False, default=False, comment="同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件")
     withdrawn = Column(Boolean, nullable=False, default=False)
-    generated_at = Column(DateTime, nullable=False)
+    generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         Index("idx_xbrl_shareholder_filings_code", "code", "as_of"),
         Index("idx_xbrl_shareholder_filings_latest", "code", "is_latest"),
@@ -808,8 +812,8 @@ class XbrlJobRun(Base):
     processed_count = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
     message = Column(Text)
-    started_at = Column(DateTime, nullable=False)
-    finished_at = Column(DateTime)
+    started_at = Column(UtcDateTime, nullable=False)
+    finished_at = Column(UtcDateTime)
 
 
 class FxRate(Base):
@@ -840,7 +844,7 @@ class MaterialMonthly(Base):
     revision = Column(Integer, nullable=False, comment="1 速報 / 2 確報 / 3 年報（年間補正後）")
     origin = Column(String, comment="取り込んだ e-Stat の表 ID か Excel のファイル名")
     is_estimate = Column(Boolean, nullable=False, default=False, comment="按分の推計値")
-    updated_at = Column(DateTime)
+    updated_at = Column(UtcDateTime)
 
 
 class MaterialTradeCountry(Base):
@@ -860,7 +864,7 @@ class MaterialTradeCountry(Base):
     unit = Column(String, nullable=False)
     revision = Column(Integer, nullable=False, comment="1 速報 / 2 確報")
     origin = Column(String)
-    updated_at = Column(DateTime)
+    updated_at = Column(UtcDateTime)
 
 
 class PtsSnapshot(Base):
@@ -978,7 +982,7 @@ class EdinetListDay(Base):
     count = Column(Integer, nullable=False, comment="metadata.resultset.count")
     max_seq = Column(Integer)
     process_datetime = Column(JstDateTime, comment="EDINET 側の一覧作成時刻")
-    finalized = Column(Boolean, nullable=False)
+    finalized = Column(Boolean, nullable=False, comment="file_date より後に取った = その日の一覧は確定")
     fetched_at = Column(JstDateTime, nullable=False)
 
 
@@ -1017,7 +1021,7 @@ class LargeHoldingReport(Base):
         String(8), nullable=False, index=True, info={"ref": "large_holding_reports.doc_id"},
         comment="訂正をたどった大元。訂正でなければ自分",
     )
-    is_latest = Column(Boolean, nullable=False, default=False)
+    is_latest = Column(Boolean, nullable=False, default=False, comment="大元ごとに取下げでない最新の 1 件")
     withdrawn = Column(Boolean, nullable=False, default=False, comment="取下げ・不開示（edinet_documents から）")
     parse_status = Column(_one_of("parsed", "failed"), nullable=False)
     parse_error = Column(Text)
@@ -1079,7 +1083,7 @@ class EdinetBuyback(Base):
     is_amendment = Column(Boolean, nullable=False, default=False)
     amends_doc_id = Column(String(8), info={"ref": "edinet_buybacks.doc_id"})
     original_doc_id = Column(String(8), nullable=False, index=True, info={"ref": "edinet_buybacks.doc_id"})
-    is_latest = Column(Boolean, nullable=False, default=False)
+    is_latest = Column(Boolean, nullable=False, default=False, comment="大元ごとの最新の 1 件")
     withdrawn = Column(Boolean, nullable=False, default=False)
     parse_status = Column(
         _one_of("parsed", "meta", "failed"), nullable=False, comment="meta は取得状況が対象外の訂正",

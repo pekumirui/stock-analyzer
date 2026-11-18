@@ -314,7 +314,7 @@ IR BANK の開示一覧を読み終えた銘柄
 | `alpha_60d` | FLOAT | 可 |  |  |  | 対TOPIX超過リターン |
 | `alpha_to_date` | FLOAT | 可 |  |  |  | 対TOPIX超過リターン |
 | `disclosed_time` | VARCHAR | 可 |  |  |  | その日の決算短信のうち一番早い発表時刻 |
-| `is_first` | BOOLEAN | 可 |  |  |  |  |
+| `is_first` | BOOLEAN | 可 |  |  |  | その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽 |
 | `next_disclosed_date` | DATE | 可 | → `statements.(code, disclosed_date)`（制約なし） |  |  | 同じ銘柄の次の期の最初の決算短信の日。まだ無ければ NULL |
 | `end_date` | DATE | 可 | → `daily_prices.(code, date)`（制約なし） |  |  | return_to_next の終点（次の決算の前営業日。無ければ株価の最終日） |
 | `return_to_next` | FLOAT | 可 |  |  |  | 次の決算の前日終値まで（%） |
