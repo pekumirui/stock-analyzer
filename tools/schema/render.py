@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import base64
+import json
+import zlib
 from pathlib import Path
 
 from sqlalchemy import Enum, Table
 from sqlalchemy.dialects import sqlite
 
 from app.models import Base
+from tools.schema.erd import ERD_DIR, TBLS
 from tools.dataflow.render import DOMAINS, table_domain
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERVIEW = "docs/SCHEMA.md"
 PAGE_DIR = "docs/schema"
 REBUILD = "python -m tools.schema.render"
+ERD_PAGE = f"{ERD_DIR}/index.html"
 _DIALECT = sqlite.dialect()
 LAYOUT = ["---", "config:", "  layout: elk", "---"]
 
@@ -143,6 +148,126 @@ def _mermaid(own: list[Table]) -> list[str]:
     return lines
 
 
+def _cols(cols) -> str:
+    return ", ".join(cols)
+
+
+def _ref_name(t: Table, kind: str, cols: tuple[str, ...]) -> str:
+    return f"{kind}_{t.name}_{'_'.join(cols)}"
+
+
+def _fk_links(t: Table):
+    for fk in sorted(t.foreign_key_constraints, key=lambda f: [c.name for c in f.columns]):
+        cols = tuple(c.name for c in fk.columns)
+        to = tuple(e.column.name for e in fk.elements)
+        action = f" ON DELETE {fk.ondelete}" if fk.ondelete else ""
+        yield cols, fk.referred_table.name, to, fk.name or _ref_name(t, "fk", cols), action
+
+
+def _tbls_default(col) -> str | None:
+    if col.server_default is not None:
+        return str(col.server_default.arg)
+    if col.default is None or not col.default.is_scalar:
+        return None
+    return str(col.default.arg)
+
+
+def _tbls_note(col) -> str:
+    out = [f"FK → {r}" for r in _refs(col)]
+    out += dict.fromkeys(
+        f"→ {_spell(table, to)}（宣言だけ。DB の制約なし）" for cols, table, to in declared_refs(col.table) if col.name in cols
+    )
+    if isinstance(col.type, Enum):
+        out.append("値: " + " / ".join(col.type.enums))
+    return "\n".join(out)
+
+
+def _tbls_column(col) -> dict:
+    out = {"name": col.name, "type": _type(col), "nullable": bool(col.nullable), "default": _tbls_default(col)}
+    note = _tbls_note(col)
+    if note:
+        out["comment"] = note
+    return out
+
+
+def _tbls_table(t: Table, label: str) -> dict:
+    pk = tuple(c.name for c in t.primary_key.columns)
+    cons = [{"name": f"pk_{t.name}", "type": "PRIMARY KEY", "def": f"PRIMARY KEY ({_cols(pk)})", "table": t.name, "columns": list(pk)}]
+    for cols, target, to, name, action in _fk_links(t):
+        cons.append({
+            "name": name,
+            "type": "FOREIGN KEY",
+            "def": f"FOREIGN KEY ({_cols(cols)}) REFERENCES {target} ({_cols(to)}){action}",
+            "table": t.name,
+            "referenced_table": target,
+            "columns": list(cols),
+            "referenced_columns": list(to),
+        })
+    for cols, target, to in declared_refs(t):
+        cons.append({
+            "name": _ref_name(t, "ref", cols),
+            "type": "FOREIGN KEY",
+            "def": f"宣言だけ（DB の制約なし）: ({_cols(cols)}) → {target} ({_cols(to)})",
+            "table": t.name,
+            "referenced_table": target,
+            "columns": list(cols),
+            "referenced_columns": list(to),
+        })
+    uniques = sorted((u for u in t.constraints if type(u).__name__ == "UniqueConstraint"), key=lambda u: u.name or "")
+    for u in uniques:
+        cols = [c.name for c in u.columns]
+        cons.append({"name": u.name or _ref_name(t, "uq", tuple(cols)), "type": "UNIQUE", "def": f"UNIQUE ({_cols(cols)})", "table": t.name, "columns": cols})
+    indexes = []
+    for i in sorted(t.indexes, key=lambda i: i.name or ""):
+        cols = [str(getattr(e, "name", e)) for e in i.expressions]
+        unique = "UNIQUE " if i.unique else ""
+        indexes.append({"name": i.name, "def": f"CREATE {unique}INDEX {i.name} ON {t.name} ({_cols(cols)})", "table": t.name, "columns": cols})
+    comment = f"機能: {label}"
+    if t.dialect_options["sqlite"].get("with_rowid") is False:
+        comment += " / WITHOUT ROWID"
+    return {
+        "name": t.name,
+        "type": "table",
+        "comment": comment,
+        "columns": [_tbls_column(c) for c in t.columns],
+        "indexes": indexes,
+        "constraints": cons,
+    }
+
+
+def _tbls_relations(t: Table) -> list[dict]:
+    out = [
+        {"table": t.name, "columns": list(cols), "parent_table": target, "parent_columns": list(to), "def": f"FOREIGN KEY ({_cols(cols)}) REFERENCES {target} ({_cols(to)}){action}"}
+        for cols, target, to, _name, action in _fk_links(t)
+    ]
+    out += [
+        {"table": t.name, "columns": list(cols), "parent_table": target, "parent_columns": list(to), "def": f"宣言だけ（DB の制約なし）: ({_cols(cols)}) → {target} ({_cols(to)})", "virtual": True}
+        for cols, target, to in declared_refs(t)
+    ]
+    return out
+
+
+def tbls() -> dict:
+    label = dict(DOMAINS)
+    tables = _tables()
+    return {
+        "name": "stock-analyzer",
+        "desc": f"自動生成。正は app/models.py。作り直しは {REBUILD}",
+        "tables": [_tbls_table(t, label[table_domain(t.name)]) for t in tables],
+        "relations": [r for t in tables for r in _tbls_relations(t)],
+        "driver": {"name": "sqlite"},
+    }
+
+
+def erd_link(own: list[Table] | None = None) -> str:
+    if own is None:
+        return ERD_PAGE
+    keep = {t.name for t in own} | {target.name for t in own for _c, target, _t, _l in _links(t)}
+    hidden = ",".join(n for n in sorted(Base.metadata.tables) if n not in keep)
+    packed = base64.urlsafe_b64encode(zlib.compress(hidden.encode())).decode().rstrip("=")
+    return f"{ERD_PAGE}?hidden={packed}"
+
+
 def _page(key: str, label: str, own: list[Table]) -> str:
     lines = [
         f"# スキーマ: {label}",
@@ -171,7 +296,7 @@ def render() -> dict[str, str]:
             continue
         out[f"{PAGE_DIR}/{key}.md"] = _page(key, label, own)
         names = " ".join(f"`{t.name}`" for t in own)
-        rows.append(f"| [{label}](schema/{key}.md) | {len(own)} | {names} |")
+        rows.append(f"| [{label}](schema/{key}.md) | [開く]({erd_link(own)}) | {len(own)} | {names} |")
     out[OVERVIEW] = "\n".join([
         "# DB スキーマ（テーブル・列・ER 図）",
         "",
@@ -179,11 +304,24 @@ def render() -> dict[str, str]:
         "",
         "合わなければ `tests/nonfunctional/test_schema_doc.py` が落ちる。",
         "",
-        "| 機能 | テーブル数 | テーブル |",
-        "|---|---|---|",
+        (
+            f"**[動かせる ER 図（Liam ERD）]({erd_link()})**: 全テーブルを 1 枚に出す。"
+            "拡大・移動・テーブル名の検索ができ、テーブルを押すとつながる相手だけが光る。"
+            "表の「Liam」の列は、その機能のテーブルと、そこから指す先のテーブルだけを出す。"
+            f"wiki のビルドで作るので wiki でだけ開ける（リポジトリには入力の `{TBLS}` だけを置く）。"
+        ),
+        "",
+        (
+            "Liam の図では外部キーも宣言だけの参照も同じ線になる。"
+            "見分けは制約名（`fk_` が外部キー、`ref_` が宣言だけ）と列の説明。"
+        ),
+        "",
+        "| 機能 | Liam | テーブル数 | テーブル |",
+        "|---|---|---|---|",
         *rows,
         "",
     ])
+    out[TBLS] = json.dumps(tbls(), ensure_ascii=False, indent=1) + "\n"
     return out
 
 

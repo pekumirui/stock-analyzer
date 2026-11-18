@@ -27,3 +27,42 @@ def test_stale_reports_changed_missing_and_leftover_pages(tmp_path):
     )
     write(tmp_path)
     assert stale(tmp_path) == []
+
+
+def test_tbls_has_every_table_and_reference_as_foreign_key():
+    import json
+
+    from app.models import Base
+    from tools.schema.render import TBLS, declared_refs
+
+    doc = json.loads(render()[TBLS])
+    tables = {t["name"]: t for t in doc["tables"]}
+    assert set(tables) == set(Base.metadata.tables)
+    for name, t in Base.metadata.tables.items():
+        fks = [c for c in tables[name]["constraints"] if c["type"] == "FOREIGN KEY"]
+        names = [c["name"] for c in tables[name]["constraints"]]
+        assert len(names) == len(set(names)), name
+        want = {(tuple(c.name for c in fk.columns), fk.referred_table.name) for fk in t.foreign_key_constraints}
+        want |= {(cols, target) for cols, target, _to in declared_refs(t)}
+        assert {(tuple(c["columns"]), c["referenced_table"]) for c in fks} == want, name
+    virtual = [r for r in doc["relations"] if r.get("virtual")]
+    assert len(virtual) == sum(len(declared_refs(t)) for t in Base.metadata.tables.values())
+    assert len(doc["relations"]) - len(virtual) == sum(len(t.foreign_key_constraints) for t in Base.metadata.tables.values())
+
+
+def test_erd_link_hides_tables_outside_the_domain():
+    import base64
+    import zlib
+    from urllib.parse import parse_qs, urlsplit
+
+    from app.models import Base
+    from tools.schema.render import ERD_PAGE, erd_link
+
+    monthly = [t for n, t in Base.metadata.tables.items() if n.startswith("monthly_")]
+    url = urlsplit(erd_link(monthly))
+    assert url.path == ERD_PAGE
+    packed = parse_qs(url.query)["hidden"][0]
+    hidden = set(zlib.decompress(base64.urlsafe_b64decode(packed + "=" * (-len(packed) % 4))).decode().split(","))
+    shown = set(Base.metadata.tables) - hidden
+    assert shown == {t.name for t in monthly} | {"stocks"}
+    assert erd_link() == ERD_PAGE
