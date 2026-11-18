@@ -13,12 +13,12 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-ci-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-import jwt  # noqa: E402
-from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+from fastapi.testclient import TestClient
 
-from app import cf_access  # noqa: E402
-from app.main import app  # noqa: E402
+from app import cf_access
+from app.main import app
 
 TEAM, AUD = "kabukpi.cloudflareaccess.com", "aud-tag"
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)

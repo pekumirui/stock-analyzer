@@ -19,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.xbrl.shareholders import rebuild_shareholders, refresh_versions  # noqa: E402
+from app.db import SessionLocal
+from app.xbrl.shareholders import rebuild_shareholders, refresh_versions
 
 
 def main() -> int:

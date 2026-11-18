@@ -509,7 +509,7 @@ def test_record_briefing_retries_past_one_busy_timeout(monkeypatch: pytest.Monke
     event.listen(eng, "connect", apply_sqlite_pragmas)
 
     @event.listens_for(eng, "connect")
-    def _short(dbapi_connection, connection_record) -> None:  # noqa: ARG001
+    def _short(dbapi_connection, connection_record) -> None:
         cur = dbapi_connection.cursor()
         try:
             cur.execute(f"PRAGMA busy_timeout={int(timeout_s * 1000)}")
@@ -542,7 +542,7 @@ def test_record_briefing_retries_past_one_busy_timeout(monkeypatch: pytest.Monke
             time.sleep(hold_s)
             conn.commit()
             result["holder"] = "ok"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             result["holder"] = f"{type(exc).__name__}: {exc}"
             started.set()
         finally:
@@ -731,7 +731,7 @@ class _Ship:
         self.by_rel: dict[str, bytes] = {}
         self.roots: list[Path] = []
 
-    def __call__(self, argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG002
+    def __call__(self, argv: list[str], timeout: float) -> CmdResult:
         op = argv[0]
         self.calls.append(list(argv))
         if op in {"copyto", "size", "move", "delete", "deletefile"}:
@@ -836,7 +836,7 @@ def test_dry_run_ignores_disk_and_does_not_ship(tmp_path: Path) -> None:
         def boom_disk(_path: Path) -> _Free:
             raise AssertionError("disk")
 
-        def boom_rclone(argv, timeout):  # noqa: ARG001
+        def boom_rclone(argv, timeout):
             raise AssertionError(argv)
 
         calls: list[str] = []
@@ -968,7 +968,7 @@ def test_low_disk_before_a_temp_file_does_not_ship(tmp_path: Path) -> None:
         }
         seen: list[Path] = []
 
-        def boom(argv, timeout):  # noqa: ARG001
+        def boom(argv, timeout):
             raise AssertionError(argv)
 
         stats = _run(

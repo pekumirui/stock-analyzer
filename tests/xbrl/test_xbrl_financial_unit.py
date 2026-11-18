@@ -14,7 +14,7 @@ os.environ.setdefault(
     f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-fin-unit-')}/stock.db",
 )
 
-from app.xbrl.normalize import financial_unit, is_pure_unit  # noqa: E402
+from app.xbrl.normalize import financial_unit, is_pure_unit
 
 
 def _fail(msg: object) -> None:

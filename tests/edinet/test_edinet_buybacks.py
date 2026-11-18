@@ -15,10 +15,10 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-buyback-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete, select  # noqa: E402
+from sqlalchemy import delete, select
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.buybacks import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.buybacks import (
     _format_parse_error,
     exit_status,
     keep_after,
@@ -29,7 +29,7 @@ from app.edinet.buybacks import (  # noqa: E402
     refresh_versions,
     run,
 )
-from app.edinet.textblocks import (  # noqa: E402
+from app.edinet.textblocks import (
     edinet_doc_id,
     honbun_html,
     integer,
@@ -40,17 +40,17 @@ from app.edinet.textblocks import (  # noqa: E402
     read_instance,
     squash,
 )
-from app.edinet_wrapper.errors import EdinetNotFoundError  # noqa: E402
-from app.models import (  # noqa: E402
+from app.edinet_wrapper.errors import EdinetNotFoundError
+from app.models import (
     EdinetBuyback,
     EdinetBuybackResolution,
     EdinetDocument,
     Stock,
 )
-from tests.edinet.test_edinet_large_holdings import _ErrClient  # noqa: E402
-from tests.edinet.xbrl_fixture import para, table, xbrl_zip  # noqa: E402
+from tests.edinet.test_edinet_large_holdings import _ErrClient
+from tests.edinet.xbrl_fixture import para, table, xbrl_zip
 
-FETCHED = datetime(2026, 10, 15, 18, 0)  # noqa: DTZ001
+FETCHED = datetime(2026, 10, 15, 18, 0)
 SBR = "jpcrp-sbr_cor"
 
 
@@ -112,7 +112,7 @@ def _doc(seq: int, doc_id: str, **over) -> EdinetDocument:
         "edinet_code": "E34064", "sec_code": "43850", "filer_name": "株式会社メルカリ",
         "doc_type_code": "220", "form_code": "170000", "ordinance_code": "010",
         "doc_description": "自己株券買付状況報告書（法２４条の６第１項に基づくもの）",
-        "submit_datetime": datetime(2026, 10, 14, 15, seq),  # noqa: DTZ001
+        "submit_datetime": datetime(2026, 10, 14, 15, seq),
         "withdrawal_status": "0", "doc_info_edit_status": "0", "disclosure_status": "0",
         "xbrl_flag": True, "pdf_flag": True, "attach_doc_flag": False, "english_doc_flag": False,
         "csv_flag": True, "legal_status": "1", "fetched_at": FETCHED,

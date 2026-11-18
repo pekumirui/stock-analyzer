@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs.ops.backup_db import (  # noqa: E402
+from jobs.ops.backup_db import (
     RCLONE_CHECK_TIMEOUT_S,
     RCLONE_COPY_TIMEOUT_S,
     BackupError,
@@ -39,7 +39,7 @@ from jobs.ops.backup_db import (  # noqa: E402
     probe_offsite,
     rclone_flags,
 )
-from jobs.share_paths import share_path  # noqa: E402
+from jobs.share_paths import share_path
 
 KINDS = ("xbrl", "monthly", "edinet")
 # VPS 側を消す（送って確かめたものだけ）。EDINET の ZIP は EDINET から取り直せる間は

@@ -19,12 +19,12 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-sqlite-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import text  # noqa: E402
-from sqlalchemy.exc import OperationalError  # noqa: E402
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
-from sqlalchemy.pool import NullPool  # noqa: E402
+from sqlalchemy.pool import NullPool
 
-from app.db import (  # noqa: E402
+from app.db import (
     apply_sqlite_pragmas,
     engine,
     is_already_exists,
@@ -426,7 +426,7 @@ def test_delete_all_chunked_and_compute_indicators_commit() -> None:
             commits["n"] += 1
             orig()
 
-        db.commit = counting  # type: ignore[method-assign]
+        db.commit = counting
         compute_indicators(db, keep_days=10, chunk_size=2)
         if commits["n"] < 3:
             _fail(f"compute_indicators should commit per chunk, got {commits['n']}")

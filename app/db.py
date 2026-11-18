@@ -30,7 +30,7 @@ def sqlite_engine_kwargs(url: str) -> dict:
     return kwargs
 
 
-def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:  # noqa: ARG001
+def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:
     """本番は app + cron が同じ stock.db を触る。WAL が無いと読取も locked になる。"""
     cursor = dbapi_connection.cursor()
     try:

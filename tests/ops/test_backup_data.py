@@ -11,14 +11,14 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.ops.backup_data import (  # noqa: E402
+from jobs.ops.backup_data import (
     KINDS,
     MOVE_KINDS,
     RCLONE_MOVE_MAX_DURATION,
     move_limit_reason,
     run,
 )
-from jobs.ops.backup_db import BackupError, CmdResult  # noqa: E402
+from jobs.ops.backup_db import BackupError, CmdResult
 
 
 def _share(tmp_path: Path) -> dict[str, str]:
@@ -30,7 +30,7 @@ def _share(tmp_path: Path) -> dict[str, str]:
 
 
 def _fake(calls: list[list[str]], *, remotes: str = "onedrive:\n", fail: str | None = None):
-    def _run(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+    def _run(argv, timeout):
         calls.append(list(argv))
         if argv[0] == "listremotes":
             return CmdResult(0, remotes, "")
@@ -41,7 +41,7 @@ def _fake(calls: list[list[str]], *, remotes: str = "onedrive:\n", fail: str | N
     return _run
 
 
-def _run_out(**kwargs):  # noqa: ANN003, ANN202
+def _run_out(**kwargs):
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = run(**kwargs)
@@ -99,7 +99,7 @@ def test_move_failure_raises(tmp_path: Path) -> None:
 def test_move_python_timeout_still_fails(tmp_path: Path) -> None:
     env = _share(tmp_path)
 
-    def boom(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+    def boom(argv, timeout):
         if argv[0] == "listremotes":
             return CmdResult(0, "onedrive:\n", "")
         raise BackupError("rclone timeout move")
@@ -113,7 +113,7 @@ def test_move_duration_cap_is_ok_and_keeps_unsent(tmp_path: Path) -> None:
     leftover = tmp_path / "edinet" / "1234" / "b.zip"
     leftover.write_bytes(b"zip2")
 
-    def capped(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+    def capped(argv, timeout):
         if argv[0] == "listremotes":
             return CmdResult(0, "onedrive:\n", "")
         if argv[0] == "move":
@@ -132,7 +132,7 @@ def test_move_duration_cap_is_ok_and_keeps_unsent(tmp_path: Path) -> None:
 def test_move_transfer_cap_is_ok(tmp_path: Path) -> None:
     env = _share(tmp_path)
 
-    def capped(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+    def capped(argv, timeout):
         if argv[0] == "listremotes":
             return CmdResult(0, "onedrive:\n", "")
         if argv[0] == "move":
@@ -149,7 +149,7 @@ def test_move_transfer_cap_is_ok(tmp_path: Path) -> None:
 def test_move_cap_with_nothing_moved_fails(tmp_path: Path) -> None:
     env = _share(tmp_path)
 
-    def capped(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+    def capped(argv, timeout):
         if argv[0] == "listremotes":
             return CmdResult(0, "onedrive:\n", "")
         if argv[0] == "move":

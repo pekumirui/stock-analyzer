@@ -22,9 +22,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet.client import skip_on_maintenance  # noqa: E402
-from app.edinet.large_holdings import (  # noqa: E402
+from app.db import SessionLocal
+from app.edinet.client import skip_on_maintenance
+from app.edinet.large_holdings import (
     exit_status,
     load_obligation_date_fixes,
     mark_outside_window,

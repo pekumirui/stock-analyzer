@@ -41,7 +41,7 @@ GetText = Callable[[str, int], str]
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ARG002
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
 
@@ -176,7 +176,7 @@ def next_year_eps(conn: sqlite3.Connection, disclosure_nos: list[str]) -> dict[s
         chunk = disclosure_nos[i:i + 500]
         marks = ",".join("?" * len(chunk))
         for no, raw in conn.execute(
-            f"SELECT disclosure_no, json_extract(raw_json, '$.NxFEPS') FROM statements "  # nosec B608
+            f"SELECT disclosure_no, json_extract(raw_json, '$.NxFEPS') FROM statements "
             f"WHERE disclosure_no IN ({marks}) AND json_valid(raw_json)",
             tuple(chunk),
         ):
@@ -197,14 +197,14 @@ def market_rows(conn: sqlite3.Connection, codes: list[str], day: date) -> dict[s
         chunk = codes[i:i + 500]
         marks = ",".join("?" * len(chunk))
         for r in conn.execute(
-            f"SELECT d.code, d.date, d.close, d.market_cap FROM daily_prices d "  # nosec B608
+            f"SELECT d.code, d.date, d.close, d.market_cap FROM daily_prices d "
             f"WHERE d.code IN ({marks}) AND d.date = (SELECT MAX(date) FROM daily_prices "
             f"WHERE code = d.code AND date <= ? AND close IS NOT NULL)",
             (*chunk, iso),
         ):
             out[r[0]].update(close_date=r[1], close=r[2], market_cap=r[3])
         for r in conn.execute(
-            f"SELECT code, return_1d, alpha_1d, return_5d, alpha_5d FROM earnings_events "  # nosec B608
+            f"SELECT code, return_1d, alpha_1d, return_5d, alpha_5d FROM earnings_events "
             f"WHERE code IN ({marks}) AND disclosed_date = ?",
             (*chunk, iso),
         ):
@@ -451,7 +451,7 @@ class _Text(HTMLParser):
         self.parts: list[str] = []
         self._skip = 0
 
-    def handle_starttag(self, tag: str, attrs: Any) -> None:  # noqa: ARG002
+    def handle_starttag(self, tag: str, attrs: Any) -> None:
         if tag in self.SKIP:
             self._skip += 1
         elif tag in ("td", "th"):

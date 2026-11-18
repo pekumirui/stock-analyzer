@@ -20,7 +20,7 @@ INDEX_URL = "https://ir.example.co.jp/ja/ir/library/result.html"
 
 
 def _at(*parts: int) -> datetime:
-    return datetime(*parts)  # noqa: DTZ001
+    return datetime(*parts)
 
 
 NOW = _at(2026, 11, 10, 18, 0, 0)

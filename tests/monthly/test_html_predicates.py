@@ -7,8 +7,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_issuers import i3028, i3222, i7416, i8011, i8194  # noqa: E402
-from jobs.monthly.html_issuers._branded import (  # noqa: E402
+from jobs.monthly.html_issuers import i3028, i3222, i7416, i8011, i8194
+from jobs.monthly.html_issuers._branded import (
     Section,
     _grid_self_dated,
     _is_count_only_parsed,
@@ -16,15 +16,15 @@ from jobs.monthly.html_issuers._branded import (  # noqa: E402
     _merge_companion_store_scopes,
     _merge_companion_total_stores,
 )
-from jobs.monthly.html_issuers._page import (  # noqa: E402
+from jobs.monthly.html_issuers._page import (
     _apply_element_aliases,
     _count_only as page_count_only,
     _store_event as page_store_event,
 )
-from jobs.monthly.html_issuers.i8278 import _count_only as fuji_count_only  # noqa: E402
-from jobs.monthly.html_issuers.i8278 import _store_event as fuji_store_event  # noqa: E402
-from jobs.monthly.html_issuers.i9989 import _CaptionParser, _plain, _table_captions  # noqa: E402
-from jobs.monthly.html_monthly import (  # noqa: E402
+from jobs.monthly.html_issuers.i8278 import _count_only as fuji_count_only
+from jobs.monthly.html_issuers.i8278 import _store_event as fuji_store_event
+from jobs.monthly.html_issuers.i9989 import _CaptionParser, _plain, _table_captions
+from jobs.monthly.html_monthly import (
     _is_count_header,
     _is_prior_year_absolute,
     parse_grid,

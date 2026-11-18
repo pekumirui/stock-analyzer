@@ -23,10 +23,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sqlalchemy import text  # noqa: E402
+from sqlalchemy import text
 
-from app.db import engine  # noqa: E402
-from app.models import DailyPrice  # noqa: E402
+from app.db import engine
+from app.models import DailyPrice
 
 TABLE = "daily_prices"
 OLD = "daily_prices__old"
@@ -49,7 +49,7 @@ def table_bytes(conn) -> int:
         ), {"t": TABLE}).scalar()
         if n:
             return int(n)
-    except Exception:  # noqa: BLE001 dbstat の無いビルドがある
+    except Exception:
         pass
     rows = conn.execute(text(f"SELECT COUNT(*) FROM {TABLE}")).scalar() or 0
     return int(rows) * 200

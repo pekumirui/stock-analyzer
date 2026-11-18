@@ -13,7 +13,7 @@ from urllib.error import HTTPError
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs import _tdnet as tdnet_list  # noqa: E402
+from jobs import _tdnet as tdnet_list
 
 
 def _fail(msg: str) -> None:

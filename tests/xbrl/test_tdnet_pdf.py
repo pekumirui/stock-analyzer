@@ -211,7 +211,7 @@ def _seed(db) -> None:
     ]:
         db.add(Statement(disclosure_no=no, code="99990", disclosed_date=d, disclosed_time="15:30:00",
                          type_of_document="FYFinancialStatements_Consolidated_JP"))
-    now = datetime(2026, 1, 1, 15, 30)  # noqa: DTZ001
+    now = datetime(2026, 1, 1, 15, 30)
     f = XbrlFiling(code="99990", source="tdnet", doc_id="0812" + "20260101000001", doc_type="annual",
                    submitted_at=now, title="短信", raw_path="x.zip", parse_status="parsed", created_at=now)
     db.add(f)

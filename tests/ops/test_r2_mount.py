@@ -16,8 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "monthly"))
 
-from jobs.share_paths import share_path  # noqa: E402
-from jobs._r2common import (  # noqa: E402
+from jobs.share_paths import share_path
+from jobs._r2common import (
     MOUNT_RETRIES,
     MOUNT_RETRY_WAIT_SEC,
     MountDisconnected,
@@ -36,7 +36,7 @@ def _fail(msg: str) -> None:
     raise SystemExit(msg)
 
 
-def _capture(fn):  # noqa: ANN001
+def _capture(fn):
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = fn()
@@ -258,7 +258,7 @@ def test_abort_if_disconnected() -> None:
 
 def test_sidecar_aborts_without_per_issuer_fail() -> None:
     import jobs.monthly.tdnet_monthly_pdf_sidecar as sc
-    from test_tdnet_monthly_pdf_sidecar import (  # noqa: E402
+    from test_tdnet_monthly_pdf_sidecar import (
         NEW,
         NEW_NAME,
         PREV,
@@ -318,7 +318,7 @@ def test_sidecar_local_dest_missing_unchanged() -> None:
 
 def test_sidecar_recovers_and_keeps_normal_output() -> None:
     import jobs.monthly.tdnet_monthly_pdf_sidecar as sc
-    from test_tdnet_monthly_pdf_sidecar import (  # noqa: E402
+    from test_tdnet_monthly_pdf_sidecar import (
         NEW,
         NEW_NAME,
         PREV,
@@ -364,10 +364,10 @@ def test_ingest_aborts_on_discover_disconnect() -> None:
 
         orig_glob = Path.glob
 
-        def boom_glob(self: Path, pattern: str):  # noqa: ANN202
+        def boom_glob(self: Path, pattern: str):
             raise OSError(errno.ENOTCONN, "Transport endpoint is not connected", str(self))
 
-        Path.glob = boom_glob  # type: ignore[method-assign]
+        Path.glob = boom_glob
         try:
             rc, out = _capture(
                 lambda: ing.run(
@@ -379,7 +379,7 @@ def test_ingest_aborts_on_discover_disconnect() -> None:
                 )
             )
         finally:
-            Path.glob = orig_glob  # type: ignore[method-assign]
+            Path.glob = orig_glob
         if rc == 0 or "R2 マウント切断" not in out:
             _fail(f"ingest abort: {out!r}")
         if "fail sidecar" in out or "done posted=" in out:

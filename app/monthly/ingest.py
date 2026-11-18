@@ -1405,7 +1405,7 @@ def monthly_element_label(
 ) -> MonthlyElementLabel:
     """code は銘柄別の件数・率指標を層と保存名に効かせる。#534 の件数語の並べ替えはしない。"""
     # 月次の画面は行ごとに何度も呼ぶ。語彙は起動時に読むだけなので結果は入力で決まる
-    return dict(_monthly_element_label(element, unit, code))  # type: ignore[return-value]
+    return dict(_monthly_element_label(element, unit, code))
 
 
 @lru_cache(maxsize=65536)

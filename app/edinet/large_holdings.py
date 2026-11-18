@@ -480,7 +480,7 @@ def refresh_versions(db: Session) -> int:
     for r in reports:
         if r.parse_status != "parsed" or r.doc_id in gone:
             continue
-        key = (r.submit_datetime or datetime.min, r.doc_id)  # noqa: DTZ901  JST naive で比べる
+        key = (r.submit_datetime or datetime.min, r.doc_id)
         g = root[r.doc_id]
         if g not in best or key > best[g]:
             best[g] = key

@@ -69,7 +69,7 @@ def _outer_function() -> Key | None:
     return found
 
 
-def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany) -> None:  # noqa: ARG001
+def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany) -> None:
     writes, reads = tables(statement)
     if not writes and not reads:
         return

@@ -10,7 +10,7 @@ from app.holders import classify_move
 from app.models import DailyPrice, EdinetBuyback, EdinetBuybackResolution, LargeHolding, LargeHoldingReport, Stock
 
 ROOT = Path(__file__).resolve().parents[2]
-FETCHED = datetime(2026, 10, 28, 12, 0)  # noqa: DTZ001
+FETCHED = datetime(2026, 10, 28, 12, 0)
 D = date.fromisoformat
 _SEEDED = False
 

@@ -18,14 +18,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sqlalchemy import func  # noqa: E402
-from sqlalchemy.orm import Session  # noqa: E402
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
-from app.db import SessionLocal  # noqa: E402
-from app.market.ingest import _d, _statement_row  # noqa: E402
-from app.market.period_fixes import LATE_DAYS, PERIOD_COLUMNS, default_period_fixes, period_candidates  # noqa: E402
-from app.models import Statement  # noqa: E402
-from app.xbrl.statements import is_xbrl_raw  # noqa: E402
+from app.db import SessionLocal
+from app.market.ingest import _d, _statement_row
+from app.market.period_fixes import LATE_DAYS, PERIOD_COLUMNS, default_period_fixes, period_candidates
+from app.models import Statement
+from app.xbrl.statements import is_xbrl_raw
 
 
 @dataclass(frozen=True)

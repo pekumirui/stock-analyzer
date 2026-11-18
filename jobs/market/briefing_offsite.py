@@ -36,16 +36,16 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from app.db import SessionLocal, init_db, migrate_add_columns  # noqa: E402
-from app.market.briefing_files import local_file, safe_rel  # noqa: E402
-from app.market.briefing_store import (  # noqa: E402
+from app.db import SessionLocal, init_db, migrate_add_columns
+from app.market.briefing_files import local_file, safe_rel
+from app.market.briefing_store import (
     STORAGE_LOCAL,
     STORAGE_ONEDRIVE,
     fill_blank_storage,
     mark_storage,
 )
-from app.models import BriefingDocument  # noqa: E402
-from jobs.ops.backup_db import (  # noqa: E402
+from app.models import BriefingDocument
+from jobs.ops.backup_db import (
     RCLONE_CHECK_TIMEOUT_S,
     RCLONE_COPY_TIMEOUT_S,
     BackupError,
@@ -57,8 +57,8 @@ from jobs.ops.backup_db import (  # noqa: E402
     offsite_settings_from_env,
     probe_offsite,
     rclone_flags,
-)  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+)
+from jobs.share_paths import share_path
 
 # 1 回に送る件数。少ないと rclone の起動が支配的で、多いと落ちたときのやり直しが大きい。
 BATCH_SIZE = 100

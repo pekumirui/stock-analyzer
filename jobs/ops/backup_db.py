@@ -584,7 +584,7 @@ def rclone_available(bin_name: str, which: WhichFn) -> bool:
 def make_rclone_runner(bin_name: str) -> RcloneRunFn:
     def _run(argv: Sequence[str], timeout: float) -> CmdResult:
         try:
-            proc = subprocess.run(  # nosec B603 - 固定の実行ファイル。shell は使わない
+            proc = subprocess.run(
                 [bin_name, *argv],
                 capture_output=True,
                 text=True,

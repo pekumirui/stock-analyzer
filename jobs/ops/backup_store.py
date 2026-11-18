@@ -201,7 +201,7 @@ class _File(apsw.VFSFile):
         super().__init__("", name, flags)
         self._vfs = vfs
         self.store: BlockStore | None = None
-        bits = _flag_bits(flags)  # type: ignore[arg-type]
+        bits = _flag_bits(flags)
         if not bits & apsw.SQLITE_OPEN_MAIN_DB:
             return
         text = name.filename() if isinstance(name, apsw.URIFilename) else str(name or "")
@@ -226,7 +226,7 @@ class _File(apsw.VFSFile):
             super().xWrite(data, offset)
             return
         try:
-            self.store.write(bytes(data), offset)  # type: ignore[arg-type]
+            self.store.write(bytes(data), offset)
         except (StoreError, OSError) as exc:
             self._fail(exc)
             raise

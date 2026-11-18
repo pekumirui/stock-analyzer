@@ -16,11 +16,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-monthly-ingest-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.main import app  # noqa: E402
-import app.monthly.ingest as monthly_ingest_mod  # noqa: E402
-from app.monthly.ingest import (  # noqa: E402
+from app.main import app
+import app.monthly.ingest as monthly_ingest_mod
+from app.monthly.ingest import (
     MonthlyIngestError,
     apply_issuer_aliases,
     canonicalize_element_label,
@@ -902,11 +902,11 @@ def test_issuer_alias_cases() -> None:
         _fail(f"rename が無い銘柄: {missing!r}")
     for code, incoming, stored, ctx in cases:
         got = apply_issuer_aliases(
-            code, incoming, year=ctx.get("year"), as_of=ctx.get("as_of"),  # type: ignore[arg-type]
+            code, incoming, year=ctx.get("year"), as_of=ctx.get("as_of"),
         )
         if got != stored:
             _fail(f"{code} {incoming!r} {ctx} → {got!r}, want {stored!r}")
-        if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:  # type: ignore[arg-type]
+        if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:
             _fail(f"other issuer must not alias {incoming!r}")
 
     sample_78230 = apply_issuer_aliases(

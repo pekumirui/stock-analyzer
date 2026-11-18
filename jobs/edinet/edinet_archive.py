@@ -18,9 +18,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet.archive import backfill, backfill_targets  # noqa: E402
-from app.edinet.client import skip_on_maintenance  # noqa: E402
+from app.db import SessionLocal
+from app.edinet.archive import backfill, backfill_targets
+from app.edinet.client import skip_on_maintenance
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -13,11 +13,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-wiki-nav-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
 from app.assets import inject_wiki_nav
 from app.config import WIKI_URL
-from app.main import app  # noqa: E402
+from app.main import app
 
 WIKI = "https://stock-analyzer-wiki.pages.dev"
 

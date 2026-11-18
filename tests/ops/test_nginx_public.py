@@ -79,9 +79,9 @@ def _stub(name: str) -> tuple[ThreadingHTTPServer, int]:
             self.end_headers()
             self.wfile.write(body)
 
-        do_GET = do_POST = _reply  # noqa: N815
+        do_GET = do_POST = _reply
 
-        def log_message(self, *args) -> None:  # noqa: ARG002
+        def log_message(self, *args) -> None:
             return
 
     srv = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

@@ -381,7 +381,7 @@ def refresh_versions(db: Session) -> int:
     for r in rows:
         if r.doc_id in gone:
             continue
-        key = (r.submitted_at or datetime.min, r.doc_id)  # noqa: DTZ901  JST naive で比べる
+        key = (r.submitted_at or datetime.min, r.doc_id)
         group = (r.code, r.fiscal_year_end, r.doc_type)
         if group not in best or key > best[group]:
             best[group] = key

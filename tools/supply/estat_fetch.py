@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.supply.estat import EstatClient, table_title  # noqa: E402
+from app.supply.estat import EstatClient, table_title
 
 
 def _text(x: object) -> str:

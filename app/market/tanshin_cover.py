@@ -23,7 +23,7 @@ from .homepages import now_jst, ordinary_code
 
 SOURCE_XBRL = "xbrl_summary"
 SOURCE_PDF = "tdnet_pdf"
-_NO_TIME = datetime(1, 1, 1)  # noqa: DTZ001
+_NO_TIME = datetime(1, 1, 1)
 # J-Quants ProdCat。011 内国株券、021 外国株券、013 REIT、014 ETF、023 外国ETF/ETN
 _ORDINARY = frozenset({"011", "021"})
 _REIT = "013"

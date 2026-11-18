@@ -15,13 +15,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal, engine, init_db, migrate_add_columns, missing_columns  # noqa: E402
-from app.edinet.archive import rel_path  # noqa: E402
-from app.edinet.client import EdinetMaintenanceError  # noqa: E402
-from app.models import EdinetArchive, EdinetDocument, Stock, XbrlFiling, XbrlPresentationRole  # noqa: E402
-from app.xbrl import presentation_backfill as pb  # noqa: E402
-from tests.xbrl.test_xbrl_parse import MANUFACTURING, build_zip, seed_stock, write_zip  # noqa: E402
-from tests.xbrl.test_xbrl_presentation import (  # noqa: E402
+from app.db import SessionLocal, engine, init_db, migrate_add_columns, missing_columns
+from app.edinet.archive import rel_path
+from app.edinet.client import EdinetMaintenanceError
+from app.models import EdinetArchive, EdinetDocument, Stock, XbrlFiling, XbrlPresentationRole
+from app.xbrl import presentation_backfill as pb
+from tests.xbrl.test_xbrl_parse import MANUFACTURING, build_zip, seed_stock, write_zip
+from tests.xbrl.test_xbrl_presentation import (
     COMPANY_XSD,
     _annual_pre,
     _company_xsd,
@@ -32,7 +32,7 @@ from tests.xbrl.test_xbrl_presentation import (  # noqa: E402
 
 CODE = "99990"
 OTHER = "88880"
-CREATED = datetime(2026, 1, 1)  # noqa: DTZ001
+CREATED = datetime(2026, 1, 1)
 PRE = f"XBRL/PublicDoc/{COMPANY_XSD.removesuffix('.xsd')}_pre.xml"
 
 

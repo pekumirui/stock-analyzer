@@ -13,9 +13,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.config import XBRL_DEST  # noqa: E402
-import jobs.xbrl.tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
-from jobs.xbrl.tdnet_xbrl_r2 import (  # noqa: E402
+from app.config import XBRL_DEST
+import jobs.xbrl.tdnet_xbrl_r2 as xbrl_mod
+from jobs.xbrl.tdnet_xbrl_r2 import (
     NOCODE_DIR,
     UNMATCHED_DIR,
     append_manifest,
@@ -346,7 +346,7 @@ def test_http_get_uses_job_ua_then_browser() -> None:
 
     uas: list[str] = []
 
-    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+    def fake_urlopen(req, timeout=30.0, context=None):
         ua = req.get_header("User-agent") or req.get_header("User-Agent")
         uas.append(ua)
         if ua == xbrl_mod.USER_AGENT:

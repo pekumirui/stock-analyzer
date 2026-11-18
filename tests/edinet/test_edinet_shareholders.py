@@ -22,19 +22,19 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-sh-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete  # noqa: E402
+from sqlalchemy import delete
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.xbrl import pending_documents, run  # noqa: E402
-from app.models import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.xbrl import pending_documents, run
+from app.models import (
     Stock,
     XbrlMajorShareholder,
     XbrlShareholderFiling,
     XbrlShareholdingByCategory,
 )
-from app.xbrl.normalize import rebuild_all  # noqa: E402
-from app.xbrl.shareholders import rebuild_shareholders  # noqa: E402
-from tests.edinet.test_edinet_xbrl import FakeClient, _doc, _reset  # noqa: E402
+from app.xbrl.normalize import rebuild_all
+from app.xbrl.shareholders import rebuild_shareholders
+from tests.edinet.test_edinet_xbrl import FakeClient, _doc, _reset
 
 NS = {
     "jpcrp_cor": "http://disclosure.edinet-fsa.go.jp/taxonomy/jpcrp/2024-11-01/jpcrp_cor",
@@ -116,7 +116,7 @@ class _TdText(HTMLParser):
         self._buf: list[str] = []
         self.cells: list[str] = []
 
-    def handle_starttag(self, tag, attrs):  # noqa: ARG002
+    def handle_starttag(self, tag, attrs):
         if tag == "td":
             self._in_td = True
             self._buf = []
@@ -343,10 +343,10 @@ def test_amendment_prefers_latest() -> None:
     db.execute(delete(Stock))
     db.add(Stock(code="80350", name="テスト", product_category="011", market="プライム"))
     db.add(_doc(1, "S100ORIG", code="80350", doc_type_code="120",
-                submit_datetime=datetime(2026, 6, 1, 15, 0),  # noqa: DTZ001
+                submit_datetime=datetime(2026, 6, 1, 15, 0),
                 doc_description="有価証券報告書－第63期(2025/04/01－2026/03/31)"))
     db.add(_doc(2, "S100AMND", code="80350", doc_type_code="130",
-                submit_datetime=datetime(2026, 7, 1, 15, 0),  # noqa: DTZ001
+                submit_datetime=datetime(2026, 7, 1, 15, 0),
                 parent_doc_id="S100ORIG",
                 doc_description="訂正有価証券報告書－第63期(2025/04/01－2026/03/31)"))
     db.commit()

@@ -22,8 +22,8 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs._r2common import MountDisconnected, fail_if_mount_down  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+from jobs._r2common import MountDisconnected, fail_if_mount_down
+from jobs.share_paths import share_path
 
 JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -81,7 +81,7 @@ def sanitize_output(text: str) -> str:
 
 def run_cmd(argv: Sequence[str], timeout: float = CMD_TIMEOUT_SEC) -> str:
     try:
-        proc = subprocess.run(  # nosec B603 - 固定の実行ファイル。shell は使わない
+        proc = subprocess.run(
             list(argv),
             capture_output=True,
             text=True,

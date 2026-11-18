@@ -29,12 +29,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from app.api.monthly.tables import table_year_payload  # noqa: E402
-from app.models import Base, MonthlyElement, MonthlyTable, MonthlyValue  # noqa: E402
-from app.monthly.ingest import (  # noqa: E402
+from app.api.monthly.tables import table_year_payload
+from app.models import Base, MonthlyElement, MonthlyTable, MonthlyValue
+from app.monthly.ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, coerce_monthly_storage,
     reject_prior_period_element,
 )

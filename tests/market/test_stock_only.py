@@ -6,7 +6,7 @@ from datetime import date, datetime
 from app.db import SessionLocal
 from app.models import LargeHolding, LargeHoldingReport, Stock
 
-FETCHED = datetime(2026, 10, 28, 12, 0)  # noqa: DTZ001
+FETCHED = datetime(2026, 10, 28, 12, 0)
 DAY = date(2026, 10, 28)
 CATS = {"13010": "011", "13020": "021", "13030": "012", "13040": "013", "13050": "014", "13060": "023"}
 

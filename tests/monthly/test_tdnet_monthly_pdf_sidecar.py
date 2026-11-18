@@ -18,9 +18,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.db import sqlite_readonly_engine  # noqa: E402
-import jobs.monthly.tdnet_monthly_pdf_ingest as pdf_ingest  # noqa: E402
-import jobs.monthly.tdnet_monthly_pdf_sidecar as sc  # noqa: E402
+from app.db import sqlite_readonly_engine
+import jobs.monthly.tdnet_monthly_pdf_ingest as pdf_ingest
+import jobs.monthly.tdnet_monthly_pdf_sidecar as sc
 
 FY_MONTHS = ["9月", "10月", "11月", "12月", "1月", "2月", "上期計", "3月", "4月", "5月", "6月", "7月", "8月", "通期"]
 
