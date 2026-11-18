@@ -5527,7 +5527,8 @@
      "name": "submitted_at",
      "type": "DATETIME",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
     },
     {
      "name": "title",

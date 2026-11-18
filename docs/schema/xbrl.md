@@ -129,7 +129,7 @@ erDiagram
 
 見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
 
-`UtcDateTime`: UTC をタイムゾーンなしで持つ。
+`JstDateTime`: 日本時間をタイムゾーンなしで持つ。 `UtcDateTime`: UTC をタイムゾーンなしで持つ。
 
 ### tdnet_pdf_documents
 
@@ -274,7 +274,7 @@ XBRL の要素。名前空間 × 名前で 1 行
 | `doc_type` | VARCHAR(32) |  |  |  | `'other'` |  |
 | `period_type` | VARCHAR(8) | 可 |  |  |  |  |
 | `fiscal_year_end` | DATE | 可 |  |  |  |  |
-| `submitted_at` | DATETIME |  |  |  |  |  |
+| `submitted_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 | `title` | TEXT | 可 |  |  |  |  |
 | `accounting_standard` | VARCHAR(16) | 可 |  |  |  |  |
 | `is_amendment` | BOOLEAN |  |  |  | `False` |  |

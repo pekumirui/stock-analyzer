@@ -451,7 +451,7 @@ class XbrlFiling(Base):
     doc_type = Column(String(32), nullable=False, default="other")
     period_type = Column(String(8))
     fiscal_year_end = Column(Date)
-    submitted_at = Column(DateTime, nullable=False)
+    submitted_at = Column(JstDateTime, nullable=False)
     title = Column(Text)
     accounting_standard = Column(String(16))
     is_amendment = Column(Boolean, nullable=False, default=False)
