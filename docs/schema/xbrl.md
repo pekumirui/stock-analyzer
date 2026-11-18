@@ -159,6 +159,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
 ### xbrl_contexts
 
+開示ごとのコンテキスト（期間・連結か個別か・次元）
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -195,6 +197,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
 ### xbrl_element_mappings
 
+XBRL の要素 → 標準科目の対応
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -212,6 +216,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `idx_xbrl_mappings_elem` | namespace_key, local_name |  |
 
 ### xbrl_elements
+
+XBRL の要素。名前空間 × 名前で 1 行
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -234,6 +240,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
 ### xbrl_facts
 
+開示の値（生データ層）。開示 × 要素 × コンテキスト
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -254,6 +262,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `idx_xbrl_facts_filing` | filing_id |  |
 
 ### xbrl_filings
+
+開示 1 件（1 ZIP = 1 filing）
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -287,6 +297,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
 ### xbrl_financials
 
+標準科目ごとの値（正規化層）。xbrl_facts から再生成できる
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -313,6 +325,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `idx_xbrl_financials_gp_cover` | code, std_item_id, value_kind, is_consolidated, period_start, period_end, value, filing_id |  |
 
 ### xbrl_job_runs
+
+XBRL のバッチの実行記録
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -346,6 +360,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `idx_xbrl_major_shareholders_filing` | filing_id |  |
 
 ### xbrl_pdf_matches
+
+短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -453,6 +469,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `idx_xbrl_shareholding_by_category_filing` | filing_id |  |
 
 ### xbrl_std_items
+
+標準科目
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|

@@ -4908,7 +4908,7 @@
   {
    "name": "xbrl_contexts",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "開示ごとのコンテキスト（期間・連結か個別か・次元）\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5114,7 +5114,7 @@
   {
    "name": "xbrl_element_mappings",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "XBRL の要素 → 標準科目の対応\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5218,7 +5218,7 @@
   {
    "name": "xbrl_elements",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "XBRL の要素。名前空間 × 名前で 1 行\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5328,7 +5328,7 @@
   {
    "name": "xbrl_facts",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "開示の値（生データ層）。開示 × 要素 × コンテキスト\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5478,7 +5478,7 @@
   {
    "name": "xbrl_filings",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "開示 1 件（1 ZIP = 1 filing）\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5676,7 +5676,7 @@
   {
    "name": "xbrl_financials",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "標準科目ごとの値（正規化層）。xbrl_facts から再生成できる\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -5903,7 +5903,7 @@
   {
    "name": "xbrl_job_runs",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "XBRL のバッチの実行記録\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",
@@ -6075,7 +6075,7 @@
   {
    "name": "xbrl_pdf_matches",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "fact_id",
@@ -6791,7 +6791,7 @@
   {
    "name": "xbrl_std_items",
    "type": "table",
-   "comment": "機能: XBRL・決算書類",
+   "comment": "標準科目\n機能: XBRL・決算書類",
    "columns": [
     {
      "name": "id",

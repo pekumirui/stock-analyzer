@@ -473,6 +473,7 @@ class XbrlFiling(Base):
             "idx_xbrl_filings_id_cover",
             "id", "parse_status", "source", "doc_id", "submitted_at",
         ),
+        {"comment": "開示 1 件（1 ZIP = 1 filing）"},
     )
 
 
@@ -535,6 +536,7 @@ class XbrlElement(Base):
         UniqueConstraint("namespace_uri", "local_name", name="uq_xbrl_elements_ns_local"),
         Index("idx_xbrl_elements_key", "namespace_key", "local_name"),
         Index("idx_xbrl_elements_local", "local_name"),
+        {"comment": "XBRL の要素。名前空間 × 名前で 1 行"},
     )
 
 
@@ -564,6 +566,7 @@ class XbrlContext(Base):
     __table_args__ = (
         UniqueConstraint("filing_id", "context_ref", name="uq_xbrl_contexts_filing_ref"),
         Index("idx_xbrl_contexts_filing", "filing_id"),
+        {"comment": "開示ごとのコンテキスト（期間・連結か個別か・次元）"},
     )
 
 
@@ -586,6 +589,7 @@ class XbrlFact(Base):
         ),
         Index("idx_xbrl_facts_filing", "filing_id"),
         Index("idx_xbrl_facts_element", "element_id"),
+        {"comment": "開示の値（生データ層）。開示 × 要素 × コンテキスト"},
     )
 
 
@@ -627,6 +631,7 @@ class XbrlStdItem(Base):
             "fact が pure（人数・年数・比率）のときだけ科目側で persons / years / ratio と決める"
         ),
     )
+    __table_args__ = ({"comment": "標準科目"},)
 
 
 class XbrlElementMapping(Base):
@@ -651,6 +656,7 @@ class XbrlElementMapping(Base):
             name="uq_xbrl_element_mappings",
         ),
         Index("idx_xbrl_mappings_elem", "namespace_key", "local_name"),
+        {"comment": "XBRL の要素 → 標準科目の対応"},
     )
 
 
@@ -694,6 +700,7 @@ class XbrlFinancial(Base):
             "code", "std_item_id", "value_kind", "is_consolidated",
             "period_start", "period_end", "value", "filing_id",
         ),
+        {"comment": "標準科目ごとの値（正規化層）。xbrl_facts から再生成できる"},
     )
 
 
@@ -712,6 +719,7 @@ class XbrlPdfMatch(Base):
         Index("idx_xbrl_pdf_matches_filing", "filing_id"),
         Index("idx_xbrl_pdf_matches_code", "code"),
         Index("idx_xbrl_pdf_matches_key", "element_key", "code"),
+        {"comment": "短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない"},
     )
 
 
@@ -814,6 +822,7 @@ class XbrlJobRun(Base):
     message = Column(Text)
     started_at = Column(UtcDateTime, nullable=False)
     finished_at = Column(UtcDateTime)
+    __table_args__ = ({"comment": "XBRL のバッチの実行記録"},)
 
 
 class FxRate(Base):
