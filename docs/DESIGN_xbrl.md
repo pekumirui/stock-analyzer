@@ -142,188 +142,15 @@ stocks.code   例 7203 → 72030、262A → 262A0
 
 ### 4.1 ER
 
-```
-stocks.code  <文字列照合>  xbrl_filings.code
-                     │
-                     ├── xbrl_contexts
-                     ├── xbrl_presentation_roles
-                     └── xbrl_facts ── xbrl_elements
-                                │
-                                └── xbrl_element_mappings ── xbrl_std_items
-
-xbrl_filings 1---* xbrl_financials *---1 xbrl_std_items
-```
+ER 図は [`schema/xbrl.md`](schema/xbrl.md)（`app/models.py` から自動生成）。企業キーは `stocks.code` との文字列照合（§3.1）。
 
 FK は XBRL テーブル同士にだけ付ける。`stocks` への FK は付けない（月次と同じ。`PRAGMA foreign_keys` も有効化しない）。parse 前に `db.get(Stock, code)` で存在確認する。
 
-### 4.2 DDL（SQLAlchemy 実装時の意図）
+### 4.2 テーブル定義
 
 SQLite 前提。Postgres に切っても動く型にする。`JSONB` / `GENERATED ALWAYS` / 部分 INDEX の `WHERE` は使わない。
 
-```sql
--- 開示（1 ZIP = 1 filing）
-CREATE TABLE xbrl_filings (
-    id                  INTEGER PRIMARY KEY,
-    code                TEXT NOT NULL,          -- stocks.code 5桁
-    source              TEXT NOT NULL,          -- 'tdnet' | 'edinet' | 'tdnet_pdf'
-    doc_id              TEXT NOT NULL,          -- TDnet xbrl_id（inbs ZIP 名）
-    doc_type            TEXT NOT NULL,          -- 'annual'|'quarterly'|'semiannual'|'other'
-    period_type         TEXT,                   -- 'FY'|'Q1'|'Q2'|'Q3'
-    fiscal_year_end     DATE,
-    submitted_at        TEXT NOT NULL,          -- TDnet pubdate（タイムゾーン付き可）
-    title               TEXT,
-    accounting_standard TEXT,                   -- 'JPGAAP'|'IFRS'|'USGAAP'|NULL
-    is_amendment        BOOLEAN NOT NULL DEFAULT 0,
-    raw_path            TEXT NOT NULL,          -- data/xbrl からの相対パス（manifest.path）
-    raw_sha256          TEXT,                   -- manifest.sha256
-    parse_status        TEXT NOT NULL DEFAULT 'pending',
-                        -- 'pending'|'parsed'|'failed'|'skipped'
-    parse_error         TEXT,
-    parsed_at           TEXT,
-    documents_status    TEXT,                   -- 原文（§15）: NULL|'stored'|'empty'
-    presentation_status TEXT,                   -- 表示リンク（§4.4）: NULL|'ok'|'none'|'gone'|'failed'
-    created_at          TEXT NOT NULL,
-    UNIQUE (source, doc_id)
-);
-CREATE INDEX idx_xbrl_filings_code ON xbrl_filings(code, submitted_at);
-CREATE INDEX idx_xbrl_filings_parse_status ON xbrl_filings(parse_status);
-CREATE INDEX idx_xbrl_filings_id_cover
-    ON xbrl_filings(id, parse_status, source, doc_id, submitted_at);
-
-CREATE TABLE xbrl_elements (
-    id              INTEGER PRIMARY KEY,
-    namespace_uri   TEXT NOT NULL,
-    namespace_key   TEXT NOT NULL,   -- 'jppfs_cor' / 'tse-ed-t' / 'jpigp_cor' / 'custom' 等
-    local_name      TEXT NOT NULL,
-    label_ja        TEXT,
-    label_en        TEXT,
-    item_type       TEXT,            -- 'monetary'|'shares'|'perShare'|'string'|'percent'|NULL
-    is_custom       BOOLEAN NOT NULL DEFAULT 0,
-    first_seen_at   TEXT NOT NULL,
-    UNIQUE (namespace_uri, local_name)
-);
-CREATE INDEX idx_xbrl_elements_key ON xbrl_elements(namespace_key, local_name);
-
-CREATE TABLE xbrl_contexts (
-    id                  INTEGER PRIMARY KEY,
-    filing_id           INTEGER NOT NULL REFERENCES xbrl_filings(id),
-    context_ref         TEXT NOT NULL,
-    period_type         TEXT NOT NULL,   -- 'instant'|'duration'
-    start_date          DATE,
-    end_date            DATE NOT NULL,
-    is_consolidated     INTEGER NOT NULL, -- 1=連結 / 0=単体。判定不能は 1
-    relative_period     TEXT,            -- 'current'|'prior1'|'prior2'|NULL
-    dimensions_json     TEXT NOT NULL DEFAULT '{}',
-    has_dimensions      BOOLEAN NOT NULL DEFAULT 0,
-    UNIQUE (filing_id, context_ref)
-);
-CREATE INDEX idx_xbrl_contexts_filing ON xbrl_contexts(filing_id);
-
-CREATE TABLE xbrl_facts (
-    id              INTEGER PRIMARY KEY,
-    filing_id       INTEGER NOT NULL REFERENCES xbrl_filings(id),
-    element_id      INTEGER NOT NULL REFERENCES xbrl_elements(id),
-    context_id      INTEGER NOT NULL REFERENCES xbrl_contexts(id),
-    unit            TEXT,
-    decimals        INTEGER,
-    scale           INTEGER,
-    value_num       NUMERIC,         -- scale/sign 適用後。SQLite では NUMERIC 親和性
-    value_text      TEXT,            -- 1000 文字以内の非数値
-    is_nil          BOOLEAN NOT NULL DEFAULT 0,
-    UNIQUE (filing_id, element_id, context_id, unit)
-);
-CREATE INDEX idx_xbrl_facts_filing ON xbrl_facts(filing_id);
-CREATE INDEX idx_xbrl_facts_element ON xbrl_facts(element_id);
-
--- 表示リンク（*pre.xml）の区分のうち財務3表に当たるもの。書類 × 区分で 1 行
-CREATE TABLE xbrl_presentation_roles (
-    filing_id           INTEGER NOT NULL REFERENCES xbrl_filings(id),
-    role                TEXT NOT NULL,   -- 区分名（role URI の最後。'rol_ConsolidatedBalanceSheet'）
-    seq                 INTEGER NOT NULL, -- 書類の中で保存した区分の順（0 から）
-    statement           TEXT NOT NULL,   -- 'BS'|'PL'|'CF'
-    is_consolidated     BOOLEAN NOT NULL,
-    is_ifrs             BOOLEAN NOT NULL,
-    items_json          TEXT NOT NULL,   -- 要素を表示の順に。[[namespace_key, local_name, is_custom, preferredLabel, depth, label], ...]（古い行は depth と label が無く 4 つ）
-    generated_at        TEXT NOT NULL,
-    PRIMARY KEY (filing_id, role)
-);
-
-CREATE TABLE xbrl_std_items (
-    id              INTEGER PRIMARY KEY,
-    code            TEXT NOT NULL UNIQUE,   -- 'net_sales'
-    statement       TEXT NOT NULL,          -- 'BS'|'PL'|'CF'|'OTHER'
-    section         TEXT,
-    label_ja        TEXT NOT NULL,
-    display_order   INTEGER NOT NULL DEFAULT 0,
-    sign            TEXT NOT NULL DEFAULT 'natural',  -- 'natural'|'invert'
-    is_required     BOOLEAN NOT NULL DEFAULT 0
-);
-
-CREATE TABLE xbrl_element_mappings (
-    id                  INTEGER PRIMARY KEY,
-    std_item_id         INTEGER NOT NULL REFERENCES xbrl_std_items(id),
-    namespace_key       TEXT NOT NULL,
-    local_name          TEXT NOT NULL,
-    priority            INTEGER NOT NULL DEFAULT 100,
-    accounting_standard TEXT,   -- NULL=全共通
-    note                TEXT,
-    UNIQUE (std_item_id, namespace_key, local_name, accounting_standard)
-);
-CREATE INDEX idx_xbrl_mappings_elem ON xbrl_element_mappings(namespace_key, local_name);
-
-CREATE TABLE xbrl_financials (
-    id                  INTEGER PRIMARY KEY,
-    code                TEXT NOT NULL,
-    filing_id           INTEGER NOT NULL REFERENCES xbrl_filings(id),
-    std_item_id         INTEGER NOT NULL REFERENCES xbrl_std_items(id),
-    is_consolidated     BOOLEAN NOT NULL,
-    period_type         TEXT NOT NULL,
-    period_start        DATE,
-    period_end          DATE NOT NULL,
-    value               NUMERIC NOT NULL,
-    unit                TEXT NOT NULL DEFAULT 'JPY',
-    value_kind          TEXT NOT NULL DEFAULT 'actual',  -- actual|forecast|forecast_previous
-    range_side          TEXT NOT NULL DEFAULT 'point',   -- point|lower|upper
-    target_period       TEXT NOT NULL DEFAULT 'FY',      -- FY|H1|Q1|Q2|Q3|year_end|annual
-    source_fact_id      INTEGER REFERENCES xbrl_facts(id),
-    source_element_id   INTEGER REFERENCES xbrl_elements(id),
-    source_layer        TEXT,            -- 'primary'=本表 / 'summary'=短信サマリー(tse-ed-t)
-    generated_at        TEXT NOT NULL,
-    UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)
-);
-CREATE INDEX idx_xbrl_financials_gp_cover
-    ON xbrl_financials(code, std_item_id, value_kind, is_consolidated,
-                       period_start, period_end, value, filing_id);
-
--- 短信 PDF の行 → XBRL の要素（§18）。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない
-CREATE TABLE xbrl_pdf_matches (
-    fact_id             INTEGER PRIMARY KEY REFERENCES xbrl_facts(id),
-    filing_id           INTEGER NOT NULL REFERENCES xbrl_filings(id),
-    code                TEXT NOT NULL,
-    is_consolidated     BOOLEAN NOT NULL,
-    statement           TEXT NOT NULL,   -- 'BS'|'PL'|'CF'
-    element_key         TEXT,            -- §17 の行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL
-    sign                INTEGER NOT NULL DEFAULT 1,  -- PDF の値に掛けると XBRL の向き
-    matched_by          TEXT,            -- 'value'|'name'。付かなければ NULL
-    generated_at        TEXT NOT NULL
-);
-CREATE INDEX idx_xbrl_pdf_matches_filing ON xbrl_pdf_matches(filing_id);
-CREATE INDEX idx_xbrl_pdf_matches_code ON xbrl_pdf_matches(code);
-CREATE INDEX idx_xbrl_pdf_matches_key ON xbrl_pdf_matches(element_key, code);
-CREATE INDEX idx_xbrl_elements_local ON xbrl_elements(local_name);
-CREATE INDEX idx_xbrl_elements_ext_key ON xbrl_elements('ext:' || local_name);
-
-CREATE TABLE xbrl_job_runs (
-    id              INTEGER PRIMARY KEY,
-    job_name        TEXT NOT NULL,   -- 'parse'|'normalize'|'load-mappings'
-    status          TEXT NOT NULL,   -- 'running'|'success'|'failed'
-    processed_count INTEGER DEFAULT 0,
-    error_count     INTEGER DEFAULT 0,
-    message         TEXT,
-    started_at      TEXT NOT NULL,
-    finished_at     TEXT
-);
-```
+テーブル・列・索引は [`schema/xbrl.md`](schema/xbrl.md)（`app/models.py` から自動生成。列の意味もそこに出る）。
 
 `unmapped` は VIEW ではなく `jobs/xbrl/xbrl_parse.py report-unmapped` のクエリで出す。VIEW は §18 の `xbrl_statement_values` だけ（定義は `app/xbrl/statement_values.py`、作るのは `init_db`）。
 
@@ -824,28 +651,7 @@ XBRL_PARSE_WORKERS=2
 
 ### 14.3 正規化層 `xbrl_segments`
 
-```sql
-CREATE TABLE xbrl_segments (
-    id                INTEGER PRIMARY KEY,
-    code              TEXT NOT NULL,
-    filing_id         INTEGER NOT NULL REFERENCES xbrl_filings(id),
-    std_item_id       INTEGER NOT NULL REFERENCES xbrl_std_items(id),  -- statement='SEG'
-    axis              TEXT NOT NULL,     -- 'jpcrp_cor:OperatingSegmentsAxis'
-    member            TEXT NOT NULL,     -- 'prefix:LocalName'
-    member_label_ja   TEXT,              -- その書類のラベル
-    member_kind       TEXT NOT NULL,     -- segment|subtotal|other|total|reconciling|unknown
-    is_consolidated   BOOLEAN NOT NULL,
-    period_type       TEXT NOT NULL,     -- filing の period_type
-    period_start      DATE,
-    period_end        DATE NOT NULL,
-    value             NUMERIC NOT NULL,
-    unit              TEXT NOT NULL DEFAULT 'JPY',
-    source_fact_id    INTEGER REFERENCES xbrl_facts(id),
-    source_element_id INTEGER REFERENCES xbrl_elements(id),  -- どの物差しを採ったか
-    generated_at      TEXT NOT NULL,
-    UNIQUE (filing_id, std_item_id, axis, member, is_consolidated, period_end)
-);
-```
+列と索引は [`schema/xbrl.md`](schema/xbrl.md) の `xbrl_segments`。
 
 - 科目は `config/xbrl/std_items.yaml` の `statement: SEG`（`seg_net_sales` 計 / `seg_external_sales` 外部顧客への売上高 / `seg_profit` / `seg_assets`）、マッピングは `config/xbrl/mappings/segments.yaml`。`xbrl_financials` の正規化は SEG の科目とマッピングを読まない（同じ `jppfs_cor:NetSales` を取り合わない）
 - `normalize_filing` の最後に `app/xbrl/segments.py normalize_segments` を呼ぶ（取込・`xbrl_normalize.py`・`--rebuild` の全部で作り直す）。TDnet の filing にも効く
@@ -879,15 +685,7 @@ CREATE TABLE xbrl_segments (
 
 ### 15.2 表 `xbrl_documents`
 
-| 列 | 中身 |
-|---|---|
-| `filing_id` | `xbrl_filings.id`（主キー 1） |
-| `seq` | 表示順（主キー 2）。0 から |
-| `part` | `summary` / `qualitative` / `attachment` |
-| `file_name` | ZIP の中のファイル名（パスなし） |
-| `html_gz` | 元の HTML（BOM 込みのバイト列）を gzip |
-| `bytes` / `sha256` | 圧縮前 |
-| `created_at` | 入れた時刻（UTC） |
+列は [`schema/xbrl.md`](schema/xbrl.md) の `xbrl_documents`。
 
 `xbrl_filings.documents_status`: 原文を作ったかどうか。NULL（まだ）/ `stored` / `empty`（選べる HTML が 0 件）。
 
@@ -921,15 +719,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 
 ### 16.3 表 `tdnet_pdf_documents`
 
-| 列 | 中身 |
-|---|---|
-| `disclosure_no` | TDnet の docID（主キー） |
-| `code` / `disclosed_date` / `disclosed_time` | `statements` から |
-| `title` | 1 ページ目の題名。取れなければ `statements.type_of_document` |
-| `status` | `ok` / `missing`（PDF が 404）/ `failed`（取得・変換の失敗。`error` に理由） |
-| `html_gz` / `bytes` / `sha256` | 変換後の HTML（gzip。大きさとハッシュは圧縮前） |
-| `pages` / `pdf_bytes` / `pdf_sha256` | 元の PDF |
-| `converter` / `created_at` | 変換器の版と入れた時刻（UTC） |
+列は [`schema/xbrl.md`](schema/xbrl.md) の `tdnet_pdf_documents`。
 
 ### 16.4 取込 `tools/tdnet_pdf/ingest.py`
 
@@ -1099,7 +889,7 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 
 §17 の対応（PDF の行 → XBRL の要素）を表に残し、有報・短信 XBRL・短信 PDF を同じ要素名で SQL から引く。画面・API は使わない（集計用）。
 
-**対応の表 `xbrl_pdf_matches`**（DDL は §4.2）: 対象は PDF だけの期の開示。同じ銘柄・同じ期末・同じ連結区分に、本表の付いた `edinet` / `tdnet` の `parsed` の filing が無い `tdnet_pdf` の filing（§17 の材料と同じ `doc_type`）。その本表（`pdf-bs` / `pdf-pl` / `pdf-cf`）の当期 fact ごとに 1 行（CF の期首残高でどの要素にも当たらない行は入れない。§17 の限界）。同じ期末に XBRL がある期の PDF は入れない。突き合わせは `three_statements.pdf_only_matches`（§17 の `load_both` → `learn_pair` → `apply_learned` を、PDF が主の列と同じ引数で呼ぶ。別の実装は持たない）。`element_key` は §17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）。会社独自の要素は有報（`jpcrp…_E…`）と短信 XBRL（`tse-…-証券コード`）で `xbrl_elements` の行が分かれるので、`element_id` ではなく文字列で持つ。付かない行は `element_key` と `matched_by` が NULL。同じ期末の PDF が 2 つ（訂正）なら両方に付ける（ビューが新しい方を採る）。PL の 2 回目の印字（§17）は前の行と同じ `element_key` で入る（ビューは同じ filing の fact の id の小さい方を採るので 1 つ）。対象の銘柄は銘柄マスタ `stocks` にある銘柄だけ（無い会社には突き合わせる有報も短信 XBRL も無い）。`xbrl_facts` の PDF の fact は消さない。
+**対応の表 `xbrl_pdf_matches`**（列は [`schema/xbrl.md`](schema/xbrl.md)）: 対象は PDF だけの期の開示。同じ銘柄・同じ期末・同じ連結区分に、本表の付いた `edinet` / `tdnet` の `parsed` の filing が無い `tdnet_pdf` の filing（§17 の材料と同じ `doc_type`）。その本表（`pdf-bs` / `pdf-pl` / `pdf-cf`）の当期 fact ごとに 1 行（CF の期首残高でどの要素にも当たらない行は入れない。§17 の限界）。同じ期末に XBRL がある期の PDF は入れない。突き合わせは `three_statements.pdf_only_matches`（§17 の `load_both` → `learn_pair` → `apply_learned` を、PDF が主の列と同じ引数で呼ぶ。別の実装は持たない）。`element_key` は §17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）。会社独自の要素は有報（`jpcrp…_E…`）と短信 XBRL（`tse-…-証券コード`）で `xbrl_elements` の行が分かれるので、`element_id` ではなく文字列で持つ。付かない行は `element_key` と `matched_by` が NULL。同じ期末の PDF が 2 つ（訂正）なら両方に付ける（ビューが新しい方を採る）。PL の 2 回目の印字（§17）は前の行と同じ `element_key` で入る（ビューは同じ filing の fact の id の小さい方を採るので 1 つ）。対象の銘柄は銘柄マスタ `stocks` にある銘柄だけ（無い会社には突き合わせる有報も短信 XBRL も無い）。`xbrl_facts` の PDF の fact は消さない。
 
 **付け直し**: `tools/tdnet_pdf/matches.py`（全銘柄か `--code`）。銘柄ごとに消して入れ直して commit するので何度流しても同じ。`--batch N` は N 銘柄ごとに `pdf_matches batch done=… codes=… filings=… matched=… unmatched=… failed=… left=…` を 1 行出し、`database is locked` の銘柄は区切りの終わりに 5 秒待って 1 回やり直す（§16.5 の `financials.py` と同じ）。最後の行は `pdf_matches codes=… filings=… matched=… unmatched=… failed=… skipped=… deleted=…`（`skipped` は `stocks` に無くて対象にしなかった銘柄の数、`deleted` は全銘柄で流したときに消した、`stocks` に無い銘柄の既存の行数。`--batch` の行も `failed` と `left` の間に同じ 2 項目が入る）。`--code` で `stocks` に無い銘柄を指定すると `pdf_matches skipped code=… reason=not in stocks` を出して飛ばす（既存の行は触らない）。全銘柄で流すと、`stocks` に無い銘柄の既存の行は銘柄ごとに DELETE して commit する（`database is locked` は他の銘柄と同じく区切りで待ってやり直す）。`tools/tdnet_pdf/financials.py` は最後に、その実行で `parsed` / `retired` / `failed` になった開示の銘柄だけ同じ処理を流す（`--no-matches` で流さない。失敗しても読み直しの結果は残り、終了コードが 1）。cron には入れない。付け直すのは次のとき:
 

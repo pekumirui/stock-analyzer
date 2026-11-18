@@ -4722,25 +4722,28 @@
      "type": "VARCHAR(5)",
      "nullable": false,
      "default": null,
-     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+     "comment": "statements から\n→ stocks.code（宣言だけ。DB の制約なし）"
     },
     {
      "name": "disclosed_date",
      "type": "DATE",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "statements から"
     },
     {
      "name": "disclosed_time",
      "type": "VARCHAR(8)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "statements から"
     },
     {
      "name": "title",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "1 ページ目の題名。取れなければ statements.type_of_document"
     },
     {
      "name": "status",
@@ -4753,13 +4756,15 @@
      "name": "error",
      "type": "TEXT",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "status が failed のときの理由"
     },
     {
      "name": "html_gz",
      "type": "BLOB",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "変換後の HTML を gzip"
     },
     {
      "name": "bytes",
@@ -4779,19 +4784,22 @@
      "name": "pages",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "元の PDF"
     },
     {
      "name": "pdf_bytes",
      "type": "INTEGER",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "元の PDF"
     },
     {
      "name": "pdf_sha256",
      "type": "VARCHAR(64)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "元の PDF"
     },
     {
      "name": "converter",
@@ -4933,7 +4941,8 @@
      "name": "period_type",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'instant' | 'duration'"
     },
     {
      "name": "start_date",
@@ -4951,13 +4960,15 @@
      "name": "is_consolidated",
      "type": "INTEGER",
      "nullable": false,
-     "default": "1"
+     "default": "1",
+     "comment": "1=連結 / 0=単体。判定不能は 1"
     },
     {
      "name": "relative_period",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "'current' | 'prior1' | 'prior2' | NULL"
     },
     {
      "name": "dimensions_json",
@@ -5040,7 +5051,8 @@
      "name": "seq",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "表示順。0 から"
     },
     {
      "name": "part",
@@ -5053,7 +5065,8 @@
      "name": "file_name",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "ZIP の中のファイル名（パスなし）"
     },
     {
      "name": "html_gz",
@@ -5151,7 +5164,8 @@
      "name": "accounting_standard",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "NULL=全共通"
     },
     {
      "name": "note",
@@ -5236,7 +5250,8 @@
      "name": "namespace_key",
      "type": "VARCHAR(64)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'jppfs_cor' / 'tse-ed-t' / 'jpigp_cor' / 'custom' 等"
     },
     {
      "name": "local_name",
@@ -5379,7 +5394,8 @@
      "name": "value_num",
      "type": "NUMERIC(30, 4)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "scale/sign 適用後"
     },
     {
      "name": "value_text",
@@ -5497,25 +5513,29 @@
      "name": "source",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "tdnet"
+     "default": "tdnet",
+     "comment": "'tdnet' | 'edinet' | 'tdnet_pdf'"
     },
     {
      "name": "doc_id",
      "type": "VARCHAR(64)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "tdnet は TDnet xbrl_id（ZIP 名）、edinet は EDINET の docID、tdnet_pdf は開示番号 14 桁"
     },
     {
      "name": "doc_type",
      "type": "VARCHAR(32)",
      "nullable": false,
-     "default": "other"
+     "default": "other",
+     "comment": "annual | quarterly | semiannual | forecast_revision | dividend_revision | other"
     },
     {
      "name": "period_type",
      "type": "VARCHAR(8)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "'FY' | 'Q1' | 'Q2' | 'Q3'"
     },
     {
      "name": "fiscal_year_end",
@@ -5540,7 +5560,8 @@
      "name": "accounting_standard",
      "type": "VARCHAR(16)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "'JPGAAP' | 'IFRS' | 'USGAAP' | NULL"
     },
     {
      "name": "is_amendment",
@@ -5552,19 +5573,22 @@
      "name": "raw_path",
      "type": "TEXT",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "tdnet は data/xbrl からの相対パス（manifest.path）。edinet は edinet:<doc_id>、tdnet_pdf は tdnet_pdf:<開示番号>"
     },
     {
      "name": "raw_sha256",
      "type": "VARCHAR(64)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "manifest.sha256"
     },
     {
      "name": "parse_status",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "pending"
+     "default": "pending",
+     "comment": "'pending' | 'parsed' | 'failed' | 'skipped'"
     },
     {
      "name": "parse_error",
@@ -5590,7 +5614,8 @@
      "name": "presentation_status",
      "type": "VARCHAR(8)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "表示リンク: NULL | 'ok' | 'none' | 'gone' | 'failed'"
     },
     {
      "name": "created_at",
@@ -5916,13 +5941,15 @@
      "name": "job_name",
      "type": "VARCHAR(32)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'parse' | 'normalize' | 'edinet_xbrl'"
     },
     {
      "name": "status",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'running' | 'success' | 'failed' | 'skipped'"
     },
     {
      "name": "processed_count",
@@ -6109,25 +6136,29 @@
      "name": "statement",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'BS' | 'PL' | 'CF'"
     },
     {
      "name": "element_key",
      "type": "VARCHAR(300)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL"
     },
     {
      "name": "sign",
      "type": "INTEGER",
      "nullable": false,
-     "default": "1"
+     "default": "1",
+     "comment": "PDF の値に掛けると XBRL の向き"
     },
     {
      "name": "matched_by",
      "type": "VARCHAR(8)",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "'value' | 'name'。付かなければ NULL"
     },
     {
      "name": "generated_at",
@@ -6231,19 +6262,22 @@
      "name": "role",
      "type": "VARCHAR(255)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "区分名（role URI の最後。'rol_ConsolidatedBalanceSheet'）"
     },
     {
      "name": "seq",
      "type": "INTEGER",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "書類の中で保存した区分の順（0 から）"
     },
     {
      "name": "statement",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'BS' | 'PL' | 'CF'"
     },
     {
      "name": "is_consolidated",
@@ -6329,7 +6363,7 @@
      "type": "INTEGER",
      "nullable": false,
      "default": null,
-     "comment": "FK → xbrl_std_items.id"
+     "comment": "statement='SEG'\nFK → xbrl_std_items.id"
     },
     {
      "name": "axis",
@@ -6369,7 +6403,8 @@
      "name": "period_type",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "filing の period_type"
     },
     {
      "name": "period_start",
@@ -6407,7 +6442,7 @@
      "type": "INTEGER",
      "nullable": true,
      "default": null,
-     "comment": "FK → xbrl_elements.id"
+     "comment": "どの物差しを採ったか\nFK → xbrl_elements.id"
     },
     {
      "name": "generated_at",
@@ -6804,13 +6839,15 @@
      "name": "code",
      "type": "VARCHAR(64)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'net_sales'"
     },
     {
      "name": "statement",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "'BS' | 'PL' | 'CF' | 'OTHER' | 'SEG'"
     },
     {
      "name": "section",
@@ -6834,7 +6871,8 @@
      "name": "sign",
      "type": "VARCHAR(16)",
      "nullable": false,
-     "default": "natural"
+     "default": "natural",
+     "comment": "'natural' | 'invert'"
     },
     {
      "name": "is_required",
