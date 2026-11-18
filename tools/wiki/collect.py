@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -57,7 +58,7 @@ class CollectResult:
     nav: list = field(default_factory=list)
 
 
-def collect_into(repo: Path, dest: Path) -> CollectResult:
+def collect_into(repo: Path, dest: Path, build: Callable[[Path], object] | None = None) -> CollectResult:
     repo = repo.resolve()
     dest = dest.resolve()
     _reset_dest(dest)
@@ -84,8 +85,9 @@ def collect_into(repo: Path, dest: Path) -> CollectResult:
             encoding="utf-8",
         )
 
-    included = {p.resolve() for p in (*sources, *images)}
-    _rewrite_links(dest, repo, included)
+    if build is not None:
+        build(dest)
+    _rewrite_links(dest, repo)
     _ensure_section_indexes(dest)
     (dest / "_headers").write_text(HEADERS_FILE, encoding="utf-8")
 
@@ -197,13 +199,13 @@ def _source_for_dest(current: Path, dest: Path, repo: Path) -> Path:
     return repo / "docs" / rel
 
 
-def _rewrite_links(dest: Path, repo: Path, included: set[Path]) -> None:
+def _rewrite_links(dest: Path, repo: Path) -> None:
     for md in dest.rglob("*.md"):
         src = _source_for_dest(md, dest, repo)
         text = md.read_text(encoding="utf-8", errors="replace")
         new = MD_LINK_RE.sub(
             lambda m, source=src, current=md: _replace_url(
-                m, source, current, dest, repo, included
+                m, source, current, dest, repo
             ),
             text,
         )
@@ -217,17 +219,16 @@ def _replace_url(
     current: Path,
     dest: Path,
     repo: Path,
-    included: set[Path],
 ) -> str:
     url = match.group(2)
     target = _resolve_local(source, url)
     if target is None:
         return match.group(0)
     resolved = target.resolve()
-    mapped = dest_rel_for(resolved, repo) if resolved.is_file() else None
-    if mapped is not None and resolved in included:
+    mapped = dest_rel_for(resolved, repo)
+    if mapped is not None and (dest / mapped).is_file():
         dest_tgt = dest / mapped
-        rest = f"#{url.split('#', 1)[1]}" if "#" in url else ""
+        rest = url[len(re.split(r"[?#]", url, maxsplit=1)[0]):]
         new_url = Path(os.path.relpath(dest_tgt, current.parent)).as_posix()
         return f"[{match.group(1)}]({new_url}{rest})"
     if _is_http(url):

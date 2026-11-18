@@ -8,13 +8,14 @@ REPO = Path(__file__).resolve().parents[2]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+from tools.schema.erd import build
 from tools.wiki.collect import collect_into
 
 
 def on_config(config):
     dest = Path(config["docs_dir"])
     dest.mkdir(parents=True, exist_ok=True)
-    result = collect_into(REPO, dest)
+    result = collect_into(REPO, dest, build)
     config["nav"] = result.nav
     return config
 
