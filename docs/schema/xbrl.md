@@ -1,0 +1,424 @@
+# スキーマ: XBRL・決算書類
+
+**自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
+
+図は主キーと外部キーの列だけ。線は外部キー（列名つき）。ほかの機能の表は主キーだけ出す。
+
+```mermaid
+erDiagram
+  tdnet_pdf_documents {
+    String disclosure_no PK
+  }
+  xbrl_contexts {
+    Integer id PK
+    Integer filing_id FK
+  }
+  xbrl_documents {
+    Integer filing_id PK, FK
+    Integer seq PK
+  }
+  xbrl_element_mappings {
+    Integer id PK
+    Integer std_item_id FK
+  }
+  xbrl_elements {
+    Integer id PK
+  }
+  xbrl_facts {
+    Integer id PK
+    Integer filing_id FK
+    Integer element_id FK
+    Integer context_id FK
+  }
+  xbrl_filings {
+    Integer id PK
+  }
+  xbrl_financials {
+    Integer id PK
+    Integer filing_id FK
+    Integer std_item_id FK
+    Integer source_fact_id FK
+    Integer source_element_id FK
+  }
+  xbrl_job_runs {
+    Integer id PK
+  }
+  xbrl_major_shareholders {
+    Integer filing_id PK, FK
+    Integer rank PK
+    String basis PK
+  }
+  xbrl_pdf_matches {
+    Integer fact_id PK, FK
+    Integer filing_id FK
+  }
+  xbrl_presentation_roles {
+    Integer filing_id PK, FK
+    String role PK
+  }
+  xbrl_segments {
+    Integer id PK
+    Integer filing_id FK
+    Integer std_item_id FK
+    Integer source_fact_id FK
+    Integer source_element_id FK
+  }
+  xbrl_shareholder_filings {
+    Integer filing_id PK, FK
+  }
+  xbrl_shareholding_by_category {
+    Integer filing_id PK, FK
+    String share_class PK
+    String category PK
+  }
+  xbrl_std_items {
+    Integer id PK
+  }
+  xbrl_contexts ||--o{ xbrl_facts : context_id
+  xbrl_elements |o--o{ xbrl_financials : source_element_id
+  xbrl_elements |o--o{ xbrl_segments : source_element_id
+  xbrl_elements ||--o{ xbrl_facts : element_id
+  xbrl_facts |o--o{ xbrl_financials : source_fact_id
+  xbrl_facts |o--o{ xbrl_segments : source_fact_id
+  xbrl_facts ||--o{ xbrl_pdf_matches : fact_id
+  xbrl_filings ||--o{ xbrl_contexts : filing_id
+  xbrl_filings ||--o{ xbrl_documents : filing_id
+  xbrl_filings ||--o{ xbrl_facts : filing_id
+  xbrl_filings ||--o{ xbrl_financials : filing_id
+  xbrl_filings ||--o{ xbrl_major_shareholders : filing_id
+  xbrl_filings ||--o{ xbrl_pdf_matches : filing_id
+  xbrl_filings ||--o{ xbrl_presentation_roles : filing_id
+  xbrl_filings ||--o{ xbrl_segments : filing_id
+  xbrl_filings ||--o{ xbrl_shareholder_filings : filing_id
+  xbrl_filings ||--o{ xbrl_shareholding_by_category : filing_id
+  xbrl_std_items ||--o{ xbrl_element_mappings : std_item_id
+  xbrl_std_items ||--o{ xbrl_financials : std_item_id
+  xbrl_std_items ||--o{ xbrl_segments : std_item_id
+```
+
+## テーブル
+
+### tdnet_pdf_documents
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `disclosure_no` | VARCHAR(14) |  | PK |  |
+| `code` | VARCHAR(5) |  |  |  |
+| `disclosed_date` | DATE | 可 |  |  |
+| `disclosed_time` | VARCHAR(8) | 可 |  |  |
+| `title` | TEXT | 可 |  |  |
+| `status` | VARCHAR(16) |  |  |  |
+| `error` | TEXT | 可 |  |  |
+| `html_gz` | BLOB | 可 |  |  |
+| `bytes` | INTEGER | 可 |  |  |
+| `sha256` | VARCHAR(64) | 可 |  |  |
+| `pages` | INTEGER | 可 |  |  |
+| `pdf_bytes` | INTEGER | 可 |  |  |
+| `pdf_sha256` | VARCHAR(64) | 可 |  |  |
+| `converter` | VARCHAR(16) | 可 |  |  |
+| `created_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `ix_tdnet_pdf_documents_code` | code |  |
+
+### xbrl_contexts
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |
+| `context_ref` | VARCHAR(255) |  |  |  |
+| `period_type` | VARCHAR(16) |  |  |  |
+| `start_date` | DATE | 可 |  |  |
+| `end_date` | DATE |  |  |  |
+| `is_consolidated` | INTEGER |  |  | `1` |
+| `relative_period` | VARCHAR(16) | 可 |  |  |
+| `dimensions_json` | TEXT |  |  | `'{}'` |
+| `has_dimensions` | BOOLEAN |  |  | `False` |
+| `member_labels_json` | TEXT | 可 |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_contexts_filing_ref` | filing_id, context_ref | 一意 |
+| `idx_xbrl_contexts_filing` | filing_id |  |
+
+### xbrl_documents
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |
+| `seq` | INTEGER |  | PK |  |
+| `part` | VARCHAR(16) |  |  |  |
+| `file_name` | TEXT |  |  |  |
+| `html_gz` | BLOB |  |  |  |
+| `bytes` | INTEGER |  |  |  |
+| `sha256` | VARCHAR(64) |  |  |  |
+| `created_at` | DATETIME |  |  |  |
+
+### xbrl_element_mappings
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |
+| `namespace_key` | VARCHAR(64) |  |  |  |
+| `local_name` | VARCHAR(255) |  |  |  |
+| `priority` | INTEGER |  |  | `100` |
+| `accounting_standard` | VARCHAR(16) | 可 |  |  |
+| `note` | TEXT | 可 |  |  |
+| `part` | VARCHAR(16) | 可 |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_element_mappings` | std_item_id, namespace_key, local_name, accounting_standard | 一意 |
+| `idx_xbrl_mappings_elem` | namespace_key, local_name |  |
+
+### xbrl_elements
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `namespace_uri` | TEXT |  |  |  |
+| `namespace_key` | VARCHAR(64) |  |  |  |
+| `local_name` | VARCHAR(255) |  |  |  |
+| `label_ja` | TEXT | 可 |  |  |
+| `label_en` | TEXT | 可 |  |  |
+| `item_type` | VARCHAR(16) | 可 |  |  |
+| `is_custom` | BOOLEAN |  |  | `False` |
+| `first_seen_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_elements_ns_local` | namespace_uri, local_name | 一意 |
+| `idx_xbrl_elements_ext_key` | 'ext:' || xbrl_elements.local_name |  |
+| `idx_xbrl_elements_key` | namespace_key, local_name |  |
+| `idx_xbrl_elements_local` | local_name |  |
+
+### xbrl_facts
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |
+| `element_id` | INTEGER |  | FK → `xbrl_elements.id` |  |
+| `context_id` | INTEGER |  | FK → `xbrl_contexts.id` |  |
+| `unit` | VARCHAR(64) | 可 |  |  |
+| `decimals` | INTEGER | 可 |  |  |
+| `scale` | INTEGER | 可 |  |  |
+| `value_num` | NUMERIC(30, 4) | 可 |  |  |
+| `value_text` | TEXT | 可 |  |  |
+| `is_nil` | BOOLEAN |  |  | `False` |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_facts_key` | filing_id, element_id, context_id, unit | 一意 |
+| `idx_xbrl_facts_element` | element_id |  |
+| `idx_xbrl_facts_filing` | filing_id |  |
+
+### xbrl_filings
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `code` | VARCHAR(5) |  |  |  |
+| `source` | VARCHAR(16) |  |  | `'tdnet'` |
+| `doc_id` | VARCHAR(64) |  |  |  |
+| `doc_type` | VARCHAR(32) |  |  | `'other'` |
+| `period_type` | VARCHAR(8) | 可 |  |  |
+| `fiscal_year_end` | DATE | 可 |  |  |
+| `submitted_at` | DATETIME |  |  |  |
+| `title` | TEXT | 可 |  |  |
+| `accounting_standard` | VARCHAR(16) | 可 |  |  |
+| `is_amendment` | BOOLEAN |  |  | `False` |
+| `raw_path` | TEXT |  |  |  |
+| `raw_sha256` | VARCHAR(64) | 可 |  |  |
+| `parse_status` | VARCHAR(16) |  |  | `'pending'` |
+| `parse_error` | TEXT | 可 |  |  |
+| `parsed_at` | DATETIME | 可 |  |  |
+| `documents_status` | VARCHAR(16) | 可 |  |  |
+| `presentation_status` | VARCHAR(8) | 可 |  |  |
+| `created_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_filings_source_doc` | source, doc_id | 一意 |
+| `idx_xbrl_filings_code_submitted` | code, submitted_at |  |
+| `idx_xbrl_filings_id_cover` | id, parse_status, source, doc_id, submitted_at |  |
+| `idx_xbrl_filings_parse_status` | parse_status |  |
+| `ix_xbrl_filings_code` | code |  |
+
+### xbrl_financials
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `code` | VARCHAR(5) |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |
+| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |
+| `is_consolidated` | BOOLEAN |  |  |  |
+| `period_type` | VARCHAR(8) |  |  |  |
+| `period_start` | DATE | 可 |  |  |
+| `period_end` | DATE |  |  |  |
+| `value` | NUMERIC(30, 4) |  |  |  |
+| `unit` | VARCHAR(32) |  |  | `'JPY'` |
+| `value_kind` | VARCHAR(24) |  |  | `actual`（DB） |
+| `range_side` | VARCHAR(16) |  |  | `point`（DB） |
+| `target_period` | VARCHAR(16) |  |  | `FY`（DB） |
+| `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |
+| `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |
+| `source_layer` | VARCHAR(16) | 可 |  |  |
+| `generated_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_financials_key` | filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period | 一意 |
+| `idx_xbrl_financials_gp_cover` | code, std_item_id, value_kind, is_consolidated, period_start, period_end, value, filing_id |  |
+
+### xbrl_job_runs
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `job_name` | VARCHAR(32) |  |  |  |
+| `status` | VARCHAR(16) |  |  |  |
+| `processed_count` | INTEGER | 可 |  | `0` |
+| `error_count` | INTEGER | 可 |  | `0` |
+| `message` | TEXT | 可 |  |  |
+| `started_at` | DATETIME |  |  |  |
+| `finished_at` | DATETIME | 可 |  |  |
+
+### xbrl_major_shareholders
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |
+| `rank` | INTEGER |  | PK |  |
+| `basis` | VARCHAR(16) |  | PK |  |
+| `name` | TEXT | 可 |  |  |
+| `address` | TEXT | 可 |  |  |
+| `shares_held` | NUMERIC(30, 4) | 可 |  |  |
+| `shareholding_ratio` | NUMERIC(18, 6) | 可 |  |  |
+| `voting_rights` | NUMERIC(30, 4) | 可 |  |  |
+| `voting_rights_ratio` | NUMERIC(18, 6) | 可 |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `idx_xbrl_major_shareholders_filing` | filing_id |  |
+
+### xbrl_pdf_matches
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `fact_id` | INTEGER |  | PK / FK → `xbrl_facts.id` |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |
+| `code` | VARCHAR(5) |  |  |  |
+| `is_consolidated` | BOOLEAN |  |  |  |
+| `statement` | VARCHAR(8) |  |  |  |
+| `element_key` | VARCHAR(300) | 可 |  |  |
+| `sign` | INTEGER |  |  | `1` |
+| `matched_by` | VARCHAR(8) | 可 |  |  |
+| `generated_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `idx_xbrl_pdf_matches_code` | code |  |
+| `idx_xbrl_pdf_matches_filing` | filing_id |  |
+| `idx_xbrl_pdf_matches_key` | element_key, code |  |
+
+### xbrl_presentation_roles
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |
+| `role` | VARCHAR(255) |  | PK |  |
+| `seq` | INTEGER |  |  |  |
+| `statement` | VARCHAR(8) |  |  |  |
+| `is_consolidated` | BOOLEAN |  |  |  |
+| `is_ifrs` | BOOLEAN |  |  |  |
+| `items_json` | TEXT |  |  |  |
+| `generated_at` | DATETIME |  |  |  |
+
+### xbrl_segments
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `code` | VARCHAR(5) |  |  |  |
+| `filing_id` | INTEGER |  | FK → `xbrl_filings.id` |  |
+| `std_item_id` | INTEGER |  | FK → `xbrl_std_items.id` |  |
+| `axis` | VARCHAR(255) |  |  |  |
+| `member` | VARCHAR(255) |  |  |  |
+| `member_label_ja` | VARCHAR(255) | 可 |  |  |
+| `member_kind` | VARCHAR(16) |  |  |  |
+| `is_consolidated` | BOOLEAN |  |  |  |
+| `period_type` | VARCHAR(8) |  |  |  |
+| `period_start` | DATE | 可 |  |  |
+| `period_end` | DATE |  |  |  |
+| `value` | NUMERIC(30, 4) |  |  |  |
+| `unit` | VARCHAR(32) |  |  | `'JPY'` |
+| `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |
+| `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |
+| `generated_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `uq_xbrl_segments_key` | filing_id, std_item_id, axis, member, is_consolidated, period_end | 一意 |
+| `idx_xbrl_segments_filing` | filing_id |  |
+| `idx_xbrl_segments_lookup` | code, std_item_id, period_end |  |
+
+### xbrl_shareholder_filings
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |
+| `code` | VARCHAR(5) |  |  |  |
+| `doc_id` | VARCHAR(64) |  |  |  |
+| `as_of` | DATE | 可 |  |  |
+| `basis` | VARCHAR(16) |  |  |  |
+| `shares_per_unit` | INTEGER | 可 |  |  |
+| `is_amendment` | BOOLEAN |  |  | `False` |
+| `amends_doc_id` | VARCHAR(8) | 可 |  |  |
+| `original_doc_id` | VARCHAR(8) |  |  |  |
+| `is_latest` | BOOLEAN |  |  | `False` |
+| `withdrawn` | BOOLEAN |  |  | `False` |
+| `generated_at` | DATETIME |  |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `idx_xbrl_shareholder_filings_code` | code, as_of |  |
+| `idx_xbrl_shareholder_filings_latest` | code, is_latest |  |
+
+### xbrl_shareholding_by_category
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |
+| `share_class` | VARCHAR(255) |  | PK |  |
+| `category` | VARCHAR(32) |  | PK |  |
+| `shareholder_count` | INTEGER | 可 |  |  |
+| `units_held` | BIGINT | 可 |  |  |
+| `shareholding_ratio` | NUMERIC(18, 6) | 可 |  |  |
+| `shares_less_than_one_unit` | NUMERIC(30, 4) | 可 |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `idx_xbrl_shareholding_by_category_filing` | filing_id |  |
+
+### xbrl_std_items
+
+| 列 | 型 | NULL | キー | 既定 |
+|---|---|---|---|---|
+| `id` | INTEGER |  | PK |  |
+| `code` | VARCHAR(64) |  |  |  |
+| `statement` | VARCHAR(8) |  |  |  |
+| `section` | VARCHAR(64) | 可 |  |  |
+| `label_ja` | VARCHAR(128) |  |  |  |
+| `display_order` | INTEGER |  |  | `0` |
+| `sign` | VARCHAR(16) |  |  | `'natural'` |
+| `is_required` | BOOLEAN |  |  | `False` |
+| `unit` | VARCHAR(32) | 可 |  |  |
+
+| 索引・一意 | 列 | 一意 |
+|---|---|---|
+| `None` | code | 一意 |
