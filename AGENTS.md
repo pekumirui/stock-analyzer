@@ -61,7 +61,8 @@
 - issue にはエージェント自身のベンダーのラベル（`agent:claude` / `agent:cursor` / `agent:codex`）を付ける。無いベンダーなら `agent:<ベンダー名>` を作って付ける
 - Linear につながらない環境では起票せず、止まって人に確認する
 - ドキュメントと既存のコードが食い違うときはコードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる
-- コード・スクリプトにコメントを足さない。コードから読めることと経緯（issue 番号・障害の話）は書かない。経緯は commit / PR / issue、設計の理由は正本の md に。コードから読めず、知らないと壊す制約（例: `--preload` を使わない理由）だけは 1 行で残す
+- コード・スクリプトにコメントと docstring を足さない。増えると `python -m tools.lint.no_comments` が CI で落ちる（Python・JS・CSS・シェル。道具が読む `# noqa` などは理由文なしなら通る）。経緯は commit / PR / issue に書く。知らないと壊す制約はテストか名前で表す
+- コメント・docstring を消したら `python -m tools.lint.no_comments --write` で台帳（`tools/lint/no_comments_baseline.json`）を減らす
 - 画面の録画(動画)は作らない。見た目の確認はスクリーンショットで行う
 
 ## 認知客観性と反迎合原則 (Anti-Sycophancy)
