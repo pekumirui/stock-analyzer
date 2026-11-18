@@ -2,7 +2,7 @@
 
 **自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。全体は [SCHEMA.md](../SCHEMA.md)。
 
-図は主キーと外部キーの列だけ。線は外部キー（列名つき）。ほかの機能の表は主キーだけ出す。
+図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。
 
 ```mermaid
 erDiagram
@@ -36,16 +36,16 @@ erDiagram
 
 ### monthly_element_sources
 
-| 列 | 型 | NULL | キー | 既定 |
-|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |
-| `year` | INTEGER |  | PK |  |
-| `source_label` | VARCHAR(50) |  | PK |  |
-| `unit` | VARCHAR(16) |  | PK |  |
-| `element` | VARCHAR(50) |  |  |  |
-| `via` | VARCHAR(16) |  |  |  |
-| `first_seen_at` | DATETIME |  |  |  |
-| `last_seen_at` | DATETIME |  |  |  |
+| 列 | 型 | NULL | キー | 値 | 既定 |
+|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK |  |  |
+| `year` | INTEGER |  | PK |  |  |
+| `source_label` | VARCHAR(50) |  | PK |  |  |
+| `unit` | VARCHAR(16) |  | PK |  |  |
+| `element` | VARCHAR(50) |  |  |  |  |
+| `via` | VARCHAR(16) |  |  |  |  |
+| `first_seen_at` | DATETIME |  |  |  |  |
+| `last_seen_at` | DATETIME |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
@@ -53,35 +53,35 @@ erDiagram
 
 ### monthly_elements
 
-| 列 | 型 | NULL | キー | 既定 |
-|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |
-| `year` | INTEGER |  | PK |  |
-| `element` | VARCHAR(50) |  | PK |  |
-| `sort_order` | INTEGER |  |  |  |
-| `unit` | VARCHAR(16) |  |  | `number`（DB） |
+| 列 | 型 | NULL | キー | 値 | 既定 |
+|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK |  |  |
+| `year` | INTEGER |  | PK |  |  |
+| `element` | VARCHAR(50) |  | PK |  |  |
+| `sort_order` | INTEGER |  |  |  |  |
+| `unit` | VARCHAR(16) |  |  |  | `number`（DB） |
 
 ### monthly_issuers
 
-| 列 | 型 | NULL | キー | 既定 |
-|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |
-| `industry` | VARCHAR(50) |  |  | `その他`（DB） |
-| `last_ingested_at` | DATETIME | 可 |  |  |
+| 列 | 型 | NULL | キー | 値 | 既定 |
+|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK |  |  |
+| `industry` | VARCHAR(50) |  |  |  | `その他`（DB） |
+| `last_ingested_at` | DATETIME | 可 |  |  |  |
 
 ### monthly_tables
 
-| 列 | 型 | NULL | キー | 既定 |
-|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |
-| `year` | INTEGER |  | PK |  |
+| 列 | 型 | NULL | キー | 値 | 既定 |
+|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK |  |  |
+| `year` | INTEGER |  | PK |  |  |
 
 ### monthly_values
 
-| 列 | 型 | NULL | キー | 既定 |
-|---|---|---|---|---|
-| `code` | VARCHAR(5) |  | PK |  |
-| `year` | INTEGER |  | PK |  |
-| `element` | VARCHAR(50) |  | PK |  |
-| `month` | INTEGER |  | PK |  |
-| `value` | FLOAT |  |  |  |
+| 列 | 型 | NULL | キー | 値 | 既定 |
+|---|---|---|---|---|---|
+| `code` | VARCHAR(5) |  | PK |  |  |
+| `year` | INTEGER |  | PK |  |  |
+| `element` | VARCHAR(50) |  | PK |  |  |
+| `month` | INTEGER |  | PK |  |  |
+| `value` | FLOAT |  |  |  |  |

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sqlalchemy import Table
+from sqlalchemy import Enum, Table
 from sqlalchemy.dialects import sqlite
 
 from app.models import Base
-from tools.dataflow.render import DOMAINS, table_domain
+from tools.dataflow.render import DOMAINS, HUB, table_domain
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERVIEW = "docs/SCHEMA.md"
@@ -37,20 +37,32 @@ def _default(col) -> str:
     return "（関数）"
 
 
+def _declared(col) -> str | None:
+    return col.info.get("ref")
+
+
 def _key(col) -> str:
     out = ["PK"] if col.primary_key else []
     out += [f"FK → `{r}`" for r in _refs(col)]
+    if _declared(col):
+        out.append(f"→ `{_declared(col)}`（制約なし）")
     return " / ".join(out)
+
+
+def _values(col) -> str:
+    if not isinstance(col.type, Enum):
+        return ""
+    return " / ".join(f"`{v}`" for v in col.type.enums)
 
 
 def _table_section(t: Table) -> list[str]:
     lines = [f"### {t.name}", ""]
     if t.dialect_options["sqlite"].get("with_rowid") is False:
         lines += ["`WITHOUT ROWID`", ""]
-    lines += ["| 列 | 型 | NULL | キー | 既定 |", "|---|---|---|---|---|"]
+    lines += ["| 列 | 型 | NULL | キー | 値 | 既定 |", "|---|---|---|---|---|---|"]
     for c in t.columns:
         null = "" if not c.nullable else "可"
-        lines.append(f"| `{c.name}` | {_type(c)} | {null} | {_key(c)} | {_default(c)} |")
+        lines.append(f"| `{c.name}` | {_type(c)} | {null} | {_key(c)} | {_values(c)} | {_default(c)} |")
     lines.append("")
     uniques = sorted(
         (u for u in t.constraints if type(u).__name__ == "UniqueConstraint"),
@@ -69,24 +81,33 @@ def _table_section(t: Table) -> list[str]:
     return lines
 
 
+def _links(t: Table):
+    for c in t.columns:
+        for fk in c.foreign_keys:
+            yield c, fk.column.table, "--"
+        if _declared(c):
+            target = Base.metadata.tables[_declared(c).split(".")[0]]
+            if target.name not in HUB:
+                yield c, target, ".."
+
+
 def _mermaid(own: list[Table]) -> list[str]:
     own_names = {t.name for t in own}
     edges = []
     outside = {}
     for t in own:
-        for c in t.columns:
-            for fk in c.foreign_keys:
-                target = fk.column.table
-                if target.name not in own_names:
-                    outside[target.name] = target
-                left = "|o" if c.nullable else "||"
-                edges.append(f"  {target.name} {left}--o{{ {t.name} : {c.name}")
+        for c, target, line in _links(t):
+            if target.name not in own_names:
+                outside[target.name] = target
+            left = "|o" if c.nullable else "||"
+            edges.append(f"  {target.name} {left}{line}o{{ {t.name} : {c.name}")
     lines = ["```mermaid", "erDiagram"]
     for t in sorted([*own, *outside.values()], key=lambda t: t.name):
-        cols = [c for c in t.columns if c.primary_key or (c.foreign_keys and t.name in own_names)]
+        linked = {c.name for c, _, _ in _links(t)} if t.name in own_names else set()
+        cols = [c for c in t.columns if c.primary_key or c.name in linked]
         lines.append(f"  {t.name} {{")
         for c in cols:
-            mark = ", ".join(m for m, on in (("PK", c.primary_key), ("FK", bool(c.foreign_keys))) if on)
+            mark = ", ".join(m for m, on in (("PK", c.primary_key), ("FK", c.name in linked)) if on)
             lines.append(f"    {type(c.type).__name__} {c.name} {mark}")
         lines.append("  }")
     lines += sorted(edges)
@@ -100,7 +121,7 @@ def _page(key: str, label: str, own: list[Table]) -> str:
         "",
         f"**自動生成。手で直さない。** 正は `app/models.py`。作り直しは `{REBUILD}`。全体は [SCHEMA.md](../SCHEMA.md)。",
         "",
-        "図は主キーと外部キーの列だけ。線は外部キー（列名つき）。ほかの機能の表は主キーだけ出す。",
+        "図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。`stocks` への参照は線にしない（表には出す）。ほかの機能の表は主キーだけ出す。",
         "",
         *_mermaid(own),
         "",
