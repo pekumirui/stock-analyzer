@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     Date,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     Index,
@@ -18,6 +19,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
+
+
+def _one_of(*values: str, length: int | None = None) -> Enum:
+    return Enum(*values, native_enum=False, validate_strings=True, create_constraint=False, length=length)
 
 
 class Stock(Base):
@@ -39,7 +44,7 @@ class Homepage(Base):
     code = Column(String(5), primary_key=True)
     url = Column(Text, nullable=False)
     host = Column(String(255), nullable=False)        # 小文字。先頭 www. を除く（KAB-320）
-    source = Column(String(32), nullable=False)       # manual / xbrl_url / tanshin_html
+    source = Column(_one_of("manual", "xbrl_url", "tanshin_html", length=32), nullable=False)
     origin = Column(Text, nullable=False)             # manual / xbrl:{doc_id} / tanshin:{disclosure_no}
     changed_at = Column(DateTime, nullable=False)     # url 等が変わった時刻
     checked_at = Column(DateTime, nullable=False)     # 最後に確認した時刻
@@ -47,7 +52,7 @@ class Homepage(Base):
 
 class BriefingDocument(Base):
     __tablename__ = "briefing_documents"
-    source = Column(String(16), primary_key=True)       # tdnet / irbank / homepage
+    source = Column(_one_of("tdnet", "irbank", "homepage", length=16), primary_key=True)
     document_id = Column(String(80), primary_key=True)
     code = Column(String(5), nullable=False)            # 普通株の 5 桁
     company_name = Column(String)
@@ -96,7 +101,7 @@ class BriefingExtract(Base):
     document_id = Column(String(80), primary_key=True)
     source = Column(String(16), nullable=False)          # 読んだ PDF の briefing_documents.source
     code = Column(String(5), nullable=False)
-    status = Column(String(16), nullable=False)          # submitted / done / failed
+    status = Column(_one_of("submitted", "done", "failed", length=16), nullable=False)
     batch_id = Column(String(80))
     request_key = Column(String(24), nullable=False)
     model = Column(String(40), nullable=False)
@@ -124,7 +129,7 @@ class BriefingPage(Base):
     __tablename__ = "briefing_pages"
     document_id = Column(String(80), primary_key=True)
     page = Column(Integer, primary_key=True)
-    kind = Column(String(24), nullable=False)            # divider / disclaimer / chart_or_table / table_or_text / text
+    kind = Column(_one_of("divider", "disclaimer", "chart_or_table", "table_or_text", "text", length=24), nullable=False)
     title = Column(Text)
     summary = Column(Text)
     tables_json = Column(Text)
@@ -148,7 +153,7 @@ class BriefingFact(Base):
     unit = Column(String(24))
     part_of = Column(Text)                               # 内訳の親（metric|segment）
     verified = Column(Boolean, nullable=False)           # 文字データにある
-    sum_status = Column(String(12))                      # 親の行だけ: ok / split / paren / partial / mismatch
+    sum_status = Column(_one_of("ok", "split", "paren", "partial", "mismatch", length=12))  # 親の行だけ
 
 
 class TanshinCover(Base):
@@ -164,7 +169,7 @@ class TanshinCover(Base):
     code = Column(String(5), nullable=False)              # 普通株の 5 桁
     disclosed_at = Column(DateTime)
     title = Column(Text)
-    source = Column(String(16), nullable=False)           # xbrl_summary / tdnet_pdf
+    source = Column(_one_of("xbrl_summary", "tdnet_pdf", length=16), nullable=False)
     has_material = Column(Boolean)                        # 決算補足説明資料作成の有無
     material_note = Column(String(80))
     has_briefing = Column(Boolean)                        # 決算説明会開催の有無
@@ -422,7 +427,7 @@ class XbrlFiling(Base):
     parse_status = Column(String(16), nullable=False, default="pending")
     parse_error = Column(Text)
     parsed_at = Column(DateTime)
-    documents_status = Column(String(16))  # 原文（KAB-161）: NULL=まだ / stored / empty（選べる HTML が 0 件）
+    documents_status = Column(_one_of("stored", "empty", length=16))  # 原文（KAB-161）。NULL=まだ / empty=選べる HTML が 0 件
     presentation_status = Column(String(8))
     created_at = Column(DateTime, nullable=False)
     __table_args__ = (
@@ -614,8 +619,8 @@ class XbrlFinancial(Base):
     period_end = Column(Date, nullable=False)
     value = Column(Numeric(30, 4), nullable=False)
     unit = Column(String(32), nullable=False, default="JPY")
-    # actual | forecast | forecast_previous（前回予想。EarnForecastRevision の PreviousMember）
-    value_kind = Column(String(24), nullable=False, default="actual", server_default="actual")
+    # forecast_previous は前回予想（EarnForecastRevision の PreviousMember）
+    value_kind = Column(_one_of("actual", "forecast", "forecast_previous", length=24), nullable=False, default="actual", server_default="actual")
     # point | lower | upper（レンジ予想。点予想は point）
     range_side = Column(String(16), nullable=False, default="point", server_default="point")
     # 数値が指す期間: FY / H1 / Q1 / Q2 / Q3 / year_end / annual
@@ -670,8 +675,8 @@ class XbrlSegment(Base):
     axis = Column(String(255), nullable=False)       # 'jpcrp_cor:OperatingSegmentsAxis'
     member = Column(String(255), nullable=False)     # 'prefix:localName'（会社独自は jpcrp030000-asr_E...）
     member_label_ja = Column(String(255))            # その書類のラベル
-    # segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / reconciling=調整額
-    member_kind = Column(String(16), nullable=False)
+    # segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / reconciling=調整額 / unknown=どれにも当たらない
+    member_kind = Column(_one_of("segment", "subtotal", "other", "total", "reconciling", "unknown", length=16), nullable=False)
     is_consolidated = Column(Boolean, nullable=False)
     period_type = Column(String(8), nullable=False)
     period_start = Column(Date)
@@ -701,7 +706,7 @@ class XbrlShareholderFiling(Base):
     code = Column(String(5), nullable=False)
     doc_id = Column(String(64), nullable=False)
     as_of = Column(Date)                            # 大株主・所有者別の instant（期末）
-    basis = Column(String(16), nullable=False)      # shares / voting_rights / both
+    basis = Column(_one_of("shares", "voting_rights", "both", length=16), nullable=False)
     shares_per_unit = Column(Integer)               # 単元株式数（普通株式。無ければ NULL）
     is_amendment = Column(Boolean, nullable=False, default=False)
     amends_doc_id = Column(String(8))
@@ -720,7 +725,7 @@ class XbrlMajorShareholder(Base):
     __tablename__ = "xbrl_major_shareholders"
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
     rank = Column(Integer, primary_key=True)        # NoNMajorShareholdersMember の N
-    basis = Column(String(16), primary_key=True)    # shares / voting_rights
+    basis = Column(_one_of("shares", "voting_rights", length=16), primary_key=True)
     name = Column(Text)
     address = Column(Text)
     shares_held = Column(Numeric(30, 4))            # 所有株式数。議決権ベースの表は NULL
@@ -779,7 +784,7 @@ class MaterialMonthly(Base):
     __tablename__ = "material_monthly"
     material_id = Column(String, primary_key=True)
     month = Column(String(7), primary_key=True)
-    metric = Column(String, primary_key=True)     # production / import / export / inventory / shipment
+    metric = Column(_one_of("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales"), primary_key=True)
     source = Column(String, primary_key=True)     # seidou:<報告番号> / trade
     value = Column(Float, nullable=False)
     unit = Column(String, nullable=False)          # t / kl / 本 など。換算しない
@@ -797,7 +802,7 @@ class MaterialTradeCountry(Base):
     __tablename__ = "material_trade_country"
     material_id = Column(String, primary_key=True)
     month = Column(String(7), primary_key=True)
-    flow = Column(String, primary_key=True)        # import / export
+    flow = Column(_one_of("import", "export"), primary_key=True)
     country = Column(String(3), primary_key=True)  # 貿易統計の国コード（137 = サウジアラビア）
     country_name = Column(String, nullable=False)
     value = Column(Float, nullable=False)
@@ -811,8 +816,8 @@ class PtsSnapshot(Base):
     """株探の PTS ナイトタイムセッションのランキング。取得 1 回ごとにランキング全行を残す。"""
     __tablename__ = "pts_snapshots"
     fetched_at = Column(DateTime, primary_key=True)  # 取得時刻 JST
-    ranking = Column(String, primary_key=True)       # night_up / night_down / night_volume
-    code = Column(String(5), primary_key=True)       # stocks.code と同じ 5 桁。FK は付けない
+    ranking = Column(_one_of("night_up", "night_down", "night_volume"), primary_key=True)
+    code = Column(String(5), primary_key=True, info={"ref": "stocks.code"})
     session_date = Column(Date, nullable=False)      # 比べている通常取引の終値の日
     as_of = Column(String(5))                        # 株探の「HH:MM現在」（15 分ディレイ）
     rank = Column(Integer, nullable=False)
@@ -832,7 +837,7 @@ class EdinetFiler(Base):
     """
     __tablename__ = "edinet_filers"
     edinet_code = Column(String(6), primary_key=True)
-    sec_code = Column(String(5), index=True)        # 証券コード 5 桁。stocks.code と同じ形
+    sec_code = Column(String(5), index=True, info={"ref": "stocks.code"})  # 証券コード 5 桁
     filer_name = Column(String)
     filer_name_en = Column(String)
     filer_type = Column(String)                     # 提出者種別（内国法人・組合 / 外国法人・組合 / 個人 など）
@@ -855,7 +860,7 @@ class EdinetDocument(Base):
     file_date = Column(Date, primary_key=True)
     seq_number = Column(Integer, primary_key=True)
     doc_id = Column(String(8), nullable=False, index=True)
-    code = Column(String(5), index=True)            # stocks.code。secCode か edinet_filers から引く。FK は付けない
+    code = Column(String(5), index=True, info={"ref": "stocks.code"})  # secCode か edinet_filers から引く
     edinet_code = Column(String(6), index=True)
     sec_code = Column(String(5))
     jcn = Column(String(13))
@@ -935,7 +940,7 @@ class LargeHoldingReport(Base):
     issuer_edinet_code = Column(String(6))
     issuer_sec_code = Column(String(5))             # 発行者の証券コード（CSV の 4 桁に 0 を付けた 5 桁）
     issuer_name = Column(String)
-    code = Column(String(5))                        # stocks.code。上場していなければ NULL。FK は付けない
+    code = Column(String(5), info={"ref": "stocks.code"})  # 上場していなければ NULL
     obligation_date = Column(Date)                  # 報告義務発生日
     filing_date = Column(Date)                      # 表紙の提出日
     reason = Column(Text)                           # 提出事由（変更報告書だけ）
@@ -947,11 +952,11 @@ class LargeHoldingReport(Base):
     holding_ratio_prev = Column(Float)              # 直前の報告書の保有割合。大量保有報告書は NULL
     joint_holders_text = Column(Text)               # 第3 共同保有者に関する事項（該当なしは NULL）
     is_amendment = Column(Boolean, nullable=False, default=False)
-    amends_doc_id = Column(String(8))               # 訂正の対象（DEI の IdentificationOfDocumentSubjectToAmendment）
-    original_doc_id = Column(String(8), nullable=False, index=True)  # 訂正をたどった大元。訂正でなければ自分
+    amends_doc_id = Column(String(8), info={"ref": "large_holding_reports.doc_id"})  # 訂正の対象（DEI の IdentificationOfDocumentSubjectToAmendment）
+    original_doc_id = Column(String(8), nullable=False, index=True, info={"ref": "large_holding_reports.doc_id"})  # 訂正をたどった大元。訂正でなければ自分
     is_latest = Column(Boolean, nullable=False, default=False)  # 大元ごとに取下げでない最新の 1 件
     withdrawn = Column(Boolean, nullable=False, default=False)  # 取下げ・不開示（edinet_documents から）
-    parse_status = Column(String, nullable=False)   # parsed / failed
+    parse_status = Column(_one_of("parsed", "failed"), nullable=False)
     parse_error = Column(Text)
     fetched_at = Column(DateTime, nullable=False)
     __table_args__ = (
@@ -964,7 +969,7 @@ class LargeHoldingReport(Base):
 class LargeHolding(Base):
     """大量保有の 1 書類 × 提出者・共同保有者 1 人（CSV の FilerLargeVolumeHolder<N>Member）。"""
     __tablename__ = "large_holdings"
-    doc_id = Column(String(8), primary_key=True)
+    doc_id = Column(String(8), primary_key=True, info={"ref": "large_holding_reports.doc_id"})
     holder_no = Column(Integer, primary_key=True)   # 書類の中の番号（1 始まり）
     edinet_code = Column(String(6), index=True)
     name = Column(String)
@@ -994,7 +999,7 @@ class EdinetBuyback(Base):
     submit_datetime = Column(DateTime)              # JST naive
     doc_type_code = Column(String(3), nullable=False)  # 220 報告書 / 230 訂正
     form_code = Column(String(6))                   # 170000 株式会社 / 253000 投資法人
-    code = Column(String(5))                        # stocks.code。上場していなければ NULL。FK は付けない
+    code = Column(String(5), info={"ref": "stocks.code"})  # 上場していなければ NULL
     edinet_code = Column(String(6), index=True)
     filer_name = Column(String)
     report_month = Column(String(7))                # 報告月 YYYY-MM（報告期間の末日の月）
@@ -1010,7 +1015,7 @@ class EdinetBuyback(Base):
     original_doc_id = Column(String(8), nullable=False, index=True)
     is_latest = Column(Boolean, nullable=False, default=False)
     withdrawn = Column(Boolean, nullable=False, default=False)
-    parse_status = Column(String, nullable=False)   # parsed / meta（取得状況が対象外の訂正）/ failed
+    parse_status = Column(_one_of("parsed", "meta", "failed"), nullable=False)  # meta は取得状況が対象外の訂正
     parse_error = Column(Text)
     fetched_at = Column(DateTime, nullable=False)
     __table_args__ = (
@@ -1021,9 +1026,9 @@ class EdinetBuyback(Base):
 class EdinetBuybackResolution(Base):
     """自己株券買付状況報告書の 1 書類 × 決議 1 件（取締役会・株主総会・投資法人の役員会）。"""
     __tablename__ = "edinet_buyback_resolutions"
-    doc_id = Column(String(8), primary_key=True)
+    doc_id = Column(String(8), primary_key=True, info={"ref": "edinet_buybacks.doc_id"})
     resolution_no = Column(Integer, primary_key=True)  # 書類の中の順番（1 始まり）
-    kind = Column(String, nullable=False)           # board / shareholders
+    kind = Column(_one_of("board", "shareholders"), nullable=False)
     body = Column(String)                           # 決議した機関（取締役会・定時株主総会・役員会）
     resolution_date = Column(Date)                  # 決議日
     acquire_from = Column(Date)                     # 取得期間
@@ -1049,10 +1054,10 @@ class EdinetTenderOffer(Base):
     is_issuer = Column(Boolean, nullable=False, default=False)  # 発行者による公開買付け（自社株 TOB）
     offeror_edinet_code = Column(String(6), index=True)
     offeror_name = Column(String)
-    offeror_code = Column(String(5))                # 買付者が上場していれば stocks.code
+    offeror_code = Column(String(5), info={"ref": "stocks.code"})  # 買付者が上場していれば
     target_edinet_code = Column(String(6), index=True)
     target_name = Column(String)
-    target_code = Column(String(5), index=True)     # 対象者の stocks.code
+    target_code = Column(String(5), index=True, info={"ref": "stocks.code"})  # 対象者
     announced_date = Column(Date)                   # 届出書の提出日
     period_start = Column(Date)                     # 買付け等の期間（訂正で延長したら延長後）
     period_end = Column(Date)
@@ -1062,13 +1067,13 @@ class EdinetTenderOffer(Base):
     min_shares = Column(BigInteger)                 # 買付予定数の下限（無ければ NULL）
     max_shares = Column(BigInteger)                 # 買付予定数の上限（無ければ NULL）
     holding_ratio_after = Column(Float)             # 買付け後の株券等所有割合（届出書は予定、報告書は結果）
-    opinion = Column(String)                        # 対象者の意見: support / oppose / neutral / reserved
-    recommendation = Column(String)                 # 応募: recommend / leave / not_recommend
-    status = Column(String, nullable=False)         # open / succeeded / failed / withdrawn
+    opinion = Column(_one_of("support", "oppose", "neutral", "reserved"))  # 対象者の意見
+    recommendation = Column(_one_of("recommend", "leave", "not_recommend"))  # 応募
+    status = Column(_one_of("open", "succeeded", "failed", "withdrawn"), nullable=False)
     tendered_shares = Column(BigInteger)            # 応募数（株式換算）
     purchased_shares = Column(BigInteger)           # 買付数
     result_date = Column(Date)                      # 公開買付報告書の提出日
-    latest_doc_id = Column(String(8))               # いちばん新しい書類
+    latest_doc_id = Column(String(8), info={"ref": "edinet_tender_offer_docs.doc_id"})  # いちばん新しい書類
     doc_count = Column(Integer)
     updated_at = Column(DateTime, nullable=False)
 
@@ -1077,7 +1082,7 @@ class EdinetTenderOfferDoc(Base):
     """公開買付けの書類 1 件（240〜340）。届出・訂正・撤回・報告書・意見表明・対質問回答など。"""
     __tablename__ = "edinet_tender_offer_docs"
     doc_id = Column(String(8), primary_key=True)
-    tender_offer_id = Column(String(8), nullable=False, index=True)  # 大元（parent_doc_id をたどる）
+    tender_offer_id = Column(String(8), nullable=False, index=True, info={"ref": "edinet_tender_offers.tender_offer_id"})  # 大元（parent_doc_id をたどる）
     file_date = Column(Date, nullable=False)
     submit_datetime = Column(DateTime)
     doc_type_code = Column(String(3), nullable=False)
@@ -1103,6 +1108,6 @@ class EdinetTenderOfferDoc(Base):
     success = Column(Boolean)                       # 公開買付けの成否（報告書）
     tendered_shares = Column(BigInteger)
     purchased_shares = Column(BigInteger)
-    parse_status = Column(String, nullable=False)   # parsed / meta（中身を読まない書類）/ failed
+    parse_status = Column(_one_of("parsed", "meta", "failed"), nullable=False)  # meta は中身を読まない書類
     parse_error = Column(Text)
     fetched_at = Column(DateTime, nullable=False)
