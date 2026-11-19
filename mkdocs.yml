@@ -35,6 +35,9 @@ plugins:
 hooks:
   - tools/wiki/mkdocs_hook.py
 
+extra_css:
+  - assets/wiki.css
+
 extra_javascript:
   - path: assets/mermaid-elk.js
     type: module

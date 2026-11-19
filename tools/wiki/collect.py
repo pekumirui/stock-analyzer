@@ -36,7 +36,7 @@ SKIP_DIR_NAMES = frozenset(
 ROOT_SKIP_DIR_NAMES = frozenset({"data", "forecast-exp", "DESIGN"})
 # 画像と、1 枚で完結する HTML（自動生成の docs/dataflow/viewer.html）
 ASSET_SUFFIXES = frozenset(
-    {".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".html", ".js"}
+    {".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".html", ".js", ".css"}
 )
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\(\s*<?([^>\s)]+)>?\s*\)")
 HEADING_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)

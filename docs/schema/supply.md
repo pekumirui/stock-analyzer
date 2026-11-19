@@ -39,7 +39,7 @@ erDiagram
 |---|---|---|---|---|---|---|
 | `material_id` | VARCHAR |  | PK |  |  | config/supply/supply_chain.json の id（FK なし） |
 | `month` | VARCHAR(7) |  | PK |  |  | YYYY-MM |
-| `metric` | VARCHAR |  | PK | `production` / `shipment` / `inventory` / `import` / `export` / `processing` / `domestic_sales` |  | processing は原油処理、domestic_sales は国内向販売 |
+| `metric` | VARCHAR |  | PK | `production`<br>`shipment`<br>`inventory`<br>`import`<br>`export`<br>`processing` 原油処理<br>`domestic_sales` 国内向販売 |  |  |
 | `source` | VARCHAR |  | PK |  |  | seidou:<報告番号>（生産動態）/ sekiyu（石油統計）/ trade（貿易） |
 | `value` | FLOAT |  |  |  |  |  |
 | `unit` | VARCHAR |  |  |  |  | t / kl / 本 など。換算しない |

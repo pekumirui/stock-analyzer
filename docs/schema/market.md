@@ -18,7 +18,7 @@ erDiagram
   }
   briefing_extracts {
     String document_id PK, FK
-    String source FK
+    Enum source FK
     String code FK
   }
   briefing_facts {
@@ -134,7 +134,7 @@ erDiagram
 | `sha256` | VARCHAR(64) | 可 |  |  |  |  |
 | `size` | INTEGER | 可 |  |  |  |  |
 | `status` | VARCHAR(16) |  |  |  |  | saved |
-| `storage` | VARCHAR(16) |  |  |  | `local`（DB） | local / onedrive |
+| `storage` | VARCHAR(16) |  |  | `local` / `onedrive` | `local`（DB） |  |
 | `saved_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |
@@ -148,9 +148,9 @@ erDiagram
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `document_id` | VARCHAR(80) |  | PK / → `briefing_documents.(source, document_id)`（制約なし） |  |  | 出所をまたいで同じ開示番号 |
-| `source` | VARCHAR(16) |  | → `briefing_documents.(source, document_id)`（制約なし） |  |  | どの出所の PDF を読んだか |
+| `source` | VARCHAR(16) |  | → `briefing_documents.(source, document_id)`（制約なし） | `tdnet` / `irbank` / `homepage` |  | どの出所の PDF を読んだか |
 | `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
-| `status` | VARCHAR(16) |  |  | `submitted` / `done` / `failed` |  | 結果を受け取ったら done（1 ページでも読めたら）か failed |
+| `status` | VARCHAR(16) |  |  | `submitted`<br>`done` 1 ページでも読めた<br>`failed` |  | 結果を受け取ったら done か failed |
 | `batch_id` | VARCHAR(80) | 可 |  |  |  |  |
 | `request_key` | VARCHAR(24) |  |  |  |  | Batch の custom_id の頭。document_id は custom_id に使えない文字を含みうる |
 | `model` | VARCHAR(40) |  |  |  |  |  |
@@ -428,7 +428,7 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 | `fy_eps` | FLOAT | 可 |  |  |  | 通期会社予想 |
 | `is_revision` | BOOLEAN | 可 |  |  | `False` | 予想修正開示フラグ |
 | `raw_json` | TEXT | 可 |  |  |  | 元データ全項目 |
-| `source` | VARCHAR(16) | 可 |  |  |  | jquants / xbrl。NULL は J-Quants |
+| `source` | VARCHAR(16) | 可 |  | `jquants` / `xbrl` |  | NULL は J-Quants |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|
