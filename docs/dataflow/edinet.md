@@ -7,6 +7,10 @@
 ## バッチ
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["edinet/edinet_archive.py"]:::job
   n1["edinet/edinet_buybacks.py"]:::job
@@ -112,6 +116,10 @@ flowchart LR
 ## API
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["GET /api/holders/activity"]:::api
   n1["GET /api/holders/search"]:::api
