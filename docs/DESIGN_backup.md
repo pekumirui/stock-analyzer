@@ -128,7 +128,7 @@ KAB-280 から、`jobs/ops/backup_data.py` が毎日 **03:30 JST** に `data/xbr
 - `sync` は使わない（VPS で消すと OneDrive からも消える）。VPS 側も OneDrive 側も消さない。世代は持たない（ファイルは足すだけ）
 - remote・ルート・`BACKUP_OFFSITE`・`BACKUP_RCLONE_BIN` は上の表と同じ。rclone / remote が無いときは `offsite skipped` でスキップ（exit 0）。送信・確認の失敗は `fail backup_data:` で非ゼロ終了し、`fail cron` が page する
 - `--only xbrl` / `--only monthly` で片方だけ
-- 03:30 は `data/` に書くジョブ（10〜23 時）と `backup_db`（05:00）の間
+- 03:30 は `data/xbrl` と `data/monthly` に書くジョブ（10〜23 時）と `backup_db`（05:00）の間。`data/edinet` に書く `edinet_archive`（0〜6 時の毎時）とは重なる（move は 10 分より古い ZIP だけ送る）
 - ほかの `data/`（`xbrl_taxonomy` はリポジトリ同梱、`intraday` / `stats` / `inventory`）は対象外
 - 戻すときは `rclone copy onedrive:stock-analyzer-backups/data/xbrl data/xbrl`
 - `data/edinet`（EDINET の ZIP。KAB-281）だけは `rclone move`（`*.zip` で 10 分より古いもの）。送って確かめたものから VPS 側を消す。1 回は `--max-duration 50m --cutoff-mode SOFT` で区切る。打ち切り（rclone exit 8 / 10）は失敗にせず `left=` を出して exit 0、未送分は翌日。途中までの送信成功分だけ VPS から消える。rclone の本当のエラーと、3600 秒の Python timeout（rclone が止まらないハング）は今までどおり `fail backup_data:`。読むときは `app/edinet/archive.py` が手元 → EDINET → OneDrive の順に探す（`docs/jobs/edinet.md` §10）
