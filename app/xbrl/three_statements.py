@@ -1717,11 +1717,6 @@ def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | Non
 
 
 def gather_heads(keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[str, str]) -> list[int]:
-    """同じ見出しの行のかたまりが表の中で 2 つ以上に分かれていたら、1 つに寄せた行の並び（元の位置の一覧）を返す。
-
-    寄せる先は行がいちばん多いかたまり（同じなら前）。前にあったかたまりは先頭に、後ろにあったかたまりは末尾に足す。
-    寄せる先の最後の行がその見出しの合計の行なら、合計の行の手前に足す。かたまりの中の並びと、見出しの無い行の位置は変えない。
-    """
     def total(i: int, head: tuple, depth: int) -> bool:
         if len(paths[i]) != depth + 1:
             return False
