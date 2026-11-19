@@ -4,7 +4,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from tools.dataflow.render import DOMAINS, ENTRIES, HUB, Entry, entry_domain, load_entries
+from tools.dataflow.render import DOMAINS, ELK_LAYOUT, ENTRIES, HUB, Entry, entry_domain, load_entries
 from tools.jobs.args import Arg, job_args
 from tools.jobs.crontab import CRONTAB, Run, dow_text, load, schedule_text
 
@@ -16,7 +16,6 @@ REBUILD = "python -m tools.jobs.render"
 _LABEL = dict(DOMAINS)
 _JOB_PATH = re.compile(r"jobs/[\w/]+\.py")
 _EDGE_TABLES = 2
-_ELK = ["---", "config:", "  layout: elk", "---"]
 
 
 def _domain(job: str) -> str:
@@ -189,7 +188,7 @@ def _dependency_graph(domain: str, deps: dict[tuple[str, str], list[str]]) -> li
     def nid(job: str) -> str:
         return ids.setdefault(job, f"n{len(ids)}")
 
-    lines = ["```mermaid", *_ELK, "flowchart LR"]
+    lines = ["```mermaid", *ELK_LAYOUT, "flowchart LR"]
     for job in sorted({j for pair in picked for j in pair}):
         cls = "own" if _domain(job) == domain else "ext"
         lines.append(f'  {nid(job)}["{_stem(job)}"]:::{cls}')

@@ -37,6 +37,7 @@ TABLE_PREFIX: list[tuple[str, str]] = [
 ]
 # ほぼ全部の入口が読む表。API の機能を決めるときと、図の読む線からは外す（表には出す）
 HUB = frozenset({"stocks"})
+ELK_LAYOUT = ["---", "config:", "  layout: elk", "---"]
 
 HEADER = """\
 # データの流れ（バッチ・API × テーブル）
@@ -123,7 +124,7 @@ def _mermaid(entries: list[Entry], domain: str, kind: str) -> list[str]:
     def nid(key: str) -> str:
         return ids.setdefault(key, f"n{len(ids)}")
 
-    lines = ["```mermaid", "flowchart LR"]
+    lines = ["```mermaid", *ELK_LAYOUT, "flowchart LR"]
     for e in picked:
         lines.append(f'  {nid("e:" + e.name)}["{e.name.removeprefix("jobs/")}"]:::{kind}')
     for t in tables:

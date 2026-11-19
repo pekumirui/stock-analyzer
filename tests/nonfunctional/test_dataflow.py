@@ -138,6 +138,7 @@ def test_mermaid_draws_entry_to_table_and_skips_hub_reads():
     assert f"{names['monthly/ingest.py']} -.- {names['statements']}" in graph
     assert "stocks" not in names and "monthly/fetch.py" not in names
     assert '[("statements")]:::ext' in graph
+    assert graph.startswith("\n---\nconfig:\n  layout: elk\n---\nflowchart LR\n")
 
 
 def test_viewer_embeds_parseable_data():

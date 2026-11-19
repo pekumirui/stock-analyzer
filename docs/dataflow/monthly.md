@@ -7,6 +7,10 @@
 ## バッチ
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["monthly/ir_monthly_html_ingest.py"]:::job
   n1["monthly/ir_monthly_json_ingest.py"]:::job
@@ -71,6 +75,10 @@ flowchart LR
 ## API
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["DELETE /api/v1/tables/{code}/{year}/elements"]:::api
   n1["GET /api/v1/tables"]:::api
