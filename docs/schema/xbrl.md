@@ -135,6 +135,8 @@ erDiagram
 
 TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#tdnet_pdf_documents)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `disclosure_no` | VARCHAR(14) |  | PK / → `statements.disclosure_no`（制約なし） |  |  | TDnet の docID（= XBRL ZIP 名の後ろ 14 桁） |
@@ -161,6 +163,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
 開示ごとのコンテキスト（期間・連結か個別か・次元）
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_contexts)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -184,6 +188,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 
 短信 ZIP の表示用 HTML。書類ごとに表示順で並べる
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_documents)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
@@ -198,6 +204,8 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 ### xbrl_element_mappings
 
 XBRL の要素 → 標準科目の対応
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_element_mappings)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -218,6 +226,8 @@ XBRL の要素 → 標準科目の対応
 ### xbrl_elements
 
 XBRL の要素。名前空間 × 名前で 1 行
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_elements)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -242,6 +252,8 @@ XBRL の要素。名前空間 × 名前で 1 行
 
 開示の値（生データ層）。開示 × 要素 × コンテキスト
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_facts)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -264,6 +276,8 @@ XBRL の要素。名前空間 × 名前で 1 行
 ### xbrl_filings
 
 開示 1 件（1 ZIP = 1 filing）
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_filings)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -299,6 +313,8 @@ XBRL の要素。名前空間 × 名前で 1 行
 
 標準科目ごとの値（正規化層）。xbrl_facts から再生成できる
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_financials)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -328,6 +344,8 @@ XBRL の要素。名前空間 × 名前で 1 行
 
 XBRL のバッチの実行記録
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_job_runs)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -342,6 +360,8 @@ XBRL のバッチの実行記録
 ### xbrl_major_shareholders
 
 大株主の状況 1 行（順位 × 株式ベース / 議決権ベース）
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_major_shareholders)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -362,6 +382,8 @@ XBRL のバッチの実行記録
 ### xbrl_pdf_matches
 
 短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_pdf_matches)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -385,6 +407,8 @@ XBRL のバッチの実行記録
 
 書類の表示リンク（*pre.xml）のうち財務3表の区分
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_presentation_roles)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
@@ -399,6 +423,8 @@ XBRL のバッチの実行記録
 ### xbrl_segments
 
 セグメント注記の正規化層。xbrl_financials と同じく再生成できる
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_segments)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -430,6 +456,8 @@ XBRL のバッチの実行記録
 
 有報の大株主・所有者別の 1 書類。xbrl_facts から正規化
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_shareholder_filings)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
@@ -454,6 +482,8 @@ XBRL のバッチの実行記録
 
 所有者別状況 1 行（株式の種類 × 区分）
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_shareholding_by_category)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `filing_id` | INTEGER |  | PK / FK → `xbrl_filings.id` |  |  |  |
@@ -471,6 +501,8 @@ XBRL のバッチの実行記録
 ### xbrl_std_items
 
 標準科目
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/xbrl.md#xbrl_std_items)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|

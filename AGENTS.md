@@ -12,6 +12,8 @@
 | テーブル・列・索引の一覧と ER 図 | `docs/SCHEMA.md` と機能ごとの `docs/schema/<機能>.md`（`app/models.py` から自動生成。手で直さない。モデルを変えたら `python -m tools.schema.render`）。拡大・検索できる ER 図は wiki の `schema/erd/`（Liam ERD。入力の `docs/schema/tbls.json` も同じコマンドで作る） |
 | J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
 | 画面の一覧・画面遷移・画面が呼ぶ API と表・API の引数 | `docs/SCREENS.md` とタブごとの `docs/screen/gen/<tab>.md`（`static/js/`・FastAPI の OpenAPI・上のデータの流れから自動生成。手で直さない。画面のルート・JS が呼ぶ API・API の引数を変えたら `python -m tools.screen.render`） |
+| モジュールの依存図・`deploy/` のシステム構成（`overview/modules.md` / `overview/system.md`） | `docs/overview/`（`app/` `jobs/` `mcp/` `tools/` `analyzer/` の import と `deploy/` から自動生成。手で直さない。import や `deploy/` を変えたら `python -m tools.overview.render`） |
+| 行の状態の遷移図 | `docs/schema/states.md`（手書き。値の列挙を変えたら `tests/nonfunctional/test_state_diagrams.py` に従って直す） |
 | 画面（タブ別） | `docs/screen/<tab>.md`。書き方と共通見た目は `docs/screen/SPEC.md` |
 | 月次の行名 | `docs/jobs/monthly_labels.md` |
 | XBRL の設計と検証 | `docs/jobs/xbrl.md` / `docs/XBRL_VERIFY.md` |

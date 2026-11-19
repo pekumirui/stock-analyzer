@@ -4,6 +4,8 @@
 
 ## 構成
 
+コードの依存は [モジュールの依存](overview/modules.md)、`deploy/` から読める範囲の構成（systemd・nginx・cron）は [システム構成](overview/system.md)（どちらも自動生成）。下の図は概念図。
+
 ```
 ┌─────────────┐   日次バッチ(19:30 JST)   ┌──────────────┐
 │ J-Quants API │ ─────────────────────→ │  DB           │

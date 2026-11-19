@@ -56,6 +56,8 @@ erDiagram
 
 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/monthly.md#monthly_element_sources)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK / → `monthly_elements.(code, year, element)`（制約なし） |  |  |  |
@@ -75,6 +77,8 @@ erDiagram
 
 月次表の行
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/monthly.md#monthly_elements)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |  |
@@ -87,6 +91,8 @@ erDiagram
 
 発行体ごとの月次属性
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/monthly.md#monthly_issuers)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  |  |
@@ -97,6 +103,8 @@ erDiagram
 
 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/monthly.md#monthly_tables)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK / → `monthly_issuers.code`（制約なし） |  |  |  |
@@ -105,6 +113,8 @@ erDiagram
 ### monthly_values
 
 月次セル
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/monthly.md#monthly_values)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|

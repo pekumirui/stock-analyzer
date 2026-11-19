@@ -2,6 +2,11 @@
 
 `docs/` の設計書と、リポジトリ内の `AGENTS.md`。全体像は [OVERVIEW.md](OVERVIEW.md)。
 
+## 構成
+
+- [モジュールの依存](overview/modules.md)（自動生成）
+- [システム構成](overview/system.md)（自動生成）
+
 ## 画面設計
 
 - [画面の一覧・画面遷移・画面が呼ぶ API](SCREENS.md)（自動生成）
@@ -17,6 +22,7 @@
 ## データモデル
 
 - [テーブル・列・索引・ER 図](SCHEMA.md)（自動生成）
+- [状態遷移（行の状態を持つ列）](schema/states.md)（手書き。図の状態名は Enum と突き合わせるテストがある）
 - [データの流れ（バッチ・API × テーブル）](DATA_FLOW.md)（自動生成。機能ごとの図と、全体の表の[ビューア](dataflow/viewer.html)）
 
 ## ジョブ設計
