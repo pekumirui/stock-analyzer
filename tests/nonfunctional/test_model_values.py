@@ -82,3 +82,24 @@ def test_time_types_are_plain_datetime_columns():
         upsert(db, PtsSnapshot, [row])
         got = db.execute(select(PtsSnapshot.fetched_at).where(PtsSnapshot.ranking == "night_down")).scalar_one()
     assert got == when and got.tzinfo is None
+
+
+def test_meanings_belong_to_listed_values():
+    for c in _enum_columns():
+        assert set(c.type.meanings) <= set(c.type.enums), f"{c.table.name}.{c.name}"
+        assert all(c.type.meanings.values()), f"{c.table.name}.{c.name}"
+
+
+def test_one_of_keeps_the_written_order_and_meanings():
+    from sqlalchemy.dialects import sqlite
+
+    from app.models import _one_of
+
+    mixed = _one_of("parsed", {"meta": "読まない"}, "failed", length=16)
+    assert mixed.enums == ["parsed", "meta", "failed"]
+    assert mixed.meanings == {"meta": "読まない"}
+    assert mixed.compile(dialect=sqlite.dialect()) == "VARCHAR(16)"
+    whole = _one_of({"b": "二", "a": "一"})
+    assert whole.enums == ["b", "a"] and whole.meanings == {"b": "二", "a": "一"}
+    assert whole.compile(dialect=sqlite.dialect()) == "VARCHAR"
+    assert _one_of("x", "y").meanings == {}

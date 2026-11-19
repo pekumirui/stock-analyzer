@@ -43,7 +43,6 @@ def inherit_accounting_standard_from_prior_filings(
         XbrlFiling.doc_id != doc_id,
         XbrlFiling.parse_status == "parsed",
         XbrlFiling.accounting_standard.isnot(None),
-        XbrlFiling.accounting_standard != "",
     )
     if submitted_at is not None:
         q = q.filter(XbrlFiling.submitted_at <= submitted_at)

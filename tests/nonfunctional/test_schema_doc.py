@@ -85,3 +85,27 @@ def test_model_types_have_a_note_and_comments_reach_the_doc():
         for c in t.columns:
             if c.comment:
                 assert c.comment.replace("|", "\\|") in pages, f"{t.name}.{c.name}"
+
+
+def test_value_meanings_reach_the_doc_and_tbls():
+    import json
+
+    from sqlalchemy import Enum
+
+    from app.models import Base
+    from tools.schema.render import TBLS
+
+    out = render()
+    pages = "\n".join(text for p, text in out.items() if p.endswith(".md"))
+    notes = {(t["name"], c["name"]): c.get("comment", "") for t in json.loads(out[TBLS])["tables"] for c in t["columns"]}
+    said = [c for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, Enum) and c.type.meanings]
+    assert said
+    for c in said:
+        cell = "<br>".join(f"`{v}` {c.type.meanings[v]}" if v in c.type.meanings else f"`{v}`" for v in c.type.enums)
+        assert f"| {cell} |" in pages, f"{c.table.name}.{c.name}"
+        note = notes[(c.table.name, c.name)]
+        for v, m in c.type.meanings.items():
+            assert f"{v}（{m}）" in note, f"{c.table.name}.{c.name}"
+    plain = [c for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, Enum) and not c.type.meanings]
+    for c in plain:
+        assert "値: " + " / ".join(c.type.enums) in notes[(c.table.name, c.name)]

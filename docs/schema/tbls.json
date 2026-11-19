@@ -83,7 +83,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "local",
-     "comment": "local / onedrive"
+     "comment": "値: local / onedrive"
     },
     {
      "name": "saved_at",
@@ -147,7 +147,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "どの出所の PDF を読んだか\n→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）"
+     "comment": "どの出所の PDF を読んだか\n→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）\n値: tdnet / irbank / homepage"
     },
     {
      "name": "code",
@@ -161,7 +161,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "結果を受け取ったら done（1 ページでも読めたら）か failed\n値: submitted / done / failed"
+     "comment": "結果を受け取ったら done か failed\n値: submitted / done（1 ページでも読めた）/ failed"
     },
     {
      "name": "batch_id",
@@ -1203,7 +1203,7 @@
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/ gone（取り直しのとき EDINET が 404。残っていない）"
+     "comment": "値: saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/ gone（取り直しのとき EDINET が 404。残っていない）"
     },
     {
      "name": "bytes",
@@ -1545,7 +1545,7 @@
      "type": "VARCHAR",
      "nullable": false,
      "default": null,
-     "comment": "meta は取得状況が対象外の訂正\n値: parsed / meta / failed"
+     "comment": "値: parsed / meta（取得状況が対象外の訂正）/ failed"
     },
     {
      "name": "parse_error",
@@ -2370,13 +2370,15 @@
      "name": "opinion",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "値: support / oppose / neutral / reserved"
     },
     {
      "name": "recommendation",
      "type": "VARCHAR",
      "nullable": true,
-     "default": null
+     "default": null,
+     "comment": "値: recommend / leave / not_recommend"
     },
     {
      "name": "opinion_text",
@@ -2409,7 +2411,7 @@
      "type": "VARCHAR",
      "nullable": false,
      "default": null,
-     "comment": "meta は中身を読まない書類\n値: parsed / meta / failed"
+     "comment": "値: parsed / meta（中身を読まない書類）/ failed"
     },
     {
      "name": "parse_error",
@@ -3616,7 +3618,7 @@
      "type": "VARCHAR",
      "nullable": false,
      "default": null,
-     "comment": "processing は原油処理、domestic_sales は国内向販売\n値: production / shipment / inventory / import / export / processing / domestic_sales"
+     "comment": "値: production / shipment / inventory / import / export / processing（原油処理）/ domestic_sales（国内向販売）"
     },
     {
      "name": "source",
@@ -3814,7 +3816,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "経路（api / doc / ir_html / ir_json / ir_xls / legacy）。記録前からある行は保存名そのものを legacy で入れる"
+     "comment": "経路\n値: api / doc / ir_html / ir_json / ir_xls / legacy（記録前からある行。保存名そのものを入れる）"
     },
     {
      "name": "first_seen_at",
@@ -4429,7 +4431,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "jquants / xbrl。NULL は J-Quants"
+     "comment": "NULL は J-Quants\n値: jquants / xbrl"
     }
    ],
    "indexes": [
@@ -4750,7 +4752,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗）"
+     "comment": "値: ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗）"
     },
     {
      "name": "error",
@@ -4942,7 +4944,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "'instant' | 'duration'"
+     "comment": "値: instant / duration"
     },
     {
      "name": "start_date",
@@ -4968,7 +4970,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "'current' | 'prior1' | 'prior2' | NULL"
+     "comment": "値: current / prior1 / prior2"
     },
     {
      "name": "dimensions_json",
@@ -5059,7 +5061,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "summary（サマリー）/ qualitative（添付資料まるごと）/ attachment（qualitative.htm が無い書類の本表 iXBRL）"
+     "comment": "値: summary（サマリー）/ qualitative（添付資料まるごと）/ attachment（qualitative.htm が無い書類の本表 iXBRL）"
     },
     {
      "name": "file_name",
@@ -5178,7 +5180,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "NULL は値そのもの。'months' は同じ科目・context の値に 月÷12 を足す（有報の「40歳3ヶ月」は年と月が別の要素）"
+     "comment": "NULL は値そのもの\n値: months（同じ科目・context の値に 月÷12 を足す（有報の「40歳3ヶ月」は年と月が別の要素））"
     }
    ],
    "indexes": [
@@ -5514,7 +5516,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "tdnet",
-     "comment": "'tdnet' | 'edinet' | 'tdnet_pdf'"
+     "comment": "値: tdnet / edinet / tdnet_pdf"
     },
     {
      "name": "doc_id",
@@ -5535,7 +5537,7 @@
      "type": "VARCHAR(8)",
      "nullable": true,
      "default": null,
-     "comment": "'FY' | 'Q1' | 'Q2' | 'Q3'"
+     "comment": "値: FY / Q1 / Q2 / Q3"
     },
     {
      "name": "fiscal_year_end",
@@ -5561,7 +5563,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "'JPGAAP' | 'IFRS' | 'USGAAP' | NULL"
+     "comment": "値: JPGAAP / IFRS / USGAAP"
     },
     {
      "name": "is_amendment",
@@ -5608,14 +5610,14 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "原文。NULL=まだ / empty=選べる HTML が 0 件\n値: stored / empty"
+     "comment": "原文。NULL=まだ\n値: stored / empty（選べる HTML が 0 件）"
     },
     {
      "name": "presentation_status",
      "type": "VARCHAR(8)",
      "nullable": true,
      "default": null,
-     "comment": "表示リンク: NULL | 'ok' | 'none' | 'gone' | 'failed'"
+     "comment": "表示リンク\n値: ok / none / gone / failed"
     },
     {
      "name": "created_at",
@@ -5741,7 +5743,8 @@
      "name": "period_type",
      "type": "VARCHAR(8)",
      "nullable": false,
-     "default": null
+     "default": null,
+     "comment": "値: FY / Q1 / Q2 / Q3"
     },
     {
      "name": "period_start",
@@ -5772,21 +5775,21 @@
      "type": "VARCHAR(24)",
      "nullable": false,
      "default": "actual",
-     "comment": "forecast_previous は前回予想（EarnForecastRevision の PreviousMember）\n値: actual / forecast / forecast_previous"
+     "comment": "値: actual / forecast / forecast_previous（前回予想（EarnForecastRevision の PreviousMember））"
     },
     {
      "name": "range_side",
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "point",
-     "comment": "point | lower | upper（レンジ予想。点予想は point）"
+     "comment": "レンジ予想\n値: point（点予想）/ lower / upper"
     },
     {
      "name": "target_period",
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "FY",
-     "comment": "数値が指す期間: FY / H1 / Q1 / Q2 / Q3 / year_end / annual"
+     "comment": "数値が指す期間\n値: FY / H1 / Q1 / Q2 / Q3 / year_end / annual"
     },
     {
      "name": "source_fact_id",
@@ -5807,7 +5810,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL"
+     "comment": "旧行は NULL\n値: primary（本表）/ summary（短信サマリー(tse-ed-t)）"
     },
     {
      "name": "generated_at",
@@ -5942,14 +5945,14 @@
      "type": "VARCHAR(32)",
      "nullable": false,
      "default": null,
-     "comment": "'parse' | 'normalize' | 'edinet_xbrl'"
+     "comment": "値: parse / normalize / edinet_xbrl"
     },
     {
      "name": "status",
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "'running' | 'success' | 'failed' | 'skipped'"
+     "comment": "値: running / success / failed / skipped"
     },
     {
      "name": "processed_count",
@@ -6137,7 +6140,7 @@
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "'BS' | 'PL' | 'CF'"
+     "comment": "値: BS / PL / CF"
     },
     {
      "name": "element_key",
@@ -6158,7 +6161,7 @@
      "type": "VARCHAR(8)",
      "nullable": true,
      "default": null,
-     "comment": "'value' | 'name'。付かなければ NULL"
+     "comment": "付かなければ NULL\n値: value / name"
     },
     {
      "name": "generated_at",
@@ -6277,7 +6280,7 @@
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "'BS' | 'PL' | 'CF'"
+     "comment": "値: BS / PL / CF"
     },
     {
      "name": "is_consolidated",
@@ -6391,7 +6394,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": null,
-     "comment": "segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / reconciling=調整額 / unknown=どれにも当たらない\n値: segment / subtotal / other / total / reconciling / unknown"
+     "comment": "値: segment（各セグメント）/ subtotal（報告セグメント計）/ other（その他）/ total（合計）/ reconciling（調整額）/ unknown（どれにも当たらない）"
     },
     {
      "name": "is_consolidated",
@@ -6404,7 +6407,7 @@
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "filing の period_type"
+     "comment": "filing の period_type\n値: FY / Q1 / Q2 / Q3"
     },
     {
      "name": "period_start",
@@ -6847,7 +6850,7 @@
      "type": "VARCHAR(8)",
      "nullable": false,
      "default": null,
-     "comment": "'BS' | 'PL' | 'CF' | 'OTHER' | 'SEG'"
+     "comment": "値: BS / PL / CF / OTHER / SEG"
     },
     {
      "name": "section",
@@ -6872,7 +6875,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "natural",
-     "comment": "'natural' | 'invert'"
+     "comment": "値: natural / invert"
     },
     {
      "name": "is_required",

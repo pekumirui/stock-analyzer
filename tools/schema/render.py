@@ -95,10 +95,17 @@ def _key(col) -> str:
     return " / ".join(out)
 
 
+def meanings(col) -> dict[str, str]:
+    return getattr(col.type, "meanings", {})
+
+
 def _values(col) -> str:
     if not isinstance(col.type, Enum):
         return ""
-    return " / ".join(f"`{v}`" for v in col.type.enums)
+    said = meanings(col)
+    if not said:
+        return " / ".join(f"`{v}`" for v in col.type.enums)
+    return "<br>".join(f"`{v}` {_cell(said[v])}" if v in said else f"`{v}`" for v in col.type.enums)
 
 
 def _table_section(t: Table) -> list[str]:
@@ -212,7 +219,8 @@ def _tbls_note(col) -> str:
         f"→ {_spell(table, to)}（宣言だけ。DB の制約なし）" for cols, table, to in declared_refs(col.table) if col.name in cols
     )
     if isinstance(col.type, Enum):
-        out.append("値: " + " / ".join(col.type.enums))
+        said = meanings(col)
+        out.append("値: " + " / ".join(f"{v}（{said[v]}）" if v in said else v for v in col.type.enums).replace("） / ", "）/ "))
     return "\n".join(out)
 
 

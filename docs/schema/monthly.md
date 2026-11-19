@@ -63,7 +63,7 @@ erDiagram
 | `source_label` | VARCHAR(50) |  | PK |  |  | 受け取ったまま（正規化前）。前後の空白だけ落とす |
 | `unit` | VARCHAR(16) |  | PK |  |  | 受け取ったまま（正規化前）。yoy_pct 可 |
 | `element` | VARCHAR(50) |  | → `monthly_elements.(code, year, element)`（制約なし） |  |  | 今の保存名 |
-| `via` | VARCHAR(16) |  |  |  |  | 経路（api / doc / ir_html / ir_json / ir_xls / legacy）。記録前からある行は保存名そのものを legacy で入れる |
+| `via` | VARCHAR(16) |  |  | `api`<br>`doc`<br>`ir_html`<br>`ir_json`<br>`ir_xls`<br>`legacy` 記録前からある行。保存名そのものを入れる |  | 経路 |
 | `first_seen_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 | `last_seen_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 

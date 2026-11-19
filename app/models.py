@@ -29,8 +29,12 @@ class UtcDateTime(DateTime):
     pass
 
 
-def _one_of(*values: str, length: int | None = None) -> Enum:
-    return Enum(*values, native_enum=False, validate_strings=True, create_constraint=False, length=length)
+def _one_of(*values: str | dict[str, str], length: int | None = None) -> Enum:
+    meanings = {k: v for d in values if isinstance(d, dict) for k, v in d.items()}
+    names = [k for d in values for k in ([d] if isinstance(d, str) else d)]
+    out = Enum(*names, native_enum=False, validate_strings=True, create_constraint=False, length=length)
+    out.meanings = meanings
+    return out
 
 
 class Stock(Base):
@@ -75,7 +79,7 @@ class BriefingDocument(Base):
     sha256 = Column(String(64))
     size = Column(Integer)
     status = Column(String(16), nullable=False, comment="saved")
-    storage = Column(String(16), nullable=False, default="local", server_default="local", comment="local / onedrive")
+    storage = Column(_one_of("local", "onedrive", length=16), nullable=False, default="local", server_default="local")
     saved_at = Column(JstDateTime, nullable=False)
     __table_args__ = (
         Index("ix_briefing_documents_code_pubdate", "code", "pubdate"),
@@ -106,11 +110,11 @@ class BriefingExtract(Base):
         },
     )
     document_id = Column(String(80), primary_key=True, comment="出所をまたいで同じ開示番号")
-    source = Column(String(16), nullable=False, comment="どの出所の PDF を読んだか")
+    source = Column(_one_of("tdnet", "irbank", "homepage", length=16), nullable=False, comment="どの出所の PDF を読んだか")
     code = Column(String(5), nullable=False, info={"ref": "stocks.code"})
     status = Column(
-        _one_of("submitted", "done", "failed", length=16), nullable=False,
-        comment="結果を受け取ったら done（1 ページでも読めたら）か failed",
+        _one_of("submitted", {"done": "1 ページでも読めた"}, "failed", length=16), nullable=False,
+        comment="結果を受け取ったら done か failed",
     )
     batch_id = Column(String(80))
     request_key = Column(
@@ -255,7 +259,7 @@ class Statement(Base):
     fy_eps = Column(Float, comment="通期会社予想")
     is_revision = Column(Boolean, default=False, comment="予想修正開示フラグ")
     raw_json = Column(Text, comment="元データ全項目")
-    source = Column(String(16), comment="jquants / xbrl。NULL は J-Quants")
+    source = Column(_one_of("jquants", "xbrl", length=16), comment="NULL は J-Quants")
     __table_args__ = (
         Index(
             "ix_statements_earnings_cover",
@@ -412,8 +416,8 @@ class MonthlyElementSource(Base):
     unit = Column(String(16), primary_key=True, comment="受け取ったまま（正規化前）。yoy_pct 可")
     element = Column(String(50), nullable=False, index=True, comment="今の保存名")
     via = Column(
-        String(16), nullable=False,
-        comment="経路（api / doc / ir_html / ir_json / ir_xls / legacy）。記録前からある行は保存名そのものを legacy で入れる",
+        _one_of("api", "doc", "ir_html", "ir_json", "ir_xls", {"legacy": "記録前からある行。保存名そのものを入れる"}, length=16),
+        nullable=False, comment="経路",
     )
     first_seen_at = Column(JstDateTime, nullable=False)
     last_seen_at = Column(JstDateTime, nullable=False)
@@ -446,7 +450,7 @@ class XbrlFiling(Base):
     __tablename__ = "xbrl_filings"
     id = Column(Integer, primary_key=True)
     code = Column(String(5), nullable=False, index=True, info={"ref": "stocks.code"})
-    source = Column(String(16), nullable=False, default="tdnet", comment="'tdnet' | 'edinet' | 'tdnet_pdf'")
+    source = Column(_one_of("tdnet", "edinet", "tdnet_pdf", length=16), nullable=False, default="tdnet")
     doc_id = Column(
         String(64), nullable=False,
         comment="tdnet は TDnet xbrl_id（ZIP 名）、edinet は EDINET の docID、tdnet_pdf は開示番号 14 桁",
@@ -455,11 +459,11 @@ class XbrlFiling(Base):
         String(32), nullable=False, default="other",
         comment="annual | quarterly | semiannual | forecast_revision | dividend_revision | other",
     )
-    period_type = Column(String(8), comment="'FY' | 'Q1' | 'Q2' | 'Q3'")
+    period_type = Column(_one_of("FY", "Q1", "Q2", "Q3", length=8))
     fiscal_year_end = Column(Date)
     submitted_at = Column(JstDateTime, nullable=False)
     title = Column(Text)
-    accounting_standard = Column(String(16), comment="'JPGAAP' | 'IFRS' | 'USGAAP' | NULL")
+    accounting_standard = Column(_one_of("JPGAAP", "IFRS", "USGAAP", length=16))
     is_amendment = Column(Boolean, nullable=False, default=False)
     raw_path = Column(
         Text, nullable=False,
@@ -472,9 +476,9 @@ class XbrlFiling(Base):
     parse_error = Column(Text)
     parsed_at = Column(UtcDateTime)
     documents_status = Column(
-        _one_of("stored", "empty", length=16), comment="原文。NULL=まだ / empty=選べる HTML が 0 件",
+        _one_of("stored", {"empty": "選べる HTML が 0 件"}, length=16), comment="原文。NULL=まだ",
     )
-    presentation_status = Column(String(8), comment="表示リンク: NULL | 'ok' | 'none' | 'gone' | 'failed'")
+    presentation_status = Column(_one_of("ok", "none", "gone", "failed", length=8), comment="表示リンク")
     created_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint("source", "doc_id", name="uq_xbrl_filings_source_doc"),
@@ -494,11 +498,12 @@ class XbrlDocument(Base):
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
     seq = Column(Integer, primary_key=True, comment="表示順。0 から")
     part = Column(
-        String(16), nullable=False,
-        comment=(
-            "summary（サマリー）/ qualitative（添付資料まるごと）/ "
-            "attachment（qualitative.htm が無い書類の本表 iXBRL）"
-        ),
+        _one_of({
+            "summary": "サマリー",
+            "qualitative": "添付資料まるごと",
+            "attachment": "qualitative.htm が無い書類の本表 iXBRL",
+        }, length=16),
+        nullable=False,
     )
     file_name = Column(Text, nullable=False, comment="ZIP の中のファイル名（パスなし）")
     html_gz = Column(LargeBinary, nullable=False, comment="元の HTML を gzip。script などの除去は表示のとき")
@@ -519,7 +524,7 @@ class TdnetPdfDocument(Base):
     disclosed_time = Column(String(8), comment="statements から")
     title = Column(Text, comment="1 ページ目の題名。取れなければ statements.type_of_document")
     status = Column(
-        String(16), nullable=False, comment="ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗）",
+        _one_of({"ok": "html あり", "missing": "PDF が 404", "failed": "取得・変換の失敗"}, length=16), nullable=False,
     )
     error = Column(Text, comment="status が failed のときの理由")
     html_gz = Column(LargeBinary, comment="変換後の HTML を gzip")
@@ -563,11 +568,11 @@ class XbrlContext(Base):
     id = Column(Integer, primary_key=True)
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
     context_ref = Column(String(255), nullable=False)
-    period_type = Column(String(16), nullable=False, comment="'instant' | 'duration'")
+    period_type = Column(_one_of("instant", "duration", length=16), nullable=False)
     start_date = Column(Date)
     end_date = Column(Date, nullable=False)
     is_consolidated = Column(Integer, nullable=False, default=1, comment="1=連結 / 0=単体。判定不能は 1")
-    relative_period = Column(String(16), comment="'current' | 'prior1' | 'prior2' | NULL")
+    relative_period = Column(_one_of("current", "prior1", "prior2", length=16))
     dimensions_json = Column(Text, nullable=False, default="{}")
     has_dimensions = Column(Boolean, nullable=False, default=False)
     member_labels_json = Column(
@@ -610,7 +615,7 @@ class XbrlPresentationRole(Base):
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
     role = Column(String(255), primary_key=True, comment="区分名（role URI の最後。'rol_ConsolidatedBalanceSheet'）")
     seq = Column(Integer, nullable=False, comment="書類の中で保存した区分の順（0 から）")
-    statement = Column(String(8), nullable=False, comment="'BS' | 'PL' | 'CF'")
+    statement = Column(_one_of("BS", "PL", "CF", length=8), nullable=False)
     is_consolidated = Column(Boolean, nullable=False)
     is_ifrs = Column(Boolean, nullable=False)
     items_json = Column(
@@ -629,11 +634,11 @@ class XbrlStdItem(Base):
     __tablename__ = "xbrl_std_items"
     id = Column(Integer, primary_key=True)
     code = Column(String(64), nullable=False, unique=True, comment="'net_sales'")
-    statement = Column(String(8), nullable=False, comment="'BS' | 'PL' | 'CF' | 'OTHER' | 'SEG'")
+    statement = Column(_one_of("BS", "PL", "CF", "OTHER", "SEG", length=8), nullable=False)
     section = Column(String(64))
     label_ja = Column(String(128), nullable=False)
     display_order = Column(Integer, nullable=False, default=0)
-    sign = Column(String(16), nullable=False, default="natural", comment="'natural' | 'invert'")
+    sign = Column(_one_of("natural", "invert", length=16), nullable=False, default="natural")
     is_required = Column(Boolean, nullable=False, default=False)
     unit = Column(
         String(32),
@@ -655,11 +660,8 @@ class XbrlElementMapping(Base):
     accounting_standard = Column(String(16), comment="NULL=全共通")
     note = Column(Text)
     part = Column(
-        String(16),
-        comment=(
-            "NULL は値そのもの。'months' は同じ科目・context の値に 月÷12 を足す"
-            "（有報の「40歳3ヶ月」は年と月が別の要素）"
-        ),
+        _one_of({"months": "同じ科目・context の値に 月÷12 を足す（有報の「40歳3ヶ月」は年と月が別の要素）"}, length=16),
+        comment="NULL は値そのもの",
     )
     __table_args__ = (
         UniqueConstraint(
@@ -678,27 +680,26 @@ class XbrlFinancial(Base):
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
     std_item_id = Column(Integer, ForeignKey("xbrl_std_items.id"), nullable=False)
     is_consolidated = Column(Boolean, nullable=False)
-    period_type = Column(String(8), nullable=False)
+    period_type = Column(_one_of("FY", "Q1", "Q2", "Q3", length=8), nullable=False)
     period_start = Column(Date)
     period_end = Column(Date, nullable=False)
     value = Column(Numeric(30, 4), nullable=False)
     unit = Column(String(32), nullable=False, default="JPY")
     value_kind = Column(
-        _one_of("actual", "forecast", "forecast_previous", length=24),
+        _one_of("actual", "forecast", {"forecast_previous": "前回予想（EarnForecastRevision の PreviousMember）"}, length=24),
         nullable=False, default="actual", server_default="actual",
-        comment="forecast_previous は前回予想（EarnForecastRevision の PreviousMember）",
     )
     range_side = Column(
-        String(16), nullable=False, default="point", server_default="point",
-        comment="point | lower | upper（レンジ予想。点予想は point）",
+        _one_of({"point": "点予想"}, "lower", "upper", length=16), nullable=False, default="point", server_default="point",
+        comment="レンジ予想",
     )
     target_period = Column(
-        String(16), nullable=False, default="FY", server_default="FY",
-        comment="数値が指す期間: FY / H1 / Q1 / Q2 / Q3 / year_end / annual",
+        _one_of("FY", "H1", "Q1", "Q2", "Q3", "year_end", "annual", length=16),
+        nullable=False, default="FY", server_default="FY", comment="数値が指す期間",
     )
     source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
     source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
-    source_layer = Column(String(16), comment="primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL")
+    source_layer = Column(_one_of({"primary": "本表", "summary": "短信サマリー(tse-ed-t)"}, length=16), comment="旧行は NULL")
     generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint(
@@ -721,10 +722,10 @@ class XbrlPdfMatch(Base):
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
     code = Column(String(5), nullable=False, info={"ref": "stocks.code"})
     is_consolidated = Column(Boolean, nullable=False)
-    statement = Column(String(8), nullable=False, comment="'BS' | 'PL' | 'CF'")
+    statement = Column(_one_of("BS", "PL", "CF", length=8), nullable=False)
     element_key = Column(String(300), comment="行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL")
     sign = Column(Integer, nullable=False, default=1, comment="PDF の値に掛けると XBRL の向き")
-    matched_by = Column(String(8), comment="'value' | 'name'。付かなければ NULL")
+    matched_by = Column(_one_of("value", "name", length=8), comment="付かなければ NULL")
     generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         Index("idx_xbrl_pdf_matches_filing", "filing_id"),
@@ -744,14 +745,18 @@ class XbrlSegment(Base):
     member = Column(String(255), nullable=False, comment="'prefix:localName'（会社独自は jpcrp030000-asr_E...）")
     member_label_ja = Column(String(255), comment="その書類のラベル")
     member_kind = Column(
-        _one_of("segment", "subtotal", "other", "total", "reconciling", "unknown", length=16), nullable=False,
-        comment=(
-            "segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / "
-            "reconciling=調整額 / unknown=どれにも当たらない"
-        ),
+        _one_of({
+            "segment": "各セグメント",
+            "subtotal": "報告セグメント計",
+            "other": "その他",
+            "total": "合計",
+            "reconciling": "調整額",
+            "unknown": "どれにも当たらない",
+        }, length=16),
+        nullable=False,
     )
     is_consolidated = Column(Boolean, nullable=False)
-    period_type = Column(String(8), nullable=False, comment="filing の period_type")
+    period_type = Column(_one_of("FY", "Q1", "Q2", "Q3", length=8), nullable=False, comment="filing の period_type")
     period_start = Column(Date)
     period_end = Column(Date, nullable=False)
     value = Column(Numeric(30, 4), nullable=False)
@@ -826,8 +831,8 @@ class XbrlShareholdingByCategory(Base):
 class XbrlJobRun(Base):
     __tablename__ = "xbrl_job_runs"
     id = Column(Integer, primary_key=True)
-    job_name = Column(String(32), nullable=False, comment="'parse' | 'normalize' | 'edinet_xbrl'")
-    status = Column(String(16), nullable=False, comment="'running' | 'success' | 'failed' | 'skipped'")
+    job_name = Column(_one_of("parse", "normalize", "edinet_xbrl", length=32), nullable=False)
+    status = Column(_one_of("running", "success", "failed", "skipped", length=16), nullable=False)
     processed_count = Column(Integer, default=0)
     error_count = Column(Integer, default=0)
     message = Column(Text)
@@ -853,8 +858,11 @@ class MaterialMonthly(Base):
     material_id = Column(String, primary_key=True, comment="config/supply/supply_chain.json の id（FK なし）")
     month = Column(String(7), primary_key=True, comment="YYYY-MM")
     metric = Column(
-        _one_of("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales"),
-        primary_key=True, comment="processing は原油処理、domestic_sales は国内向販売",
+        _one_of(
+            "production", "shipment", "inventory", "import", "export",
+            {"processing": "原油処理", "domestic_sales": "国内向販売"},
+        ),
+        primary_key=True,
     )
     source = Column(
         String, primary_key=True, comment="seidou:<報告番号>（生産動態）/ sekiyu（石油統計）/ trade（貿易）",
@@ -984,11 +992,11 @@ class EdinetArchive(Base):
     doc_type_code = Column(String(3))
     rel_path = Column(Text, nullable=False, comment="data/edinet からの相対パス")
     status = Column(
-        String(8), nullable=False,
-        comment=(
-            "saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/ "
-            "gone（取り直しのとき EDINET が 404。残っていない）"
-        ),
+        _one_of({
+            "saved": "data/edinet に書いた。翌朝 backup_data が OneDrive へ move する",
+            "gone": "取り直しのとき EDINET が 404。残っていない",
+        }, length=8),
+        nullable=False,
     )
     bytes = Column(Integer)
     sha256 = Column(String(64))
@@ -1105,9 +1113,7 @@ class EdinetBuyback(Base):
     original_doc_id = Column(String(8), nullable=False, index=True, info={"ref": "edinet_buybacks.doc_id"})
     is_latest = Column(Boolean, nullable=False, default=False, comment="大元ごとの最新の 1 件")
     withdrawn = Column(Boolean, nullable=False, default=False)
-    parse_status = Column(
-        _one_of("parsed", "meta", "failed"), nullable=False, comment="meta は取得状況が対象外の訂正",
-    )
+    parse_status = Column(_one_of("parsed", {"meta": "取得状況が対象外の訂正"}, "failed"), nullable=False)
     parse_error = Column(Text)
     fetched_at = Column(JstDateTime, nullable=False)
     __table_args__ = (
@@ -1213,12 +1219,12 @@ class EdinetTenderOfferDoc(Base):
     max_shares = Column(BigInteger)
     holding_ratio_after = Column(Float)
     target_name = Column(String)
-    opinion = Column(String)
-    recommendation = Column(String)
+    opinion = Column(_one_of("support", "oppose", "neutral", "reserved"))
+    recommendation = Column(_one_of("recommend", "leave", "not_recommend"))
     opinion_text = Column(Text, comment="意見の内容（最初の段落）")
     success = Column(Boolean, comment="公開買付けの成否（報告書）")
     tendered_shares = Column(BigInteger)
     purchased_shares = Column(BigInteger)
-    parse_status = Column(_one_of("parsed", "meta", "failed"), nullable=False, comment="meta は中身を読まない書類")
+    parse_status = Column(_one_of("parsed", {"meta": "中身を読まない書類"}, "failed"), nullable=False)
     parse_error = Column(Text)
     fetched_at = Column(JstDateTime, nullable=False)

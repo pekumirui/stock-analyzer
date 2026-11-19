@@ -129,7 +129,7 @@ EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet �
 | `file_type` | INTEGER |  | PK |  |  | 書類取得 API の type（1 / 5） |
 | `doc_type_code` | VARCHAR(3) | 可 |  |  |  |  |
 | `rel_path` | TEXT |  |  |  |  | data/edinet からの相対パス |
-| `status` | VARCHAR(8) |  |  |  |  | saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/ gone（取り直しのとき EDINET が 404。残っていない） |
+| `status` | VARCHAR(8) |  |  | `saved` data/edinet に書いた。翌朝 backup_data が OneDrive へ move する<br>`gone` 取り直しのとき EDINET が 404。残っていない |  |  |
 | `bytes` | INTEGER | 可 |  |  |  |  |
 | `sha256` | VARCHAR(64) | 可 |  |  |  |  |
 | `saved_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
@@ -184,7 +184,7 @@ EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet �
 | `original_doc_id` | VARCHAR(8) |  | → `edinet_buybacks.doc_id`（制約なし） |  |  |  |
 | `is_latest` | BOOLEAN |  |  |  | `False` | 大元ごとの最新の 1 件 |
 | `withdrawn` | BOOLEAN |  |  |  | `False` |  |
-| `parse_status` | VARCHAR |  |  | `parsed` / `meta` / `failed` |  | meta は取得状況が対象外の訂正 |
+| `parse_status` | VARCHAR |  |  | `parsed`<br>`meta` 取得状況が対象外の訂正<br>`failed` |  |  |
 | `parse_error` | TEXT | 可 |  |  |  |  |
 | `fetched_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 
@@ -307,13 +307,13 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 | `max_shares` | BIGINT | 可 |  |  |  |  |
 | `holding_ratio_after` | FLOAT | 可 |  |  |  |  |
 | `target_name` | VARCHAR | 可 |  |  |  |  |
-| `opinion` | VARCHAR | 可 |  |  |  |  |
-| `recommendation` | VARCHAR | 可 |  |  |  |  |
+| `opinion` | VARCHAR | 可 |  | `support` / `oppose` / `neutral` / `reserved` |  |  |
+| `recommendation` | VARCHAR | 可 |  | `recommend` / `leave` / `not_recommend` |  |  |
 | `opinion_text` | TEXT | 可 |  |  |  | 意見の内容（最初の段落） |
 | `success` | BOOLEAN | 可 |  |  |  | 公開買付けの成否（報告書） |
 | `tendered_shares` | BIGINT | 可 |  |  |  |  |
 | `purchased_shares` | BIGINT | 可 |  |  |  |  |
-| `parse_status` | VARCHAR |  |  | `parsed` / `meta` / `failed` |  | meta は中身を読まない書類 |
+| `parse_status` | VARCHAR |  |  | `parsed`<br>`meta` 中身を読まない書類<br>`failed` |  |  |
 | `parse_error` | TEXT | 可 |  |  |  |  |
 | `fetched_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
 
