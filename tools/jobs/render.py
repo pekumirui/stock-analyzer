@@ -16,6 +16,7 @@ REBUILD = "python -m tools.jobs.render"
 _LABEL = dict(DOMAINS)
 _JOB_PATH = re.compile(r"jobs/[\w/]+\.py")
 _EDGE_TABLES = 2
+_ELK = ["---", "config:", "  layout: elk", "---"]
 
 
 def _domain(job: str) -> str:
@@ -188,7 +189,7 @@ def _dependency_graph(domain: str, deps: dict[tuple[str, str], list[str]]) -> li
     def nid(job: str) -> str:
         return ids.setdefault(job, f"n{len(ids)}")
 
-    lines = ["```mermaid", "flowchart LR"]
+    lines = ["```mermaid", *_ELK, "flowchart LR"]
     for job in sorted({j for pair in picked for j in pair}):
         cls = "own" if _domain(job) == domain else "ext"
         lines.append(f'  {nid(job)}["{_stem(job)}"]:::{cls}')

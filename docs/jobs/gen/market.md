@@ -7,6 +7,10 @@
 矢印の元が書いた表を、先が読むだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書く表、ファイル（`data/`）の受け渡しは出ない。
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["edinet/edinet_xbrl"]:::ext
   n1["market/homepage_briefing"]:::own

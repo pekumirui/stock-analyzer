@@ -119,3 +119,8 @@ def test_workflow_jobs_finds_jobs_run_from_actions(tmp_path):
 
 def test_pages_are_only_under_the_generated_folder():
     assert all(p == OVERVIEW or p.startswith(PAGE_DIR + "/") for p in render())
+
+
+def test_dependency_graphs_ask_for_the_elk_layout():
+    graphs = [g for p, text in render().items() if p != OVERVIEW for g in text.split("```mermaid\n")[1:]]
+    assert graphs and all(g.startswith("---\nconfig:\n  layout: elk\n---\nflowchart LR\n") for g in graphs)
