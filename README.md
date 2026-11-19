@@ -191,7 +191,7 @@ analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md
 deploy/
   stock-analyzer.service  systemd（uvicorn。ワーカー数はコアとメモリ）
   nginx-site.sh           nginx の設定の正本（provision.sh が書く）。月次閲覧は公開、/app は Cloudflare Access
-  crontab                 J-Quants 19:30 JST、為替 08:00 JST、パッケージ一覧 06:40 JST、SQLite バックアップ 05:00 JST
+  crontab                 cron の正本。ジョブの一覧と 1 日の時刻表は docs/JOBS.md（自動生成）
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる
 ```
