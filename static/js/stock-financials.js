@@ -62,6 +62,17 @@ function fsMeta(d){
   return parts.filter(Boolean).join(" / ");
 }
 
+function fsEarlierHtml(d){
+  return (d.earlier || []).map(t => {
+    const ps = t.periods || [];
+    const span = ps.length ? `${ps[0].label}〜${ps[ps.length - 1].label}` : "";
+    const std = (t.accounting_standards || []).map(fsStdName).join("・");
+    const meta = [std ? `${std}の期` : "前の会計基準の期", span, t.basis].filter(Boolean).join(" / ");
+    return `<p class="sub fs-earlier">${fsEsc(meta)}</p>`
+      + `<div class="tbl-wrap"><table class="sheet fin fs">${fsTableHtml({...t, cumulative: d.cumulative})}</table></div>`;
+  }).join("");
+}
+
 const FS_MAX_DEPTH = 6;
 
 function fsSecRow(name, level, span){
@@ -124,6 +135,7 @@ async function renderStockFs(){
     $("#st-fs-meta").textContent = "";
     $("#st-fs-legend").hidden = true;
     $("#st-fs-tbl").innerHTML = `<tr><td class="l sub">読み込めませんでした。</td></tr>`;
+    $("#st-fs-earlier").innerHTML = "";
     return;
   }
   if(!current()) return;
@@ -131,6 +143,7 @@ async function renderStockFs(){
   $("#st-fs-meta").textContent = has ? fsMeta(d) : "";
   $("#st-fs-legend").hidden = !has;
   $("#st-fs-tbl").innerHTML = fsTableHtml(d);
+  $("#st-fs-earlier").innerHTML = fsEarlierHtml(d);
 }
 
 document.querySelectorAll("#st-fs-tabs .ftab").forEach(b => b.onclick = () => {
@@ -146,5 +159,5 @@ document.querySelectorAll("#st-fs-periods .ftab").forEach(b => b.onclick = () =>
 });
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {fsAmount, fsCell, fsTableHtml, fsMeta, FS_PERIODS};
+  module.exports = {fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, FS_PERIODS};
 }

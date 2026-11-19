@@ -104,6 +104,22 @@ def test_tsv_section_lines() -> None:
     assert lines[2] == "# 営業活動によるキャッシュ・フロー"
 
 
+def test_tsv_appends_tables_of_the_earlier_standard() -> None:
+    old = {"consolidated": True, "basis": "連結", "accounting_standards": ["JPGAAP"],
+           "periods": [{"label": "23.03", "source_label": "有報", "accounting_standard": "JPGAAP"},
+                       {"label": "24.03", "source_label": "有報", "accounting_standard": "JPGAAP"}],
+           "rows": [_bs_row("Goodwill", "のれん", "資産の部")]}
+    payload = {**TABLE, "statement": "BS", "cumulative": False, "accounting_standards": ["IFRS"],
+               "rows": [_bs_row("GoodwillIFRS", "のれん", "資産")], "earlier": [old]}
+    lines = et.tool_financial_statements({"statement": "BS"}, _getter(payload, []), "12340").splitlines()
+    assert lines[0].endswith("会計基準:IFRS")
+    assert lines[1:] == [
+        "科目\t要素\t25.03\t25.06", "# 資産", "のれん\tGoodwillIFRS\t5\t", "出どころ\t\t有報\tPDF", "",
+        "## 前の会計基準の期 23.03〜24.03 連結 会計基準:JPGAAP",
+        "科目\t要素\t23.03\t24.03", "# 資産の部", "のれん\tGoodwill\t5\t", "出どころ\t\t有報\t有報",
+    ]
+
+
 def test_tsv_heads_of_any_depth_and_indented_rows() -> None:
     payload = {**TABLE, "statement": "BS", "cumulative": False, "rows": [
         _bs_row("PropertyPlantAndEquipment", "有形固定資産", "資産の部"),

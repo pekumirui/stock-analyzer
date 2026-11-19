@@ -95,7 +95,7 @@ def test_financials_sub_is_wired_like_other_subs() -> None:
     assert re.findall(r'"([^"]+)"', m.group(1)) == subs
     block = HTML[HTML.index('id="st-sub-financials"'):HTML.index('id="st-sub-news"')]
     assert 'class="st-sub"' in HTML[HTML.index('id="st-sub-financials"') - 40:HTML.index('id="st-sub-financials"') + 60]
-    assert re.search(r'<table\b[^>]*\bid="st-fs-tbl"[^>]*class="sheet fin"', block)
+    assert re.search(r'<table\b[^>]*\bid="st-fs-tbl"[^>]*class="sheet fin fs"', block)
     assert '<div class="tbl-wrap">' in block
     assert "#st-sub-financials .tbl-wrap" in CSS.split("max-height:calc(100vh - 140px)")[0].rsplit("\n", 1)[-1]
     assert '<script src="/static/js/stock-financials.js"></script>' in HTML
