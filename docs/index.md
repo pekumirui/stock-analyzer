@@ -4,6 +4,7 @@
 
 ## 画面
 
+- [画面の一覧・画面遷移・画面が呼ぶ API](SCREENS.md)（自動生成）
 - [書き方と共通見た目](SCREEN_SPEC.md)
 - [決算速報](DESIGN_earnings.md)
 - [銘柄](DESIGN_stock.md)
