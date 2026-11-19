@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
 
-import copy_stocks_for_verify as copy_mod  # noqa: E402
-import fetch_xbrl_golden as fetch_mod  # noqa: E402
-import xbrl_match_rate as mr  # noqa: E402
+import copy_stocks_for_verify as copy_mod
+import fetch_xbrl_golden as fetch_mod
+import xbrl_match_rate as mr
 
 FIXTURE_DIR = ROOT / "tests" / "xbrl" / "testdata" / "xbrl_match"
 

@@ -7,6 +7,10 @@
 ## バッチ
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["xbrl/xbrl_normalize.py"]:::job
   n1["xbrl/xbrl_parse.py"]:::job
@@ -86,6 +90,10 @@ flowchart LR
 ## API
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["GET /api/earnings/detail/{code}"]:::api
   n1["GET /api/stock/filings/{filing_id}/documents/{seq}"]:::api

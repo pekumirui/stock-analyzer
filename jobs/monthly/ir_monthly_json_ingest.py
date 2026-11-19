@@ -29,9 +29,9 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base  # noqa: E402
-from jobs.monthly.ir_monthly_r2 import http_get  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import display_code  # noqa: E402
+from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base
+from jobs.monthly.ir_monthly_r2 import http_get
+from jobs.monthly.tdnet_monthly_r2 import display_code
 
 CODE = "7649"
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"

@@ -148,7 +148,7 @@ class FrankfurterClient:
 
     def __init__(self, base_url: str | None = None, timeout: float = 60.0):
         if base_url is None:
-            from . import config as _config  # noqa: PLC0415
+            from . import config as _config
             base_url = _config.FRANKFURTER_BASE
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
@@ -223,7 +223,7 @@ def ingest_range(
     chunks = 0
     try:
         if chunk_days is None:
-            from . import config as _config  # noqa: PLC0415
+            from . import config as _config
             chunk_days = _config.FX_CHUNK_DAYS
         for chunk_start, chunk_end in iter_date_chunks(start, end, chunk_days):
             chunks += 1

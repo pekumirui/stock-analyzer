@@ -16,11 +16,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-xbrl-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete  # noqa: E402
+from sqlalchemy import delete
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.xbrl import keep_fact, pending_documents, run, title_meta  # noqa: E402
-from app.models import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.xbrl import keep_fact, pending_documents, run, title_meta
+from app.models import (
     EdinetDocument,
     Stock,
     XbrlContext,
@@ -33,13 +33,13 @@ from app.models import (  # noqa: E402
     XbrlShareholdingByCategory,
     XbrlStdItem,
 )
-from app.xbrl.context import ParsedContext  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
-from app.xbrl.parser import ParsedFact  # noqa: E402
-from app.xbrl.revisions import xbrl_points  # noqa: E402
-from tests.xbrl.test_xbrl_parse import IFRS_NS, MANUFACTURING, _ixbrl_html  # noqa: E402
+from app.xbrl.context import ParsedContext
+from app.xbrl.mappings import apply_mappings
+from app.xbrl.parser import ParsedFact
+from app.xbrl.revisions import xbrl_points
+from tests.xbrl.test_xbrl_parse import IFRS_NS, MANUFACTURING, _ixbrl_html
 
-FETCHED = datetime(2025, 6, 28, 9, 0)  # noqa: DTZ001
+FETCHED = datetime(2025, 6, 28, 9, 0)
 
 
 def _zip(standard: str = "Japan GAAP", facts=MANUFACTURING, **kw) -> bytes:
@@ -85,7 +85,7 @@ def _doc(seq: int, doc_id: str, **over) -> EdinetDocument:
         "file_date": date(2025, 6, 27), "seq_number": seq, "doc_id": doc_id, "code": "72030",
         "edinet_code": "E02144", "sec_code": "72030", "doc_type_code": "120",
         "doc_description": "有価証券報告書－第121期(2025/04/01－2026/03/31)",
-        "submit_datetime": datetime(2025, 6, 27, 15, 30),  # noqa: DTZ001
+        "submit_datetime": datetime(2025, 6, 27, 15, 30),
         "withdrawal_status": "0", "doc_info_edit_status": "0", "disclosure_status": "0",
         "xbrl_flag": True, "pdf_flag": True, "attach_doc_flag": False, "english_doc_flag": False,
         "csv_flag": True, "legal_status": "1", "fetched_at": FETCHED,
@@ -188,7 +188,7 @@ def test_ingest_normalize_and_skip() -> None:
         f = db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100AAAA").one()
         assert (f.code, f.doc_type, f.period_type, f.accounting_standard, f.raw_path) == (
             "72030", "annual", "FY", "JPGAAP", "edinet:S100AAAA")
-        assert f.submitted_at == datetime(2025, 6, 27, 15, 30)  # noqa: DTZ001
+        assert f.submitted_at == datetime(2025, 6, 27, 15, 30)
         assert _value(db, f.id, "net_sales") == Decimal("200000000")
         assert _value(db, f.id, "total_assets") == Decimal("1000000000")
         refs = {c.context_ref for c in db.query(XbrlContext).filter_by(filing_id=f.id)}

@@ -19,11 +19,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-annual-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete  # noqa: E402
+from sqlalchemy import delete
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.xbrl import pending_documents, run  # noqa: E402
-from app.models import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.xbrl import pending_documents, run
+from app.models import (
     EdinetDocument,
     Stock,
     XbrlContext,
@@ -33,8 +33,8 @@ from app.models import (  # noqa: E402
     XbrlSegment,
     XbrlStdItem,
 )
-from app.xbrl.mappings import apply_mappings  # noqa: E402
-from tests.edinet.test_edinet_xbrl import FakeClient, _doc  # noqa: E402
+from app.xbrl.mappings import apply_mappings
+from tests.edinet.test_edinet_xbrl import FakeClient, _doc
 
 NS = {
     "jpcrp_cor": "http://disclosure.edinet-fsa.go.jp/taxonomy/jpcrp/2024-11-01/jpcrp_cor",
@@ -155,7 +155,7 @@ def _ingest(facts, standard: str = "Japan GAAP", consolidated: bool = True) -> t
         db.execute(delete(model))
     db.add(Stock(code="72030", name="テスト", product_category="011", market="プライム"))
     db.add(_doc(1, "S100KB78", file_date=date(2025, 6, 27),
-                submit_datetime=datetime(2025, 6, 27, 15, 0)))  # noqa: DTZ001
+                submit_datetime=datetime(2025, 6, 27, 15, 0)))
     db.commit()
     apply_mappings(db)
     st = run(db, FakeClient({"S100KB78": _zip(facts, standard, consolidated)}), pending_documents(db))

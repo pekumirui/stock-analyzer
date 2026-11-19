@@ -16,8 +16,8 @@ sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-bundle-')}/stock.db")
 
-import taxonomy_bundle as tb  # noqa: E402
-from app.xbrlp.file_loader import FileLoader  # noqa: E402
+import taxonomy_bundle as tb
+from app.xbrlp.file_loader import FileLoader
 
 
 def _fail(msg: object) -> None:

@@ -26,8 +26,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs._r2common import path_on_r2_share, r2_share_root  # noqa: E402
-from jobs.share_paths import share_root  # noqa: E402
+from jobs._r2common import path_on_r2_share, r2_share_root
+from jobs.share_paths import share_root
 
 _CHUNK = 1024 * 1024
 EXIT_IO = 1

@@ -263,7 +263,7 @@ def doc_metas(db: Session, doc_types: tuple[str, ...]) -> dict[str, DocMeta]:
     T = EdinetDocument
     rows = db.scalars(select(T).where(T.doc_type_code.in_(doc_types))
                       .order_by(T.file_date, T.seq_number)).all()
-    floor = datetime.min  # noqa: DTZ901  JST naive で比べる
+    floor = datetime.min
     best: dict[str, EdinetDocument] = {}
     gone: set[str] = set()
     for r in rows:

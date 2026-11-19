@@ -22,8 +22,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs import _tdnet as tdnet_list  # noqa: E402
-from jobs._r2common import (  # noqa: E402
+from jobs import _tdnet as tdnet_list
+from jobs._r2common import (
     abort_if_disconnected,
     date_window,
     fail_if_mount_down,
@@ -33,7 +33,7 @@ from jobs._r2common import (  # noqa: E402
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
-from jobs.share_paths import share_path  # noqa: E402
+from jobs.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("monthly"))
 PDF_BASE = tdnet_list.TDNET_BASE

@@ -45,8 +45,8 @@ if str(_REPO_ROOT) not in sys.path:
 if str(_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_MCP_DIR))
 
-import earnings_tools  # noqa: E402
-import fs_tools  # noqa: E402
+import earnings_tools
+import fs_tools
 import xbrl_compare
 
 
@@ -837,7 +837,7 @@ def monthly_industry_url(code: str) -> str:
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ARG002
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None
 
 
@@ -1560,7 +1560,7 @@ def parse_iso_date(raw: Any, label: str) -> date:
 
 
 def _fx_mod():
-    from app.fx import (  # noqa: PLC0415
+    from app.fx import (
         FX_EARLIEST,
         HOLIDAY_NOTE,
         FxLookupError,
@@ -2743,7 +2743,7 @@ def call_tool(name: str, arguments: dict[str, Any] | None) -> tuple[str, bool]:
         return redact_url(text), _http_status_is_error(text)
     except ValueError as exc:
         return str(exc), True
-    except Exception as exc:  # noqa: BLE001 — surface unexpected errors to the agent
+    except Exception as exc:
         return f"tool failed: {type(exc).__name__}: {exc}", True
 
 

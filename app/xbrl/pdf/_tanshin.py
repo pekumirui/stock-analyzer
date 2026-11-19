@@ -220,7 +220,7 @@ class PdfDisclosure:
             disclosure_no=parse_disclosure_no(st.disclosure_no),
             code=st.code,
             kind=kind,
-            period=_PERIODS[raw_period],  # type: ignore[arg-type]
+            period=_PERIODS[raw_period],
             consolidated=consolidated,
             standard=standard,
             period_start=st.period_start,

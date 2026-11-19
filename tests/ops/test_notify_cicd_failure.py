@@ -11,7 +11,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
-from tools.ops.notify_cicd_failure import (  # noqa: E402
+from tools.ops.notify_cicd_failure import (
     build_payload,
     build_text,
     failed_job_labels,

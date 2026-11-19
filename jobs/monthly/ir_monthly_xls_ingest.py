@@ -32,11 +32,11 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from jobs._r2common import MountDisconnected, check_r2_mount  # noqa: E402
-from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base  # noqa: E402
-from jobs.monthly.ir_monthly_r2 import DEFAULT_DEST  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import display_code  # noqa: E402
-from tools.monthly.read_xls import read_sheet, read_xlsx_sheet, xlsx_sheet_names  # noqa: E402
+from jobs._r2common import MountDisconnected, check_r2_mount
+from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base
+from jobs.monthly.ir_monthly_r2 import DEFAULT_DEST
+from jobs.monthly.tdnet_monthly_r2 import display_code
+from tools.monthly.read_xls import read_sheet, read_xlsx_sheet, xlsx_sheet_names
 
 CODE = "1878"
 DEFAULT_FROM_YEAR = 2024
@@ -193,7 +193,7 @@ def _parse_kind(raw: object) -> Kind:
     kind = str(raw or "number")
     if kind not in ("number", "occupancy"):
         raise ValueError(f"invalid kind: {raw!r}")
-    return kind  # type: ignore[return-value]
+    return kind
 
 
 def _parse_digits(raw: object) -> int | None:

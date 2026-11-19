@@ -7,6 +7,10 @@
 ## バッチ
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["market/briefing_extract.py"]:::job
   n1["market/briefing_offsite.py"]:::job
@@ -86,6 +90,10 @@ flowchart LR
 ## API
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["GET /api/chart/{code}"]:::api
   n1["GET /api/earnings"]:::api

@@ -19,10 +19,10 @@ sys.path.insert(0, str(ROOT / "mcp"))
 
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 
-import earnings_tools as et  # noqa: E402
-import log_mcp as m  # noqa: E402
+import earnings_tools as et
+import log_mcp as m
 
-_G = lambda *v: {k: {"pct": p, "state": "up"} for k, p in zip(("net_sales", "operating_profit", "ordinary_profit", "profit"), v)}  # noqa: E731
+_G = lambda *v: {k: {"pct": p, "state": "up"} for k, p in zip(("net_sales", "operating_profit", "ordinary_profit", "profit"), v)}
 
 ACTUAL = {
     "restated": False, "forecast_revision": {"direction": "up", "pct": 12.5},
@@ -85,10 +85,10 @@ def _app_stub():
     seen: list[str] = []
 
     class H(BaseHTTPRequestHandler):
-        def log_message(self, *_a):  # noqa: D401
+        def log_message(self, *_a):
             pass
 
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             u = urlparse(self.path)
             seen.append(self.path)
             q = parse_qs(u.query)

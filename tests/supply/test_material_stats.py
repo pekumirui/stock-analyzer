@@ -21,33 +21,33 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-material-stats-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import create_engine, event, tuple_  # noqa: E402
-from sqlalchemy.exc import OperationalError  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-from sqlalchemy.pool import NullPool  # noqa: E402
+from sqlalchemy import create_engine, event, tuple_
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
-from app.db import SessionLocal, apply_sqlite_pragmas, init_db, upsert  # noqa: E402
-from app.supply.estat import (  # noqa: E402
+from app.db import SessionLocal, apply_sqlite_pragmas, init_db, upsert
+from app.supply.estat import (
     match_codes, month_of, parse_production_label, production_dims, published_through,
     seidou_records, sokuho_month, trade_country_rows, trade_rows,
 )
-from app.supply.material_stats import (  # noqa: E402
+from app.supply.material_stats import (
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, WRITE_CHUNK, CountryRow, MappingError, Row, SeidouRecord,
     load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_country_rows, write_rows,
 )
-from app.supply.meti import (  # noqa: E402
+from app.supply.meti import (
     MetiChallenged, MetiClient, MetiError, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells,
     sekiyu_nenpo_inventory_cells, sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
-from app.supply.meti import seidou_records as meti_records  # noqa: E402
-from app.models import Base, MaterialMonthly, MaterialTradeCountry  # noqa: E402
-from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
+from app.supply.meti import seidou_records as meti_records
+from app.models import Base, MaterialMonthly, MaterialTradeCountry
+from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload
 
-from jobs._r2common import MountDisconnected  # noqa: E402
-from jobs.supply.material_stats import (  # noqa: E402
+from jobs._r2common import MountDisconnected
+from jobs.supply.material_stats import (
     MetiArchive, MetiLedger, ingest_meti_seidou, ingest_meti_sekiyu, meti_targets, sekiyu_done,
 )
-import jobs.supply.material_stats as material_stats_job  # noqa: E402
+import jobs.supply.material_stats as material_stats_job
 
 
 def _fail(msg: object) -> None:
@@ -410,6 +410,24 @@ def test_revision_guard() -> None:
         db.close()
 
 
+def test_country_revision_guard() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(MaterialTradeCountry).delete()
+
+        def row(value: float, revision: int) -> CountryRow:
+            return CountryRow("crude", "2026-07", "import", "137", "サウジアラビア", value, "kl", revision, f"r{revision}")
+
+        _eq(write_country_rows(db, [row(100, REVISION_KAKUHO)]), 1, "first write")
+        _eq(write_country_rows(db, [row(90, REVISION_SOKUHO)]), 0, "sokuho must not overwrite kakuho")
+        _eq(write_country_rows(db, [row(101, REVISION_KAKUHO)]), 1, "same revision overwrites")
+        got = db.query(MaterialTradeCountry).one()
+        _eq((got.value, got.revision, got.origin), (101.0, 2, "r2"), "stored")
+    finally:
+        db.close()
+
+
 def test_prune_and_done() -> None:
     init_db()
     db = SessionLocal()
@@ -529,7 +547,7 @@ def test_meti_archive_open_expected_errors() -> None:
     def _open(exc: BaseException) -> tuple[MetiArchive, str]:
         buf = io.StringIO()
 
-        def boom(path, **kwargs):  # noqa: ANN001
+        def boom(path, **kwargs):
             probed.append(Path(path))
             raise exc
 
@@ -565,7 +583,7 @@ def test_meti_archive_open_local_dest_without_fuse_line(tmp_path: Path) -> None:
     buf = io.StringIO()
     probed: list[Path] = []
 
-    def wrapped(path, **kwargs):  # noqa: ANN001
+    def wrapped(path, **kwargs):
         probed.append(Path(path))
         kwargs.setdefault("proc_mounts", lambda: "tmpfs /tmp tmpfs rw 0 0\n")
         kwargs.setdefault("r2_root", "/home/stock/r2-share")
@@ -835,7 +853,7 @@ def _lock_engine(path: Path, timeout_s: float):
     event.listen(eng, "connect", apply_sqlite_pragmas)
 
     @event.listens_for(eng, "connect")
-    def _timeout(dbapi_connection, connection_record):  # noqa: ARG001
+    def _timeout(dbapi_connection, connection_record):
         cur = dbapi_connection.cursor()
         try:
             cur.execute(f"PRAGMA busy_timeout={int(timeout_s * 1000)}")
@@ -859,7 +877,7 @@ def _hold_write_lock(path: Path, timeout_s: float, hold_s: float, started: threa
         time.sleep(hold_s)
         conn.commit()
         result["holder"] = "ok"
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         result["holder"] = f"{type(exc).__name__}: {exc}"
         started.set()
     finally:
@@ -991,13 +1009,13 @@ def test_write_rows_one_connection_at_a_time() -> None:
     max_live = 0
 
     @event.listens_for(eng, "checkout")
-    def _out(dbapi_con, con_record, con_proxy):  # noqa: ARG001
+    def _out(dbapi_con, con_record, con_proxy):
         nonlocal max_live
         live.add(id(dbapi_con))
         max_live = max(max_live, len(live))
 
     @event.listens_for(eng, "checkin")
-    def _in(dbapi_con, con_record):  # noqa: ARG001
+    def _in(dbapi_con, con_record):
         live.discard(id(dbapi_con))
 
     db = Session()
@@ -1031,6 +1049,7 @@ def main() -> None:
     test_material_stats_ok_failed_zero()
     test_trade()
     test_revision_guard()
+    test_country_revision_guard()
     test_prune_and_done()
     test_apparent_and_payload()
     test_lookup_then_upsert_locks_when_other_writer_holds()

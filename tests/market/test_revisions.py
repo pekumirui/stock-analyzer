@@ -13,14 +13,14 @@ sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='stock-analyzer-rev-')}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.market.revisions import statement_points  # noqa: E402
-from app.models import Statement, Stock, XbrlFiling, XbrlFinancial, XbrlStdItem  # noqa: E402
-from app.revisions import revision_cell, revision_rows  # noqa: E402
-from app.xbrl.revisions import xbrl_points  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.main import app
+from app.market.revisions import statement_points
+from app.models import Statement, Stock, XbrlFiling, XbrlFinancial, XbrlStdItem
+from app.revisions import revision_cell, revision_rows
+from app.xbrl.revisions import xbrl_points
 
 CODE = "96970"
 FY25, FY26, FY27 = date(2025, 3, 31), date(2026, 3, 31), date(2027, 3, 31)

@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.ops.migrate_r2_share import (  # noqa: E402
+from jobs.ops.migrate_r2_share import (
     EXIT_IO,
     EXIT_MISCONFIG,
     MISMATCH_LOG_LIMIT,

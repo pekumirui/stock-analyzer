@@ -190,7 +190,7 @@ def dump(expected_path: Path, html_dirs: list[Path], repo: Path) -> dict:
         ]
         for base in html_dirs:
             cmd += ["--html-dir", str(base.resolve())]
-        subprocess.run(cmd, cwd=repo, env=env, check=True)  # nosec B603 (このファイル自身を別のチェックアウトで動かす)
+        subprocess.run(cmd, cwd=repo, env=env, check=True)
         return json.loads(out.read_text(encoding="utf-8"))
 
 

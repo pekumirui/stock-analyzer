@@ -1,0 +1,7982 @@
+{
+ "name": "stock-analyzer",
+ "desc": "自動生成。正は app/models.py。作り直しは python -m tools.schema.render",
+ "tables": [
+  {
+   "name": "briefing_documents",
+   "type": "table",
+   "comment": "決算説明資料 PDF の索引\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "source",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: tdnet / irbank / homepage"
+    },
+    {
+     "name": "document_id",
+     "type": "VARCHAR(80)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "普通株の 5 桁\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "company_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "pubdate",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": null,
+     "comment": "開示日時 YYYY-MM-DD HH:MM:SS"
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "rel_path",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "data/briefing からの相対パス"
+    },
+    {
+     "name": "url",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "sha256",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "size",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "status",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "saved"
+    },
+    {
+     "name": "storage",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "local",
+     "comment": "値: local / onedrive"
+    },
+    {
+     "name": "saved_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_briefing_documents_code_pubdate",
+     "def": "CREATE INDEX ix_briefing_documents_code_pubdate ON briefing_documents (code, pubdate)",
+     "table": "briefing_documents",
+     "columns": [
+      "code",
+      "pubdate"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_briefing_documents",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (source, document_id)",
+     "table": "briefing_documents",
+     "columns": [
+      "source",
+      "document_id"
+     ]
+    },
+    {
+     "name": "ref_briefing_documents_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "briefing_documents",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "briefing_extracts",
+   "type": "table",
+   "comment": "決算説明資料の読み取り。資料 1 つに 1 行\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "document_id",
+     "type": "VARCHAR(80)",
+     "nullable": false,
+     "default": null,
+     "comment": "出所をまたいで同じ開示番号\n→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "source",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "どの出所の PDF を読んだか\n→ briefing_documents.(source, document_id)（宣言だけ。DB の制約なし）\n値: tdnet / irbank / homepage"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "status",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "結果を受け取ったら done か failed\n値: submitted / done（1 ページでも読めた）/ failed"
+    },
+    {
+     "name": "batch_id",
+     "type": "VARCHAR(80)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "request_key",
+     "type": "VARCHAR(24)",
+     "nullable": false,
+     "default": null,
+     "comment": "Batch の custom_id の頭。document_id は custom_id に使えない文字を含みうる"
+    },
+    {
+     "name": "model",
+     "type": "VARCHAR(40)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "prompt_version",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "pages",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "PDF のページ数"
+    },
+    {
+     "name": "llm_pages",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "Claude に回したページ数"
+    },
+    {
+     "name": "error_pages",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "facts",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "verified",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "文字データにある数字"
+    },
+    {
+     "name": "sum_checks",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "sum_mismatch",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "input_tokens",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "キャッシュの読み書きを含む"
+    },
+    {
+     "name": "output_tokens",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "submitted_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "extracted_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_briefing_extracts_batch",
+     "def": "CREATE INDEX ix_briefing_extracts_batch ON briefing_extracts (batch_id)",
+     "table": "briefing_extracts",
+     "columns": [
+      "batch_id"
+     ]
+    },
+    {
+     "name": "ix_briefing_extracts_code",
+     "def": "CREATE INDEX ix_briefing_extracts_code ON briefing_extracts (code)",
+     "table": "briefing_extracts",
+     "columns": [
+      "code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_briefing_extracts",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (document_id)",
+     "table": "briefing_extracts",
+     "columns": [
+      "document_id"
+     ]
+    },
+    {
+     "name": "ref_briefing_extracts_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "briefing_extracts",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_briefing_extracts_source_document_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (source, document_id) → briefing_documents (source, document_id)",
+     "table": "briefing_extracts",
+     "referenced_table": "briefing_documents",
+     "columns": [
+      "source",
+      "document_id"
+     ],
+     "referenced_columns": [
+      "source",
+      "document_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "briefing_facts",
+   "type": "table",
+   "comment": "読み取った数値。briefing_pages の表を 1 セル 1 行に展開したもの\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "document_id",
+     "type": "VARCHAR(80)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ briefing_pages.(document_id, page)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "page",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "→ briefing_pages.(document_id, page)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "metric",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "segment",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_kind",
+     "type": "VARCHAR(24)",
+     "nullable": true,
+     "default": null,
+     "comment": "actual / forecast / previous_forecast / plan / change"
+    },
+    {
+     "name": "value",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "資料の表記（符号は - にそろえる）"
+    },
+    {
+     "name": "value_num",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(24)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "part_of",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "内訳の親（metric|segment）"
+    },
+    {
+     "name": "verified",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null,
+     "comment": "文字データにある"
+    },
+    {
+     "name": "sum_status",
+     "type": "VARCHAR(12)",
+     "nullable": true,
+     "default": null,
+     "comment": "親の行だけ\n値: ok / split / paren / partial / mismatch"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_briefing_facts_doc",
+     "def": "CREATE INDEX ix_briefing_facts_doc ON briefing_facts (document_id, page)",
+     "table": "briefing_facts",
+     "columns": [
+      "document_id",
+      "page"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_briefing_facts",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "briefing_facts",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "ref_briefing_facts_document_id_page",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (document_id, page) → briefing_pages (document_id, page)",
+     "table": "briefing_facts",
+     "referenced_table": "briefing_pages",
+     "columns": [
+      "document_id",
+      "page"
+     ],
+     "referenced_columns": [
+      "document_id",
+      "page"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "briefing_irbank_scans",
+   "type": "table",
+   "comment": "IR BANK の開示一覧を読み終えた銘柄\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "代表の 5 桁（末尾 0 を優先）\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "scanned_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "listed",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "説明資料と判定した件数"
+    },
+    {
+     "name": "saved",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "skipped",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "開示番号が索引済み"
+    },
+    {
+     "name": "reindexed",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "PDF は既にあり索引だけ足した"
+    },
+    {
+     "name": "missing",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "PDF が 404"
+    },
+    {
+     "name": "failed",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_briefing_irbank_scans",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code)",
+     "table": "briefing_irbank_scans",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_briefing_irbank_scans_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "briefing_irbank_scans",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "briefing_pages",
+   "type": "table",
+   "comment": "読み取った説明資料のページ。表紙・注意事項など Claude に回さないページも kind だけ残す\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "document_id",
+     "type": "VARCHAR(80)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ briefing_extracts.document_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "page",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "kind",
+     "type": "VARCHAR(24)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: divider / disclaimer / chart_or_table / table_or_text / text"
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "summary",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "tables_json",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "Claude が返した表（列 × 行、行の of）をそのまま"
+    },
+    {
+     "name": "error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "raw_text",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "JSON が読めなかったページだけ、Claude の応答をそのまま残す。Batch の結果は 29 日で消える"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_briefing_pages",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (document_id, page)",
+     "table": "briefing_pages",
+     "columns": [
+      "document_id",
+      "page"
+     ]
+    },
+    {
+     "name": "ref_briefing_pages_document_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (document_id) → briefing_extracts (document_id)",
+     "table": "briefing_pages",
+     "referenced_table": "briefing_extracts",
+     "columns": [
+      "document_id"
+     ],
+     "referenced_columns": [
+      "document_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "daily_prices",
+   "type": "table",
+   "comment": "日足\n機能: 株価・決算 / WITHOUT ROWID",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "open",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整前"
+    },
+    {
+     "name": "high",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整前"
+    },
+    {
+     "name": "low",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整前"
+    },
+    {
+     "name": "close",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整前"
+    },
+    {
+     "name": "volume",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整前"
+    },
+    {
+     "name": "turnover",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整前"
+    },
+    {
+     "name": "adj_factor",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": "1.0"
+    },
+    {
+     "name": "adj_open",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整済"
+    },
+    {
+     "name": "adj_high",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整済"
+    },
+    {
+     "name": "adj_low",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整済"
+    },
+    {
+     "name": "adj_close",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整済"
+    },
+    {
+     "name": "adj_volume",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "調整済"
+    },
+    {
+     "name": "market_cap",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "時価総額(百万円)"
+    },
+    {
+     "name": "upper_limit",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "J-Quants UL。その日にストップ高を付けたら 1。取込前の行は NULL"
+    },
+    {
+     "name": "lower_limit",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "J-Quants LL。ストップ安"
+    },
+    {
+     "name": "ex_rt",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "J-Quants ExRT。権利落ち日だけ 1=分割（無償割当を含む）/ 2=併合 / 3=ライツイシュー"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_prices_date",
+     "def": "CREATE INDEX ix_prices_date ON daily_prices (date)",
+     "table": "daily_prices",
+     "columns": [
+      "date"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_daily_prices",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, date)",
+     "table": "daily_prices",
+     "columns": [
+      "code",
+      "date"
+     ]
+    },
+    {
+     "name": "ref_daily_prices_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "daily_prices",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "data_versions",
+   "type": "table",
+   "comment": "読み取り結果を使い回すための版。対象表のトリガーが version を +1 する\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "name",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "使い回す結果の名前。monthly_list は月次一覧（/monthly、/api/v1/tables、/sitemap.xml）"
+    },
+    {
+     "name": "version",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": "0"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_data_versions",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (name)",
+     "table": "data_versions",
+     "columns": [
+      "name"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "earnings_date_fetches",
+   "type": "table",
+   "comment": "取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "pub_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "n",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_earnings_date_fetches",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (pub_date)",
+     "table": "earnings_date_fetches",
+     "columns": [
+      "pub_date"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "earnings_date_pubs",
+   "type": "table",
+   "comment": "決算発表予定の発表履歴。発表のたびに 1 行。現在の予定は (code, fq_name) で pub_date が最新の行。移動前の日が残っている\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "fq_name",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "1Q | 2Q | 3Q | FY"
+    },
+    {
+     "name": "pub_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null,
+     "comment": "→ earnings_date_fetches.pub_date（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "sch_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "NULL は未定。欠測ではない"
+    },
+    {
+     "name": "fye",
+     "type": "VARCHAR(4)",
+     "nullable": false,
+     "default": null,
+     "comment": "MMDD。0299 は 2月末"
+    },
+    {
+     "name": "co_name",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_earnings_date_pubs_sch_date",
+     "def": "CREATE INDEX ix_earnings_date_pubs_sch_date ON earnings_date_pubs (sch_date)",
+     "table": "earnings_date_pubs",
+     "columns": [
+      "sch_date"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_earnings_date_pubs",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, fq_name, pub_date)",
+     "table": "earnings_date_pubs",
+     "columns": [
+      "code",
+      "fq_name",
+      "pub_date"
+     ]
+    },
+    {
+     "name": "ref_earnings_date_pubs_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "earnings_date_pubs",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_earnings_date_pubs_pub_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (pub_date) → earnings_date_fetches (pub_date)",
+     "table": "earnings_date_pubs",
+     "referenced_table": "earnings_date_fetches",
+     "columns": [
+      "pub_date"
+     ],
+     "referenced_columns": [
+      "pub_date"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "earnings_events",
+   "type": "table",
+   "comment": "決算発表イベントと発表後パフォーマンス\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ statements.(code, disclosed_date)（宣言だけ。DB の制約なし）\n→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "disclosed_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null,
+     "comment": "→ statements.(code, disclosed_date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "base_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "決算後に買えた最初の値\n→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "base_price",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "決算後に買えた最初の値"
+    },
+    {
+     "name": "return_1d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "return_5d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "return_20d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "return_60d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "return_to_date",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "alpha_1d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "対TOPIX超過リターン"
+    },
+    {
+     "name": "alpha_5d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "対TOPIX超過リターン"
+    },
+    {
+     "name": "alpha_20d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "対TOPIX超過リターン"
+    },
+    {
+     "name": "alpha_60d",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "対TOPIX超過リターン"
+    },
+    {
+     "name": "alpha_to_date",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "対TOPIX超過リターン"
+    },
+    {
+     "name": "disclosed_time",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "その日の決算短信のうち一番早い発表時刻"
+    },
+    {
+     "name": "is_first",
+     "type": "BOOLEAN",
+     "nullable": true,
+     "default": null,
+     "comment": "その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽"
+    },
+    {
+     "name": "next_disclosed_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "同じ銘柄の次の期の最初の決算短信の日。まだ無ければ NULL\n→ statements.(code, disclosed_date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "end_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "return_to_next の終点（次の決算の前営業日。無ければ株価の最終日）\n→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "return_to_next",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "次の決算の前日終値まで（%）"
+    },
+    {
+     "name": "alpha_to_next",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "対TOPIX超過リターン"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_earnings_events",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, disclosed_date)",
+     "table": "earnings_events",
+     "columns": [
+      "code",
+      "disclosed_date"
+     ]
+    },
+    {
+     "name": "ref_earnings_events_code_disclosed_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, disclosed_date) → statements (code, disclosed_date)",
+     "table": "earnings_events",
+     "referenced_table": "statements",
+     "columns": [
+      "code",
+      "disclosed_date"
+     ],
+     "referenced_columns": [
+      "code",
+      "disclosed_date"
+     ]
+    },
+    {
+     "name": "ref_earnings_events_code_next_disclosed_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, next_disclosed_date) → statements (code, disclosed_date)",
+     "table": "earnings_events",
+     "referenced_table": "statements",
+     "columns": [
+      "code",
+      "next_disclosed_date"
+     ],
+     "referenced_columns": [
+      "code",
+      "disclosed_date"
+     ]
+    },
+    {
+     "name": "ref_earnings_events_code_base_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, base_date) → daily_prices (code, date)",
+     "table": "earnings_events",
+     "referenced_table": "daily_prices",
+     "columns": [
+      "code",
+      "base_date"
+     ],
+     "referenced_columns": [
+      "code",
+      "date"
+     ]
+    },
+    {
+     "name": "ref_earnings_events_code_end_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, end_date) → daily_prices (code, date)",
+     "table": "earnings_events",
+     "referenced_table": "daily_prices",
+     "columns": [
+      "code",
+      "end_date"
+     ],
+     "referenced_columns": [
+      "code",
+      "date"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_archives",
+   "type": "table",
+   "comment": "EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet → OneDrive\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_documents.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "file_type",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "書類取得 API の type（1 / 5）"
+    },
+    {
+     "name": "doc_type_code",
+     "type": "VARCHAR(3)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "rel_path",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "data/edinet からの相対パス"
+    },
+    {
+     "name": "status",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/ gone（取り直しのとき EDINET が 404。残っていない）"
+    },
+    {
+     "name": "bytes",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "sha256",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "saved_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_edinet_archives",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (doc_id, file_type)",
+     "table": "edinet_archives",
+     "columns": [
+      "doc_id",
+      "file_type"
+     ]
+    },
+    {
+     "name": "ref_edinet_archives_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+     "table": "edinet_archives",
+     "referenced_table": "edinet_documents",
+     "columns": [
+      "doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_buyback_resolutions",
+   "type": "table",
+   "comment": "自己株券買付状況報告書の 1 書類 × 決議 1 件（取締役会・株主総会・投資法人の役員会）\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_buybacks.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "resolution_no",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "書類の中の順番（1 始まり）"
+    },
+    {
+     "name": "kind",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: board / shareholders"
+    },
+    {
+     "name": "body",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "決議した機関（取締役会・定時株主総会・役員会）"
+    },
+    {
+     "name": "resolution_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "決議日"
+    },
+    {
+     "name": "acquire_from",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "取得期間"
+    },
+    {
+     "name": "acquire_to",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "limit_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "決議の枠（株数）。無ければ NULL"
+    },
+    {
+     "name": "limit_amount",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "決議の枠（価額の総額・円）"
+    },
+    {
+     "name": "month_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月の取得（「－」は 0）"
+    },
+    {
+     "name": "month_amount",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "cumulative_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月末までの累計"
+    },
+    {
+     "name": "cumulative_amount",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "progress_shares",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "進捗（書類の値。0.5297 = 52.97%）"
+    },
+    {
+     "name": "progress_amount",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "label",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "決議状況の行の見出し（そのまま）"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_edinet_buyback_resolutions",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (doc_id, resolution_no)",
+     "table": "edinet_buyback_resolutions",
+     "columns": [
+      "doc_id",
+      "resolution_no"
+     ]
+    },
+    {
+     "name": "ref_edinet_buyback_resolutions_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_buybacks (doc_id)",
+     "table": "edinet_buyback_resolutions",
+     "referenced_table": "edinet_buybacks",
+     "columns": [
+      "doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_buybacks",
+   "type": "table",
+   "comment": "自己株券買付状況報告書・訂正（EDINET 書類種別 220 / 230）の 1 書類。中身は書類取得 API type=1（XBRL）のテキストブロックの表\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_documents.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "file_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "submit_datetime",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "doc_type_code",
+     "type": "VARCHAR(3)",
+     "nullable": false,
+     "default": null,
+     "comment": "220 報告書 / 230 訂正"
+    },
+    {
+     "name": "form_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "170000 株式会社 / 253000 投資法人"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "上場していなければ NULL\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "filer_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "report_month",
+     "type": "VARCHAR(7)",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月 YYYY-MM（報告期間の末日の月）"
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "報告期間"
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "issued_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月末の発行済株式総数（投資法人は投資口）"
+    },
+    {
+     "name": "treasury_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月末の保有自己株式数"
+    },
+    {
+     "name": "resolution_count",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "決議の数（edinet_buyback_resolutions の行数）"
+    },
+    {
+     "name": "month_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月に取得した株数（決議の合計）"
+    },
+    {
+     "name": "month_amount",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "報告月に取得した価額の総額（円）"
+    },
+    {
+     "name": "is_amendment",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "amends_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_buybacks.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "original_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_buybacks.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "is_latest",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "大元ごとの最新の 1 件"
+    },
+    {
+     "name": "withdrawn",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "parse_status",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: parsed / meta（取得状況が対象外の訂正）/ failed"
+    },
+    {
+     "name": "parse_error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "fetched_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_edinet_buybacks_code",
+     "def": "CREATE INDEX ix_edinet_buybacks_code ON edinet_buybacks (code, report_month)",
+     "table": "edinet_buybacks",
+     "columns": [
+      "code",
+      "report_month"
+     ]
+    },
+    {
+     "name": "ix_edinet_buybacks_edinet_code",
+     "def": "CREATE INDEX ix_edinet_buybacks_edinet_code ON edinet_buybacks (edinet_code)",
+     "table": "edinet_buybacks",
+     "columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ix_edinet_buybacks_original_doc_id",
+     "def": "CREATE INDEX ix_edinet_buybacks_original_doc_id ON edinet_buybacks (original_doc_id)",
+     "table": "edinet_buybacks",
+     "columns": [
+      "original_doc_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_edinet_buybacks",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (doc_id)",
+     "table": "edinet_buybacks",
+     "columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_buybacks_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+     "table": "edinet_buybacks",
+     "referenced_table": "edinet_documents",
+     "columns": [
+      "doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_buybacks_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "edinet_buybacks",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_edinet_buybacks_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_buybacks",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_buybacks_amends_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (amends_doc_id) → edinet_buybacks (doc_id)",
+     "table": "edinet_buybacks",
+     "referenced_table": "edinet_buybacks",
+     "columns": [
+      "amends_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_buybacks_original_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (original_doc_id) → edinet_buybacks (doc_id)",
+     "table": "edinet_buybacks",
+     "referenced_table": "edinet_buybacks",
+     "columns": [
+      "original_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_documents",
+   "type": "table",
+   "comment": "EDINET 書類一覧 API（type=2）の 1 行。docID は一意でない（修正・不開示・取下げが別レコードで出る）\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "file_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_list_days.file_date（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "seq_number",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "secCode か edinet_filers から引く\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "sec_code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "jcn",
+     "type": "VARCHAR(13)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "filer_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "fund_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "ordinance_code",
+     "type": "VARCHAR(3)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "form_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "doc_type_code",
+     "type": "VARCHAR(3)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "submit_datetime",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "doc_description",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "issuer_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "subject_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "subsidiary_edinet_codes",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "カンマ区切り"
+    },
+    {
+     "name": "current_report_reasons",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "カンマ区切り"
+    },
+    {
+     "name": "parent_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_documents.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "ope_datetime",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "withdrawal_status",
+     "type": "VARCHAR(1)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "doc_info_edit_status",
+     "type": "VARCHAR(1)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "disclosure_status",
+     "type": "VARCHAR(1)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "xbrl_flag",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "pdf_flag",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "attach_doc_flag",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "english_doc_flag",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "csv_flag",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "legal_status",
+     "type": "VARCHAR(1)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "fetched_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_edinet_documents_code",
+     "def": "CREATE INDEX ix_edinet_documents_code ON edinet_documents (code)",
+     "table": "edinet_documents",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ix_edinet_documents_code_type",
+     "def": "CREATE INDEX ix_edinet_documents_code_type ON edinet_documents (code, doc_type_code, submit_datetime)",
+     "table": "edinet_documents",
+     "columns": [
+      "code",
+      "doc_type_code",
+      "submit_datetime"
+     ]
+    },
+    {
+     "name": "ix_edinet_documents_doc_id",
+     "def": "CREATE INDEX ix_edinet_documents_doc_id ON edinet_documents (doc_id)",
+     "table": "edinet_documents",
+     "columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ix_edinet_documents_doc_type_code",
+     "def": "CREATE INDEX ix_edinet_documents_doc_type_code ON edinet_documents (doc_type_code)",
+     "table": "edinet_documents",
+     "columns": [
+      "doc_type_code"
+     ]
+    },
+    {
+     "name": "ix_edinet_documents_edinet_code",
+     "def": "CREATE INDEX ix_edinet_documents_edinet_code ON edinet_documents (edinet_code)",
+     "table": "edinet_documents",
+     "columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ix_edinet_documents_issuer_edinet_code",
+     "def": "CREATE INDEX ix_edinet_documents_issuer_edinet_code ON edinet_documents (issuer_edinet_code)",
+     "table": "edinet_documents",
+     "columns": [
+      "issuer_edinet_code"
+     ]
+    },
+    {
+     "name": "ix_edinet_documents_subject_edinet_code",
+     "def": "CREATE INDEX ix_edinet_documents_subject_edinet_code ON edinet_documents (subject_edinet_code)",
+     "table": "edinet_documents",
+     "columns": [
+      "subject_edinet_code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_edinet_documents",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (file_date, seq_number)",
+     "table": "edinet_documents",
+     "columns": [
+      "file_date",
+      "seq_number"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_file_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (file_date) → edinet_list_days (file_date)",
+     "table": "edinet_documents",
+     "referenced_table": "edinet_list_days",
+     "columns": [
+      "file_date"
+     ],
+     "referenced_columns": [
+      "file_date"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "edinet_documents",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_documents",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_sec_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (sec_code) → stocks (code)",
+     "table": "edinet_documents",
+     "referenced_table": "stocks",
+     "columns": [
+      "sec_code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_issuer_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (issuer_edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_documents",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "issuer_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_subject_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (subject_edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_documents",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "subject_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_documents_parent_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (parent_doc_id) → edinet_documents (doc_id)",
+     "table": "edinet_documents",
+     "referenced_table": "edinet_documents",
+     "columns": [
+      "parent_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_filers",
+   "type": "table",
+   "comment": "EDINET コードリスト（提出者）の写し。上場していない提出者（大量保有の保有者など）も持つ。リストから消えた提出者も残す\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "sec_code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "証券コード 5 桁\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "filer_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "filer_name_en",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "filer_type",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "提出者種別（内国法人・組合 / 外国法人・組合 / 個人 など）"
+    },
+    {
+     "name": "listed",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "上場区分（上場 / 非上場）"
+    },
+    {
+     "name": "is_consolidated",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "連結の有無（有 / 無）"
+    },
+    {
+     "name": "capital",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "資本金（百万円）。リストの文字列のまま"
+    },
+    {
+     "name": "fiscal_year_end",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "決算日（例 3月31日）"
+    },
+    {
+     "name": "industry",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "提出者業種"
+    },
+    {
+     "name": "jcn",
+     "type": "VARCHAR(13)",
+     "nullable": true,
+     "default": null,
+     "comment": "提出者法人番号"
+    },
+    {
+     "name": "list_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "リストのダウンロード実行日"
+    },
+    {
+     "name": "updated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_edinet_filers_sec_code",
+     "def": "CREATE INDEX ix_edinet_filers_sec_code ON edinet_filers (sec_code)",
+     "table": "edinet_filers",
+     "columns": [
+      "sec_code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_edinet_filers",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (edinet_code)",
+     "table": "edinet_filers",
+     "columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_filers_sec_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (sec_code) → stocks (code)",
+     "table": "edinet_filers",
+     "referenced_table": "stocks",
+     "columns": [
+      "sec_code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_list_days",
+   "type": "table",
+   "comment": "書類一覧を取った日ごとの記録\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "file_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "count",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "metadata.resultset.count"
+    },
+    {
+     "name": "max_seq",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "process_datetime",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "EDINET 側の一覧作成時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "finalized",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null,
+     "comment": "file_date より後に取った = その日の一覧は確定"
+    },
+    {
+     "name": "fetched_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_edinet_list_days",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (file_date)",
+     "table": "edinet_list_days",
+     "columns": [
+      "file_date"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_tender_offer_docs",
+   "type": "table",
+   "comment": "公開買付けの書類 1 件（240〜340）。届出・訂正・撤回・報告書・意見表明・対質問回答など\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_documents.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "tender_offer_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "大元（parent_doc_id をたどる）\n→ edinet_tender_offers.tender_offer_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "file_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "submit_datetime",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "doc_type_code",
+     "type": "VARCHAR(3)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "ordinance_code",
+     "type": "VARCHAR(3)",
+     "nullable": true,
+     "default": null,
+     "comment": "040 他社株 / 050 発行者（自社株）"
+    },
+    {
+     "name": "form_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "filer_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "filer_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "subject_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "届出書・報告書は対象者、意見表明は買付者\n→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "parent_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "withdrawn",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "取下げ・不開示"
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "price",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "planned_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "min_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "max_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "holding_ratio_after",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "target_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "opinion",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "値: support / oppose / neutral / reserved"
+    },
+    {
+     "name": "recommendation",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "値: recommend / leave / not_recommend"
+    },
+    {
+     "name": "opinion_text",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "意見の内容（最初の段落）"
+    },
+    {
+     "name": "success",
+     "type": "BOOLEAN",
+     "nullable": true,
+     "default": null,
+     "comment": "公開買付けの成否（報告書）"
+    },
+    {
+     "name": "tendered_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "purchased_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "parse_status",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: parsed / meta（中身を読まない書類）/ failed"
+    },
+    {
+     "name": "parse_error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "fetched_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_edinet_tender_offer_docs_tender_offer_id",
+     "def": "CREATE INDEX ix_edinet_tender_offer_docs_tender_offer_id ON edinet_tender_offer_docs (tender_offer_id)",
+     "table": "edinet_tender_offer_docs",
+     "columns": [
+      "tender_offer_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_edinet_tender_offer_docs",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (doc_id)",
+     "table": "edinet_tender_offer_docs",
+     "columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offer_docs_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+     "table": "edinet_tender_offer_docs",
+     "referenced_table": "edinet_documents",
+     "columns": [
+      "doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offer_docs_tender_offer_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (tender_offer_id) → edinet_tender_offers (tender_offer_id)",
+     "table": "edinet_tender_offer_docs",
+     "referenced_table": "edinet_tender_offers",
+     "columns": [
+      "tender_offer_id"
+     ],
+     "referenced_columns": [
+      "tender_offer_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offer_docs_filer_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (filer_edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_tender_offer_docs",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "filer_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offer_docs_subject_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (subject_edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_tender_offer_docs",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "subject_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offer_docs_parent_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (parent_doc_id) → edinet_tender_offer_docs (doc_id)",
+     "table": "edinet_tender_offer_docs",
+     "referenced_table": "edinet_tender_offer_docs",
+     "columns": [
+      "parent_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "edinet_tender_offers",
+   "type": "table",
+   "comment": "公開買付け 1 件。届出書（240）を大元に、訂正・撤回・意見表明・報告書から決め直す\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "tender_offer_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "大元の docID（ふつうは公開買付届出書）\n→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "is_issuer",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "発行者による公開買付け（自社株 TOB）"
+    },
+    {
+     "name": "offeror_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "offeror_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "offeror_code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "買付者が上場していれば\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "target_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "target_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "target_code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "対象者\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "announced_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "届出書の提出日"
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "買付け等の期間"
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "price",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "普通株式 1 株の買付価格（円）"
+    },
+    {
+     "name": "price_initial",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "届出書の当初の価格"
+    },
+    {
+     "name": "planned_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "買付予定数"
+    },
+    {
+     "name": "min_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "買付予定数の下限（無ければ NULL）"
+    },
+    {
+     "name": "max_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "買付予定数の上限（無ければ NULL）"
+    },
+    {
+     "name": "holding_ratio_after",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "買付け後の株券等所有割合（届出書は予定、報告書は結果）"
+    },
+    {
+     "name": "opinion",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "対象者の意見\n値: support / oppose / neutral / reserved"
+    },
+    {
+     "name": "recommendation",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "応募\n値: recommend / leave / not_recommend"
+    },
+    {
+     "name": "status",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: open / succeeded / failed / withdrawn"
+    },
+    {
+     "name": "tendered_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "応募数（株式換算）"
+    },
+    {
+     "name": "purchased_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "買付数"
+    },
+    {
+     "name": "result_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "公開買付報告書の提出日"
+    },
+    {
+     "name": "latest_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "いちばん新しい書類\n→ edinet_tender_offer_docs.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "doc_count",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "updated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_edinet_tender_offers_offeror_edinet_code",
+     "def": "CREATE INDEX ix_edinet_tender_offers_offeror_edinet_code ON edinet_tender_offers (offeror_edinet_code)",
+     "table": "edinet_tender_offers",
+     "columns": [
+      "offeror_edinet_code"
+     ]
+    },
+    {
+     "name": "ix_edinet_tender_offers_target_code",
+     "def": "CREATE INDEX ix_edinet_tender_offers_target_code ON edinet_tender_offers (target_code)",
+     "table": "edinet_tender_offers",
+     "columns": [
+      "target_code"
+     ]
+    },
+    {
+     "name": "ix_edinet_tender_offers_target_edinet_code",
+     "def": "CREATE INDEX ix_edinet_tender_offers_target_edinet_code ON edinet_tender_offers (target_edinet_code)",
+     "table": "edinet_tender_offers",
+     "columns": [
+      "target_edinet_code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_edinet_tender_offers",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (tender_offer_id)",
+     "table": "edinet_tender_offers",
+     "columns": [
+      "tender_offer_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offers_tender_offer_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (tender_offer_id) → edinet_tender_offer_docs (doc_id)",
+     "table": "edinet_tender_offers",
+     "referenced_table": "edinet_tender_offer_docs",
+     "columns": [
+      "tender_offer_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offers_offeror_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (offeror_edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_tender_offers",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "offeror_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offers_offeror_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (offeror_code) → stocks (code)",
+     "table": "edinet_tender_offers",
+     "referenced_table": "stocks",
+     "columns": [
+      "offeror_code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offers_target_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (target_edinet_code) → edinet_filers (edinet_code)",
+     "table": "edinet_tender_offers",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "target_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offers_target_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (target_code) → stocks (code)",
+     "table": "edinet_tender_offers",
+     "referenced_table": "stocks",
+     "columns": [
+      "target_code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_edinet_tender_offers_latest_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (latest_doc_id) → edinet_tender_offer_docs (doc_id)",
+     "table": "edinet_tender_offers",
+     "referenced_table": "edinet_tender_offer_docs",
+     "columns": [
+      "latest_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "fx_rates",
+   "type": "table",
+   "comment": "ECB 対EUR 日次レート。EUR 自身は持たない\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "quote",
+     "type": "VARCHAR(3)",
+     "nullable": false,
+     "default": null,
+     "comment": "ISO 4217（USD / JPY 等）"
+    },
+    {
+     "name": "rate",
+     "type": "FLOAT",
+     "nullable": false,
+     "default": null,
+     "comment": "1 EUR = rate 単位の quote"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_fx_rates_quote_date",
+     "def": "CREATE INDEX ix_fx_rates_quote_date ON fx_rates (quote, date)",
+     "table": "fx_rates",
+     "columns": [
+      "quote",
+      "date"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_fx_rates",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (date, quote)",
+     "table": "fx_rates",
+     "columns": [
+      "date",
+      "quote"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "homepages",
+   "type": "table",
+   "comment": "上場会社のホームページ URL\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "普通株（末尾 0）\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "url",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "選んだ 1 本（会社ホームページ）"
+    },
+    {
+     "name": "host",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null,
+     "comment": "小文字。先頭 www. を除く"
+    },
+    {
+     "name": "source",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: manual / xbrl_url / tanshin_html"
+    },
+    {
+     "name": "origin",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "manual / xbrl:{doc_id} / tanshin:{disclosure_no}"
+    },
+    {
+     "name": "changed_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "url / source / origin / host が変わった時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "checked_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "最後に確認した時刻。値が同じでも進む\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_homepages",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code)",
+     "table": "homepages",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_homepages_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "homepages",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "indicators",
+   "type": "table",
+   "comment": "日次算出テクニカル\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null,
+     "comment": "→ daily_prices.(code, date)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "close",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "ma50",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "ma150",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "ma200",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "ma200_slope_1m",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "200日線の1ヶ月変化率"
+    },
+    {
+     "name": "high_52w",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "low_52w",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "rs_raw",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "RS生値"
+    },
+    {
+     "name": "rs_rank",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "1-99ランク"
+    },
+    {
+     "name": "stage",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "1/2/3/4 (判定不能はNULL)"
+    },
+    {
+     "name": "avg_volume_50",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_ind_date_stage",
+     "def": "CREATE INDEX ix_ind_date_stage ON indicators (date, stage)",
+     "table": "indicators",
+     "columns": [
+      "date",
+      "stage"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_indicators",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, date)",
+     "table": "indicators",
+     "columns": [
+      "code",
+      "date"
+     ]
+    },
+    {
+     "name": "ref_indicators_code_date",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, date) → daily_prices (code, date)",
+     "table": "indicators",
+     "referenced_table": "daily_prices",
+     "columns": [
+      "code",
+      "date"
+     ],
+     "referenced_columns": [
+      "code",
+      "date"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "large_holding_reports",
+   "type": "table",
+   "comment": "大量保有報告書・変更報告書・訂正（EDINET 書類種別 350 / 360）の 1 書類。中身は書類取得 API type=5（XBRL→CSV）\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ edinet_documents.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "file_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "submit_datetime",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "doc_type_code",
+     "type": "VARCHAR(3)",
+     "nullable": false,
+     "default": null,
+     "comment": "350 大量保有・変更報告書 / 360 訂正"
+    },
+    {
+     "name": "form_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "010000 大量保有 / 010002 変更 / 020002 短期大量譲渡 / 03xxxx 特例 など"
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "表紙の書類名（変更報告書ＮＯ．3 など）"
+    },
+    {
+     "name": "filer_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "filer_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "issuer_edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "issuer_sec_code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "発行者の証券コード（CSV の 4 桁に 0 を付けた 5 桁）\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "issuer_name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "上場していなければ NULL\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "obligation_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "報告義務発生日"
+    },
+    {
+     "name": "filing_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "表紙の提出日"
+    },
+    {
+     "name": "reason",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "提出事由（変更報告書だけ）"
+    },
+    {
+     "name": "arrangement",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "提出形態（連名 / その他）"
+    },
+    {
+     "name": "holder_count",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "提出者及び共同保有者の総数"
+    },
+    {
+     "name": "shares_held",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "保有株券等の数（合計）"
+    },
+    {
+     "name": "outstanding_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "発行済株式等総数"
+    },
+    {
+     "name": "holding_ratio",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "株券等保有割合（0.0507 = 5.07%）"
+    },
+    {
+     "name": "holding_ratio_prev",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "直前の報告書の保有割合。大量保有報告書は NULL"
+    },
+    {
+     "name": "joint_holders_text",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "第3 共同保有者に関する事項（該当なしは NULL）"
+    },
+    {
+     "name": "is_amendment",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "amends_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "訂正の対象（DEI の IdentificationOfDocumentSubjectToAmendment）\n→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "original_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "訂正をたどった大元。訂正でなければ自分\n→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "is_latest",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "大元ごとに取下げでない最新の 1 件"
+    },
+    {
+     "name": "withdrawn",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "取下げ・不開示（edinet_documents から）"
+    },
+    {
+     "name": "parse_status",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: parsed / failed"
+    },
+    {
+     "name": "parse_error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "fetched_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_large_holding_reports_code",
+     "def": "CREATE INDEX ix_large_holding_reports_code ON large_holding_reports (code, obligation_date)",
+     "table": "large_holding_reports",
+     "columns": [
+      "code",
+      "obligation_date"
+     ]
+    },
+    {
+     "name": "ix_large_holding_reports_file_date",
+     "def": "CREATE INDEX ix_large_holding_reports_file_date ON large_holding_reports (file_date)",
+     "table": "large_holding_reports",
+     "columns": [
+      "file_date"
+     ]
+    },
+    {
+     "name": "ix_large_holding_reports_filer_edinet_code",
+     "def": "CREATE INDEX ix_large_holding_reports_filer_edinet_code ON large_holding_reports (filer_edinet_code)",
+     "table": "large_holding_reports",
+     "columns": [
+      "filer_edinet_code"
+     ]
+    },
+    {
+     "name": "ix_large_holding_reports_latest_file",
+     "def": "CREATE INDEX ix_large_holding_reports_latest_file ON large_holding_reports (is_latest, file_date)",
+     "table": "large_holding_reports",
+     "columns": [
+      "is_latest",
+      "file_date"
+     ]
+    },
+    {
+     "name": "ix_large_holding_reports_original_doc_id",
+     "def": "CREATE INDEX ix_large_holding_reports_original_doc_id ON large_holding_reports (original_doc_id)",
+     "table": "large_holding_reports",
+     "columns": [
+      "original_doc_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_large_holding_reports",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (doc_id)",
+     "table": "large_holding_reports",
+     "columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+     "table": "large_holding_reports",
+     "referenced_table": "edinet_documents",
+     "columns": [
+      "doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_filer_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (filer_edinet_code) → edinet_filers (edinet_code)",
+     "table": "large_holding_reports",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "filer_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_issuer_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (issuer_edinet_code) → edinet_filers (edinet_code)",
+     "table": "large_holding_reports",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "issuer_edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_issuer_sec_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (issuer_sec_code) → stocks (code)",
+     "table": "large_holding_reports",
+     "referenced_table": "stocks",
+     "columns": [
+      "issuer_sec_code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "large_holding_reports",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_amends_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (amends_doc_id) → large_holding_reports (doc_id)",
+     "table": "large_holding_reports",
+     "referenced_table": "large_holding_reports",
+     "columns": [
+      "amends_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_large_holding_reports_original_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (original_doc_id) → large_holding_reports (doc_id)",
+     "table": "large_holding_reports",
+     "referenced_table": "large_holding_reports",
+     "columns": [
+      "original_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "large_holdings",
+   "type": "table",
+   "comment": "大量保有の 1 書類 × 提出者・共同保有者 1 人（CSV の FilerLargeVolumeHolder<N>Member）\n機能: EDINET・大量保有",
+   "columns": [
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ large_holding_reports.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "holder_no",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "書類の中の番号（1 始まり）"
+    },
+    {
+     "name": "edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "holder_type",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "個人・法人の別（法人（株式会社）など）"
+    },
+    {
+     "name": "shares_held",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "outstanding_shares",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "holding_ratio",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "holding_ratio_prev",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "base_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "保有の基準日"
+    },
+    {
+     "name": "purpose",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "保有目的"
+    },
+    {
+     "name": "important_proposal",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "重要提案行為等（該当なしは NULL）"
+    },
+    {
+     "name": "own_funds",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "取得資金: 自己資金額（円）"
+    },
+    {
+     "name": "borrowings",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "借入金額計"
+    },
+    {
+     "name": "other_funds",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "その他金額計"
+    },
+    {
+     "name": "total_funds",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "取得資金合計"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_large_holdings_edinet_code",
+     "def": "CREATE INDEX ix_large_holdings_edinet_code ON large_holdings (edinet_code)",
+     "table": "large_holdings",
+     "columns": [
+      "edinet_code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_large_holdings",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (doc_id, holder_no)",
+     "table": "large_holdings",
+     "columns": [
+      "doc_id",
+      "holder_no"
+     ]
+    },
+    {
+     "name": "ref_large_holdings_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (doc_id) → large_holding_reports (doc_id)",
+     "table": "large_holdings",
+     "referenced_table": "large_holding_reports",
+     "columns": [
+      "doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_large_holdings_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+     "table": "large_holdings",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "material_monthly",
+   "type": "table",
+   "comment": "サプライタブの素材ごとの月次量\n機能: サプライ",
+   "columns": [
+    {
+     "name": "material_id",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "config/supply/supply_chain.json の id（FK なし）"
+    },
+    {
+     "name": "month",
+     "type": "VARCHAR(7)",
+     "nullable": false,
+     "default": null,
+     "comment": "YYYY-MM"
+    },
+    {
+     "name": "metric",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: production / shipment / inventory / import / export / processing（原油処理）/ domestic_sales（国内向販売）"
+    },
+    {
+     "name": "source",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "seidou:<報告番号>（生産動態）/ sekiyu（石油統計）/ trade（貿易）"
+    },
+    {
+     "name": "value",
+     "type": "FLOAT",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "t / kl / 本 など。換算しない"
+    },
+    {
+     "name": "revision",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "1 速報 / 2 確報 / 3 年報（年間補正後）"
+    },
+    {
+     "name": "origin",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "取り込んだ e-Stat の表 ID か Excel のファイル名"
+    },
+    {
+     "name": "is_estimate",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "按分の推計値"
+    },
+    {
+     "name": "updated_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_material_monthly",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (material_id, month, metric, source)",
+     "table": "material_monthly",
+     "columns": [
+      "material_id",
+      "month",
+      "metric",
+      "source"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "material_trade_country",
+   "type": "table",
+   "comment": "素材の輸出入の相手国別の月次量（普通貿易統計の品別国別表）。material_monthly の trade の国別内訳。国合計を material_monthly に書かない素材も国別だけはここに持つ\n機能: サプライ",
+   "columns": [
+    {
+     "name": "material_id",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "month",
+     "type": "VARCHAR(7)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "flow",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: import / export"
+    },
+    {
+     "name": "country",
+     "type": "VARCHAR(3)",
+     "nullable": false,
+     "default": null,
+     "comment": "貿易統計の国コード（137 = サウジアラビア）"
+    },
+    {
+     "name": "country_name",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "value",
+     "type": "FLOAT",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "revision",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "1 速報 / 2 確報"
+    },
+    {
+     "name": "origin",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "updated_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_material_trade_country",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (material_id, month, flow, country)",
+     "table": "material_trade_country",
+     "columns": [
+      "material_id",
+      "month",
+      "flow",
+      "country"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "monthly_element_sources",
+   "type": "table",
+   "comment": "送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力\n機能: 月次",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "year",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "source_label",
+     "type": "VARCHAR(50)",
+     "nullable": false,
+     "default": null,
+     "comment": "受け取ったまま（正規化前）。前後の空白だけ落とす"
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "受け取ったまま（正規化前）。yoy_pct 可"
+    },
+    {
+     "name": "element",
+     "type": "VARCHAR(50)",
+     "nullable": false,
+     "default": null,
+     "comment": "今の保存名\n→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "via",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "経路\n値: api / doc / ir_html / ir_json / ir_xls / legacy（記録前からある行。保存名そのものを入れる）"
+    },
+    {
+     "name": "first_seen_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "last_seen_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_monthly_element_sources_element",
+     "def": "CREATE INDEX ix_monthly_element_sources_element ON monthly_element_sources (element)",
+     "table": "monthly_element_sources",
+     "columns": [
+      "element"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_monthly_element_sources",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, year, source_label, unit)",
+     "table": "monthly_element_sources",
+     "columns": [
+      "code",
+      "year",
+      "source_label",
+      "unit"
+     ]
+    },
+    {
+     "name": "ref_monthly_element_sources_code_year_element",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, year, element) → monthly_elements (code, year, element)",
+     "table": "monthly_element_sources",
+     "referenced_table": "monthly_elements",
+     "columns": [
+      "code",
+      "year",
+      "element"
+     ],
+     "referenced_columns": [
+      "code",
+      "year",
+      "element"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "monthly_elements",
+   "type": "table",
+   "comment": "月次表の行\n機能: 月次",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_tables.(code, year)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "year",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_tables.(code, year)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "element",
+     "type": "VARCHAR(50)",
+     "nullable": false,
+     "default": null,
+     "comment": "登録時の正規名"
+    },
+    {
+     "name": "sort_order",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "登録順"
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "number",
+     "comment": "number | yoy_index"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_monthly_elements",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, year, element)",
+     "table": "monthly_elements",
+     "columns": [
+      "code",
+      "year",
+      "element"
+     ]
+    },
+    {
+     "name": "ref_monthly_elements_code_year",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, year) → monthly_tables (code, year)",
+     "table": "monthly_elements",
+     "referenced_table": "monthly_tables",
+     "columns": [
+      "code",
+      "year"
+     ],
+     "referenced_columns": [
+      "code",
+      "year"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "monthly_issuers",
+   "type": "table",
+   "comment": "発行体ごとの月次属性\n機能: 月次",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "industry",
+     "type": "VARCHAR(50)",
+     "nullable": false,
+     "default": "その他",
+     "comment": "月次業種。stocks.sector33 とは別"
+    },
+    {
+     "name": "last_ingested_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "ingest でセルが変わったときだけ更新。NULL は新着ではない\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_monthly_issuers",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code)",
+     "table": "monthly_issuers",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_monthly_issuers_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "monthly_issuers",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "monthly_tables",
+   "type": "table",
+   "comment": "銘柄×年度の月次表 (暦月1〜12。会計月ではない)\n機能: 月次",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_issuers.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "year",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "西暦4桁"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_monthly_tables",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, year)",
+     "table": "monthly_tables",
+     "columns": [
+      "code",
+      "year"
+     ]
+    },
+    {
+     "name": "ref_monthly_tables_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → monthly_issuers (code)",
+     "table": "monthly_tables",
+     "referenced_table": "monthly_issuers",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "monthly_values",
+   "type": "table",
+   "comment": "月次セル\n機能: 月次",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "year",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "element",
+     "type": "VARCHAR(50)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_elements.(code, year, element)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "month",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "value",
+     "type": "FLOAT",
+     "nullable": false,
+     "default": null,
+     "comment": "数値のみ (単位・カンマ付き文字列は拒否)"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_monthly_values",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, year, element, month)",
+     "table": "monthly_values",
+     "columns": [
+      "code",
+      "year",
+      "element",
+      "month"
+     ]
+    },
+    {
+     "name": "ref_monthly_values_code_year_element",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, year, element) → monthly_elements (code, year, element)",
+     "table": "monthly_values",
+     "referenced_table": "monthly_elements",
+     "columns": [
+      "code",
+      "year",
+      "element"
+     ],
+     "referenced_columns": [
+      "code",
+      "year",
+      "element"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "pts_snapshots",
+   "type": "table",
+   "comment": "株探の PTS ナイトタイムセッションのランキング。取得 1 回ごとにランキング全行を残す\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "fetched_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "取得時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "ranking",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null,
+     "comment": "値: night_up / night_down / night_volume"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "session_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null,
+     "comment": "比べている通常取引の終値の日（株探の見出し「D日終値」から。取得日ではない）"
+    },
+    {
+     "name": "as_of",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "株探の「HH:MM現在」（15 分ディレイ）"
+    },
+    {
+     "name": "rank",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "market",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "base_close",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "pts_price",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "pts_chg_pct",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "volume",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_pts_session_ranking",
+     "def": "CREATE INDEX ix_pts_session_ranking ON pts_snapshots (session_date, ranking)",
+     "table": "pts_snapshots",
+     "columns": [
+      "session_date",
+      "ranking"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_pts_snapshots",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (fetched_at, ranking, code)",
+     "table": "pts_snapshots",
+     "columns": [
+      "fetched_at",
+      "ranking",
+      "code"
+     ]
+    },
+    {
+     "name": "ref_pts_snapshots_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "pts_snapshots",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "statements",
+   "type": "table",
+   "comment": "決算短信 (J-Quants /fins/summary ほぼ生保存。短信 XBRL から作った行も入る)\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "disclosure_no",
+     "type": "VARCHAR",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "disclosed_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "disclosed_time",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "type_of_period",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "1Q/2Q/3Q/4Q/5Q/FY"
+    },
+    {
+     "name": "type_of_document",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "fiscal_year_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "fiscal_year_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "net_sales",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "累計実績"
+    },
+    {
+     "name": "operating_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "累計実績"
+    },
+    {
+     "name": "ordinary_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "累計実績"
+    },
+    {
+     "name": "profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "累計実績"
+    },
+    {
+     "name": "eps",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "累計実績"
+    },
+    {
+     "name": "f2_net_sales",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "半期(2Q)会社予想"
+    },
+    {
+     "name": "f2_operating_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "半期(2Q)会社予想"
+    },
+    {
+     "name": "f2_ordinary_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "半期(2Q)会社予想"
+    },
+    {
+     "name": "f2_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "半期(2Q)会社予想"
+    },
+    {
+     "name": "f2_eps",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "半期(2Q)会社予想"
+    },
+    {
+     "name": "fy_net_sales",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "通期会社予想"
+    },
+    {
+     "name": "fy_operating_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "通期会社予想"
+    },
+    {
+     "name": "fy_ordinary_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "通期会社予想"
+    },
+    {
+     "name": "fy_profit",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "通期会社予想"
+    },
+    {
+     "name": "fy_eps",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null,
+     "comment": "通期会社予想"
+    },
+    {
+     "name": "is_revision",
+     "type": "BOOLEAN",
+     "nullable": true,
+     "default": "False",
+     "comment": "予想修正開示フラグ"
+    },
+    {
+     "name": "raw_json",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "元データ全項目"
+    },
+    {
+     "name": "source",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "NULL は J-Quants\n値: jquants / xbrl"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_statements_code",
+     "def": "CREATE INDEX ix_statements_code ON statements (code)",
+     "table": "statements",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ix_statements_disclosed_date",
+     "def": "CREATE INDEX ix_statements_disclosed_date ON statements (disclosed_date)",
+     "table": "statements",
+     "columns": [
+      "disclosed_date"
+     ]
+    },
+    {
+     "name": "ix_statements_earnings_cover",
+     "def": "CREATE INDEX ix_statements_earnings_cover ON statements (code, disclosed_date, disclosure_no, disclosed_time, type_of_period, type_of_document, period_start, period_end, fiscal_year_start, fiscal_year_end, net_sales, operating_profit, ordinary_profit, profit, eps, f2_net_sales, f2_operating_profit, f2_ordinary_profit, f2_profit, f2_eps, fy_net_sales, fy_operating_profit, fy_ordinary_profit, fy_profit, fy_eps, is_revision)",
+     "table": "statements",
+     "columns": [
+      "code",
+      "disclosed_date",
+      "disclosure_no",
+      "disclosed_time",
+      "type_of_period",
+      "type_of_document",
+      "period_start",
+      "period_end",
+      "fiscal_year_start",
+      "fiscal_year_end",
+      "net_sales",
+      "operating_profit",
+      "ordinary_profit",
+      "profit",
+      "eps",
+      "f2_net_sales",
+      "f2_operating_profit",
+      "f2_ordinary_profit",
+      "f2_profit",
+      "f2_eps",
+      "fy_net_sales",
+      "fy_operating_profit",
+      "fy_ordinary_profit",
+      "fy_profit",
+      "fy_eps",
+      "is_revision"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_statements",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (disclosure_no)",
+     "table": "statements",
+     "columns": [
+      "disclosure_no"
+     ]
+    },
+    {
+     "name": "ref_statements_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "statements",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "stocks",
+   "type": "table",
+   "comment": "銘柄マスタ\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "5桁コード (例 \"72030\", \"262A0\")。先頭・末尾は数字、途中は 0-9A-Z"
+    },
+    {
+     "name": "name",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "sector17",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "sector33",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "market",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "scale_category",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "margin_type",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "product_category",
+     "type": "VARCHAR",
+     "nullable": true,
+     "default": null,
+     "comment": "J-Quants ProdCat。011=内国株券, 013=REIT, 014=ETF 等"
+    },
+    {
+     "name": "edinet_code",
+     "type": "VARCHAR(6)",
+     "nullable": true,
+     "default": null,
+     "comment": "EDINET コードリストの証券コードで付ける。無い銘柄は NULL\n→ edinet_filers.edinet_code（宣言だけ。DB の制約なし）"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_stocks",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code)",
+     "table": "stocks",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_stocks_edinet_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+     "table": "stocks",
+     "referenced_table": "edinet_filers",
+     "columns": [
+      "edinet_code"
+     ],
+     "referenced_columns": [
+      "edinet_code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "tanshin_covers",
+   "type": "table",
+   "comment": "決算短信の表紙。短信ごとに1行\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "disclosure_no",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": null,
+     "comment": "TDnet の書類 ID（PDF/ZIP の stem）"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "普通株の 5 桁\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "disclosed_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "source",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: xbrl_summary / tdnet_pdf"
+    },
+    {
+     "name": "has_material",
+     "type": "BOOLEAN",
+     "nullable": true,
+     "default": null,
+     "comment": "決算補足説明資料作成の有無。表紙から読めなければ NULL"
+    },
+    {
+     "name": "material_note",
+     "type": "VARCHAR(80)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "has_briefing",
+     "type": "BOOLEAN",
+     "nullable": true,
+     "default": null,
+     "comment": "決算説明会開催の有無。表紙から読めなければ NULL"
+    },
+    {
+     "name": "briefing_note",
+     "type": "VARCHAR(80)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "checked_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_tanshin_covers_code",
+     "def": "CREATE INDEX ix_tanshin_covers_code ON tanshin_covers (code)",
+     "table": "tanshin_covers",
+     "columns": [
+      "code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_tanshin_covers",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (disclosure_no)",
+     "table": "tanshin_covers",
+     "columns": [
+      "disclosure_no"
+     ]
+    },
+    {
+     "name": "ref_tanshin_covers_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "tanshin_covers",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "tdnet_pdf_documents",
+   "type": "table",
+   "comment": "TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "disclosure_no",
+     "type": "VARCHAR(14)",
+     "nullable": false,
+     "default": null,
+     "comment": "TDnet の docID（= XBRL ZIP 名の後ろ 14 桁）\n→ statements.disclosure_no（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "statements から\n→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "disclosed_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "statements から"
+    },
+    {
+     "name": "disclosed_time",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "statements から"
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "1 ページ目の題名。取れなければ statements.type_of_document"
+    },
+    {
+     "name": "status",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗）"
+    },
+    {
+     "name": "error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "status が failed のときの理由"
+    },
+    {
+     "name": "html_gz",
+     "type": "BLOB",
+     "nullable": true,
+     "default": null,
+     "comment": "変換後の HTML を gzip"
+    },
+    {
+     "name": "bytes",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "変換後 HTML（圧縮前）"
+    },
+    {
+     "name": "sha256",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null,
+     "comment": "変換後 HTML（圧縮前）"
+    },
+    {
+     "name": "pages",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "元の PDF"
+    },
+    {
+     "name": "pdf_bytes",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "元の PDF"
+    },
+    {
+     "name": "pdf_sha256",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null,
+     "comment": "元の PDF"
+    },
+    {
+     "name": "converter",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "変換器の版（tools/tdnet_pdf/convert.py CONVERTER）"
+    },
+    {
+     "name": "created_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "ix_tdnet_pdf_documents_code",
+     "def": "CREATE INDEX ix_tdnet_pdf_documents_code ON tdnet_pdf_documents (code)",
+     "table": "tdnet_pdf_documents",
+     "columns": [
+      "code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_tdnet_pdf_documents",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (disclosure_no)",
+     "table": "tdnet_pdf_documents",
+     "columns": [
+      "disclosure_no"
+     ]
+    },
+    {
+     "name": "ref_tdnet_pdf_documents_disclosure_no",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (disclosure_no) → statements (disclosure_no)",
+     "table": "tdnet_pdf_documents",
+     "referenced_table": "statements",
+     "columns": [
+      "disclosure_no"
+     ],
+     "referenced_columns": [
+      "disclosure_no"
+     ]
+    },
+    {
+     "name": "ref_tdnet_pdf_documents_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "tdnet_pdf_documents",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "topix",
+   "type": "table",
+   "comment": "TOPIX日足\n機能: 株価・決算",
+   "columns": [
+    {
+     "name": "date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "open",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "high",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "low",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "close",
+     "type": "FLOAT",
+     "nullable": true,
+     "default": null
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_topix",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (date)",
+     "table": "topix",
+     "columns": [
+      "date"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_contexts",
+   "type": "table",
+   "comment": "開示ごとのコンテキスト（期間・連結か個別か・次元）\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "context_ref",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "period_type",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: instant / duration"
+    },
+    {
+     "name": "start_date",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "end_date",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "is_consolidated",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": "1",
+     "comment": "1=連結 / 0=単体。判定不能は 1"
+    },
+    {
+     "name": "relative_period",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "値: current / prior1 / prior2"
+    },
+    {
+     "name": "dimensions_json",
+     "type": "TEXT",
+     "nullable": false,
+     "default": "{}"
+    },
+    {
+     "name": "has_dimensions",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "member_labels_json",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "次元メンバー → その書類のラベル（日本語）。標準メンバーも会社が名前を付け替える"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_contexts_filing",
+     "def": "CREATE INDEX idx_xbrl_contexts_filing ON xbrl_contexts (filing_id)",
+     "table": "xbrl_contexts",
+     "columns": [
+      "filing_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_contexts",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_contexts",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_contexts_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_contexts",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "uq_xbrl_contexts_filing_ref",
+     "type": "UNIQUE",
+     "def": "UNIQUE (filing_id, context_ref)",
+     "table": "xbrl_contexts",
+     "columns": [
+      "filing_id",
+      "context_ref"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_documents",
+   "type": "table",
+   "comment": "短信 ZIP の表示用 HTML。書類ごとに表示順で並べる\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "seq",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "表示順。0 から"
+    },
+    {
+     "name": "part",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: summary（サマリー）/ qualitative（添付資料まるごと）/ attachment（qualitative.htm が無い書類の本表 iXBRL）"
+    },
+    {
+     "name": "file_name",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "ZIP の中のファイル名（パスなし）"
+    },
+    {
+     "name": "html_gz",
+     "type": "BLOB",
+     "nullable": false,
+     "default": null,
+     "comment": "元の HTML を gzip。script などの除去は表示のとき"
+    },
+    {
+     "name": "bytes",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "圧縮前"
+    },
+    {
+     "name": "sha256",
+     "type": "VARCHAR(64)",
+     "nullable": false,
+     "default": null,
+     "comment": "圧縮前"
+    },
+    {
+     "name": "created_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_xbrl_documents",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (filing_id, seq)",
+     "table": "xbrl_documents",
+     "columns": [
+      "filing_id",
+      "seq"
+     ]
+    },
+    {
+     "name": "fk_xbrl_documents_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_documents",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_element_mappings",
+   "type": "table",
+   "comment": "XBRL の要素 → 標準科目の対応\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "std_item_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_std_items.id"
+    },
+    {
+     "name": "namespace_key",
+     "type": "VARCHAR(64)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "local_name",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "priority",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": "100"
+    },
+    {
+     "name": "accounting_standard",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "NULL=全共通"
+    },
+    {
+     "name": "note",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "part",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "NULL は値そのもの\n値: months（同じ科目・context の値に 月÷12 を足す（有報の「40歳3ヶ月」は年と月が別の要素））"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_mappings_elem",
+     "def": "CREATE INDEX idx_xbrl_mappings_elem ON xbrl_element_mappings (namespace_key, local_name)",
+     "table": "xbrl_element_mappings",
+     "columns": [
+      "namespace_key",
+      "local_name"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_element_mappings",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_element_mappings",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_element_mappings_std_item_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (std_item_id) REFERENCES xbrl_std_items (id)",
+     "table": "xbrl_element_mappings",
+     "referenced_table": "xbrl_std_items",
+     "columns": [
+      "std_item_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "uq_xbrl_element_mappings",
+     "type": "UNIQUE",
+     "def": "UNIQUE (std_item_id, namespace_key, local_name, accounting_standard)",
+     "table": "xbrl_element_mappings",
+     "columns": [
+      "std_item_id",
+      "namespace_key",
+      "local_name",
+      "accounting_standard"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_elements",
+   "type": "table",
+   "comment": "XBRL の要素。名前空間 × 名前で 1 行\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "namespace_uri",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "namespace_key",
+     "type": "VARCHAR(64)",
+     "nullable": false,
+     "default": null,
+     "comment": "'jppfs_cor' / 'tse-ed-t' / 'jpigp_cor' / 'custom' 等"
+    },
+    {
+     "name": "local_name",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "label_ja",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "label_en",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "item_type",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "is_custom",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "first_seen_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_elements_ext_key",
+     "def": "CREATE INDEX idx_xbrl_elements_ext_key ON xbrl_elements ('ext:' || xbrl_elements.local_name)",
+     "table": "xbrl_elements",
+     "columns": [
+      "'ext:' || xbrl_elements.local_name"
+     ]
+    },
+    {
+     "name": "idx_xbrl_elements_key",
+     "def": "CREATE INDEX idx_xbrl_elements_key ON xbrl_elements (namespace_key, local_name)",
+     "table": "xbrl_elements",
+     "columns": [
+      "namespace_key",
+      "local_name"
+     ]
+    },
+    {
+     "name": "idx_xbrl_elements_local",
+     "def": "CREATE INDEX idx_xbrl_elements_local ON xbrl_elements (local_name)",
+     "table": "xbrl_elements",
+     "columns": [
+      "local_name"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_elements",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_elements",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "uq_xbrl_elements_ns_local",
+     "type": "UNIQUE",
+     "def": "UNIQUE (namespace_uri, local_name)",
+     "table": "xbrl_elements",
+     "columns": [
+      "namespace_uri",
+      "local_name"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_facts",
+   "type": "table",
+   "comment": "開示の値（生データ層）。開示 × 要素 × コンテキスト\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "element_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_elements.id"
+    },
+    {
+     "name": "context_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_contexts.id"
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "decimals",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "scale",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "value_num",
+     "type": "NUMERIC(30, 4)",
+     "nullable": true,
+     "default": null,
+     "comment": "scale/sign 適用後"
+    },
+    {
+     "name": "value_text",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "is_nil",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_facts_element",
+     "def": "CREATE INDEX idx_xbrl_facts_element ON xbrl_facts (element_id)",
+     "table": "xbrl_facts",
+     "columns": [
+      "element_id"
+     ]
+    },
+    {
+     "name": "idx_xbrl_facts_filing",
+     "def": "CREATE INDEX idx_xbrl_facts_filing ON xbrl_facts (filing_id)",
+     "table": "xbrl_facts",
+     "columns": [
+      "filing_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_facts",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_facts",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_facts_context_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (context_id) REFERENCES xbrl_contexts (id)",
+     "table": "xbrl_facts",
+     "referenced_table": "xbrl_contexts",
+     "columns": [
+      "context_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_facts_element_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (element_id) REFERENCES xbrl_elements (id)",
+     "table": "xbrl_facts",
+     "referenced_table": "xbrl_elements",
+     "columns": [
+      "element_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_facts_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_facts",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "uq_xbrl_facts_key",
+     "type": "UNIQUE",
+     "def": "UNIQUE (filing_id, element_id, context_id, unit)",
+     "table": "xbrl_facts",
+     "columns": [
+      "filing_id",
+      "element_id",
+      "context_id",
+      "unit"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_filings",
+   "type": "table",
+   "comment": "開示 1 件（1 ZIP = 1 filing）\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "source",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "tdnet",
+     "comment": "値: tdnet / edinet / tdnet_pdf"
+    },
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(64)",
+     "nullable": false,
+     "default": null,
+     "comment": "tdnet は TDnet xbrl_id（ZIP 名）、edinet は EDINET の docID、tdnet_pdf は開示番号 14 桁"
+    },
+    {
+     "name": "doc_type",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": "other",
+     "comment": "値: annual / quarterly / semiannual / forecast_revision / dividend_revision / other"
+    },
+    {
+     "name": "period_type",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "値: FY / Q1 / Q2 / Q3"
+    },
+    {
+     "name": "fiscal_year_end",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "submitted_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "JstDateTime: 日本時間をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "title",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "accounting_standard",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "値: JPGAAP / IFRS / USGAAP"
+    },
+    {
+     "name": "is_amendment",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "raw_path",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "tdnet は data/xbrl からの相対パス（manifest.path）。edinet は edinet:<doc_id>、tdnet_pdf は tdnet_pdf:<開示番号>"
+    },
+    {
+     "name": "raw_sha256",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null,
+     "comment": "manifest.sha256"
+    },
+    {
+     "name": "parse_status",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "pending",
+     "comment": "値: pending / parsed / failed / skipped"
+    },
+    {
+     "name": "parse_error",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "parsed_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "documents_status",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "原文。NULL=まだ\n値: stored / empty（選べる HTML が 0 件）"
+    },
+    {
+     "name": "presentation_status",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "表示リンク\n値: ok / none / gone / failed"
+    },
+    {
+     "name": "created_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_filings_code_submitted",
+     "def": "CREATE INDEX idx_xbrl_filings_code_submitted ON xbrl_filings (code, submitted_at)",
+     "table": "xbrl_filings",
+     "columns": [
+      "code",
+      "submitted_at"
+     ]
+    },
+    {
+     "name": "idx_xbrl_filings_id_cover",
+     "def": "CREATE INDEX idx_xbrl_filings_id_cover ON xbrl_filings (id, parse_status, source, doc_id, submitted_at)",
+     "table": "xbrl_filings",
+     "columns": [
+      "id",
+      "parse_status",
+      "source",
+      "doc_id",
+      "submitted_at"
+     ]
+    },
+    {
+     "name": "idx_xbrl_filings_parse_status",
+     "def": "CREATE INDEX idx_xbrl_filings_parse_status ON xbrl_filings (parse_status)",
+     "table": "xbrl_filings",
+     "columns": [
+      "parse_status"
+     ]
+    },
+    {
+     "name": "ix_xbrl_filings_code",
+     "def": "CREATE INDEX ix_xbrl_filings_code ON xbrl_filings (code)",
+     "table": "xbrl_filings",
+     "columns": [
+      "code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_filings",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_filings",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "ref_xbrl_filings_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "xbrl_filings",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "uq_xbrl_filings_source_doc",
+     "type": "UNIQUE",
+     "def": "UNIQUE (source, doc_id)",
+     "table": "xbrl_filings",
+     "columns": [
+      "source",
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_financials",
+   "type": "table",
+   "comment": "標準科目ごとの値（正規化層）。xbrl_facts から再生成できる\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "std_item_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_std_items.id"
+    },
+    {
+     "name": "is_consolidated",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "period_type",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: FY / Q1 / Q2 / Q3"
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "value",
+     "type": "NUMERIC(30, 4)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": "JPY"
+    },
+    {
+     "name": "value_kind",
+     "type": "VARCHAR(24)",
+     "nullable": false,
+     "default": "actual",
+     "comment": "値: actual / forecast / forecast_previous（前回予想（EarnForecastRevision の PreviousMember））"
+    },
+    {
+     "name": "range_side",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "point",
+     "comment": "レンジ予想\n値: point（点予想）/ lower / upper"
+    },
+    {
+     "name": "target_period",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "FY",
+     "comment": "数値が指す期間\n値: FY / H1 / Q1 / Q2 / Q3 / year_end / annual"
+    },
+    {
+     "name": "source_fact_id",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "FK → xbrl_facts.id"
+    },
+    {
+     "name": "source_element_id",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "FK → xbrl_elements.id"
+    },
+    {
+     "name": "source_layer",
+     "type": "VARCHAR(16)",
+     "nullable": true,
+     "default": null,
+     "comment": "値: primary（本表）/ summary（短信サマリー（tse-ed-t / tse-re-t / pdf-sum））"
+    },
+    {
+     "name": "generated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_financials_gp_cover",
+     "def": "CREATE INDEX idx_xbrl_financials_gp_cover ON xbrl_financials (code, std_item_id, value_kind, is_consolidated, period_start, period_end, value, filing_id)",
+     "table": "xbrl_financials",
+     "columns": [
+      "code",
+      "std_item_id",
+      "value_kind",
+      "is_consolidated",
+      "period_start",
+      "period_end",
+      "value",
+      "filing_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_financials",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_financials",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_financials_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_financials",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_financials_source_element_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (source_element_id) REFERENCES xbrl_elements (id)",
+     "table": "xbrl_financials",
+     "referenced_table": "xbrl_elements",
+     "columns": [
+      "source_element_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_financials_source_fact_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (source_fact_id) REFERENCES xbrl_facts (id)",
+     "table": "xbrl_financials",
+     "referenced_table": "xbrl_facts",
+     "columns": [
+      "source_fact_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_financials_std_item_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (std_item_id) REFERENCES xbrl_std_items (id)",
+     "table": "xbrl_financials",
+     "referenced_table": "xbrl_std_items",
+     "columns": [
+      "std_item_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "ref_xbrl_financials_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "xbrl_financials",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "uq_xbrl_financials_key",
+     "type": "UNIQUE",
+     "def": "UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)",
+     "table": "xbrl_financials",
+     "columns": [
+      "filing_id",
+      "std_item_id",
+      "is_consolidated",
+      "period_end",
+      "value_kind",
+      "range_side",
+      "target_period"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_job_runs",
+   "type": "table",
+   "comment": "XBRL のバッチの実行記録\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "job_name",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: parse / normalize / edinet_xbrl"
+    },
+    {
+     "name": "status",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: running / success / failed / skipped"
+    },
+    {
+     "name": "processed_count",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": "0"
+    },
+    {
+     "name": "error_count",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": "0"
+    },
+    {
+     "name": "message",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "started_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    },
+    {
+     "name": "finished_at",
+     "type": "DATETIME",
+     "nullable": true,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_xbrl_job_runs",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_job_runs",
+     "columns": [
+      "id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_major_shareholders",
+   "type": "table",
+   "comment": "大株主の状況 1 行（順位 × 株式ベース / 議決権ベース）\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "rank",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "NoNMajorShareholdersMember の N"
+    },
+    {
+     "name": "basis",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: shares / voting_rights"
+    },
+    {
+     "name": "name",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "address",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "shares_held",
+     "type": "NUMERIC(30, 4)",
+     "nullable": true,
+     "default": null,
+     "comment": "所有株式数。議決権ベースの表は NULL"
+    },
+    {
+     "name": "shareholding_ratio",
+     "type": "NUMERIC(18, 6)",
+     "nullable": true,
+     "default": null,
+     "comment": "0.1650 = 16.50%"
+    },
+    {
+     "name": "voting_rights",
+     "type": "NUMERIC(30, 4)",
+     "nullable": true,
+     "default": null,
+     "comment": "所有議決権数（個）"
+    },
+    {
+     "name": "voting_rights_ratio",
+     "type": "NUMERIC(18, 6)",
+     "nullable": true,
+     "default": null
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_major_shareholders_filing",
+     "def": "CREATE INDEX idx_xbrl_major_shareholders_filing ON xbrl_major_shareholders (filing_id)",
+     "table": "xbrl_major_shareholders",
+     "columns": [
+      "filing_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_major_shareholders",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (filing_id, rank, basis)",
+     "table": "xbrl_major_shareholders",
+     "columns": [
+      "filing_id",
+      "rank",
+      "basis"
+     ]
+    },
+    {
+     "name": "fk_xbrl_major_shareholders_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_major_shareholders",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_pdf_matches",
+   "type": "table",
+   "comment": "短信 PDF の行 → XBRL の要素。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "fact_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_facts.id"
+    },
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "is_consolidated",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "statement",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: BS / PL / CF"
+    },
+    {
+     "name": "element_key",
+     "type": "VARCHAR(300)",
+     "nullable": true,
+     "default": null,
+     "comment": "行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL"
+    },
+    {
+     "name": "sign",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": "1",
+     "comment": "PDF の値に掛けると XBRL の向き"
+    },
+    {
+     "name": "matched_by",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "付かなければ NULL\n値: value / name"
+    },
+    {
+     "name": "generated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_pdf_matches_code",
+     "def": "CREATE INDEX idx_xbrl_pdf_matches_code ON xbrl_pdf_matches (code)",
+     "table": "xbrl_pdf_matches",
+     "columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "idx_xbrl_pdf_matches_filing",
+     "def": "CREATE INDEX idx_xbrl_pdf_matches_filing ON xbrl_pdf_matches (filing_id)",
+     "table": "xbrl_pdf_matches",
+     "columns": [
+      "filing_id"
+     ]
+    },
+    {
+     "name": "idx_xbrl_pdf_matches_key",
+     "def": "CREATE INDEX idx_xbrl_pdf_matches_key ON xbrl_pdf_matches (element_key, code)",
+     "table": "xbrl_pdf_matches",
+     "columns": [
+      "element_key",
+      "code"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_pdf_matches",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (fact_id)",
+     "table": "xbrl_pdf_matches",
+     "columns": [
+      "fact_id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_pdf_matches_fact_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (fact_id) REFERENCES xbrl_facts (id)",
+     "table": "xbrl_pdf_matches",
+     "referenced_table": "xbrl_facts",
+     "columns": [
+      "fact_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_pdf_matches_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_pdf_matches",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "ref_xbrl_pdf_matches_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "xbrl_pdf_matches",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_presentation_roles",
+   "type": "table",
+   "comment": "書類の表示リンク（*pre.xml）のうち財務3表の区分\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "role",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null,
+     "comment": "区分名（role URI の最後。'rol_ConsolidatedBalanceSheet'）"
+    },
+    {
+     "name": "seq",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "書類の中で保存した区分の順（0 から）"
+    },
+    {
+     "name": "statement",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: BS / PL / CF"
+    },
+    {
+     "name": "is_consolidated",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "is_ifrs",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "items_json",
+     "type": "TEXT",
+     "nullable": false,
+     "default": null,
+     "comment": "区分の要素を表示の順に並べた JSON の配列。1 要素は [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null, 深さ, 見出しの表示名 or null]。深さは区分の根からの段（0 から。落とした構造の要素は数えない）。表示名は見出しの要素（名前に Abstract）だけ。深さと表示名の無い古い行は 4 つ"
+    },
+    {
+     "name": "generated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_xbrl_presentation_roles",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (filing_id, role)",
+     "table": "xbrl_presentation_roles",
+     "columns": [
+      "filing_id",
+      "role"
+     ]
+    },
+    {
+     "name": "fk_xbrl_presentation_roles_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_presentation_roles",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_segments",
+   "type": "table",
+   "comment": "セグメント注記の正規化層。xbrl_financials と同じく再生成できる\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "std_item_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "statement='SEG'\nFK → xbrl_std_items.id"
+    },
+    {
+     "name": "axis",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null,
+     "comment": "'jpcrp_cor:OperatingSegmentsAxis'"
+    },
+    {
+     "name": "member",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null,
+     "comment": "'prefix:localName'（会社独自は jpcrp030000-asr_E...）"
+    },
+    {
+     "name": "member_label_ja",
+     "type": "VARCHAR(255)",
+     "nullable": true,
+     "default": null,
+     "comment": "その書類のラベル"
+    },
+    {
+     "name": "member_kind",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: segment（各セグメント）/ subtotal（報告セグメント計）/ other（その他）/ total（合計）/ reconciling（調整額）/ unknown（どれにも当たらない）"
+    },
+    {
+     "name": "is_consolidated",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "period_type",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "filing の period_type\n値: FY / Q1 / Q2 / Q3"
+    },
+    {
+     "name": "period_start",
+     "type": "DATE",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "period_end",
+     "type": "DATE",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "value",
+     "type": "NUMERIC(30, 4)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": "JPY"
+    },
+    {
+     "name": "source_fact_id",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "FK → xbrl_facts.id"
+    },
+    {
+     "name": "source_element_id",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "どの物差しを採ったか\nFK → xbrl_elements.id"
+    },
+    {
+     "name": "generated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_segments_filing",
+     "def": "CREATE INDEX idx_xbrl_segments_filing ON xbrl_segments (filing_id)",
+     "table": "xbrl_segments",
+     "columns": [
+      "filing_id"
+     ]
+    },
+    {
+     "name": "idx_xbrl_segments_lookup",
+     "def": "CREATE INDEX idx_xbrl_segments_lookup ON xbrl_segments (code, std_item_id, period_end)",
+     "table": "xbrl_segments",
+     "columns": [
+      "code",
+      "std_item_id",
+      "period_end"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_segments",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_segments",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_segments_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_segments",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_segments_source_element_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (source_element_id) REFERENCES xbrl_elements (id)",
+     "table": "xbrl_segments",
+     "referenced_table": "xbrl_elements",
+     "columns": [
+      "source_element_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_segments_source_fact_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (source_fact_id) REFERENCES xbrl_facts (id)",
+     "table": "xbrl_segments",
+     "referenced_table": "xbrl_facts",
+     "columns": [
+      "source_fact_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_segments_std_item_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (std_item_id) REFERENCES xbrl_std_items (id)",
+     "table": "xbrl_segments",
+     "referenced_table": "xbrl_std_items",
+     "columns": [
+      "std_item_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "ref_xbrl_segments_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "xbrl_segments",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "uq_xbrl_segments_key",
+     "type": "UNIQUE",
+     "def": "UNIQUE (filing_id, std_item_id, axis, member, is_consolidated, period_end)",
+     "table": "xbrl_segments",
+     "columns": [
+      "filing_id",
+      "std_item_id",
+      "axis",
+      "member",
+      "is_consolidated",
+      "period_end"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_shareholder_filings",
+   "type": "table",
+   "comment": "有報の大株主・所有者別の 1 書類。xbrl_facts から正規化\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ stocks.code（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "doc_id",
+     "type": "VARCHAR(64)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "as_of",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "大株主・所有者別の instant（期末）"
+    },
+    {
+     "name": "basis",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: shares / voting_rights / both"
+    },
+    {
+     "name": "shares_per_unit",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null,
+     "comment": "単元株式数（普通株式。無ければ NULL）"
+    },
+    {
+     "name": "is_amendment",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "amends_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "→ xbrl_shareholder_filings.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "original_doc_id",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ xbrl_shareholder_filings.doc_id（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "is_latest",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False",
+     "comment": "同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件"
+    },
+    {
+     "name": "withdrawn",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "generated_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "UtcDateTime: UTC をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_shareholder_filings_code",
+     "def": "CREATE INDEX idx_xbrl_shareholder_filings_code ON xbrl_shareholder_filings (code, as_of)",
+     "table": "xbrl_shareholder_filings",
+     "columns": [
+      "code",
+      "as_of"
+     ]
+    },
+    {
+     "name": "idx_xbrl_shareholder_filings_latest",
+     "def": "CREATE INDEX idx_xbrl_shareholder_filings_latest ON xbrl_shareholder_filings (code, is_latest)",
+     "table": "xbrl_shareholder_filings",
+     "columns": [
+      "code",
+      "is_latest"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_shareholder_filings",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (filing_id)",
+     "table": "xbrl_shareholder_filings",
+     "columns": [
+      "filing_id"
+     ]
+    },
+    {
+     "name": "fk_xbrl_shareholder_filings_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_shareholder_filings",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "ref_xbrl_shareholder_filings_code",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+     "table": "xbrl_shareholder_filings",
+     "referenced_table": "stocks",
+     "columns": [
+      "code"
+     ],
+     "referenced_columns": [
+      "code"
+     ]
+    },
+    {
+     "name": "ref_xbrl_shareholder_filings_amends_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (amends_doc_id) → xbrl_shareholder_filings (doc_id)",
+     "table": "xbrl_shareholder_filings",
+     "referenced_table": "xbrl_shareholder_filings",
+     "columns": [
+      "amends_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    },
+    {
+     "name": "ref_xbrl_shareholder_filings_original_doc_id",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (original_doc_id) → xbrl_shareholder_filings (doc_id)",
+     "table": "xbrl_shareholder_filings",
+     "referenced_table": "xbrl_shareholder_filings",
+     "columns": [
+      "original_doc_id"
+     ],
+     "referenced_columns": [
+      "doc_id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_shareholding_by_category",
+   "type": "table",
+   "comment": "所有者別状況 1 行（株式の種類 × 区分）\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "filing_id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "FK → xbrl_filings.id"
+    },
+    {
+     "name": "share_class",
+     "type": "VARCHAR(255)",
+     "nullable": false,
+     "default": null,
+     "comment": "OrdinaryShareMember 等。軸が無ければ ''"
+    },
+    {
+     "name": "category",
+     "type": "VARCHAR(32)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "shareholder_count",
+     "type": "INTEGER",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "units_held",
+     "type": "BIGINT",
+     "nullable": true,
+     "default": null,
+     "comment": "所有株式数（単元）"
+    },
+    {
+     "name": "shareholding_ratio",
+     "type": "NUMERIC(18, 6)",
+     "nullable": true,
+     "default": null,
+     "comment": "0.2780 = 27.80%。計の行は無いので NULL"
+    },
+    {
+     "name": "shares_less_than_one_unit",
+     "type": "NUMERIC(30, 4)",
+     "nullable": true,
+     "default": null,
+     "comment": "単元未満株式。区分の計の行に載せる"
+    }
+   ],
+   "indexes": [
+    {
+     "name": "idx_xbrl_shareholding_by_category_filing",
+     "def": "CREATE INDEX idx_xbrl_shareholding_by_category_filing ON xbrl_shareholding_by_category (filing_id)",
+     "table": "xbrl_shareholding_by_category",
+     "columns": [
+      "filing_id"
+     ]
+    }
+   ],
+   "constraints": [
+    {
+     "name": "pk_xbrl_shareholding_by_category",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (filing_id, share_class, category)",
+     "table": "xbrl_shareholding_by_category",
+     "columns": [
+      "filing_id",
+      "share_class",
+      "category"
+     ]
+    },
+    {
+     "name": "fk_xbrl_shareholding_by_category_filing_id",
+     "type": "FOREIGN KEY",
+     "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)",
+     "table": "xbrl_shareholding_by_category",
+     "referenced_table": "xbrl_filings",
+     "columns": [
+      "filing_id"
+     ],
+     "referenced_columns": [
+      "id"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "xbrl_std_items",
+   "type": "table",
+   "comment": "標準科目\n機能: XBRL・決算書類",
+   "columns": [
+    {
+     "name": "id",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "code",
+     "type": "VARCHAR(64)",
+     "nullable": false,
+     "default": null,
+     "comment": "'net_sales'"
+    },
+    {
+     "name": "statement",
+     "type": "VARCHAR(8)",
+     "nullable": false,
+     "default": null,
+     "comment": "値: BS / PL / CF / OTHER / SEG"
+    },
+    {
+     "name": "section",
+     "type": "VARCHAR(64)",
+     "nullable": true,
+     "default": null
+    },
+    {
+     "name": "label_ja",
+     "type": "VARCHAR(128)",
+     "nullable": false,
+     "default": null
+    },
+    {
+     "name": "display_order",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": "0"
+    },
+    {
+     "name": "sign",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": "natural",
+     "comment": "値: natural / invert"
+    },
+    {
+     "name": "is_required",
+     "type": "BOOLEAN",
+     "nullable": false,
+     "default": "False"
+    },
+    {
+     "name": "unit",
+     "type": "VARCHAR(32)",
+     "nullable": true,
+     "default": null,
+     "comment": "xbrl_financials.unit に入れる単位。NULL は fact の単位（JPY / USD / JPYPerShares 等）。fact が pure（人数・年数・比率）のときだけ科目側で persons / years / ratio と決める"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_xbrl_std_items",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (id)",
+     "table": "xbrl_std_items",
+     "columns": [
+      "id"
+     ]
+    },
+    {
+     "name": "uq_xbrl_std_items_code",
+     "type": "UNIQUE",
+     "def": "UNIQUE (code)",
+     "table": "xbrl_std_items",
+     "columns": [
+      "code"
+     ]
+    }
+   ]
+  }
+ ],
+ "relations": [
+  {
+   "table": "briefing_documents",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "briefing_extracts",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "briefing_extracts",
+   "columns": [
+    "source",
+    "document_id"
+   ],
+   "parent_table": "briefing_documents",
+   "parent_columns": [
+    "source",
+    "document_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (source, document_id) → briefing_documents (source, document_id)",
+   "virtual": true
+  },
+  {
+   "table": "briefing_facts",
+   "columns": [
+    "document_id",
+    "page"
+   ],
+   "parent_table": "briefing_pages",
+   "parent_columns": [
+    "document_id",
+    "page"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (document_id, page) → briefing_pages (document_id, page)",
+   "virtual": true
+  },
+  {
+   "table": "briefing_irbank_scans",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "briefing_pages",
+   "columns": [
+    "document_id"
+   ],
+   "parent_table": "briefing_extracts",
+   "parent_columns": [
+    "document_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (document_id) → briefing_extracts (document_id)",
+   "virtual": true
+  },
+  {
+   "table": "daily_prices",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "earnings_date_pubs",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "earnings_date_pubs",
+   "columns": [
+    "pub_date"
+   ],
+   "parent_table": "earnings_date_fetches",
+   "parent_columns": [
+    "pub_date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (pub_date) → earnings_date_fetches (pub_date)",
+   "virtual": true
+  },
+  {
+   "table": "earnings_events",
+   "columns": [
+    "code",
+    "disclosed_date"
+   ],
+   "parent_table": "statements",
+   "parent_columns": [
+    "code",
+    "disclosed_date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, disclosed_date) → statements (code, disclosed_date)",
+   "virtual": true
+  },
+  {
+   "table": "earnings_events",
+   "columns": [
+    "code",
+    "next_disclosed_date"
+   ],
+   "parent_table": "statements",
+   "parent_columns": [
+    "code",
+    "disclosed_date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, next_disclosed_date) → statements (code, disclosed_date)",
+   "virtual": true
+  },
+  {
+   "table": "earnings_events",
+   "columns": [
+    "code",
+    "base_date"
+   ],
+   "parent_table": "daily_prices",
+   "parent_columns": [
+    "code",
+    "date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, base_date) → daily_prices (code, date)",
+   "virtual": true
+  },
+  {
+   "table": "earnings_events",
+   "columns": [
+    "code",
+    "end_date"
+   ],
+   "parent_table": "daily_prices",
+   "parent_columns": [
+    "code",
+    "date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, end_date) → daily_prices (code, date)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_archives",
+   "columns": [
+    "doc_id"
+   ],
+   "parent_table": "edinet_documents",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_buyback_resolutions",
+   "columns": [
+    "doc_id"
+   ],
+   "parent_table": "edinet_buybacks",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_buybacks (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_buybacks",
+   "columns": [
+    "doc_id"
+   ],
+   "parent_table": "edinet_documents",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_buybacks",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_buybacks",
+   "columns": [
+    "edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_buybacks",
+   "columns": [
+    "amends_doc_id"
+   ],
+   "parent_table": "edinet_buybacks",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (amends_doc_id) → edinet_buybacks (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_buybacks",
+   "columns": [
+    "original_doc_id"
+   ],
+   "parent_table": "edinet_buybacks",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (original_doc_id) → edinet_buybacks (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "file_date"
+   ],
+   "parent_table": "edinet_list_days",
+   "parent_columns": [
+    "file_date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (file_date) → edinet_list_days (file_date)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "sec_code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (sec_code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "issuer_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (issuer_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "subject_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (subject_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_documents",
+   "columns": [
+    "parent_doc_id"
+   ],
+   "parent_table": "edinet_documents",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (parent_doc_id) → edinet_documents (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_filers",
+   "columns": [
+    "sec_code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (sec_code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offer_docs",
+   "columns": [
+    "doc_id"
+   ],
+   "parent_table": "edinet_documents",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offer_docs",
+   "columns": [
+    "tender_offer_id"
+   ],
+   "parent_table": "edinet_tender_offers",
+   "parent_columns": [
+    "tender_offer_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (tender_offer_id) → edinet_tender_offers (tender_offer_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offer_docs",
+   "columns": [
+    "filer_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (filer_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offer_docs",
+   "columns": [
+    "subject_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (subject_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offer_docs",
+   "columns": [
+    "parent_doc_id"
+   ],
+   "parent_table": "edinet_tender_offer_docs",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (parent_doc_id) → edinet_tender_offer_docs (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offers",
+   "columns": [
+    "tender_offer_id"
+   ],
+   "parent_table": "edinet_tender_offer_docs",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (tender_offer_id) → edinet_tender_offer_docs (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offers",
+   "columns": [
+    "offeror_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (offeror_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offers",
+   "columns": [
+    "offeror_code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (offeror_code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offers",
+   "columns": [
+    "target_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (target_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offers",
+   "columns": [
+    "target_code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (target_code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "edinet_tender_offers",
+   "columns": [
+    "latest_doc_id"
+   ],
+   "parent_table": "edinet_tender_offer_docs",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (latest_doc_id) → edinet_tender_offer_docs (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "homepages",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "indicators",
+   "columns": [
+    "code",
+    "date"
+   ],
+   "parent_table": "daily_prices",
+   "parent_columns": [
+    "code",
+    "date"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, date) → daily_prices (code, date)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "doc_id"
+   ],
+   "parent_table": "edinet_documents",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (doc_id) → edinet_documents (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "filer_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (filer_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "issuer_edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (issuer_edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "issuer_sec_code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (issuer_sec_code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "amends_doc_id"
+   ],
+   "parent_table": "large_holding_reports",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (amends_doc_id) → large_holding_reports (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "large_holding_reports",
+   "columns": [
+    "original_doc_id"
+   ],
+   "parent_table": "large_holding_reports",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (original_doc_id) → large_holding_reports (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "large_holdings",
+   "columns": [
+    "doc_id"
+   ],
+   "parent_table": "large_holding_reports",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (doc_id) → large_holding_reports (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "large_holdings",
+   "columns": [
+    "edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "monthly_element_sources",
+   "columns": [
+    "code",
+    "year",
+    "element"
+   ],
+   "parent_table": "monthly_elements",
+   "parent_columns": [
+    "code",
+    "year",
+    "element"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, year, element) → monthly_elements (code, year, element)",
+   "virtual": true
+  },
+  {
+   "table": "monthly_elements",
+   "columns": [
+    "code",
+    "year"
+   ],
+   "parent_table": "monthly_tables",
+   "parent_columns": [
+    "code",
+    "year"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, year) → monthly_tables (code, year)",
+   "virtual": true
+  },
+  {
+   "table": "monthly_issuers",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "monthly_tables",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "monthly_issuers",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → monthly_issuers (code)",
+   "virtual": true
+  },
+  {
+   "table": "monthly_values",
+   "columns": [
+    "code",
+    "year",
+    "element"
+   ],
+   "parent_table": "monthly_elements",
+   "parent_columns": [
+    "code",
+    "year",
+    "element"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, year, element) → monthly_elements (code, year, element)",
+   "virtual": true
+  },
+  {
+   "table": "pts_snapshots",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "statements",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "stocks",
+   "columns": [
+    "edinet_code"
+   ],
+   "parent_table": "edinet_filers",
+   "parent_columns": [
+    "edinet_code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (edinet_code) → edinet_filers (edinet_code)",
+   "virtual": true
+  },
+  {
+   "table": "tanshin_covers",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "tdnet_pdf_documents",
+   "columns": [
+    "disclosure_no"
+   ],
+   "parent_table": "statements",
+   "parent_columns": [
+    "disclosure_no"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (disclosure_no) → statements (disclosure_no)",
+   "virtual": true
+  },
+  {
+   "table": "tdnet_pdf_documents",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_contexts",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_documents",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_element_mappings",
+   "columns": [
+    "std_item_id"
+   ],
+   "parent_table": "xbrl_std_items",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (std_item_id) REFERENCES xbrl_std_items (id)"
+  },
+  {
+   "table": "xbrl_facts",
+   "columns": [
+    "context_id"
+   ],
+   "parent_table": "xbrl_contexts",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (context_id) REFERENCES xbrl_contexts (id)"
+  },
+  {
+   "table": "xbrl_facts",
+   "columns": [
+    "element_id"
+   ],
+   "parent_table": "xbrl_elements",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (element_id) REFERENCES xbrl_elements (id)"
+  },
+  {
+   "table": "xbrl_facts",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_filings",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_financials",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_financials",
+   "columns": [
+    "source_element_id"
+   ],
+   "parent_table": "xbrl_elements",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (source_element_id) REFERENCES xbrl_elements (id)"
+  },
+  {
+   "table": "xbrl_financials",
+   "columns": [
+    "source_fact_id"
+   ],
+   "parent_table": "xbrl_facts",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (source_fact_id) REFERENCES xbrl_facts (id)"
+  },
+  {
+   "table": "xbrl_financials",
+   "columns": [
+    "std_item_id"
+   ],
+   "parent_table": "xbrl_std_items",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (std_item_id) REFERENCES xbrl_std_items (id)"
+  },
+  {
+   "table": "xbrl_financials",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_major_shareholders",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_pdf_matches",
+   "columns": [
+    "fact_id"
+   ],
+   "parent_table": "xbrl_facts",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (fact_id) REFERENCES xbrl_facts (id)"
+  },
+  {
+   "table": "xbrl_pdf_matches",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_pdf_matches",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_presentation_roles",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_segments",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_segments",
+   "columns": [
+    "source_element_id"
+   ],
+   "parent_table": "xbrl_elements",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (source_element_id) REFERENCES xbrl_elements (id)"
+  },
+  {
+   "table": "xbrl_segments",
+   "columns": [
+    "source_fact_id"
+   ],
+   "parent_table": "xbrl_facts",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (source_fact_id) REFERENCES xbrl_facts (id)"
+  },
+  {
+   "table": "xbrl_segments",
+   "columns": [
+    "std_item_id"
+   ],
+   "parent_table": "xbrl_std_items",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (std_item_id) REFERENCES xbrl_std_items (id)"
+  },
+  {
+   "table": "xbrl_segments",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_shareholder_filings",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  },
+  {
+   "table": "xbrl_shareholder_filings",
+   "columns": [
+    "code"
+   ],
+   "parent_table": "stocks",
+   "parent_columns": [
+    "code"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_shareholder_filings",
+   "columns": [
+    "amends_doc_id"
+   ],
+   "parent_table": "xbrl_shareholder_filings",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (amends_doc_id) → xbrl_shareholder_filings (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_shareholder_filings",
+   "columns": [
+    "original_doc_id"
+   ],
+   "parent_table": "xbrl_shareholder_filings",
+   "parent_columns": [
+    "doc_id"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (original_doc_id) → xbrl_shareholder_filings (doc_id)",
+   "virtual": true
+  },
+  {
+   "table": "xbrl_shareholding_by_category",
+   "columns": [
+    "filing_id"
+   ],
+   "parent_table": "xbrl_filings",
+   "parent_columns": [
+    "id"
+   ],
+   "def": "FOREIGN KEY (filing_id) REFERENCES xbrl_filings (id)"
+  }
+ ],
+ "driver": {
+  "name": "sqlite"
+ }
+}

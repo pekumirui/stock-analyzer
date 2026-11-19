@@ -24,7 +24,7 @@ import argparse
 import json
 import re
 import shutil
-import subprocess  # nosec B404
+import subprocess
 import sys
 import time
 import unicodedata
@@ -38,23 +38,23 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from sqlalchemy import select  # noqa: E402
-from sqlalchemy.engine import Connection  # noqa: E402
-from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+from sqlalchemy import select
+from sqlalchemy.engine import Connection
+from sqlalchemy.exc import SQLAlchemyError
 
-from app.db import sqlite_readonly_engine  # noqa: E402
-from app.models import MonthlyElement, MonthlyValue  # noqa: E402
-from app.monthly.calendar import column_years  # noqa: E402
-from jobs._r2common import (  # noqa: E402
+from app.db import sqlite_readonly_engine
+from app.models import MonthlyElement, MonthlyValue
+from app.monthly.calendar import column_years
+from jobs._r2common import (
     MountDisconnected,
     fail_if_mount_down,
     resolve_database_url,
     sqlite_path_from_url,
     with_mount_retry,
 )
-from jobs.monthly.ir_monthly_r2 import atomic_write  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa: E402
-from tools.monthly.text_mask import mask  # noqa: E402
+from jobs.monthly.ir_monthly_r2 import atomic_write
+from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code
+from tools.monthly.text_mask import mask
 
 SIDECAR_SUFFIX = ".pdf-ingest.json"
 PDFTOTEXT_TIMEOUT = 60
@@ -817,7 +817,7 @@ def pdftotext_tsv(path: Path) -> str:
     exe = shutil.which("pdftotext")
     if exe is None:
         raise OSError("pdftotext not found (apt install poppler-utils)")
-    proc = subprocess.run(  # nosec B603 - 固定の実行ファイルとローカルのパス
+    proc = subprocess.run(
         [exe, "-tsv", str(path), "-"],
         capture_output=True,
         timeout=PDFTOTEXT_TIMEOUT,

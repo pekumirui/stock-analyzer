@@ -28,7 +28,9 @@ wiki に無いファイルへの相対リンクは **コピー側だけ** 外す
 .venv/bin/mkdocs serve -a 127.0.0.1:8001
 ```
 
-`mkdocs build` が `tools/wiki/mkdocs_hook.py` で Markdown を集める（`docs/` の画像と HTML も。HTML は自動生成の `docs/dataflow/viewer.html`）。mermaid の図は material が描く（mermaid.js は CDN から読む）。`.wiki-docs/` と `site/` は gitignore。
+`mkdocs build` が `tools/wiki/mkdocs_hook.py` で Markdown を集める（`docs/` の画像と HTML も。HTML は自動生成の `docs/dataflow/viewer.html`）。mermaid の図は `docs/assets/mermaid-elk.js` が読み込む mermaid.js が描く（CDN から読む。ER 図の並べ方に使う ELK も一緒に読む）。`.wiki-docs/` と `site/` は gitignore。
+
+動かせる ER 図（Liam ERD）も `mkdocs build` の中で作る。`tools/schema/erd.py` が `npx @liam-hq/cli@<版> erd build --format tbls` に `docs/schema/tbls.json`（`python -m tools.schema.render` が `app/models.py` から作る）を渡し、出てきた静的サイトを wiki の `schema/erd/` に置く。版は `tools/schema/erd.py` の `LIAM` で固定する。JS のバンドルはリポジトリに入れない。Node.js（`npx`）が要り、初回は npm から CLI を取る。`npx` が無いか Liam が失敗すると警告を出して図を飛ばし、`SCHEMA.md` のリンクは文字だけになる（`--strict` では失敗）。開くのは `http://` から（`file://` では動かない）。
 
 ## Cloudflare Pages プロジェクト（Direct Upload）
 
@@ -69,7 +71,7 @@ Repository → **Settings** → **Secrets and variables** → **Actions**。
 
 未設定の間は `.github/workflows/wiki.yml` がビルドだけしてデプロイを飛ばす（失敗にしない）。既存の `CI/CD` workflow（self-hosted）は触らない。wiki は `ubuntu-latest`。
 
-`main` へ `docs/` / `AGENTS.md` / `mkdocs.yml` / `tools/wiki/` / この workflow が入ったときだけ動く。
+`main` へ `docs/` / `AGENTS.md` / `mkdocs.yml` / `tools/wiki/` / `tools/schema/erd.py` / この workflow が入ったときだけ動く。Liam ERD 用に Node.js 22 を入れる。
 
 ## Cloudflare Access（本人のメールだけ）
 

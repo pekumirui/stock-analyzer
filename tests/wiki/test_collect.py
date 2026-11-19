@@ -119,3 +119,20 @@ def test_collect_real_repo_scope(tmp_path: Path) -> None:
     home = (dest / "index.md").read_text(encoding="utf-8")
     assert "](AGENTS.md)" in home
     assert "](app/api/AGENTS.md)" in home
+
+
+def test_link_to_built_file_keeps_query_and_missing_one_is_dropped(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _write(repo / "docs" / "SCHEMA.md", "# S\n\n[図](schema/erd/index.html?hidden=abc)\n[無い](gone/index.html)\n")
+    dest = tmp_path / "out"
+
+    def build(out: Path) -> None:
+        _write(out / "schema" / "erd" / "index.html", "<html></html>")
+
+    collect_into(repo, dest, build)
+    text = (dest / "SCHEMA.md").read_text(encoding="utf-8")
+    assert "[図](schema/erd/index.html?hidden=abc)" in text
+    assert "](gone/index.html)" not in text
+
+    collect_into(repo, dest)
+    assert "](schema/erd/index.html" not in (dest / "SCHEMA.md").read_text(encoding="utf-8")

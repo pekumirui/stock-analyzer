@@ -34,7 +34,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs._r2common import (  # noqa: E402
+from jobs._r2common import (
     abort_if_disconnected,
     fail_if_mount_down,
     http_get as _REAL_HTTP_GET,
@@ -43,7 +43,7 @@ from jobs._r2common import (  # noqa: E402
     jst_today,
     load_stock_product_map,
 )
-from jobs.monthly.ir_monthly_r2 import (  # noqa: E402
+from jobs.monthly.ir_monthly_r2 import (
     DEFAULT_CONFIG,
     DEFAULT_DEST,
     SLEEP_SEC,
@@ -54,9 +54,9 @@ from jobs.monthly.ir_monthly_r2 import (  # noqa: E402
     http_get,
     sha256_bytes,
 )
-from jobs.monthly.tdnet_monthly_r2 import display_code, download_skip_reason  # noqa: E402
-from jobs.monthly.html_issuers import PARSERS  # noqa: E402
-from jobs.monthly.html_monthly import (  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import display_code, download_skip_reason
+from jobs.monthly.html_issuers import PARSERS
+from jobs.monthly.html_monthly import (
     decode_html_bytes,
     dumps_ingest,
     fy_end_from_text,

@@ -65,7 +65,7 @@ def rclone_cat_bytes(rel: str, *, environ: Mapping[str, str] | None = None) -> b
         raise BriefingFileError(f"rclone not installed ({bin_name})")
     src = remote_path(rel, environ=environ)
     try:
-        proc = subprocess.run(  # nosec B603 - 固定の実行ファイル。shell は使わない
+        proc = subprocess.run(
             [bin_name, "cat", src],
             capture_output=True,
             timeout=RCLONE_CAT_TIMEOUT_S,

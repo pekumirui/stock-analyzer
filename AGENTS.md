@@ -4,8 +4,10 @@
 
 | 何 | 正本 |
 |---|---|
-| 設計・スキーマ・取込・API | `DESIGN.md` |
+| 設計・取込・API | `DESIGN.md` |
 | どのバッチ・API がどのテーブルを読み書きするか | `docs/DATA_FLOW.md` と機能ごとの `docs/dataflow/<機能>.md`（テストから自動生成。手で直さない。テーブルを読み書きする変更をしたら `python -m pytest tests --dataflow=write`）。`docs/dataflow/viewer.html` は人が見る用なので読まない |
+| バッチの起動時刻・引数・ジョブ間の依存 | `docs/JOBS.md` と機能ごとの `docs/jobs/gen/<機能>.md`（`deploy/crontab`・各ジョブの `add_argument`・上のデータの流れから自動生成。手で直さない。crontab かジョブの引数を変えたら `python -m tools.jobs.render`） |
+| テーブル・列・索引の一覧と ER 図 | `docs/SCHEMA.md` と機能ごとの `docs/schema/<機能>.md`（`app/models.py` から自動生成。手で直さない。モデルを変えたら `python -m tools.schema.render`）。拡大・検索できる ER 図は wiki の `schema/erd/`（Liam ERD。入力の `docs/schema/tbls.json` も同じコマンドで作る） |
 | J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
 | 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
 | 月次の行名 | `docs/DESIGN_monthly_labels.md` |
@@ -60,7 +62,8 @@
 - issue にはエージェント自身のベンダーのラベル（`agent:claude` / `agent:cursor` / `agent:codex`）を付ける。無いベンダーなら `agent:<ベンダー名>` を作って付ける
 - Linear につながらない環境では起票せず、止まって人に確認する
 - ドキュメントと既存のコードが食い違うときはコードの書き方に従い、見つけた食い違いを最後の返答ですべて挙げる
-- コード・スクリプトにコメントを足さない。コードから読めることと経緯（issue 番号・障害の話）は書かない。経緯は commit / PR / issue、設計の理由は正本の md に。コードから読めず、知らないと壊す制約（例: `--preload` を使わない理由）だけは 1 行で残す
+- コード・スクリプトにコメントと docstring を足さない。増えると `python -m tools.lint.no_comments` が CI で落ちる（Python・JS・CSS・シェル。道具が読む `# noqa` などは理由文なしなら通る）。経緯は commit / PR / issue に書く。知らないと壊す制約はテストか名前で表す
+- コメント・docstring を消したら `python -m tools.lint.no_comments --write` で台帳（`tools/lint/no_comments_baseline.json`）を減らす
 - 画面の録画(動画)は作らない。見た目の確認はスクリーンショットで行う
 
 ## 認知客観性と反迎合原則 (Anti-Sycophancy)

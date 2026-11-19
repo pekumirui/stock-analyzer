@@ -13,11 +13,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-monthly-issuers-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.config import MONTHLY_NEW_DAYS  # noqa: E402
-from app.main import app  # noqa: E402
-from app.monthly.ingest import monthly_series_kind  # noqa: E402
+from app.config import MONTHLY_NEW_DAYS
+from app.main import app
+from app.monthly.ingest import monthly_series_kind
 
 
 def _fail(msg: str) -> None:

@@ -8,10 +8,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_issuers.i9946 import parse as parse_9946  # noqa: E402
-from jobs.monthly.html_monthly import decode_html_bytes  # noqa: E402
+from jobs.monthly.html_issuers.i9946 import parse as parse_9946
+from jobs.monthly.html_monthly import decode_html_bytes
 
-from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label  # noqa: E402
+from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
 FIXTURE_20261013 = ROOT / "tests" / "monthly" / "testdata" / "html_9946" / "20261013.html"
 

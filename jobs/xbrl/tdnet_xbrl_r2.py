@@ -34,8 +34,8 @@ if str(REPO_ROOT) not in sys.path:
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs import _tdnet as tdnet_list  # noqa: E402
-from jobs._r2common import (  # noqa: E402
+from jobs import _tdnet as tdnet_list
+from jobs._r2common import (
     abort_if_disconnected,
     date_window,
     fail_if_mount_down,
@@ -44,7 +44,7 @@ from jobs._r2common import (  # noqa: E402
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
-from app.config import XBRL_DEST  # noqa: E402
+from app.config import XBRL_DEST
 
 JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_DEST = XBRL_DEST

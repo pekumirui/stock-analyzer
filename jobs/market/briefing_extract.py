@@ -20,13 +20,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from sqlalchemy import func, select  # noqa: E402
+from sqlalchemy import func, select
 
-from app.db import SessionLocal  # noqa: E402
-from app.market import briefing_batch as bb  # noqa: E402
-from app.market.homepages import ordinary_code  # noqa: E402
-from app.models import BriefingExtract  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+from app.db import SessionLocal
+from app.market import briefing_batch as bb
+from app.market.homepages import ordinary_code
+from app.models import BriefingExtract
+from jobs.share_paths import share_path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

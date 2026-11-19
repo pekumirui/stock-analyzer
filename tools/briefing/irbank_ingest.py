@@ -52,11 +52,11 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import httpx  # noqa: E402
-from sqlalchemy.orm import Session  # noqa: E402
+import httpx
+from sqlalchemy.orm import Session
 
-from app.db import SessionLocal, init_db, run_sqlite_write, upsert  # noqa: E402
-from app.market.briefing_store import (  # noqa: E402
+from app.db import SessionLocal, init_db, run_sqlite_write, upsert
+from app.market.briefing_store import (
     SOURCE_IRBANK,
     STATUS_SAVED,
     STORAGE_LOCAL,
@@ -64,21 +64,21 @@ from app.market.briefing_store import (  # noqa: E402
     record_briefing,
     saved_document_ids,
 )
-from app.market.briefing_title import is_material_title  # noqa: E402
-from app.models import BriefingDocument, BriefingIrbankScan, Stock  # noqa: E402
-from jobs._r2common import (  # noqa: E402
+from app.market.briefing_title import is_material_title
+from app.models import BriefingDocument, BriefingIrbankScan, Stock
+from jobs._r2common import (
     abort_if_disconnected,
     fail_if_mount_down,
     is_mount_disconnect_error,
 )
-from jobs.market import briefing_offsite  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import dest_path  # noqa: E402
-from jobs.ops.backup_db import (  # noqa: E402
+from jobs.market import briefing_offsite
+from jobs.monthly.tdnet_monthly_r2 import dest_path
+from jobs.ops.backup_db import (
     RcloneRunFn,
     make_rclone_runner,
     offsite_settings_from_env,
 )
-from jobs.share_paths import share_path  # noqa: E402
+from jobs.share_paths import share_path
 
 LIST_URL = "https://irbank.net/{code}/ir"
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"

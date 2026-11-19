@@ -14,9 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet.codes import ingest_code_list, link_stocks  # noqa: E402
-from app.edinet.documents import now_jst, relink_codes  # noqa: E402
+from app.db import SessionLocal
+from app.edinet.codes import ingest_code_list, link_stocks
+from app.edinet.documents import now_jst, relink_codes
 
 UNMATCHED_SHOW = 20
 

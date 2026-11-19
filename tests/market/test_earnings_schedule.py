@@ -17,9 +17,9 @@ _tmp = tempfile.mkdtemp(prefix="stock-analyzer-earn-date-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 os.environ.setdefault("JQUANTS_API_KEY", "test-key")
 
-from app.config import EARNINGS_DATE_LOOKBACK_DAYS  # noqa: E402
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.market.earnings_schedule import (  # noqa: E402
+from app.config import EARNINGS_DATE_LOOKBACK_DAYS
+from app.db import SessionLocal, init_db
+from app.market.earnings_schedule import (
     ActualMonth,
     Cell,
     FQName,
@@ -38,8 +38,8 @@ from app.market.earnings_schedule import (  # noqa: E402
     parse_pub,
     sync,
 )
-from app.db import upsert  # noqa: E402
-from app.models import EarningsDateFetch, EarningsDatePub, PtsSnapshot, Statement, Stock  # noqa: E402
+from app.db import upsert
+from app.models import EarningsDateFetch, EarningsDatePub, PtsSnapshot, Statement, Stock
 
 TODAY = date(2026, 10, 2)
 
@@ -235,7 +235,7 @@ def _sched(code: str, fq: str, sch: date, fye: str) -> Schedule:
 
 
 def _cell(kind: str, n: int, pending: int) -> Cell:
-    return Cell(kind, n, pending)  # type: ignore[arg-type]
+    return Cell(kind, n, pending)
 
 
 def test_ingest_ledger_overwrite_and_reit_filter() -> None:
@@ -250,7 +250,7 @@ def test_ingest_ledger_overwrite_and_reit_filter() -> None:
             _wire(PubDate="2026-09-21"),
             _wire(FQName="4Q"),
         ])
-        n = ingest_pub_date(db, jq, day)  # type: ignore[arg-type]
+        n = ingest_pub_date(db, jq, day)
         if n != 3:
             _fail(f"written {n}")
         row = db.get(EarningsDatePub, ("72030", "2Q", day))
@@ -279,7 +279,7 @@ def test_ingest_ledger_overwrite_and_reit_filter() -> None:
             _fail(missing)
 
         again = _JQ([_wire(SchDate="")])
-        ingest_pub_date(db, again, day)  # type: ignore[arg-type]
+        ingest_pub_date(db, again, day)
         cleared = db.get(EarningsDatePub, ("72030", "2Q", day))
         if cleared is None or cleared.sch_date is not None:
             _fail(cleared)
@@ -288,7 +288,7 @@ def test_ingest_ledger_overwrite_and_reit_filter() -> None:
             _fail(left)
 
         empty = _JQ([])
-        if ingest_pub_date(db, empty, date(2026, 9, 19)) != 0:  # type: ignore[arg-type]
+        if ingest_pub_date(db, empty, date(2026, 9, 19)) != 0:
             _fail("empty payload writes 0")
         led = db.get(EarningsDateFetch, date(2026, 9, 19))
         if led is None or led.n != 0:
@@ -296,7 +296,7 @@ def test_ingest_ledger_overwrite_and_reit_filter() -> None:
 
         boom = _JQ(boom=True)
         try:
-            ingest_pub_date(db, boom, date(2026, 9, 18))  # type: ignore[arg-type]
+            ingest_pub_date(db, boom, date(2026, 9, 18))
         except RuntimeError:
             pass
         else:
@@ -310,8 +310,8 @@ def test_ingest_ledger_overwrite_and_reit_filter() -> None:
 def test_older_ingest_does_not_resurrect() -> None:
     db = _db()
     try:
-        ingest_pub_date(db, _JQ([_wire(PubDate="2026-09-20", SchDate="2026-11-06")]), date(2026, 9, 20))  # type: ignore[arg-type]
-        ingest_pub_date(db, _JQ([_wire(PubDate="2026-08-07", SchDate="2026-11-05")]), date(2026, 8, 7))  # type: ignore[arg-type]
+        ingest_pub_date(db, _JQ([_wire(PubDate="2026-09-20", SchDate="2026-11-06")]), date(2026, 9, 20))
+        ingest_pub_date(db, _JQ([_wire(PubDate="2026-08-07", SchDate="2026-11-05")]), date(2026, 8, 7))
         if load_current(db, date(2026, 11, 5), date(2026, 11, 5)):
             _fail("older publication must not put the issuer back on Nov 5")
         got = load_current(db, date(2026, 11, 6), date(2026, 11, 6))
@@ -324,7 +324,7 @@ def test_older_ingest_does_not_resurrect() -> None:
 def test_payloads_mixed_past_and_unfetched() -> None:
     db = _db()
     try:
-        ingest_pub_date(db, _JQ([  # type: ignore[arg-type]
+        ingest_pub_date(db, _JQ([
             _wire(Code="72030", SchDate="2026-10-02", CoName="トヨタ"),
             _wire(Code="67580", SchDate="2026-10-02", CoName="ソニー"),
             _wire(Code="72030", FQName="FY", SchDate="2026-10-01"),
@@ -528,14 +528,14 @@ def _add_stmt(db, no: str, code: str, period: str, fy_end: date, disclosed: date
         "is_revision": False,
     }
     row.update(over)
-    db.add(Statement(**row))  # type: ignore[arg-type]
+    db.add(Statement(**row))
 
 
 def test_scheduled_carries_latest_actual() -> None:
     """未発表は直近の実績を latest に載せ、発表済みの actuals は形を変えない。"""
     db = _db()
     try:
-        ingest_pub_date(db, _JQ([  # type: ignore[arg-type]
+        ingest_pub_date(db, _JQ([
             _wire(Code="40620", SchDate="2026-10-29", CoName="イビデン", FQName="2Q"),
             _wire(Code="65040", SchDate="2026-10-29", CoName="富士電機", FQName="2Q"),
             _wire(Code="72030", SchDate="2026-10-29", CoName="トヨタ", FQName="2Q"),
@@ -633,7 +633,7 @@ def test_rows_carry_latest_pts_of_the_session() -> None:
     """その日のセッションで最後に取ったランキングの値。どのランキングにも無い銘柄と別の日は null。"""
     db = _db()
     try:
-        ingest_pub_date(db, _JQ([  # type: ignore[arg-type]
+        ingest_pub_date(db, _JQ([
             _wire(Code="65040", SchDate="2026-11-05", CoName="富士電機", FQName="2Q"),
         ]), date(2026, 9, 20))
         upsert(db, Stock, [
@@ -687,7 +687,7 @@ def test_sort_and_pts_markup() -> None:
 def test_routes() -> None:
     db = _db()
     try:
-        ingest_pub_date(db, _JQ([_wire(SchDate="2026-11-06")]), date(2026, 9, 20))  # type: ignore[arg-type]
+        ingest_pub_date(db, _JQ([_wire(SchDate="2026-11-06")]), date(2026, 9, 20))
         upsert(db, Stock, [{"code": "72030", "name": "トヨタ自動車", "product_category": "011"}])
     finally:
         db.close()

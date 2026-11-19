@@ -7,6 +7,10 @@
 ## バッチ
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["fx_rates.py"]:::job
   n1["golden_db.py"]:::job

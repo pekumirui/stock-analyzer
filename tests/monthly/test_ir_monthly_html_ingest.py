@@ -13,8 +13,8 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_monthly import decode_html_bytes, dumps_ingest  # noqa: E402
-from jobs.monthly.ir_monthly_html_ingest import (  # noqa: E402
+from jobs.monthly.html_monthly import decode_html_bytes, dumps_ingest
+from jobs.monthly.ir_monthly_html_ingest import (
     DEFAULT_LEDGER,
     LedgerEntry,
     PostedLedger,
@@ -30,7 +30,7 @@ from jobs.monthly.ir_monthly_html_ingest import (  # noqa: E402
     run,
     select_latest_per_code,
 )
-from jobs.monthly.ir_monthly_html_r2 import ingest_payload, load_html_registry  # noqa: E402
+from jobs.monthly.ir_monthly_html_r2 import ingest_payload, load_html_registry
 
 MARCH_FY_MONTHS = (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3)
 

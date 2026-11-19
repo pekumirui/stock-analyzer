@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.ops.backup_db import (  # noqa: E402
+from jobs.ops.backup_db import (
     BACKUP_NAME_RE,
     COMPRESSLEVEL,
     DEFAULT_DEST,
@@ -49,7 +49,7 @@ from jobs.ops.backup_db import (  # noqa: E402
     tmp_dir,
     write_consistent_gzip,
 )
-from jobs.ops.backup_store import BlockStore, StoreError  # noqa: E402
+from jobs.ops.backup_store import BlockStore, StoreError
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -174,7 +174,7 @@ def _ok_offsite() -> MemoryOffsite:
     return MemoryOffsite()
 
 
-def _run_out(**kwargs):  # noqa: ANN003
+def _run_out(**kwargs):
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = run(**kwargs)
@@ -558,7 +558,7 @@ def test_rclone_argv_copy_check_prune(tmp_path: Path) -> None:
     keep = BackupKeep(offsite_daily=2, offsite_weekly=2)
     listed = [backup_name(f"2026-10-0{n}") for n in (1, 2, 3)] + [gz.name]
 
-    def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+    def fake_run(argv: list[str], timeout: float) -> CmdResult:
         calls.append(list(argv))
         cmd = argv[0]
         if cmd == "listremotes":
@@ -609,7 +609,7 @@ def test_rclone_argv_copy_check_prune(tmp_path: Path) -> None:
 def test_rclone_missing_remote_skips() -> None:
     settings = OffsiteSettings(remote="remote-a", root="root-b")
 
-    def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+    def fake_run(argv: list[str], timeout: float) -> CmdResult:
         if argv[0] == "listremotes":
             return CmdResult(0, "other:\n", "")
         _fail(f"should not run {argv!r}")
@@ -635,7 +635,7 @@ def test_rclone_check_falls_back_to_size(tmp_path: Path) -> None:
     gz.write_bytes(b"abc")
     settings = OffsiteSettings(remote="remote-a", root="root-b")
 
-    def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+    def fake_run(argv: list[str], timeout: float) -> CmdResult:
         cmd = argv[0]
         if cmd == "listremotes":
             return CmdResult(0, f"{settings.remote}:\n", "")
@@ -728,7 +728,7 @@ def test_snapshot_is_smaller_than_the_db_and_offsite_ok_deletes_local(tmp_path: 
             _fail(f"fixture too small {src}")
         held: dict[str, bytes] = {}
 
-        def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+        def fake_run(argv: list[str], timeout: float) -> CmdResult:
             cmd = argv[0]
             if cmd == "listremotes":
                 return CmdResult(0, "onedrive:\n", "")
@@ -962,10 +962,10 @@ def test_disk_full_names_the_cause(tmp_path: Path) -> None:
     _make_db(db, ["ok"])
     original = store_mod.BlockStore.write
 
-    def full(self, data: bytes, offset: int) -> None:  # noqa: ARG001
+    def full(self, data: bytes, offset: int) -> None:
         raise OSError(errno.ENOSPC, "No space left on device")
 
-    store_mod.BlockStore.write = full  # type: ignore[method-assign]
+    store_mod.BlockStore.write = full
     try:
         write_consistent_gzip(
             db,
@@ -981,7 +981,7 @@ def test_disk_full_names_the_cause(tmp_path: Path) -> None:
     else:
         _fail("disk full must fail")
     finally:
-        store_mod.BlockStore.write = original  # type: ignore[method-assign]
+        store_mod.BlockStore.write = original
 
 
 def test_hash_mismatch_does_not_accept_size(tmp_path: Path) -> None:
@@ -989,7 +989,7 @@ def test_hash_mismatch_does_not_accept_size(tmp_path: Path) -> None:
     gz.write_bytes(b"abc")
     settings = OffsiteSettings(remote="remote-a", root="root-b")
 
-    def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+    def fake_run(argv: list[str], timeout: float) -> CmdResult:
         cmd = argv[0]
         if cmd == "listremotes":
             return CmdResult(0, f"{settings.remote}:\n", "")

@@ -144,17 +144,17 @@ def _seed() -> None:
     if db.get(Stock, CODE) is not None:
         db.close()
         return
-    now = datetime(2026, 11, 3, 12, 0)  # noqa: DTZ001
+    now = datetime(2026, 11, 3, 12, 0)
     db.add(Stock(code=CODE, name="説明資料ニュース"))
     db.add(Stock(code=EMPTY, name="空の銘柄"))
     quarterly = XbrlFiling(
         code=CODE, source="tdnet", doc_id="doc-q", doc_type="quarterly", period_type="Q2",
-        submitted_at=datetime(2026, 11, 2, 15, 30), title="第2四半期決算短信", raw_path="q.zip",  # noqa: DTZ001
+        submitted_at=datetime(2026, 11, 2, 15, 30), title="第2四半期決算短信", raw_path="q.zip",
         parse_status="parsed", created_at=now,
     )
     revision = XbrlFiling(
         code=CODE, source="tdnet", doc_id="doc-rev", doc_type="forecast_revision",
-        submitted_at=datetime(2026, 8, 1, 10, 0), title="業績予想の修正", raw_path="r.zip",  # noqa: DTZ001
+        submitted_at=datetime(2026, 8, 1, 10, 0), title="業績予想の修正", raw_path="r.zip",
         parse_status="parsed", created_at=now,
     )
     db.add_all([quarterly, revision])

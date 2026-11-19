@@ -57,7 +57,7 @@ def _year_rows(points: list[RevisionPoint]) -> list[dict]:
 
     最初の予想が期初より後 (前期の本決算が履歴に無い) なら期初とは呼ばず forecast にする。
     """
-    key = lambda p: (p.disclosed, p.order)  # noqa: E731
+    key = lambda p: (p.disclosed, p.order)
     actual = min((p for p in points if p.kind == ACTUAL and _has_values(p.values)),
                  key=key, default=None)
     fy_end = actual.fy_end if actual else max(p.fy_end for p in points)

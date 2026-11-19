@@ -7,6 +7,10 @@
 ## バッチ
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["supply/material_stats.py"]:::job
   n1[("material_monthly")]:::tbl
@@ -26,6 +30,10 @@ flowchart LR
 ## API
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
   n0["GET /api/supply/countries/{material_id}"]:::api
   n1["GET /api/supply/monthly/{material_id}"]:::api

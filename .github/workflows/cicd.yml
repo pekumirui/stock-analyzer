@@ -133,6 +133,9 @@ jobs:
       - name: Install
         run: pip install $(grep -E '^(ruff|bandit)==' requirements-dev.txt)
 
+      - name: No comments
+        run: python -m tools.lint.no_comments
+
       - name: Ruff
         run: python -m ruff check --config config/pyproject.toml app jobs tests tools deploy mcp
 

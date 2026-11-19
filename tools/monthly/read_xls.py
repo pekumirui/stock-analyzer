@@ -328,7 +328,7 @@ def read_sheet_builtin(source: Path | bytes) -> list[list[Any]]:
 
 
 def read_sheet_xlrd(path: Path) -> list[list[Any]]:
-    import xlrd  # type: ignore[import-not-found]
+    import xlrd
 
     book = xlrd.open_workbook(str(path))
     sh = book.sheet_by_index(0)

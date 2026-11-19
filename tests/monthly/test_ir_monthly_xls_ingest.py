@@ -9,13 +9,13 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.monthly.ingest import (  # noqa: E402
+from app.monthly.ingest import (
     canonicalize_element_label,
     format_monthly_cell,
     monthly_display_label,
     plan_column_years,
 )
-from jobs.monthly.ir_monthly_xls_ingest import (  # noqa: E402
+from jobs.monthly.ir_monthly_xls_ingest import (
     COLUMNS,
     as_of_from_url,
     ingest_from_grid,
@@ -26,7 +26,7 @@ from jobs.monthly.ir_monthly_xls_ingest import (  # noqa: E402
     scale_occupancy,
     spec_for,
 )
-from tools.monthly.read_xls import read_sheet_builtin  # noqa: E402
+from tools.monthly.read_xls import read_sheet_builtin
 
 FIXTURE = ROOT / "tests" / "monthly" / "testdata" / "1878_history_1.xls"
 FIXTURE_7606 = ROOT / "tests" / "monthly" / "testdata" / "7606_sokuho2027.xlsx"

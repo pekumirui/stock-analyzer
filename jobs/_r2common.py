@@ -649,7 +649,7 @@ def backoff_delay(
         return min(HTTP_RETRY_CAP_SEC, max(0.0, retry_after))
     n = max(0, attempt)
     base = min(HTTP_RETRY_CAP_SEC, HTTP_RETRY_BASE_SEC * (2 ** n))
-    roll = rng.random() if rng is not None else random.random()  # noqa: S311  # nosec B311
+    roll = rng.random() if rng is not None else random.random()  # nosec B311
     return base * (0.75 + 0.5 * roll)
 
 
