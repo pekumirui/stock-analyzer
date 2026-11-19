@@ -38,7 +38,7 @@
 
 ## テーブル
 
-テーブル・列・索引・ER 図は [`docs/SCHEMA.md`](SCHEMA.md)（`app/models.py` から自動生成。列の意味もそこに出る）。EDINET の表は [`docs/jobs/edinet.md`](jobs/edinet.md)、XBRL の表は [`docs/jobs/xbrl.md`](jobs/xbrl.md)。ここには取込と保存の規則を書く。
+テーブル・列・索引・ER 図は [`docs/SCHEMA.md`](SCHEMA.md)（`app/models.py` から自動生成。列の意味もそこに出る）。取込と保存の規則は [`docs/jobs/`](jobs/market.md) の機能ごとのページ（EDINET は [`docs/jobs/edinet.md`](jobs/edinet.md)、XBRL は [`docs/jobs/xbrl.md`](jobs/xbrl.md)）。
 
 ## 分析ロジック
 
