@@ -98,8 +98,7 @@ def _chain_text(run: Run, runs: list[Run]) -> str:
     return " → ".join(f"**{_stem(r.job)}**" if r is run else _stem(r.job) for r in mates)
 
 
-def _overview(all_jobs: list[str], by_name: dict[str, Entry], runs: list[Run], tz: str | None,
-              actions: dict[str, list[str]]) -> str:
+def _overview(all_jobs: list[str], runs: list[Run], tz: str | None, actions: dict[str, list[str]]) -> str:
     cron_jobs = {r.job for r in runs}
     lines = [
         "# ジョブ設計",
@@ -139,31 +138,25 @@ def _overview(all_jobs: list[str], by_name: dict[str, Entry], runs: list[Run], t
     lines += [
         "## cron のジョブ",
         "",
-        "| ジョブ | 機能 | 起動 | 引数 | 書く | 読むだけ |",
-        "|---|---|---|---|---|---|",
+        "読み書きする表は機能ごとのページのジョブの節に出す。",
+        "",
+        "| ジョブ | 機能 | 起動 | 引数 |",
+        "|---|---|---|---|",
     ]
     order = {k: i for i, (k, _) in enumerate(DOMAINS)}
     for (job, args), group in sorted(_variants(runs).items(), key=lambda kv: (order[_domain(kv[0][0])], kv[0])):
-        e = by_name.get(job)
-        lines.append(
-            f"| `{_stem(job)}` | {_LABEL[_domain(job)]} | {_when(group)} | {f'`{_cell(args)}`' if args else ''} "
-            f"| {_code(e.writes()) if e else ''} | {_code(e.reads()) if e else ''} |"
-        )
+        lines.append(f"| `{_stem(job)}` | {_LABEL[_domain(job)]} | {_when(group)} | {f'`{_cell(args)}`' if args else ''} |")
     lines += [
         "",
         "## cron に無いジョブ",
         "",
         "手で流すか、GitHub Actions から流す。",
         "",
-        "| ジョブ | 機能 | Actions | 書く | 読むだけ |",
-        "|---|---|---|---|---|",
+        "| ジョブ | 機能 | Actions |",
+        "|---|---|---|",
     ]
     for job in sorted((j for j in all_jobs if j not in cron_jobs), key=lambda j: (order[_domain(j)], j)):
-        e = by_name.get(job)
-        lines.append(
-            f"| `{_stem(job)}` | {_LABEL[_domain(job)]} | {_code(actions.get(job, []))} "
-            f"| {_code(e.writes()) if e else ''} | {_code(e.reads()) if e else ''} |"
-        )
+        lines.append(f"| `{_stem(job)}` | {_LABEL[_domain(job)]} | {_code(actions.get(job, []))} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -264,7 +257,7 @@ def render(root: Path = ROOT) -> dict[str, str]:
     by_name = {e.name: e for e in entries if e.kind == "job"}
     actions = workflow_jobs(root)
     deps = dependencies(entries, {r.job for r in runs})
-    out = {OVERVIEW: _overview(all_jobs, by_name, runs, tz, actions)}
+    out = {OVERVIEW: _overview(all_jobs, runs, tz, actions)}
     for key, _ in DOMAINS:
         if any(_domain(j) == key for j in all_jobs):
             out[f"{PAGE_DIR}/{key}.md"] = _domain_page(root, key, all_jobs, by_name, runs, deps, actions)

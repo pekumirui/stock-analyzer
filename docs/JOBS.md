@@ -86,58 +86,60 @@ gantt
 
 ## cron のジョブ
 
-| ジョブ | 機能 | 起動 | 引数 | 書く | 読むだけ |
-|---|---|---|---|---|---|
-| `market/briefing_offsite` | 株価・決算 | 毎日 01:40 |  | `briefing_documents` |  |
-| `market/homepage_briefing` | 株価・決算 | 日曜 22:25 | `--years 5 --ledger /var/log/app/homepage_briefing_ledger.json` | `briefing_documents` | `tanshin_covers` |
-| `market/homepage_briefing` | 株価・決算 | 毎日 12〜23 時の毎時 00 分 | `--years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json` | `briefing_documents` | `tanshin_covers` |
-| `market/intraday_1m` | 株価・決算 | 平日 20:30 |  |  |  |
-| `market/pts_snapshot` | 株価・決算 | 火〜土曜 00:00<br>平日 15:30<br>平日 16〜23 時の毎時 00・30 分 |  | `pts_snapshots` |  |
-| `market/run_batch` | 株価・決算 | 毎日 19:30 |  | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
-| `market/tanshin_covers` | 株価・決算 | 毎日 12〜23 時の毎時 00 分 | `--days 1` | `tanshin_covers` | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
-| `market/tanshin_covers` | 株価・決算 | 毎日 23:35 | `--days 3` | `tanshin_covers` | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
-| `market/tdnet_briefing_r2` | 株価・決算 | 毎日 12〜23 時の毎時 00 分 | `1` | `briefing_documents` |  |
-| `market/tdnet_briefing_r2` | 株価・決算 | 毎日 22:10 | `7` | `briefing_documents` |  |
-| `monthly/ir_monthly_html_ingest` | 月次 | 毎日 10:30<br>毎日 16:30 | `--ledger /var/log/app/html_ingest_ledger.json` | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values` | `statements`, `stocks` |
-| `monthly/ir_monthly_html_r2` | 月次 | 毎日 10:20<br>毎日 16:20 |  |  | `stocks` |
-| `monthly/ir_monthly_json_ingest` | 月次 | 毎日 10:30<br>毎日 16:30 |  | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values` | `statements`, `stocks` |
-| `monthly/ir_monthly_r2` | 月次 | 毎日 10:00<br>毎日 16:00 |  |  | `stocks` |
-| `monthly/ir_monthly_xls_ingest` | 月次 | 毎日 10:40<br>毎日 16:40 | `--all --post` | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values` | `statements`, `stocks` |
-| `monthly/tdnet_monthly_pdf_ingest` | 月次 | 毎日 18:30<br>毎日 21:30 | `--ledger /var/log/app/pdf_ingest_ledger.json` | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values` | `statements`, `stocks` |
-| `monthly/tdnet_monthly_pdf_sidecar` | 月次 | 毎日 18:20<br>毎日 21:20 |  |  | `monthly_elements`, `monthly_tables`, `monthly_values` |
-| `monthly/tdnet_monthly_r2` | 月次 | 毎日 18:00<br>毎日 21:00 | `7` |  | `stocks` |
-| `xbrl/tdnet_xbrl_r2` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 | `2` |  | `stocks` |
-| `xbrl/xbrl_normalize` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  | `xbrl_element_mappings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items` | `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
-| `xbrl/xbrl_parse` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  | `xbrl_contexts`, `xbrl_documents`, `xbrl_element_mappings`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items` | `statements`, `stocks`, `tdnet_pdf_documents` |
-| `xbrl/xbrl_statements` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  | `statements` | `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
-| `edinet/edinet_archive` | EDINET・大量保有 | 毎日 0〜6 時の毎時 15 分 | `--limit 1000` | `edinet_archives` | `edinet_buybacks`, `edinet_documents`, `edinet_tender_offer_docs`, `large_holding_reports`, `xbrl_filings` |
-| `edinet/edinet_buybacks` | EDINET・大量保有 | 毎日 9〜23 時の毎時 25 分 | `--limit 500` | `edinet_archives`, `edinet_buyback_resolutions`, `edinet_buybacks` | `edinet_documents`, `edinet_filers`, `stocks` |
-| `edinet/edinet_codes` | EDINET・大量保有 | 毎日 07:30 |  | `edinet_documents`, `edinet_filers`, `stocks` |  |
-| `edinet/edinet_documents` | EDINET・大量保有 | 毎日 8〜23 時の毎時 40 分 |  | `edinet_documents`, `edinet_list_days` | `edinet_filers`, `stocks` |
-| `edinet/edinet_large_holdings` | EDINET・大量保有 | 毎日 9〜23 時の毎時 05 分 | `--limit 1000` | `edinet_archives`, `large_holding_reports`, `large_holdings` | `edinet_documents`, `edinet_filers`, `stocks` |
-| `edinet/edinet_tender_offers` | EDINET・大量保有 | 毎日 9〜23 時の毎時 20 分 | `--limit 100` | `edinet_archives`, `edinet_tender_offer_docs`, `edinet_tender_offers` | `edinet_documents`, `edinet_filers`, `stocks` |
-| `edinet/edinet_xbrl` | EDINET・大量保有 | 毎日 8〜23 時の毎時 50 分 | `--limit 300` | `edinet_archives`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category` | `edinet_documents`, `stocks`, `xbrl_element_mappings`, `xbrl_std_items` |
-| `supply/material_stats` | サプライ | 月曜 07:10 | `--source estat` | `material_monthly`, `material_trade_country` |  |
-| `supply/material_stats` | サプライ | 毎日 07:15 | `--source meti --only seidou --ledger /var/log/app/material_stats_ledger.json` | `material_monthly`, `material_trade_country` |  |
-| `supply/material_stats` | サプライ | 毎日 07:45 | `--source meti --only sekiyu --ledger /var/log/app/material_stats_ledger.json` | `material_monthly`, `material_trade_country` |  |
-| `fx_rates` | 共通・運用 | 毎日 08:00 |  | `fx_rates` |  |
-| `ops/backup_data` | 共通・運用 | 毎日 03:30 |  |  |  |
-| `ops/backup_db` | 共通・運用 | 毎日 05:00 |  |  |  |
-| `ops/vps_packages_r2` | 共通・運用 | 毎日 06:40 |  |  |  |
+読み書きする表は機能ごとのページのジョブの節に出す。
+
+| ジョブ | 機能 | 起動 | 引数 |
+|---|---|---|---|
+| `market/briefing_offsite` | 株価・決算 | 毎日 01:40 |  |
+| `market/homepage_briefing` | 株価・決算 | 日曜 22:25 | `--years 5 --ledger /var/log/app/homepage_briefing_ledger.json` |
+| `market/homepage_briefing` | 株価・決算 | 毎日 12〜23 時の毎時 00 分 | `--years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json` |
+| `market/intraday_1m` | 株価・決算 | 平日 20:30 |  |
+| `market/pts_snapshot` | 株価・決算 | 火〜土曜 00:00<br>平日 15:30<br>平日 16〜23 時の毎時 00・30 分 |  |
+| `market/run_batch` | 株価・決算 | 毎日 19:30 |  |
+| `market/tanshin_covers` | 株価・決算 | 毎日 12〜23 時の毎時 00 分 | `--days 1` |
+| `market/tanshin_covers` | 株価・決算 | 毎日 23:35 | `--days 3` |
+| `market/tdnet_briefing_r2` | 株価・決算 | 毎日 12〜23 時の毎時 00 分 | `1` |
+| `market/tdnet_briefing_r2` | 株価・決算 | 毎日 22:10 | `7` |
+| `monthly/ir_monthly_html_ingest` | 月次 | 毎日 10:30<br>毎日 16:30 | `--ledger /var/log/app/html_ingest_ledger.json` |
+| `monthly/ir_monthly_html_r2` | 月次 | 毎日 10:20<br>毎日 16:20 |  |
+| `monthly/ir_monthly_json_ingest` | 月次 | 毎日 10:30<br>毎日 16:30 |  |
+| `monthly/ir_monthly_r2` | 月次 | 毎日 10:00<br>毎日 16:00 |  |
+| `monthly/ir_monthly_xls_ingest` | 月次 | 毎日 10:40<br>毎日 16:40 | `--all --post` |
+| `monthly/tdnet_monthly_pdf_ingest` | 月次 | 毎日 18:30<br>毎日 21:30 | `--ledger /var/log/app/pdf_ingest_ledger.json` |
+| `monthly/tdnet_monthly_pdf_sidecar` | 月次 | 毎日 18:20<br>毎日 21:20 |  |
+| `monthly/tdnet_monthly_r2` | 月次 | 毎日 18:00<br>毎日 21:00 | `7` |
+| `xbrl/tdnet_xbrl_r2` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 | `2` |
+| `xbrl/xbrl_normalize` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  |
+| `xbrl/xbrl_parse` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  |
+| `xbrl/xbrl_statements` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  |
+| `edinet/edinet_archive` | EDINET・大量保有 | 毎日 0〜6 時の毎時 15 分 | `--limit 1000` |
+| `edinet/edinet_buybacks` | EDINET・大量保有 | 毎日 9〜23 時の毎時 25 分 | `--limit 500` |
+| `edinet/edinet_codes` | EDINET・大量保有 | 毎日 07:30 |  |
+| `edinet/edinet_documents` | EDINET・大量保有 | 毎日 8〜23 時の毎時 40 分 |  |
+| `edinet/edinet_large_holdings` | EDINET・大量保有 | 毎日 9〜23 時の毎時 05 分 | `--limit 1000` |
+| `edinet/edinet_tender_offers` | EDINET・大量保有 | 毎日 9〜23 時の毎時 20 分 | `--limit 100` |
+| `edinet/edinet_xbrl` | EDINET・大量保有 | 毎日 8〜23 時の毎時 50 分 | `--limit 300` |
+| `supply/material_stats` | サプライ | 月曜 07:10 | `--source estat` |
+| `supply/material_stats` | サプライ | 毎日 07:15 | `--source meti --only seidou --ledger /var/log/app/material_stats_ledger.json` |
+| `supply/material_stats` | サプライ | 毎日 07:45 | `--source meti --only sekiyu --ledger /var/log/app/material_stats_ledger.json` |
+| `fx_rates` | 共通・運用 | 毎日 08:00 |  |
+| `ops/backup_data` | 共通・運用 | 毎日 03:30 |  |
+| `ops/backup_db` | 共通・運用 | 毎日 05:00 |  |
+| `ops/vps_packages_r2` | 共通・運用 | 毎日 06:40 |  |
 
 ## cron に無いジョブ
 
 手で流すか、GitHub Actions から流す。
 
-| ジョブ | 機能 | Actions | 書く | 読むだけ |
-|---|---|---|---|---|
-| `market/briefing_extract` | 株価・決算 |  | `briefing_extracts`, `briefing_facts`, `briefing_pages` | `briefing_documents` |
-| `market/check_demo` | 株価・決算 |  |  | `statements`, `stocks` |
-| `market/homepages` | 株価・決算 |  | `homepages` | `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
-| `monthly/monthly_names` | 月次 | `monthly-names.yml` | `monthly_element_sources`, `monthly_elements`, `monthly_values` |  |
-| `xbrl/xbrl_presentation` | XBRL・決算書類 |  | `edinet_archives`, `xbrl_filings`, `xbrl_presentation_roles` | `edinet_documents` |
-| `edinet/edinet_shareholders` | EDINET・大量保有 |  | `xbrl_major_shareholders`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category` | `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
-| `golden_db` | 共通・運用 |  | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `indicators`, `material_monthly`, `material_trade_country`, `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `statements`, `stocks`, `topix` |  |
-| `migrate` | 共通・運用 |  | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials` | `stocks` |
-| `ops/migrate_r2_share` | 共通・運用 |  |  |  |
-| `ops/rebuild_daily_prices` | 共通・運用 |  | `daily_prices` |  |
+| ジョブ | 機能 | Actions |
+|---|---|---|
+| `market/briefing_extract` | 株価・決算 |  |
+| `market/check_demo` | 株価・決算 |  |
+| `market/homepages` | 株価・決算 |  |
+| `monthly/monthly_names` | 月次 | `monthly-names.yml` |
+| `xbrl/xbrl_presentation` | XBRL・決算書類 |  |
+| `edinet/edinet_shareholders` | EDINET・大量保有 |  |
+| `golden_db` | 共通・運用 |  |
+| `migrate` | 共通・運用 |  |
+| `ops/migrate_r2_share` | 共通・運用 |  |
+| `ops/rebuild_daily_prices` | 共通・運用 |  |
