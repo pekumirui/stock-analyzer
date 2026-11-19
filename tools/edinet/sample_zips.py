@@ -6,7 +6,7 @@
   python tools/edinet/sample_zips.py --failed --out /tmp/edinet-zips
 
 そのあと `python tools/xbrl/taxonomy_bundle.py fetch --zips /tmp/edinet-zips`。
-ZIP は解析しない（落とすだけ）。docs/DESIGN_edinet.md §4。
+ZIP は解析しない（落とすだけ）。docs/jobs/edinet.md §4。
 """
 from __future__ import annotations
 

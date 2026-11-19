@@ -1,6 +1,6 @@
 # サプライタブ
 
-書き方は `docs/SCREEN_SPEC.md`。素材マスタと企業マスタの検査は `app/supply/chain.py`。
+書き方は `docs/screen/SPEC.md`。素材マスタと企業マスタの検査は `app/supply/chain.py`。
 
 ## 誰のための画面か
 
@@ -99,7 +99,7 @@
 
 `GET /api/supply/countries/{material_id}?flow=import|export`（既定 import）→ `{material_id, flow, unit, from, to, sokuho, total, countries: [{code, name, value, share}]}`。保存済みの最新月から遡る 12 か月の国別合計を多い順に。`sokuho` は最新月に速報を含むか。単位が混ざれば最新月の単位の行だけ足す。行が無ければ `countries` は空で他は null / 0。素材が無ければ 404、flow が違えば 400。
 
-`GET /api/supply/monthly/{material_id}` → `{material_id, series: [{metric, unit, sources, points: [[YYYY-MM, value, revision]]}]}`。revision は 1 速報 / 2 確報 / 3 年報。系列は 生産 → 出荷 → 月末在庫 → 輸入 → 輸出 → 原油処理 → 国内向販売 → 見掛け消費 の順。同じ指標でも単位が違えば別の系列。同じ指標・単位を複数の出典が持てば月ごとに足し、全部の出典がそろわない月は出さない（アルミダイカスト・鋳物 = 生産動態 2560 + 2550）。`apparent`（見掛け消費）は保存せずここで計算し、`sources` は空、revision は材料の最小。貿易統計（`sources` が `trade` だけ）の系列は、0 の月が保存されないので、どれかの素材に貿易統計の行がある月を 0 で埋める（revision はその月の最小）。埋めないと 0 と未公表が区別できず、輸出がまれな素材（天然ガスなど）が 1 点だけの系列になる。素材が無ければ 404。取込は `DESIGN.md` §3「素材の月次量」
+`GET /api/supply/monthly/{material_id}` → `{material_id, series: [{metric, unit, sources, points: [[YYYY-MM, value, revision]]}]}`。revision は 1 速報 / 2 確報 / 3 年報。系列は 生産 → 出荷 → 月末在庫 → 輸入 → 輸出 → 原油処理 → 国内向販売 → 見掛け消費 の順。同じ指標でも単位が違えば別の系列。同じ指標・単位を複数の出典が持てば月ごとに足し、全部の出典がそろわない月は出さない（アルミダイカスト・鋳物 = 生産動態 2560 + 2550）。`apparent`（見掛け消費）は保存せずここで計算し、`sources` は空、revision は材料の最小。貿易統計（`sources` が `trade` だけ）の系列は、0 の月が保存されないので、どれかの素材に貿易統計の行がある月を 0 で埋める（revision はその月の最小）。埋めないと 0 と未公表が区別できず、輸出がまれな素材（天然ガスなど）が 1 点だけの系列になる。素材が無ければ 404。取込は `docs/jobs/supply.md`
 
 ## 対象外
 

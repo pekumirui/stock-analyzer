@@ -8,8 +8,8 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_buybacks.py --retry-failed --limit 100
   python jobs/edinet/edinet_buybacks.py --refresh-only                 # 訂正・取下げ・最新の付け直しだけ
 
-1 書類 約 1 秒（XBRL を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は残す（docs/DESIGN_edinet.md §10）。
-設計は docs/DESIGN_edinet.md §6。
+1 書類 約 1 秒（XBRL を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は残す（docs/jobs/edinet.md §10）。
+設計は docs/jobs/edinet.md §6。
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-# 短信 PDF の印字の行名 → 標準科目（KAB-173。docs/DESIGN_xbrl.md §16.5）
+# 短信 PDF の印字の行名 → 標準科目（KAB-173。docs/jobs/xbrl.md §16.5）
 # name は app.xbrl.pdf の label_key の結果（NFKC、空白なし）。priority は小さい方が勝つ。
 # 営業収益は売上高より先。経常利益は JPGAAP のときだけ。設備投資額（正の印字）は対応させない。
 # 四半期・中間の利益の名前は label_key が当期の名前に寄せる（KAB-173）。「又は」の後ろは落とす。

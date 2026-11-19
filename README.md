@@ -1,7 +1,7 @@
 # 株式分析ツール
 
 日本株の株価・決算データを J-Quants API から日次で取り込み、Web/スマホから閲覧する個人用ツール。
-設計の詳細は [DESIGN.md](DESIGN.md) 参照。
+設計の詳細は [docs/OVERVIEW.md](docs/OVERVIEW.md) 参照。
 
 ## 機能
 
@@ -124,7 +124,7 @@ scp stock.db user@YOUR_HOST:/home/user/stock-analyzer/stock.db
 
 DB のバックアップは ConoHa の自動バックアップか、日次で別パスへコピー。
 
-過去の決算短信の原文（IR BANK の PDF → HTML。`docs/DESIGN_xbrl.md` §16）は、VPS で銘柄を指定して流す。
+過去の決算短信の原文（IR BANK の PDF → HTML。`docs/jobs/xbrl.md` §16）は、VPS で銘柄を指定して流す。
 
 ```bash
 cd /home/stock/stock-analyzer
@@ -158,7 +158,7 @@ app/
     analytics.py  MA/RS/ステージ/Q単独/決算後リターン
   monthly/      月次 (行名の正規化・親子・公開ページ)
   supply/       サプライ (素材マスタ・e-Stat・経産省)
-  edinet/       EDINET 提出者・書類一覧・財務 XBRL・大量保有・自己株買い・公開買付 (docs/DESIGN_edinet.md)
+  edinet/       EDINET 提出者・書類一覧・財務 XBRL・大量保有・自己株買い・公開買付 (docs/jobs/edinet.md)
   edinet_wrapper/  EDINET API v2 ラッパー (vendor。改変しない)
   api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ

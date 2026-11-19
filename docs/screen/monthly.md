@@ -1,6 +1,6 @@
 # 月次タブ
 
-参照。見た目と操作の正本。取込と unit は `DESIGN.md` §3。行名は [`DESIGN_monthly_labels.md`](DESIGN_monthly_labels.md)。書き方は `docs/SCREEN_SPEC.md`。
+参照。見た目と操作の正本。取込と unit は `docs/jobs/monthly.md`。行名は [`docs/jobs/monthly_labels.md`](../jobs/monthly_labels.md)。書き方は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 
@@ -27,7 +27,7 @@
 | `last_ingested_at` | datetime NULL | その code への ingest でセルが追加・変更・削除されたときに更新 |
 
 書き込みは先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。既存の `monthly_tables` / `monthly_elements` / `monthly_values` は変えない。
-ingest の列割り当てと暦年は `DESIGN.md` §3。
+ingest の列割り当てと暦年は `docs/jobs/monthly.md`。
 
 **新着。** 仮想グループ。`last_ingested_at` の JST 暦日が今日を含む直近 3 日（当日・前日・前々日）。3 日前は新着ではない。業種グループと重複してよい。JST の日付が今日なら、行に NEW を付ける。
 
@@ -43,7 +43,7 @@ ingest の列割り当てと暦年は `DESIGN.md` §3。
 表の number は、表示単位がある指標だけ四捨五入（`fmtMonthlyCell`）。単位は項目名（`label.display`）。JSON と保存名は単位なし。
 表示する 3 年に値が1つも無い行は表に出さない。系列セレクトは年をまたいだ行を残す。
 
-**行名。** 保存と正規化の正本は [`DESIGN_monthly_labels.md`](DESIGN_monthly_labels.md)。分解は Python の `monthly_element_label`。year GET の各行に `label` が付く。SPA は再パースしない。画面の行キーは `label.display`。
+**行名。** 保存と正規化の正本は [`docs/jobs/monthly_labels.md`](../jobs/monthly_labels.md)。分解は Python の `monthly_element_label`。year GET の各行に `label` が付く。SPA は再パースしない。画面の行キーは `label.display`。
 年ごとの保存名が違っても表示名が同じなら1行。その年の値は、その年の保存 element のうち表示名が一致するものから取る。以下「表示名で畳む」と呼ぶ。和集合とゲートはクライアント側のまま。
 
 AI による業種付けはしない。`industry` の更新は MCP と `PUT /api/v1/tables/{code}/industry`。SPA からは書かない。
@@ -142,7 +142,7 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 
 ### 親子関係（tree）
 
-木は全発行体で API が返す。PDF の表どうしの親子（J.フロント: 連結 → 百貨店事業 → 大丸松坂屋百貨店 → 店計 → 大丸 / 松坂屋 → 各店）は、発行体ごとに `config/monthly/monthly_row_order.json` の `tree` と `metrics` に書く。書いていない発行体は API が自動の木を作る。行名と DB は変えない。割り当ては `app/monthly/tree.py`、year GET が各行の `tree` と表の `tree` / `tree_metrics`（自動なら `tree_auto: true`）を返す（`DESIGN.md` §5）。MCP の `monthly_get` も同じものを読むので、AI は銘柄ごとの癖を知らなくても親子を辿れる。
+木は全発行体で API が返す。PDF の表どうしの親子（J.フロント: 連結 → 百貨店事業 → 大丸松坂屋百貨店 → 店計 → 大丸 / 松坂屋 → 各店）は、発行体ごとに `config/monthly/monthly_row_order.json` の `tree` と `metrics` に書く。書いていない発行体は API が自動の木を作る。行名と DB は変えない。割り当ては `app/monthly/tree.py`、year GET が各行の `tree` と表の `tree` / `tree_metrics`（自動なら `tree_auto: true`）を返す（`docs/screen/api.md`）。MCP の `monthly_get` も同じものを読むので、AI は銘柄ごとの癖を知らなくても親子を辿れる。
 
 **節と指標を分ける。** 節は事業・会社・店・品目。同じ節を別の物差しで測った行（総額売上高と売上収益(IFRS)、売上高と入店客数）は子にしない。J.フロントの総額売上高は、IFRS 売上収益の百貨店の消化仕入を総額に、SC のテナント取引を取扱高に置き換えた数字で、IFRS とは数え方が違うだけで同じ事業（決算短信の注記）。子にすると内訳に見える。
 
@@ -152,7 +152,7 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 - 子を文字列で書くと「親の prefix + 空白 + 文字列」を prefix、文字列を name にする（見出し `大丸`（prefix `大丸`）の子 `心斎橋店` → `大丸 心斎橋店`）
 - `metrics` は `[{name, leaves}]`。行の葉（節の prefix を剥がした残り。剥がせなければ保存名）が `leaves` にあればその指標。並びが横持ちの指標の行の並び。どれにも無い行は metric null（横持ちでは先頭の指標に入れる）
 - 内訳の 2 段目（ベルーナ プロパティ → ホテル）は `rows` で節を入れ子にする（旧 `breakdown_parent`）。行名に親事業を前置した小グループ（カネ美 `テナント事業 PPIHグループ`）は、自動の木だと事業と並ぶ兄弟になるので `tree` に書く
-- 別表の同じ数字（J.フロントの 表1 百貨店事業 総額 と 表2 百貨店事業合計）は木で隠さず、`config/monthly/issuer_aliases.json` で DB を 1 行に寄せる（`docs/DESIGN_monthly_labels.md`）
+- 別表の同じ数字（J.フロントの 表1 百貨店事業 総額 と 表2 百貨店事業合計）は木で隠さず、`config/monthly/issuer_aliases.json` で DB を 1 行に寄せる（`docs/jobs/monthly_labels.md`）
 
 **横持ちは 指標 ▸ 節の木。** 分析は「指標を 1 つ決め、その中を組織で降りる」順に見る（既存店売上高 → 客数・客単価 → 全店と店舗数 → どのブランド・店が効いているか）。焼肉の全指標を並べる見方より、既存 売上高 を焼肉 / ラーメン / … で比べる見方が先。
 - 一番上の行は指標。並びは `tree_metrics`（自動の木は見る順、config は書いた順）。行の数字は根（会社全体）のその指標の行。名前は会社の行の名前。自動の木は保存名（`既存 売上高(前年比)`）、config の木は節で剥がした葉から `(前年比)` を外したもの（ＫｅｅＰｅｒ技研 `全社 売上高`。指標名 `売上高` のままだと全社の数字だと読めなかった）。金額の無い前年比だけの行は `(前年比)` を残す（神戸物産 `全国 仕入れ 全店 売上高(前年比)`。外すと金額に見えた）。会社の行が無い指標は指標名で、数字の無い行
@@ -196,7 +196,7 @@ years が空なら「データなし」。選んだ系列に値が無い年は�
 `GET /api/v1/tables` は `{code, name, years}` に次を足す。
 `market`, `sector33`, `industry`, `last_ingested_at`, `is_new`, `ingested_today`, `all_store_yoy`, `existing_store_yoy`。
 
-`GET /api/v1/tables/{code}` と `GET /api/v1/tables/{code}/{year}` の形は `DESIGN.md` §5。Detail の表は years を並列 GET する。画面の空セルは `-`。
+`GET /api/v1/tables/{code}` と `GET /api/v1/tables/{code}/{year}` の形は `docs/screen/api.md`。Detail の表は years を並列 GET する。画面の空セルは `-`。
 
 `PUT /api/v1/tables/{code}/industry` の body は `{industry}`。stocks に無い code、月次表が無い code は 4xx。
 

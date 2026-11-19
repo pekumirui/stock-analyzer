@@ -71,7 +71,7 @@ SHELL=/bin/bash
 
 # EDINET（KAB-72）。コードリスト → edinet_filers / stocks.edinet_code（キー不要）、書類一覧 → edinet_documents（EDINET_API_KEY）
 # 一覧は直近 7 日の未確定の日だけ取る。前日分は翌朝の回で確定する
-# 取込済みで ZIP を残していない書類を取り直す（KAB-281。docs/DESIGN_edinet.md §10）。ほかの EDINET ジョブの前の夜間
+# 取込済みで ZIP を残していない書類を取り直す（KAB-281。docs/jobs/edinet.md §10）。ほかの EDINET ジョブの前の夜間
 15 0-6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_archive.py --limit 1000
 30 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_codes.py
 40 8-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_documents.py
