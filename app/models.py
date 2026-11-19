@@ -457,7 +457,7 @@ class XbrlFiling(Base):
     )
     period_type = Column(String(8), comment="'FY' | 'Q1' | 'Q2' | 'Q3'")
     fiscal_year_end = Column(Date)
-    submitted_at = Column(DateTime, nullable=False)
+    submitted_at = Column(JstDateTime, nullable=False)
     title = Column(Text)
     accounting_standard = Column(String(16), comment="'JPGAAP' | 'IFRS' | 'USGAAP' | NULL")
     is_amendment = Column(Boolean, nullable=False, default=False)
