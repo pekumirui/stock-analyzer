@@ -5530,7 +5530,7 @@
      "type": "VARCHAR(32)",
      "nullable": false,
      "default": "other",
-     "comment": "annual | quarterly | semiannual | forecast_revision | dividend_revision | other"
+     "comment": "値: annual / quarterly / semiannual / forecast_revision / dividend_revision / other"
     },
     {
      "name": "period_type",
@@ -5590,7 +5590,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "pending",
-     "comment": "'pending' | 'parsed' | 'failed' | 'skipped'"
+     "comment": "値: pending / parsed / failed / skipped"
     },
     {
      "name": "parse_error",
@@ -5810,7 +5810,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "旧行は NULL\n値: primary（本表）/ summary（短信サマリー(tse-ed-t)）"
+     "comment": "値: primary（本表）/ summary（短信サマリー（tse-ed-t / tse-re-t / pdf-sum））"
     },
     {
      "name": "generated_at",

@@ -87,7 +87,7 @@ def _filing(db, code: str, doc_id: str, title: str, submitted_at: datetime, html
         title=title,
         is_amendment=amended,
         raw_path=f"{doc_id}.zip",
-        parse_status="ok",
+        parse_status="parsed",
         created_at=NOW,
     )
     db.add(filing)

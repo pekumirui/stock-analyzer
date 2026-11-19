@@ -1,0 +1,7 @@
+.md-typeset table:not([class]) code {
+  white-space: nowrap;
+}
+
+.md-typeset table:not([class]) th {
+  white-space: nowrap;
+}

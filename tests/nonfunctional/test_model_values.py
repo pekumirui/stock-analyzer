@@ -103,3 +103,22 @@ def test_one_of_keeps_the_written_order_and_meanings():
     assert whole.enums == ["b", "a"] and whole.meanings == {"b": "二", "a": "一"}
     assert whole.compile(dialect=sqlite.dialect()) == "VARCHAR"
     assert _one_of("x", "y").meanings == {}
+
+
+def test_xbrl_config_values_are_in_the_model_lists():
+    import re
+    from pathlib import Path
+
+    from app.models import XbrlElementMapping, XbrlStdItem
+
+    root = Path(__file__).resolve().parents[2] / "config" / "xbrl"
+    std = (root / "std_items.yaml").read_text(encoding="utf-8")
+    mappings = "".join(p.read_text(encoding="utf-8") for p in sorted((root / "mappings").glob("*.yaml")))
+    for text, key, col in (
+        (std, "statement", XbrlStdItem.statement),
+        (std, "sign", XbrlStdItem.sign),
+        (mappings, "part", XbrlElementMapping.part),
+    ):
+        used = set(re.findall(rf"\b{key}:\s*([A-Za-z_]+)", text))
+        assert used, key
+        assert used <= set(col.type.enums), f"{key}: config/xbrl に {sorted(used - set(col.type.enums))} がある。app/models.py の一覧に足す"

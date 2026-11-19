@@ -271,7 +271,7 @@ XBRL の要素。名前空間 × 名前で 1 行
 | `code` | VARCHAR(5) |  | → `stocks.code`（制約なし） |  |  |  |
 | `source` | VARCHAR(16) |  |  | `tdnet` / `edinet` / `tdnet_pdf` | `'tdnet'` |  |
 | `doc_id` | VARCHAR(64) |  |  |  |  | tdnet は TDnet xbrl_id（ZIP 名）、edinet は EDINET の docID、tdnet_pdf は開示番号 14 桁 |
-| `doc_type` | VARCHAR(32) |  |  |  | `'other'` | annual \| quarterly \| semiannual \| forecast_revision \| dividend_revision \| other |
+| `doc_type` | VARCHAR(32) |  |  | `annual` / `quarterly` / `semiannual` / `forecast_revision` / `dividend_revision` / `other` | `'other'` |  |
 | `period_type` | VARCHAR(8) | 可 |  | `FY` / `Q1` / `Q2` / `Q3` |  |  |
 | `fiscal_year_end` | DATE | 可 |  |  |  |  |
 | `submitted_at` | DATETIME（`JstDateTime`） |  |  |  |  |  |
@@ -280,7 +280,7 @@ XBRL の要素。名前空間 × 名前で 1 行
 | `is_amendment` | BOOLEAN |  |  |  | `False` |  |
 | `raw_path` | TEXT |  |  |  |  | tdnet は data/xbrl からの相対パス（manifest.path）。edinet は edinet:<doc_id>、tdnet_pdf は tdnet_pdf:<開示番号> |
 | `raw_sha256` | VARCHAR(64) | 可 |  |  |  | manifest.sha256 |
-| `parse_status` | VARCHAR(16) |  |  |  | `'pending'` | 'pending' \| 'parsed' \| 'failed' \| 'skipped' |
+| `parse_status` | VARCHAR(16) |  |  | `pending` / `parsed` / `failed` / `skipped` | `'pending'` |  |
 | `parse_error` | TEXT | 可 |  |  |  |  |
 | `parsed_at` | DATETIME（`UtcDateTime`） | 可 |  |  |  |  |
 | `documents_status` | VARCHAR(16) | 可 |  | `stored`<br>`empty` 選べる HTML が 0 件 |  | 原文。NULL=まだ |
@@ -316,7 +316,7 @@ XBRL の要素。名前空間 × 名前で 1 行
 | `target_period` | VARCHAR(16) |  |  | `FY` / `H1` / `Q1` / `Q2` / `Q3` / `year_end` / `annual` | `FY`（DB） | 数値が指す期間 |
 | `source_fact_id` | INTEGER | 可 | FK → `xbrl_facts.id` |  |  |  |
 | `source_element_id` | INTEGER | 可 | FK → `xbrl_elements.id` |  |  |  |
-| `source_layer` | VARCHAR(16) | 可 |  | `primary` 本表<br>`summary` 短信サマリー(tse-ed-t) |  | 旧行は NULL |
+| `source_layer` | VARCHAR(16) | 可 |  | `primary` 本表<br>`summary` 短信サマリー（tse-ed-t / tse-re-t / pdf-sum） |  |  |
 | `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |

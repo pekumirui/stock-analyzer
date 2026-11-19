@@ -123,10 +123,10 @@ def _seed_xbrl_url(
         code=code,
         source="tdnet",
         doc_id=doc_id,
-        doc_type="tanshin",
+        doc_type="quarterly",
         submitted_at=submitted_at,
         raw_path=f"{doc_id}.zip",
-        parse_status="ok",
+        parse_status="parsed",
         created_at=NOW,
     )
     db.add(filing)

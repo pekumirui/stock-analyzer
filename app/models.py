@@ -456,8 +456,8 @@ class XbrlFiling(Base):
         comment="tdnet は TDnet xbrl_id（ZIP 名）、edinet は EDINET の docID、tdnet_pdf は開示番号 14 桁",
     )
     doc_type = Column(
-        String(32), nullable=False, default="other",
-        comment="annual | quarterly | semiannual | forecast_revision | dividend_revision | other",
+        _one_of("annual", "quarterly", "semiannual", "forecast_revision", "dividend_revision", "other", length=32),
+        nullable=False, default="other",
     )
     period_type = Column(_one_of("FY", "Q1", "Q2", "Q3", length=8))
     fiscal_year_end = Column(Date)
@@ -470,9 +470,7 @@ class XbrlFiling(Base):
         comment="tdnet は data/xbrl からの相対パス（manifest.path）。edinet は edinet:<doc_id>、tdnet_pdf は tdnet_pdf:<開示番号>",
     )
     raw_sha256 = Column(String(64), comment="manifest.sha256")
-    parse_status = Column(
-        String(16), nullable=False, default="pending", comment="'pending' | 'parsed' | 'failed' | 'skipped'",
-    )
+    parse_status = Column(_one_of("pending", "parsed", "failed", "skipped", length=16), nullable=False, default="pending")
     parse_error = Column(Text)
     parsed_at = Column(UtcDateTime)
     documents_status = Column(
@@ -699,7 +697,7 @@ class XbrlFinancial(Base):
     )
     source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
     source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
-    source_layer = Column(_one_of({"primary": "本表", "summary": "短信サマリー(tse-ed-t)"}, length=16), comment="旧行は NULL")
+    source_layer = Column(_one_of({"primary": "本表", "summary": "短信サマリー（tse-ed-t / tse-re-t / pdf-sum）"}, length=16))
     generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint(
