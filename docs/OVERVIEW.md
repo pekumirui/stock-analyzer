@@ -4,6 +4,8 @@
 
 ## 構成
 
+コードの依存は [モジュールの依存](overview/modules.md)、`deploy/` から読める範囲の構成（systemd・nginx・cron）は [システム構成](overview/system.md)（どちらも自動生成）。下の図は概念図。
+
 ```
 ┌─────────────┐   日次バッチ(19:30 JST)   ┌──────────────┐
 │ J-Quants API │ ─────────────────────→ │  DB           │
@@ -36,7 +38,7 @@
 
 ## テーブル
 
-テーブル・列・索引・ER 図は [`docs/SCHEMA.md`](SCHEMA.md)（`app/models.py` から自動生成。列の意味もそこに出る）。EDINET の表は [`docs/jobs/edinet.md`](jobs/edinet.md)、XBRL の表は [`docs/jobs/xbrl.md`](jobs/xbrl.md)。ここには取込と保存の規則を書く。
+テーブル・列・索引・ER 図は [`docs/SCHEMA.md`](SCHEMA.md)（`app/models.py` から自動生成。列の意味もそこに出る）。取込と保存の規則は [`docs/jobs/`](jobs/market.md) の機能ごとのページ（EDINET は [`docs/jobs/edinet.md`](jobs/edinet.md)、XBRL は [`docs/jobs/xbrl.md`](jobs/xbrl.md)）。
 
 ## 分析ロジック
 

@@ -10,12 +10,13 @@ from sqlalchemy.dialects import sqlite
 
 from app.models import Base, JstDateTime, UtcDateTime
 from tools.schema.erd import ERD_DIR, TBLS
-from tools.dataflow.render import DOMAINS, table_domain
+from tools.dataflow.render import DOMAINS, PAGE_DIR as FLOW_DIR, table_domain
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERVIEW = "docs/SCHEMA.md"
 PAGE_DIR = "docs/schema"
 REBUILD = "python -m tools.schema.render"
+HAND_WRITTEN = (f"{PAGE_DIR}/states.md",)
 ERD_PAGE = f"{ERD_DIR}/index.html"
 _DIALECT = sqlite.dialect()
 LAYOUT = ["---", "config:", "  layout: elk", "---"]
@@ -108,10 +109,19 @@ def _values(col) -> str:
     return "<br>".join(f"`{v}` {_cell(said[v])}" if v in said else f"`{v}`" for v in col.type.enums)
 
 
+def _flow_line(table: str) -> str:
+    domain = table_domain(table)
+    page = ROOT / FLOW_DIR / f"{domain}.md"
+    seen = page.is_file() and f"### {table}\n" in page.read_text(encoding="utf-8")
+    head = "書く入口・読むだけの入口（バッチと API）: "
+    return head + (f"[データの流れ](../dataflow/{domain}.md#{table})" if seen else "テストでは観測されていない")
+
+
 def _table_section(t: Table) -> list[str]:
     lines = [f"### {t.name}", ""]
     if t.comment:
         lines += [t.comment, ""]
+    lines += [_flow_line(t.name), ""]
     if t.dialect_options["sqlite"].get("with_rowid") is False:
         lines += ["`WITHOUT ROWID`", ""]
     lines += ["| 列 | 型 | NULL | キー | 値 | 既定 | 説明 |", "|---|---|---|---|---|---|---|"]
@@ -379,7 +389,10 @@ def stale(root: Path = ROOT) -> list[str]:
     bad = [p for p, text in want.items() if not (root / p).is_file() or (root / p).read_text(encoding="utf-8") != text]
     page_dir = root / PAGE_DIR
     if page_dir.is_dir():
-        bad += [f"{PAGE_DIR}/{p.name}" for p in page_dir.glob("*.md") if f"{PAGE_DIR}/{p.name}" not in want]
+        bad += [
+            f"{PAGE_DIR}/{p.name}" for p in page_dir.glob("*.md")
+            if f"{PAGE_DIR}/{p.name}" not in want and f"{PAGE_DIR}/{p.name}" not in HAND_WRITTEN
+        ]
     return sorted(bad)
 
 

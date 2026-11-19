@@ -109,3 +109,25 @@ def test_value_meanings_reach_the_doc_and_tbls():
     plain = [c for t in Base.metadata.tables.values() for c in t.columns if isinstance(c.type, Enum) and not c.type.meanings]
     for c in plain:
         assert "値: " + " / ".join(c.type.enums) in notes[(c.table.name, c.name)]
+
+
+def test_every_table_links_to_an_existing_dataflow_heading():
+    import re
+
+    from tools.dataflow.render import PAGE_DIR as FLOW_DIR
+    from tools.schema.render import ROOT
+
+    pages = {p: text for p, text in render().items() if p.startswith(PAGE_DIR + "/")}
+    for text in pages.values():
+        for domain, table in re.findall(r"\(\.\./dataflow/(\w+)\.md#(\w+)\)", text):
+            flow = (ROOT / FLOW_DIR / f"{domain}.md").read_text(encoding="utf-8")
+            assert f"### {table}\n" in flow, (domain, table)
+
+
+def test_unobserved_tables_say_so_instead_of_linking():
+    text = "\n".join(t for p, t in render().items() if p.startswith(PAGE_DIR + "/"))
+    assert "テストでは観測されていない" in text
+
+
+def test_hand_written_states_page_is_not_reported_as_leftover():
+    assert f"{PAGE_DIR}/states.md" not in stale()
