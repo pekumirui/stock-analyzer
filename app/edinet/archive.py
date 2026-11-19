@@ -4,7 +4,7 @@
 EDINET から取った ZIP は data/edinet/{書類種別}/{docID}_type{n}.zip に書き、edinet_archives に
 記録する。OneDrive への退避は jobs/ops/backup_data.py（毎朝 rclone move。VPS 側は消える）。
 OneDrive の場所は backup_data と同じ BACKUP_OFFSITE_REMOTE / BACKUP_OFFSITE_PATH の下の data/edinet。
-設計は docs/DESIGN_edinet.md §10。
+設計は docs/jobs/edinet.md §10。
 """
 from __future__ import annotations
 
@@ -179,7 +179,7 @@ def download(db: Session, client: EdinetClient, doc: EdinetDocument, file_type: 
     return Fetched(got.content, "edinet")
 
 
-# 閲覧期間（年）。書類種別 → 年。DESIGN_edinet.md の早見表と各モジュールの KEEP_YEARS
+# 閲覧期間（年）。書類種別 → 年。docs/jobs/edinet.md の早見表と各モジュールの KEEP_YEARS
 _KEEP_YEARS = {
     **dict.fromkeys(("120", "130", "140", "150", "160", "170"), 10),
     **dict.fromkeys(("220", "230"), 1),

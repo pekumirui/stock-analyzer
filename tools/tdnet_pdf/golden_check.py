@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""短信 PDF の読み取りの回帰チェック（KAB-244。docs/DESIGN_xbrl.md「短信 PDF の回帰チェック」）。
+"""短信 PDF の読み取りの回帰チェック（KAB-244。docs/jobs/xbrl.md「短信 PDF の回帰チェック」）。
 
 検証済みの開示（XBRL 検証 bot の 1〜3 回目、19 銘柄）を正解データにして、読み取りを直すたびに
 J-Quants と一致を確かめた値が消えたり変わったりしていないかを見る。本番 DB にも VPS にも触れない。

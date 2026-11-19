@@ -1,4 +1,4 @@
-"""ミネルヴィニのステージ判定（DESIGN.md §4.2）。作った株価の並びで最終日のステージを見る。"""
+"""ミネルヴィニのステージ判定（docs/OVERVIEW.md 4.2）。作った株価の並びで最終日のステージを見る。"""
 from datetime import date, timedelta
 
 from app.db import SessionLocal, upsert

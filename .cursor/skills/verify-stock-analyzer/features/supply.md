@@ -1,6 +1,6 @@
 # サプライ
 
-The supply tab draws a material graph (原料 → 中間財 → 最終製品, plus リサイクル資源, upstream left to downstream right) from `config/supply/supply_chain.json`, and a panel for the picked material (tabs 概要 / 企業 / 輸入元 / 推移: up/downstream chips, makers and capacity share donuts, an import-country donut, a monthly volume chart) or company. Below 900px the panel is a bottom sheet. Spec is `docs/DESIGN_supply.md`; code is `static/js/supply.js` + `app/supply/chain.py`.
+The supply tab draws a material graph (原料 → 中間財 → 最終製品, plus リサイクル資源, upstream left to downstream right) from `config/supply/supply_chain.json`, and a panel for the picked material (tabs 概要 / 企業 / 輸入元 / 推移: up/downstream chips, makers and capacity share donuts, an import-country donut, a monthly volume chart) or company. Below 900px the panel is a bottom sheet. Spec is `docs/screen/supply.md`; code is `static/js/supply.js` + `app/supply/chain.py`.
 
 ## Sub-features
 

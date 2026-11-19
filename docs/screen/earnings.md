@@ -1,6 +1,6 @@
 # 決算速報
 
-参照。見た目と操作の正本。取込と表は `DESIGN.md`。書き方は `docs/SCREEN_SPEC.md`。
+参照。見た目と操作の正本。取込は `docs/jobs/market.md`、表は `docs/SCHEMA.md`。書き方は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 
@@ -19,7 +19,7 @@
 
 ## データ形
 
-画面が見るのはカレンダーのセルと、日の一覧。保存の表は `DESIGN.md` §3。
+画面が見るのはカレンダーのセルと、日の一覧。保存の表は `docs/SCHEMA.md`。
 
 セルは `{kind, n}`。`pending` は 0 より大きいときだけ付く。事実の無い日はキーが無い。
 
@@ -187,7 +187,7 @@ EPS は、比べる前に各開示の値を選んだ開示の日の株数にそ�
 
 ### 操作
 
-`.ftab[data-fin="cum"]` / `.ftab[data-fin="q"]` / `.ftab[data-fin="prog"]` / `.ftab[data-fin="rev"]` で表を切り替える。銘柄名のクリックは銘柄タブの株価へ `gotoChart`（`docs/DESIGN_stock.md`）。
+`.ftab[data-fin="cum"]` / `.ftab[data-fin="q"]` / `.ftab[data-fin="prog"]` / `.ftab[data-fin="rev"]` で表を切り替える。銘柄名のクリックは銘柄タブの株価へ `gotoChart`（`docs/screen/stock.md`）。
 
 ### 空とエラー
 
@@ -205,7 +205,7 @@ EPS は、比べる前に各開示の値を選んだ開示の日の株数にそ�
 
 ### 要素
 
-決算表の枠の上のタブ `#earn-tabs` の「ニュース」で `#news-wrap`（業績の `#fin-box` の代わりに出す）。一覧 `#en-news` は銘柄タブのニュース（`docs/DESIGN_stock.md`）と同じ行と列（`stockNewsRows`。種類チップは無い）。高さは決算表と同じ上限で、中をスクロール。
+決算表の枠の上のタブ `#earn-tabs` の「ニュース」で `#news-wrap`（業績の `#fin-box` の代わりに出す）。一覧 `#en-news` は銘柄タブのニュース（`docs/screen/stock.md`）と同じ行と列（`stockNewsRows`。種類チップは無い）。高さは決算表と同じ上限で、中をスクロール。
 
 ### 操作
 
@@ -245,7 +245,7 @@ EPS は、比べる前に各開示の値を選んだ開示の日の株数にそ�
 
 `GET /api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` は日付からセルへのオブジェクト。`today` を省略するとサーバの今日。
 
-`GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` は `{kind, actuals, scheduled}`。フィールドの意味は `DESIGN.md` §5。どちらの行も `pts`（`{price, chg_pct, base_close, as_of}` か null）。実績の行は `restated`（既出期間の損益訂正）と `forecast_revision`（`{direction: "up"|"down", pct}`。無ければ null）。
+`GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` は `{kind, actuals, scheduled}`。フィールドの意味は `docs/screen/api.md`。どちらの行も `pts`（`{price, chg_pct, base_close, as_of}` か null）。実績の行は `restated`（既出期間の損益訂正）と `forecast_revision`（`{direction: "up"|"down", pct}`。無ければ null）。
 
 実績の行は `GET /api/earnings/detail/{code}?disclosure_no=`（修正履歴 `revisions` と進捗率 `progress` もこの応答）と `GET /api/chart/{code}`。予定の行は chart に加え、`latest` があれば同じ detail。
 

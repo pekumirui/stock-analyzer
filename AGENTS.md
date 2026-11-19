@@ -4,16 +4,18 @@
 
 | 何 | 正本 |
 |---|---|
-| 設計・取込・API | `DESIGN.md` |
+| 全体像・分析ロジック・ホスティング | `docs/OVERVIEW.md` |
+| 取込と保存の規則（機能ごと） | `docs/jobs/<機能>.md`（`market` / `monthly` / `supply` / `common`。XBRL と EDINET は下） |
+| API の応答の形と約束 | `docs/screen/api.md` |
 | どのバッチ・API がどのテーブルを読み書きするか | `docs/DATA_FLOW.md` と機能ごとの `docs/dataflow/<機能>.md`（テストから自動生成。手で直さない。テーブルを読み書きする変更をしたら `python -m pytest tests --dataflow=write`）。`docs/dataflow/viewer.html` は人が見る用なので読まない |
 | バッチの起動時刻・引数・ジョブ間の依存 | `docs/JOBS.md` と機能ごとの `docs/jobs/gen/<機能>.md`（`deploy/crontab`・各ジョブの `add_argument`・上のデータの流れから自動生成。手で直さない。crontab かジョブの引数を変えたら `python -m tools.jobs.render`） |
 | テーブル・列・索引の一覧と ER 図 | `docs/SCHEMA.md` と機能ごとの `docs/schema/<機能>.md`（`app/models.py` から自動生成。手で直さない。モデルを変えたら `python -m tools.schema.render`）。拡大・検索できる ER 図は wiki の `schema/erd/`（Liam ERD。入力の `docs/schema/tbls.json` も同じコマンドで作る） |
 | J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
 | 画面の一覧・画面遷移・画面が呼ぶ API と表・API の引数 | `docs/SCREENS.md` とタブごとの `docs/screen/gen/<tab>.md`（`static/js/`・FastAPI の OpenAPI・上のデータの流れから自動生成。手で直さない。画面のルート・JS が呼ぶ API・API の引数を変えたら `python -m tools.screen.render`） |
-| 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
-| 月次の行名 | `docs/DESIGN_monthly_labels.md` |
-| XBRL の設計と検証 | `docs/DESIGN_xbrl.md` / `docs/XBRL_VERIFY.md` |
-| EDINET の取込 | `docs/DESIGN_edinet.md` |
+| 画面（タブ別） | `docs/screen/<tab>.md`。書き方と共通見た目は `docs/screen/SPEC.md` |
+| 月次の行名 | `docs/jobs/monthly_labels.md` |
+| XBRL の設計と検証 | `docs/jobs/xbrl.md` / `docs/XBRL_VERIFY.md` |
+| EDINET の取込 | `docs/jobs/edinet.md` |
 | SQLite バックアップ | `docs/DESIGN_backup.md` |
 | VPS・MCP・共有データ（`data/`）の運用 | `deploy/README.md` |
 | 利用者向け手順・コマンド | `README.md` |

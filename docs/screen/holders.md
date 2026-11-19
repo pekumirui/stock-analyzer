@@ -1,6 +1,6 @@
 # 大量保有報告書タブ
 
-データは既存の `large_holding_reports` / `large_holdings` と日足。取込は `docs/DESIGN_edinet.md` §5。銘柄側の株主タブは `docs/DESIGN_stock.md`。共通見た目は `docs/SCREEN_SPEC.md`。
+データは既存の `large_holding_reports` / `large_holdings` と日足。取込は `docs/jobs/edinet.md` §5。銘柄側の株主タブは `docs/screen/stock.md`。共通見た目は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 
@@ -115,7 +115,7 @@
 
 `holdings` は 5% 以上が先（割合の大きい順）、5% 未満がその後ろ。時価・単価・損益が出せないときは null。履歴は報告義務発生日の古い順（最大 5 年）。無ければ 404。`activity` はその人の動き（一覧と同じ形。画面には出さない）。
 
-銘柄の株主は `docs/DESIGN_stock.md` の `GET /api/stock/{code}/holders`。
+銘柄の株主は `docs/screen/stock.md` の `GET /api/stock/{code}/holders`。
 
 ## 対象外
 

@@ -4,7 +4,7 @@
   python jobs/edinet/edinet_codes.py              # ダウンロードして取り込む
   python jobs/edinet/edinet_codes.py --zip Edinetcode.zip   # 手元の ZIP から
 
-設計は docs/DESIGN_edinet.md §2。取り込んだあと edinet_documents.code の空きも付け直す。
+設計は docs/jobs/edinet.md §2。取り込んだあと edinet_documents.code の空きも付け直す。
 """
 from __future__ import annotations
 

@@ -3,7 +3,7 @@
 素材は有向グラフ。1 つの素材が複数の原料から合流する（PET 樹脂 ← エチレングリコール・テレフタル酸）。
 リサイクル資源（recycled）は flows の入力を持たず、使い終わった製品からの回収（returns）を別に持つ。
 returns は循環を作るので、flows の検査（循環なし）と画面の配置・祖先と子孫には使わない。
-画面仕様は `docs/DESIGN_supply.md`。
+画面仕様は `docs/screen/supply.md`。
 """
 from __future__ import annotations
 

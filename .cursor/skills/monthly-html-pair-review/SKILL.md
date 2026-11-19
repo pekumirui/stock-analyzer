@@ -15,7 +15,7 @@ disable-model-invocation: true
 
 ウェーブ完了後の **2 回目の確認**。正本のチェック項目はこのファイルだけ。取り込み手順は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`。
 
-設計は `DESIGN.md` / `docs/DESIGN_monthly.md` / `docs/DESIGN_monthly_labels.md`。トラップは `.cursor/skills/monthly-html-ops-ingest/gotchas.md`。
+設計は `docs/jobs/monthly.md` / `docs/screen/monthly.md` / `docs/jobs/monthly_labels.md`。トラップは `.cursor/skills/monthly-html-ops-ingest/gotchas.md`。
 
 ## いつ使うか
 

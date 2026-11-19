@@ -10,7 +10,7 @@
 
 経産省の Excel は data/stats/meti/{seidou,sekiyu}/ に控えを残し、変わらないファイルは控えから読む。
 
-e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は DESIGN.md §3「素材の月次量」。
+e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は docs/jobs/supply.md。
 """
 from __future__ import annotations
 
