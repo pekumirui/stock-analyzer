@@ -32,4 +32,4 @@ Preconditions:
 - The API caps `limit=100` (default). A full Stage∩RS set can be truncated; `helpers/capture.py` may also trim the saved `results` list.
 - Switching away and back does not reload if `#sc-tbl` already has HTML.
 - When any `Stock.product_category` in `RS_PRODUCT_CATEGORIES` (`011`) exists, the screener query itself filters to those categories (not ranking-only). A name missing from the table can still exist in search. The "no `0`-prefix code" rule is DB hygiene, not a screener filter.
-- `restoreRoute` to screener always calls `loadScreener()` (unlike `selectTab`, which skips reload when `#sc-tbl` already has HTML).
+- `restoreRoute` to screener calls `loadScreener()` on boot / crumbs (`pop` false). `popstate` passes `{pop: true}` and skips the fetch when `#sc-tbl` already has HTML (same as `selectTab`). `popstate` always runs `restoreRoute`, not only while 銘柄 is visible.
