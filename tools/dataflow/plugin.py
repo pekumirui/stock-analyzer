@@ -208,6 +208,10 @@ def pytest_sessionfinish(session, exitstatus):
         for rel in stale:
             (ROOT / rel).unlink()
         tw.line(f"dataflow: {what} を書いた", green=True)
+        from tools.jobs.render import write as write_jobs
+
+        for rel in write_jobs():
+            tw.line(f"dataflow: {rel} を書いた", green=True)
         return
     bad = False
     for rel, text in files.items():

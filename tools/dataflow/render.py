@@ -13,6 +13,7 @@ TEMPLATE = Path(__file__).with_name("viewer.html")
 OVERVIEW = "docs/DATA_FLOW.md"
 PAGE_DIR = "docs/dataflow"
 VIEWER = f"{PAGE_DIR}/viewer.html"
+ENTRIES = f"{PAGE_DIR}/entries.json"
 
 # (キー, 見出し)。並びはページと HTML の並び
 DOMAINS: list[tuple[str, str]] = [
@@ -282,6 +283,19 @@ def _viewer(entries: list[Entry], tables: list[str]) -> str:
     return template.replace("/*DATA*/", data)
 
 
+def _entries_json(entries: list[Entry], all_jobs: list[str]) -> str:
+    doc = {
+        "jobs": sorted(all_jobs),
+        "entries": [{"name": e.name, "kind": e.kind, "domain": e.domain, "rw": e.rw, "calls": e.calls} for e in entries],
+    }
+    return json.dumps(doc, ensure_ascii=False, indent=1) + "\n"
+
+
+def load_entries(root: Path) -> tuple[list[str], list[Entry]]:
+    doc = json.loads((root / ENTRIES).read_text(encoding="utf-8"))
+    return doc["jobs"], [Entry(**e) for e in doc["entries"]]
+
+
 def render(
     jobs: dict[str, dict[str, set[str]]],
     job_apis: dict[str, list[str]],
@@ -299,4 +313,5 @@ def render(
         if any(e.domain == key for e in entries) or any(table_domain(t) == key for t in tables):
             out[f"{PAGE_DIR}/{key}.md"] = _domain_page(key, entries, tables)
     out[VIEWER] = _viewer(entries, tables)
+    out[ENTRIES] = _entries_json(entries, all_jobs)
     return out

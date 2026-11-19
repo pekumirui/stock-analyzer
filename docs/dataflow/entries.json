@@ -1,0 +1,933 @@
+{
+ "jobs": [
+  "jobs/edinet/edinet_archive.py",
+  "jobs/edinet/edinet_buybacks.py",
+  "jobs/edinet/edinet_codes.py",
+  "jobs/edinet/edinet_documents.py",
+  "jobs/edinet/edinet_large_holdings.py",
+  "jobs/edinet/edinet_shareholders.py",
+  "jobs/edinet/edinet_tender_offers.py",
+  "jobs/edinet/edinet_xbrl.py",
+  "jobs/fx_rates.py",
+  "jobs/golden_db.py",
+  "jobs/market/briefing_extract.py",
+  "jobs/market/briefing_offsite.py",
+  "jobs/market/check_demo.py",
+  "jobs/market/homepage_briefing.py",
+  "jobs/market/homepages.py",
+  "jobs/market/intraday_1m.py",
+  "jobs/market/pts_snapshot.py",
+  "jobs/market/run_batch.py",
+  "jobs/market/tanshin_covers.py",
+  "jobs/market/tdnet_briefing_r2.py",
+  "jobs/migrate.py",
+  "jobs/monthly/ir_monthly_html_ingest.py",
+  "jobs/monthly/ir_monthly_html_r2.py",
+  "jobs/monthly/ir_monthly_json_ingest.py",
+  "jobs/monthly/ir_monthly_r2.py",
+  "jobs/monthly/ir_monthly_xls_ingest.py",
+  "jobs/monthly/monthly_names.py",
+  "jobs/monthly/tdnet_monthly_pdf_ingest.py",
+  "jobs/monthly/tdnet_monthly_pdf_sidecar.py",
+  "jobs/monthly/tdnet_monthly_r2.py",
+  "jobs/ops/backup_data.py",
+  "jobs/ops/backup_db.py",
+  "jobs/ops/migrate_r2_share.py",
+  "jobs/ops/rebuild_daily_prices.py",
+  "jobs/ops/vps_packages_r2.py",
+  "jobs/supply/material_stats.py",
+  "jobs/xbrl/tdnet_xbrl_r2.py",
+  "jobs/xbrl/xbrl_normalize.py",
+  "jobs/xbrl/xbrl_parse.py",
+  "jobs/xbrl/xbrl_presentation.py",
+  "jobs/xbrl/xbrl_statements.py"
+ ],
+ "entries": [
+  {
+   "name": "jobs/edinet/edinet_archive.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_archives": "W",
+    "edinet_buybacks": "R",
+    "edinet_documents": "R",
+    "edinet_tender_offer_docs": "R",
+    "large_holding_reports": "R",
+    "xbrl_filings": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_buybacks.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_archives": "W",
+    "edinet_buyback_resolutions": "W",
+    "edinet_buybacks": "W",
+    "edinet_documents": "R",
+    "edinet_filers": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_codes.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_documents": "W",
+    "edinet_filers": "W",
+    "stocks": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_documents.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_documents": "W",
+    "edinet_filers": "R",
+    "edinet_list_days": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_large_holdings.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_archives": "W",
+    "edinet_documents": "R",
+    "edinet_filers": "R",
+    "large_holding_reports": "W",
+    "large_holdings": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_shareholders.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_documents": "R",
+    "xbrl_contexts": "R",
+    "xbrl_elements": "R",
+    "xbrl_facts": "R",
+    "xbrl_filings": "R",
+    "xbrl_major_shareholders": "W",
+    "xbrl_shareholder_filings": "W",
+    "xbrl_shareholding_by_category": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_tender_offers.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_archives": "W",
+    "edinet_documents": "R",
+    "edinet_filers": "R",
+    "edinet_tender_offer_docs": "W",
+    "edinet_tender_offers": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/edinet/edinet_xbrl.py",
+   "kind": "job",
+   "domain": "edinet",
+   "rw": {
+    "edinet_archives": "W",
+    "edinet_documents": "R",
+    "stocks": "R",
+    "xbrl_contexts": "W",
+    "xbrl_element_mappings": "R",
+    "xbrl_elements": "W",
+    "xbrl_facts": "W",
+    "xbrl_filings": "W",
+    "xbrl_financials": "W",
+    "xbrl_job_runs": "W",
+    "xbrl_major_shareholders": "W",
+    "xbrl_pdf_matches": "W",
+    "xbrl_presentation_roles": "W",
+    "xbrl_segments": "W",
+    "xbrl_shareholder_filings": "W",
+    "xbrl_shareholding_by_category": "W",
+    "xbrl_std_items": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/fx_rates.py",
+   "kind": "job",
+   "domain": "common",
+   "rw": {
+    "fx_rates": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/golden_db.py",
+   "kind": "job",
+   "domain": "common",
+   "rw": {
+    "daily_prices": "W",
+    "earnings_date_fetches": "W",
+    "earnings_date_pubs": "W",
+    "earnings_events": "W",
+    "fx_rates": "W",
+    "indicators": "W",
+    "material_monthly": "W",
+    "material_trade_country": "W",
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "statements": "W",
+    "stocks": "W",
+    "topix": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/briefing_extract.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "briefing_documents": "R",
+    "briefing_extracts": "W",
+    "briefing_facts": "W",
+    "briefing_pages": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/briefing_offsite.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "briefing_documents": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/check_demo.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/homepage_briefing.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "briefing_documents": "W",
+    "tanshin_covers": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/homepages.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "homepages": "W",
+    "statements": "R",
+    "tdnet_pdf_documents": "R",
+    "xbrl_elements": "R",
+    "xbrl_facts": "R",
+    "xbrl_filings": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/pts_snapshot.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "pts_snapshots": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/run_batch.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "daily_prices": "W",
+    "earnings_date_fetches": "W",
+    "earnings_date_pubs": "W",
+    "earnings_events": "W",
+    "indicators": "W",
+    "statements": "W",
+    "stocks": "W",
+    "topix": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/tanshin_covers.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "stocks": "R",
+    "tanshin_covers": "W",
+    "tdnet_pdf_documents": "R",
+    "xbrl_documents": "R",
+    "xbrl_filings": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/market/tdnet_briefing_r2.py",
+   "kind": "job",
+   "domain": "market",
+   "rw": {
+    "briefing_documents": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/migrate.py",
+   "kind": "job",
+   "domain": "common",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "stocks": "R",
+    "xbrl_elements": "W",
+    "xbrl_financials": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/monthly/ir_monthly_html_ingest.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": [
+    "GET /api/v1/tables/{code}",
+    "POST /api/v1/tables/{code}/ingest"
+   ]
+  },
+  {
+   "name": "jobs/monthly/ir_monthly_html_r2.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/monthly/ir_monthly_json_ingest.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": [
+    "POST /api/v1/tables/{code}/ingest"
+   ]
+  },
+  {
+   "name": "jobs/monthly/ir_monthly_r2.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/monthly/ir_monthly_xls_ingest.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": [
+    "GET /api/v1/tables/{code}/{year}",
+    "POST /api/v1/tables/{code}/ingest"
+   ]
+  },
+  {
+   "name": "jobs/monthly/monthly_names.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_values": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/monthly/tdnet_monthly_pdf_ingest.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": [
+    "GET /api/v1/tables/{code}",
+    "POST /api/v1/tables/{code}/ingest"
+   ]
+  },
+  {
+   "name": "jobs/monthly/tdnet_monthly_pdf_sidecar.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "monthly_elements": "R",
+    "monthly_tables": "R",
+    "monthly_values": "R"
+   },
+   "calls": [
+    "GET /api/v1/tables/{code}/{year}"
+   ]
+  },
+  {
+   "name": "jobs/monthly/tdnet_monthly_r2.py",
+   "kind": "job",
+   "domain": "monthly",
+   "rw": {
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/ops/rebuild_daily_prices.py",
+   "kind": "job",
+   "domain": "common",
+   "rw": {
+    "daily_prices": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/supply/material_stats.py",
+   "kind": "job",
+   "domain": "supply",
+   "rw": {
+    "material_monthly": "W",
+    "material_trade_country": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/xbrl/tdnet_xbrl_r2.py",
+   "kind": "job",
+   "domain": "xbrl",
+   "rw": {
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/xbrl/xbrl_normalize.py",
+   "kind": "job",
+   "domain": "xbrl",
+   "rw": {
+    "edinet_documents": "R",
+    "xbrl_contexts": "R",
+    "xbrl_element_mappings": "W",
+    "xbrl_elements": "R",
+    "xbrl_facts": "R",
+    "xbrl_filings": "R",
+    "xbrl_financials": "W",
+    "xbrl_job_runs": "W",
+    "xbrl_major_shareholders": "W",
+    "xbrl_segments": "W",
+    "xbrl_shareholder_filings": "W",
+    "xbrl_shareholding_by_category": "W",
+    "xbrl_std_items": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/xbrl/xbrl_parse.py",
+   "kind": "job",
+   "domain": "xbrl",
+   "rw": {
+    "statements": "R",
+    "stocks": "R",
+    "tdnet_pdf_documents": "R",
+    "xbrl_contexts": "W",
+    "xbrl_documents": "W",
+    "xbrl_element_mappings": "W",
+    "xbrl_elements": "W",
+    "xbrl_facts": "W",
+    "xbrl_filings": "W",
+    "xbrl_financials": "W",
+    "xbrl_job_runs": "W",
+    "xbrl_major_shareholders": "W",
+    "xbrl_pdf_matches": "W",
+    "xbrl_presentation_roles": "W",
+    "xbrl_segments": "W",
+    "xbrl_shareholder_filings": "W",
+    "xbrl_shareholding_by_category": "W",
+    "xbrl_std_items": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/xbrl/xbrl_presentation.py",
+   "kind": "job",
+   "domain": "xbrl",
+   "rw": {
+    "edinet_archives": "W",
+    "edinet_documents": "R",
+    "xbrl_filings": "W",
+    "xbrl_presentation_roles": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/xbrl/xbrl_statements.py",
+   "kind": "job",
+   "domain": "xbrl",
+   "rw": {
+    "statements": "W",
+    "xbrl_filings": "R",
+    "xbrl_financials": "R",
+    "xbrl_std_items": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "DELETE /api/v1/tables/{code}/{year}/elements",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_tables": "R",
+    "monthly_values": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/chart/{code}",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "daily_prices": "R",
+    "earnings_events": "R",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/earnings",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "daily_prices": "R",
+    "earnings_date_fetches": "R",
+    "earnings_date_pubs": "R",
+    "pts_snapshots": "R",
+    "statements": "R",
+    "stocks": "R",
+    "xbrl_filings": "R",
+    "xbrl_financials": "R",
+    "xbrl_std_items": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/earnings-performance/{code}",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "earnings_events": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/earnings/calendar",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "earnings_date_pubs": "R",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/earnings/detail/{code}",
+   "kind": "api",
+   "domain": "xbrl",
+   "rw": {
+    "daily_prices": "R",
+    "statements": "R",
+    "stocks": "R",
+    "xbrl_filings": "R",
+    "xbrl_financials": "R",
+    "xbrl_std_items": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/holders/activity",
+   "kind": "api",
+   "domain": "edinet",
+   "rw": {
+    "large_holding_reports": "R",
+    "large_holdings": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/holders/search",
+   "kind": "api",
+   "domain": "edinet",
+   "rw": {
+    "large_holding_reports": "R",
+    "large_holdings": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/holders/{edinet}",
+   "kind": "api",
+   "domain": "edinet",
+   "rw": {
+    "daily_prices": "R",
+    "large_holding_reports": "R",
+    "large_holdings": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/pts",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "daily_prices": "R",
+    "pts_snapshots": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/ranking/earnings-perf",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "daily_prices": "R",
+    "earnings_events": "R",
+    "stocks": "R",
+    "topix": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/screener",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "indicators": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/filings/{filing_id}/documents/{seq}",
+   "kind": "api",
+   "domain": "xbrl",
+   "rw": {
+    "xbrl_documents": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/pdf/{disclosure_no}",
+   "kind": "api",
+   "domain": "xbrl",
+   "rw": {
+    "tdnet_pdf_documents": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/{code}/decks",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "briefing_documents": "R",
+    "briefing_extracts": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/{code}/decks/{key}",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "briefing_documents": "R",
+    "briefing_extracts": "R",
+    "briefing_facts": "R",
+    "briefing_pages": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/{code}/filings",
+   "kind": "api",
+   "domain": "xbrl",
+   "rw": {
+    "stocks": "R",
+    "tdnet_pdf_documents": "R",
+    "xbrl_documents": "R",
+    "xbrl_filings": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/{code}/financials",
+   "kind": "api",
+   "domain": "xbrl",
+   "rw": {
+    "stocks": "R",
+    "xbrl_contexts": "R",
+    "xbrl_elements": "R",
+    "xbrl_facts": "R",
+    "xbrl_filings": "R",
+    "xbrl_presentation_roles": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/{code}/holders",
+   "kind": "api",
+   "domain": "edinet",
+   "rw": {
+    "edinet_buyback_resolutions": "R",
+    "edinet_buybacks": "R",
+    "large_holding_reports": "R",
+    "large_holdings": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stock/{code}/overview",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "daily_prices": "R",
+    "earnings_date_pubs": "R",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/stocks/search",
+   "kind": "api",
+   "domain": "market",
+   "rw": {
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/supply/countries/{material_id}",
+   "kind": "api",
+   "domain": "supply",
+   "rw": {
+    "material_trade_country": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/supply/monthly/{material_id}",
+   "kind": "api",
+   "domain": "supply",
+   "rw": {
+    "material_monthly": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/v1/tables",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "data_versions": "R",
+    "monthly_elements": "R",
+    "monthly_issuers": "R",
+    "monthly_tables": "R",
+    "monthly_values": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/v1/tables/{code}",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_tables": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/v1/tables/{code}/{year}",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_elements": "R",
+    "monthly_tables": "R",
+    "monthly_values": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "GET /api/v1/tables/{code}/{year}/doc",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_elements": "R",
+    "monthly_tables": "R",
+    "monthly_values": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "POST /api/v1/tables/{code}/ingest",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_issuers": "W",
+    "monthly_tables": "W",
+    "monthly_values": "W",
+    "statements": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "POST /api/v1/tables/{code}/{year}/elements",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_tables": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "PUT /api/v1/tables/{code}/industry",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_issuers": "W",
+    "monthly_tables": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "PUT /api/v1/tables/{code}/{year}/doc",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_tables": "R",
+    "monthly_values": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "PUT /api/v1/tables/{code}/{year}/elements",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_element_sources": "W",
+    "monthly_elements": "W",
+    "monthly_tables": "R",
+    "monthly_values": "R",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "PUT /api/v1/tables/{code}/{year}/values",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_elements": "R",
+    "monthly_tables": "R",
+    "monthly_values": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  },
+  {
+   "name": "PUT /api/v1/tables/{code}/{year}/values/batch",
+   "kind": "api",
+   "domain": "monthly",
+   "rw": {
+    "monthly_elements": "R",
+    "monthly_tables": "R",
+    "monthly_values": "W",
+    "stocks": "R"
+   },
+   "calls": []
+  }
+ ]
+}
