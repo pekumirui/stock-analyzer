@@ -3,7 +3,7 @@
 - 対応表 config/supply/material_stats.json: 統計の品名・統計品目番号 → 素材 id
 - 生産動態統計は e-Stat（年報）と経産省 Excel（速報・確報）の両方から同じ source に書く。
   revision（速報 1 < 確報 2 < 年報 3）が下がる上書きはしない
-設計は DESIGN.md §3「素材の月次量」。
+設計は docs/jobs/supply.md。
 """
 from __future__ import annotations
 

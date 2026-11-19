@@ -1,4 +1,4 @@
-"""保有者タブ（KAB-267 / KAB-272。docs/DESIGN_holders.md）。読み取りのみ。"""
+"""保有者タブ（KAB-267 / KAB-272。docs/screen/holders.md）。読み取りのみ。"""
 from __future__ import annotations
 
 from datetime import date

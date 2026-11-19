@@ -1,6 +1,6 @@
 # 大量保有報告書
 
-The 大量保有報告書 tab lists large-holding filings for a selected `file_date` (default Asia/Tokyo today), searches issuers / holders without that date, and opens one holder (`#holders/{edinet}`) with current issuers, a 5-year ratio chart, and per-issuer history. Spec: `docs/DESIGN_holders.md` (KAB-267 / KAB-272). Code: `static/js/holders.js`, `app/api/holders.py`, `app/holders.py`. 銘柄 › 株主 names land here via `gotoHolder`.
+The 大量保有報告書 tab lists large-holding filings for a selected `file_date` (default Asia/Tokyo today), searches issuers / holders without that date, and opens one holder (`#holders/{edinet}`) with current issuers, a 5-year ratio chart, and per-issuer history. Spec: `docs/screen/holders.md` (KAB-267 / KAB-272). Code: `static/js/holders.js`, `app/api/holders.py`, `app/holders.py`. 銘柄 › 株主 names land here via `gotoHolder`.
 
 ## Sub-features
 

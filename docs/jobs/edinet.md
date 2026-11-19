@@ -31,7 +31,7 @@ EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報�
 
 1. ラッパーは自作の `edinet-wrapper`（https://github.com/pekumirui/edinet-api 、private）を `app/edinet_wrapper/` に同梱する。理由: private なので VPS・CI・クラウドのエージェントから `pip install git+…` できない。`app/xbrlp/` と同じ扱い（§1）
 2. 書類一覧の一意キーは `(file_date, seq_number)`。`docID` は一意でない（書類情報修正・不開示の開始/解除・取下げが別レコードで出る）
-3. `stocks.edinet_code` を nullable で足す（`DESIGN_xbrl.md` §0-2 を更新）。企業キーは今後も `stocks.code`
+3. `stocks.edinet_code` を nullable で足す（`docs/jobs/xbrl.md` §0-2 を更新）。企業キーは今後も `stocks.code`
 4. 一覧は全書類（投信・非上場・大量保有を含む）を持つ。上場銘柄に絞らない。大量保有の保有者や関係会社は非上場の提出者だから
 5. UI・API はまだ出さない
 
@@ -115,7 +115,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 
 ## 4. 有報・半期報の財務 XBRL（KAB-73）
 
-`edinet_documents` の書類を書類取得 API type=1（XBRL ZIP）で取り、TDnet と同じ `app/xbrl` でパース・正規化する。`xbrl_filings.source='edinet'`、`doc_id` は EDINET の docID。表は増やさない（`DESIGN_xbrl.md` §4）。
+`edinet_documents` の書類を書類取得 API type=1（XBRL ZIP）で取り、TDnet と同じ `app/xbrl` でパース・正規化する。`xbrl_filings.source='edinet'`、`doc_id` は EDINET の docID。表は増やさない（`docs/jobs/xbrl.md` §4）。
 
 - ジョブ: `python jobs/edinet/edinet_xbrl.py`。cron は毎時 08:50〜23:50 に `--limit 300`（1 件 2〜3 秒で約 14 分。cron-run.sh にロックが無いので 1 時間に収める）
 - 対象: `code` あり（上場銘柄）、`xbrl_flag`、取下げ（`withdrawal_status=2`）・不開示（`disclosure_status≠0`）・修正通知の行を除く。書類種別は有報 120 / 訂正 130、半期報 160 / 訂正 170、四半期報告書 140 / 150（2024-03 まで。`--no-quarterly` で除く）。EDINET が持つ 10 年分を全部取る
@@ -129,7 +129,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 
 - ZIP は §10 のとおり残す（`data/edinet` → OneDrive）。取り直しは手元 → EDINET → OneDrive の順。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
 - `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）、当期の大株主・所有者別の軸だけの fact（KAB-266。§9。要素名で絞る）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。全 fact を入れると DB が大きくなりすぎるので絞る。会計基準と期末の判定は絞る前の全 fact で行う
-- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`DESIGN_xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ。大株主・所有者別は軸付き fact が要るので `--reparse` が要る（§9）
+- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`docs/jobs/xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ。大株主・所有者別は軸付き fact が要るので `--reparse` が要る（§9）
 
 ### 正規化と TDnet との関係
 
@@ -175,7 +175,7 @@ large_holdings          -- 1 書類 × 1 人
 - 最新: 取込のたびに全件から決め直す（`refresh_versions`。`--refresh-only` で手でも）。`original_doc_id` ごとに、`parsed` で取下げ・不開示でない書類のうち `submit_datetime` が新しい 1 件が `is_latest`。取下げ・不開示は `edinet_documents` の状態から `withdrawn` に入れ、行は消さない
 - 使う側: 銘柄の大量保有の推移は `WHERE code = ? AND is_latest ORDER BY obligation_date`。保有者ごとの最新は、そこから `large_holdings.edinet_code` ごとに最後の行
 - 実データ（2026-10-15 の 52 件、2021-11-15 の 47 件）で全件パースでき、3 件を閲覧画面の本文（XBRL の honbun）と突き合わせて、保有割合・直前の割合・保有株数・発行済株式等総数・報告義務発生日が一致した
-- 画面は大量保有報告書タブ `docs/DESIGN_holders.md` と銘柄の株主タブ `docs/DESIGN_stock.md`。API は読み取り（`GET /api/holders/*` と `GET /api/stock/{code}/holders`）
+- 画面は大量保有報告書タブ `docs/screen/holders.md` と銘柄の株主タブ `docs/screen/stock.md`。API は読み取り（`GET /api/holders/*` と `GET /api/stock/{code}/holders`）
 
 ## 6. 自己株券買付状況報告書（KAB-79）
 

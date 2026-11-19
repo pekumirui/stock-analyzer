@@ -1,4 +1,4 @@
-"""表に出す市場・業種は共通の書き方を通す（KAB-199。docs/SCREEN_SPEC.md 共通見た目 5）。
+"""表に出す市場・業種は共通の書き方を通す（KAB-199。docs/screen/SPEC.md 共通見た目 5）。
 
 市場は fmtMarket（東証P / 東証S / 東証G）、業種は fmtSector（末尾の「業」を外して先頭 5 文字）。
 画面に生の値（`プライム`、`東Ｇ`、`情報･通信業`）を出していたら落とす。`title` 属性の正式名はよい。
@@ -31,7 +31,7 @@ def _raw_uses(path: Path) -> list[str]:
 
 def test_tables_use_shared_market_and_sector_labels() -> None:
     bad = [x for p in JS if p.name != "api.js" for x in _raw_uses(p)]
-    assert not bad, "市場は fmtMarket、業種は fmtSector を通す（docs/SCREEN_SPEC.md）:\n" + "\n".join(bad)
+    assert not bad, "市場は fmtMarket、業種は fmtSector を通す（docs/screen/SPEC.md）:\n" + "\n".join(bad)
 
 
 def test_shared_label_helpers_live_in_api_js() -> None:

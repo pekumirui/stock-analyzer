@@ -71,7 +71,7 @@ SHELL=/bin/bash
 
 # EDINET（KAB-72）。コードリスト → edinet_filers / stocks.edinet_code（キー不要）、書類一覧 → edinet_documents（EDINET_API_KEY）
 # 一覧は直近 7 日の未確定の日だけ取る。前日分は翌朝の回で確定する
-# 取込済みで ZIP を残していない書類を取り直す（KAB-281。docs/DESIGN_edinet.md §10）。ほかの EDINET ジョブの前の夜間
+# 取込済みで ZIP を残していない書類を取り直す（KAB-281。docs/jobs/edinet.md §10）。ほかの EDINET ジョブの前の夜間
 15 0-6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_archive.py --limit 1000
 30 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_codes.py
 40 8-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_documents.py
@@ -98,7 +98,7 @@ SHELL=/bin/bash
 40 1 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/briefing_offsite.py
 
 # data/xbrl と data/monthly を OneDrive へ copy、data/edinet は move（sync はしない。手順は docs/DESIGN_backup.md）
-# 03:30 は data/ に書くジョブ（10〜23 時）と backup_db（05:00）の間。
+# 03:30 は data/xbrl と data/monthly に書くジョブ（10〜23 時）と backup_db（05:00）の間。data/edinet は edinet_archive（0〜6 時）と重なる（10 分より古い ZIP だけ送る）。
 # edinet の move は 50 分で区切る（残りは翌日。打ち切りは fail にしない）。
 30 3 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_data.py
 

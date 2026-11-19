@@ -1,6 +1,6 @@
 # 短信 PDF の回帰チェックの HTML（KAB-244）
 
-`tools/tdnet_pdf/golden_check.py` が読む HTML の全件を置くディレクトリ。設計と使い方は `docs/DESIGN_xbrl.md` の 16.6。
+`tools/tdnet_pdf/golden_check.py` が読む HTML の全件を置くディレクトリ。設計と使い方は `docs/jobs/xbrl.md` の 16.6。
 
 - `html/{開示番号}.html.gz`: IR BANK の短信 PDF を `tools/tdnet_pdf/convert.py` で変換した HTML（gzip）。
 - `html/titles.json`: 開示番号 → 変換で取った題名（`tdnet_pdf_documents.title` と同じもの。訂正・速報値の判定に使う）。

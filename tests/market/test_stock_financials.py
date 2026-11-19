@@ -1,4 +1,4 @@
-"""銘柄の財務3表 API（docs/DESIGN_stock.md の API）。"""
+"""銘柄の財務3表 API（docs/screen/stock.md の API）。"""
 from __future__ import annotations
 
 import pytest

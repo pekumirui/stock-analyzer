@@ -1,6 +1,6 @@
 """EDINET 有報・半期報の XBRL（type=1）→ xbrl_filings(source='edinet') → xbrl_financials。
 
-設計は docs/DESIGN_edinet.md §4。パース・正規化は TDnet と同じ app/xbrl を使う。
+設計は docs/jobs/edinet.md §4。パース・正規化は TDnet と同じ app/xbrl を使う。
 ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations

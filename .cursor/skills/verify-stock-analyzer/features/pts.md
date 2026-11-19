@@ -1,6 +1,6 @@
 # PTS
 
-PTS lives inside the ランキング tab. It lists one night-session PTS ranking (株探, 75 names) for a session day and fetch time, and puts the next trading day's open beside it: 終値→翌始値, PTS→翌始値, and 追随率. Spec is `docs/DESIGN_pts.md`; code is `static/js/pts.js` + `static/js/ranking.js` (`showRankingSub("pts")`) + `app/api/pts.py`. There is no header `PTS` tab (`data-tab="pts"` / `#tab-pts` are gone; KAB-265).
+PTS lives inside the ランキング tab. It lists one night-session PTS ranking (株探, 75 names) for a session day and fetch time, and puts the next trading day's open beside it: 終値→翌始値, PTS→翌始値, and 追随率. Spec is `docs/screen/pts.md`; code is `static/js/pts.js` + `static/js/ranking.js` (`showRankingSub("pts")`) + `app/api/pts.py`. There is no header `PTS` tab (`data-tab="pts"` / `#tab-pts` are gone; KAB-265).
 
 ## Sub-features
 

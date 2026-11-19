@@ -7,7 +7,7 @@
   python jobs/edinet/edinet_documents.py --from 2025-06-27 --to 2025-06-27 --force
 
 1 日 1 リクエスト（ラッパーの既定で 1 秒間隔）。確定済みの日は取り直さないので、途中で止めても続きから。
-設計は docs/DESIGN_edinet.md §3。
+設計は docs/jobs/edinet.md §3。
 """
 from __future__ import annotations
 

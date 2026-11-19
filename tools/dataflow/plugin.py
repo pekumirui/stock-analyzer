@@ -209,8 +209,9 @@ def pytest_sessionfinish(session, exitstatus):
             (ROOT / rel).unlink()
         tw.line(f"dataflow: {what} を書いた", green=True)
         from tools.jobs.render import write as write_jobs
+        from tools.screen.render import write as write_screens
 
-        for rel in write_jobs():
+        for rel in [*write_jobs(), *write_screens()]:
             tw.line(f"dataflow: {rel} を書いた", green=True)
         return
     bad = False

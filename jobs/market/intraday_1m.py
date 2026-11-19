@@ -6,7 +6,7 @@
   python jobs/market/intraday_1m.py --limit 300        # 先頭から 300 銘柄（試し取り）
 
 cron は平日 20:30（deploy/crontab）。19:30 の日次バッチの後に回し、当日の AdjFactor が DB にある状態で
-過去の日を埋める。設計は DESIGN.md「分足」と app/market/intraday.py。
+過去の日を埋める。設計は docs/jobs/market.md「分足」と app/market/intraday.py。
 """
 from __future__ import annotations
 

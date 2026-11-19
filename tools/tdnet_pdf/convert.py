@@ -1,4 +1,4 @@
-"""TDnet の開示 PDF → ページごとの SVG を並べた HTML（KAB-164 / KAB-169。docs/DESIGN_xbrl.md §16）。
+"""TDnet の開示 PDF → ページごとの SVG を並べた HTML（KAB-164 / KAB-169。docs/jobs/xbrl.md §16）。
 
 pdfium（pypdfium2）で文字と図形を読み、同じ位置に描く。文字は <text>（検索・コピーできる）、
 罫線・網掛け・枠・曲線は <path>。語の幅は textLength で PDF に合わせるので、ブラウザのフォントが

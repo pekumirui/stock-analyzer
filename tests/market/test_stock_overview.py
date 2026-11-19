@@ -1,4 +1,4 @@
-"""銘柄タブの共通ヘッダーと指標（KAB-178。docs/DESIGN_stock.md）。"""
+"""銘柄タブの共通ヘッダーと指標（KAB-178。docs/screen/stock.md）。"""
 from __future__ import annotations
 
 import json
