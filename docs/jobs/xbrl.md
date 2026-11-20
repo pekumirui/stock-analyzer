@@ -108,7 +108,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 ```
 TDnet company_code / 保存ディレクトリ {code4}
-        │  to_code4 + 末尾 0   （既存 tdnet_xbrl_r2.jq_lookup_code と同じ）
+        │  to_code4 + 末尾 0   （app/xbrl/codes.py の jq_lookup_code と同じ）
         ▼
 stocks.code   例 7203 → 72030、262A → 262A0
 ```
@@ -567,8 +567,8 @@ TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す
 
 - 番号は 1 つ: J-Quants の `statements.disclosure_no` = TDnet の docID = IR BANK の `doc_id`（14 桁）。TDnet XBRL ZIP の名前は `0812` + docID（5933 の 2026-10-20 は `081220261020553439` と `20261020553439`）
 - PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{docID}.pdf`（認証なし）。`statements` からランダムに 6 件、41 件とも取れた。2021 年の回もある。IR BANK に zip / xbrl / htm は無い（404）。TDnet の 1 か月より前の ZIP も 404
-- 変換（`tools/tdnet_pdf/convert.py`）を 41 件（2021〜2026、20 社余り）で試した: pdfium の文字と比べて 75 万字中 5 字違い（`～` / `〜` の取り違え 4、読めない 1 字）。1 件 平均 20 ページ・gzip 後 43KB・3 秒。元の PDF 平均 626KB
-- KAB-169 で読み込みを pdfplumber（pdfminer。Python）から pdfium（pypdfium2。C++）に替えた（`svg2`）。同じ 41 件で 合計 126.5 秒 → 16.6 秒（約 7.6 倍）、pdfium の文字と比べて 75 万字中 1 字違い（わざと捨てる `\ufffe`）。gzip 後は 約 7% 増える（曲線も描くため）。最大メモリは 71 ページで 約 217MB → 約 45MB、19 ページで 約 86MB → 約 30MB。旧版は時間の約 65% が PDF の解釈、約 35% が `dedupe_chars` / `extract_words` だった
+- 変換（`tools/tdnet_pdf/convert.py`）を 41 件（2021〜2026、20 社余り）で試した: pdfium の文字と比べて 75 万字中 5 字違い（`～` / `〜` の取り違え 4、読めない 1 字）。1 件 平均 20 ページ・3 秒
+- KAB-169 で読み込みを pdfplumber（pdfminer。Python）から pdfium（pypdfium2。C++）に替えた（`svg2`）。同じ 41 件で 合計 126.5 秒 → 16.6 秒（約 7.6 倍）、pdfium の文字と比べて 75 万字中 1 字違い（わざと捨てる `\ufffe`）。gzip 後は 約 7% 増える（曲線も描くため）。旧版は時間の約 65% が PDF の解釈、約 35% が `dedupe_chars` / `extract_words` だった
 - 手元の poppler（`pdftotext` / `pdftoppm`）は日本語の言語パックが無いと、フォントを埋め込んでいない PDF の文字を落とす（`Missing language pack for 'Adobe-Japan1'`）。突き合わせには使わない
 - 出ないもの: 画像（会社のロゴ・定性的情報のグラフ・FASF マーク）
 
@@ -585,7 +585,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 - 対象: 指定した銘柄（`--code` 複数可、`--all` で全銘柄）の `statements` のうち、XBRL の原文（`xbrl_documents`。ZIP 名の後ろ 14 桁で照合）も、この表の `ok` / `missing` も無い回。新しい順。`failed` は `--retry-failed` のときだけ
 - 1 件ずつ 取得 → 変換 → 保存（commit）。間隔は `--sleep`（既定 1 秒）、件数は `--limit`。IR BANK が 429 / 503 を返したら上限とみなして止める（終了コード 0）。途中で止めても次の実行で続きから
 - 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`remaining` はこの実行のあとに `targets()` を取り直した件数で、`failed`（この実行で failed にした件数）とは別。`--retry-failed` 無しでは failed 済みは残件に入らない。`stopped=done` なのに remaining>0 なら、実行開始時の対象に含まれなかった回（実行中に statements が増えた等）が残っている。`--dry-run` は対象の件数と先頭 10 件だけ
-- 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420 は 277,188 バイト中 76,224 バイト。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
+- 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
 - VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた
 
 ### 短信 PDF の数値（KAB-173）
@@ -660,7 +660,7 @@ ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラ
 `app/xbrl/pdf/`・`config/xbrl/mappings/tdnet_pdf.yaml`・`tools/tdnet_pdf/financials.py` を変える PR は、`tools/tdnet_pdf/golden_check.py` を通す。#1071 は J-Quants との一致を 1,795 → 1,565 に落としたが、合成のテストは全部通っていた。実データの検証済みの値で止める。
 
 - **正解データ** `tests/golden/tdnet_pdf/expected.json`: XBRL 検証 bot の 2〜3 回目（19 銘柄）の 407 開示。`values` は読み取りの行のうち J-Quants と一致を確かめた値だけ（検証 bot の `cmp_jq.json` も `match`、かつ `build` で J-Quants の値と突き合わせて一致）。`evidence` に J-Quants の項目名。`known_gaps` は J-Quants と合わない項目で、直ると「一致するようになった」と出る。2021-10 より前の 12 開示は J-Quants（Light）が返さないので入れていない。EDINET と一致した値はまだ入れていない（`evidence: "edinet:…"` を受ける形にはしてある）
-- **HTML**: 全件は `data/tdnet_pdf_golden/html/{開示番号}.html.gz` と `titles.json`（repo に入れない）。`fetch` が IR BANK の PDF を `convert.py` で変換して作る（PDF は残さない）。`html_sha256` と違えば知らせる。原因の種類ごとの小さな組（38 開示・約 1.3MB。`html/classes.json` に種類）は `tests/golden/tdnet_pdf/html/` に入れ、`tests/xbrl/test_tdnet_pdf_golden.py` が CI で回す
+- **HTML**: 全件は `data/tdnet_pdf_golden/html/{開示番号}.html.gz` と `titles.json`（repo に入れない）。`fetch` が IR BANK の PDF を `convert.py` で変換して作る（PDF は残さない）。`html_sha256` と違えば知らせる。原因の種類ごとの小さな組（38 開示。`html/classes.json` に種類）は `tests/golden/tdnet_pdf/html/` に入れ、`tests/xbrl/test_tdnet_pdf_golden.py` が CI で回す
 - **読み方**: 一時ファイルの SQLite に `statements`（J-Quants の日付）と `tdnet_pdf_documents`（HTML と題名）を入れ、`sync_pdf_filing` を開示番号の順に流す。会計基準は同じ銘柄の前の filing から引き継ぐので、開示 1 件だけでは結果が変わる。小さな組には、業績・配当の修正の直前の短信も入れてある
 - **判定**: 正解の値が消えた・変わったら exit 1。`--base-repo`（main の worktree）を付けると、正解データに無い行も含めた全行の差（消えた / 変わった / 増えた / filing の状態）を出す。PR 本文には `--md` の出力を貼る
 - **例外**: 正解の値は J-Quants と一致した値なので、変わるのは原則退行。J-Quants 側の誤りなどで変えるときは、PR 本文に一覧と理由を書き、同じ PR で `expected.json` を直す

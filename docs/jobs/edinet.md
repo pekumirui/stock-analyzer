@@ -185,7 +185,6 @@ PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。�
 - 新着: `python jobs/edinet/edinet_xbrl.py`（`keep_fact` + `normalize_filing`）
 - 作り直し: `python jobs/edinet/edinet_shareholders.py --rebuild`（`--code` 可）。訂正フラグだけなら `--refresh-only`
 - `python jobs/xbrl/xbrl_normalize.py --rebuild` も大株主を消して作り直す（fact が無ければ空のまま）
-- 過去の有報に入れるときの手順は「過去の有報に大株主・所有者別を入れる」
 
 #### 実データ（閲覧の表と突き合わせ）
 
@@ -205,7 +204,7 @@ PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。�
 
 - ジョブ: `python jobs/edinet/edinet_large_holdings.py`。cron の `--limit 1000` は 1 件約 1 秒で約 17 分（一覧の :40 と XBRL の :50 に重ねない）
 - 対象: 350 / 360・`csv_flag`、取下げ（`withdrawal_status=2`）・不開示・修正通知の行を除く。発行者が上場していない書類も取る（`code` は NULL）。新しい日から。`parsed` は飛ばす（`--reparse` で取り直し）、`failed` は `--retry-failed`。CSV が 404（取り下げ・非公開・取得可能期間外）なら `parse_status='failed'`（`parse_error` に 404 か `outside-edinet-window`）として残し、次の回は飛ばす。ログは `missing n=` に集約（1 件ごとの `download-failed doc_id=` は出さない。Slack の `failed doc_id=` に当たるため）。`errors` にも `failed=` にも数えない。cron は exit=0。5xx・タイムアウトは行を作らず次の回にまた取る（`errors`、exit=1。ログは `download-error n=`）
-- EDINET は大量保有を 5 年分しか持たない（一覧の書類メタは 10 年分残るが type=5 は期限切れで 404）。`pending_documents` は `file_date` が 5 年より前を除く。report が無い期間外はダウンロードせず `mark_outside_window` で failed に残す。1 日 20〜50 件、年 1 万件ほど。全部で 5 万件前後、1 件 1KB 前後で数十 MB。初回は毎時の cron で 4 日ほどかかる
+- EDINET は大量保有を 5 年分しか持たない（一覧の書類メタは 10 年分残るが type=5 は期限切れで 404）。`pending_documents` は `file_date` が 5 年より前を除く。report が無い期間外はダウンロードせず `mark_outside_window` で failed に残す。1 日 20〜50 件、年 1 万件ほど。全部で 5 万件前後。初回は毎時の cron で 4 日ほどかかる
 
 #### 中身の読み方
 
@@ -236,7 +235,7 @@ PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。�
 
 - ジョブ: `python jobs/edinet/edinet_buybacks.py`。cron の `--limit 500` は 1 件約 1 秒で約 9 分。parse 失敗は 1 件ずつ stderr に `parse-error doc_id=` と例外の型・メッセージ・短いトレースを出す（cron-run の 2>&1 で `batch_logs` に載る）。`failed doc_id=` は出さない（Slack の batch パターンに当たる）。鍵・トークンは伏せる
 - 対象: 220 / 230・`xbrl_flag`、取下げ・不開示・修正通知の行を除く。新しい日から。`parsed` / `meta` は飛ばす（`--reparse`）、`failed` は `--retry-failed`。404 と期間外は `missing`（failed で残し、exit=0）、5xx・タイムアウトは行を作らず次の回（exit=1）。大量保有（「大量保有報告書」）と同じ
-- 縦覧期間は 1 年。過ぎた書類は EDINET の一覧からも消え、取れない（2026-10-22 に 2025-10-20 の一覧を取ると 220 は 0 件、2025-11-04 は 43 件）。`file_date` が 1 年より前は `mark_outside_window` で failed に残す。1 日 30〜70 件、年 7,000 件ほど。1 件 1KB 前後
+- 縦覧期間は 1 年。過ぎた書類は EDINET の一覧からも消え、取れない（2026-10-22 に 2025-10-20 の一覧を取ると 220 は 0 件、2025-11-04 は 43 件）。`file_date` が 1 年より前は `mark_outside_window` で failed に残す。1 日 30〜70 件、年 7,000 件ほど
 
 #### 中身の読み方
 
@@ -331,11 +330,3 @@ EDINET がメンテ画面（HTML または案内への 302）を返すと、ラ�
 
 - デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
 - 大量保有・自己株買い・公開買付も、デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` などを `--limit 0` で手で
-
-### 過去の有報に大株主・所有者別を入れる
-
-新着は XBRL の cron に乗る。過去分は軸付きの fact が無いので `edinet_xbrl.py --reparse` が要る。
-
-1. 煙: `python jobs/edinet/edinet_xbrl.py --code 80350 --reparse`（東京エレクトロン。日本基準）
-2. 過去の有報: `python jobs/edinet/edinet_xbrl.py --reparse --limit 300` を繰り返す（ZIP 再取得。1 件 2〜3 秒。cron の `--limit 300` は `--reparse` しないので新着だけ）
-3. fact だけ先に入っているときは `python jobs/edinet/edinet_shareholders.py --rebuild`
