@@ -2556,6 +2556,61 @@ def test_pairs_use_full_statement_pdf_when_amendment_is_partial() -> None:
     assert {"売上高", "営業利益", "経常利益"} <= set(learned.maps["PL"])
 
 
+def test_pair_keeps_the_newest_pdf_when_the_longer_one_is_another_standard() -> None:
+    def pdf(fid: int, submitted: str, standard: str, names: list[str]) -> fst.Filing:
+        filing = fst.Filing(id=fid, doc_id=f"P{fid}", source="tdnet_pdf", period_type="FY",
+                            period_end=date(2025, 3, 31), submitted=submitted, standard=standard)
+        filing.by_statement = {"PL": [
+            fst.Fact(fid * 100 + n, f"pdf:{name}", name, name, False, "JPY", 10 + n) for n, name in enumerate(names)
+        ]}
+        return filing
+
+    jgaap = pdf(1, "2025-05-10", "JPGAAP", ["売上高", "売上原価", "売上総利益", "営業利益", "経常利益", "当期純利益"])
+    ifrs = pdf(2, "2025-06-25", "IFRS", ["売上収益", "営業利益", "当期利益"])
+    xbrl = fst.Filing(id=3, doc_id="X1", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                      submitted="2025-06-26", standard="IFRS")
+    xbrl.by_statement = {"PL": [xbrl_fact(4, "RevenueIFRS", 10, "売上収益")]}
+    (paired, _), = fst._pairs([jgaap, ifrs, xbrl])
+    assert [f.local for f in paired.by_statement["PL"]] == ["売上収益", "営業利益", "当期利益"]
+    part = pdf(5, "2025-07-01", "IFRS", ["当期利益"])
+    (paired, _), = fst._pairs([jgaap, ifrs, part, xbrl])
+    assert [f.local for f in paired.by_statement["PL"]] == ["売上収益", "営業利益", "当期利益"]
+
+
+def test_cf_keeps_the_loss_wording_of_signed_profit_labels() -> None:
+    xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                      submitted="2025-06-20", standard="JPGAAP")
+    xbrl.by_statement = {"CF": [
+        xbrl_fact(1, "IncomeBeforeIncomeTaxes", 50, "税金等調整前当期純利益又は税金等調整前当期純損失（△）"),
+        xbrl_fact(2, "NetIncreaseDecreaseInCashAndCashEquivalents", 25, "現金及び現金同等物の増減額（△は減少）"),
+    ]}
+    xbrl.seq = list(xbrl.by_statement["CF"])
+    names = fst.name_index([xbrl], "CF")
+    assert names.losses == {
+        "税金等調整前当期純損失": "IncomeBeforeIncomeTaxes",
+        "現金及び現金同等物の減少額": "NetIncreaseDecreaseInCashAndCashEquivalents",
+    }
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="FY", period_end=date(2025, 3, 31),
+                     submitted="2025-05-10", standard="JPGAAP")
+    pdf.by_statement = {"CF": [
+        fst.Fact(11, "pdf:税金等調整前当期純利益", "税金等調整前当期純利益", "税金等調整前当期純利益", False, "JPY", 50 * M),
+        fst.Fact(12, "pdf:現金及び現金同等物の増減額", "現金及び現金同等物の増減額", "現金及び現金同等物の増減額", False, "JPY", 25 * M),
+    ]}
+    learned = fst.learn_pair(pdf, xbrl)
+    assert learned.losses["CF"] == {
+        "税金等調整前当期純損失": fst.Mapped("IncomeBeforeIncomeTaxes", 1),
+        "現金及び現金同等物の減少額": fst.Mapped("NetIncreaseDecreaseInCashAndCashEquivalents", 1),
+    }
+    rows = [
+        fst.Fact(21, "pdf:税金等調整前当期純損失", "税金等調整前当期純損失", "税金等調整前当期純損失", False, "JPY", -9),
+        fst.Fact(22, "pdf:現金及び現金同等物の減少額", "現金及び現金同等物の減少額", "現金及び現金同等物の減少額", False, "JPY", -7),
+    ]
+    for pool in ([learned], []):
+        assert keys_of(fst.apply_learned(rows, pool, "CF", date(2025, 6, 30), "Q", names)) == [
+            "IncomeBeforeIncomeTaxes", "NetIncreaseDecreaseInCashAndCashEquivalents",
+        ]
+
+
 def test_label_cleaning_canonical_wording_twice_printed_loss_and_cf_cash_decrease() -> None:
     assert fst._clean_label("営業利益（損失）") == "営業利益"
     assert fst._clean_label("デリバティブ評価益─") == "デリバティブ評価益"

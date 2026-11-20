@@ -1170,15 +1170,14 @@ def _loss_name(profit: str) -> str | None:
 
 
 def _losses(maps: Mapping[str, Mapped], facts: Iterable[Fact], statement: str = "PL") -> dict[str, Mapped]:
-    if statement == "CF":
-        dec = {f.key: name for f in facts if (name := _cash_decrease_name(f.label))}
-        found_cf: dict[str, set[Mapped]] = defaultdict(set)
-        for m in maps.values():
-            if m.key in dec:
-                found_cf[dec[m.key]].add(m)
-        return {name: next(iter(ms)) for name, ms in found_cf.items() if len(ms) == 1 and name not in maps}
+    facts = list(facts)
     signed = {f.key: profit for f in facts if (profit := _profit_name(f.label))}
     found: dict[str, set[Mapped]] = defaultdict(set)
+    if statement == "CF":
+        dec = {f.key: name for f in facts if (name := _cash_decrease_name(f.label))}
+        for m in maps.values():
+            if m.key in dec:
+                found[dec[m.key]].add(m)
     for name, m in maps.items():
         if m.key not in signed:
             continue
@@ -1199,12 +1198,14 @@ def _pair_pdf(pdfs: Sequence[Filing]) -> Filing:
     newest = _newest(pdfs)
     if len(pdfs) == 1:
         return newest
+    same_standard = [f for f in pdfs if f.standard == newest.standard]
     by_statement: dict[str, list[Fact]] = {}
     for st in STATEMENTS:
-        if not any(st in f.by_statement for f in pdfs):
+        if not any(st in f.by_statement for f in same_standard):
             continue
-        most = max(len(f.by_statement.get(st, ())) for f in pdfs)
-        chosen = newest if len(newest.by_statement.get(st, ())) >= most * PDF_FULL_RATIO else _pdf_base(pdfs, st)
+        most = max(len(f.by_statement.get(st, ())) for f in same_standard)
+        full = len(newest.by_statement.get(st, ())) >= most * PDF_FULL_RATIO
+        chosen = newest if full else _pdf_base(same_standard, st)
         by_statement[st] = chosen.by_statement[st]
     return replace(newest, by_statement=by_statement)
 
@@ -1685,14 +1686,12 @@ def name_index(filings: Sequence[Filing], statement: str, excluded: Iterable[fro
             if cname:
                 canon_found[cname].append(f.key)
                 seen_canon[cname] += 1
-            if statement == "CF":
-                dec = _cash_decrease_name(f.label)
-                if dec is not None:
-                    losses[dec].append(f.key)
-            else:
-                loss = _loss_name(_profit_name(f.label) or "")
-                if loss is not None:
-                    losses[loss].append(f.key)
+            dec = _cash_decrease_name(f.label) if statement == "CF" else None
+            if dec is not None:
+                losses[dec].append(f.key)
+            loss = _loss_name(_profit_name(f.label) or "")
+            if loss is not None:
+                losses[loss].append(f.key)
         multi_name.update(n for n, c in seen_name.items() if c > 1)
         multi_canon.update(n for n, c in seen_canon.items() if c > 1)
         section: str | None = None
