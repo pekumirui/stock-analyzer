@@ -1,69 +1,105 @@
-# API の内容
+# API の応答と規約
 
-API の一覧・引数・読み書きする表は [画面設計](../SCREENS.md)（自動生成）。ここには応答の形と約束だけ書く。
+FastAPI が公開する REST エンドポイントの応答構造・エラー規約・認証境界をまとめる。どの画面がどの API を呼び、どのテーブルを読み書きするかの対応表は [画面設計](../SCREENS.md) と [データの流れ](../DATA_FLOW.md)（いずれも自動生成）を参照する。画面表示に合わせた JSON の具体例は各タブの画面仕様書に置く。
 
-## API の一覧
+## 認証・公開範囲・キャッシュ
 
-| Method/Path | 内容 |
+本番環境（nginx + Cloudflare）での公開範囲とキャッシュ制御は以下のとおりに分ける。API 応答は p95 で 400ms 以下に収める（[`app/api/AGENTS.md`](../../app/api/AGENTS.md)）。
+
+| 経路・対象 | 公開範囲と認証 | キャッシュ・制限 |
+|---|---|---|
+| `GET /api/v1/tables`、`GET /api/v1/tables/{code}`、`GET /api/v1/tables/{code}/{year}` | 認証なしで公開する | `Cache-Control: public, max-age=60` を付与する |
+| 月次の全書き込み API（`POST`・`PUT`・`DELETE /api/v1/tables/...`） | loopback（`127.0.0.1`）からの呼び出しのみ許可する。`X-Forwarded-For` または `X-Real-IP` ヘッダーがあるプロキシ経由の要求は `403 FORBIDDEN` で拒否する（`forbid_proxied_monthly_write`） | ジョブと同一ホスト上の MCP からのみ呼ぶ |
+| 上記以外の `/api/*`、および `GET /api/v1/tables/{code}/{year}/doc` | 本番では Cloudflare Access の背後に置く | `/api/chart/{code}`、`/api/topix`、短信原文 HTML はコンテンツハッシュの `ETag` を返し、`If-None-Match` 一致時は `304` を返す |
+
+## 決算速報・ランキング・スクリーナー・PTS
+
+| エンドポイント | 応答の要点 | 詳細仕様 |
+|---|---|---|
+| `GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` | 指定日の実績開示と発表予定を `{kind, actuals, scheduled, ready?}` で返す。REIT（`product_category` が `'013'`・`'022'`）は除外する | [決算速報](earnings.md) |
+| `GET /api/earnings/detail/{code}?disclosure_no=…` | 1 銘柄の累計表（過去 4 期 + 当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績）、3 か月表（直近 12 四半期の Q 単独）、通期予想の修正履歴 `revisions`、中間予想の有無 `notes.half_forecast` を返す。実績が無ければ `404` を返す | [決算速報](earnings.md) |
+| `GET /api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` | 月内の各日付に対し `{kind, n, pending?}` を疎なマップで返す。件数は決算短信本体の銘柄数（distinct）で、REIT は除外する | [決算速報](earnings.md) |
+| `GET /api/ranking/earnings-perf?month=YYYY-MM` | 指定月に初回決算短信を出した銘柄を、次の決算の前営業日終値までの騰落率（`return_to_next`）降順で返す | [ランキング](ranking.md) |
+| `GET /api/screener?stage=2&rs_min=70&sort=rs&limit=100` | `indicators` の最新営業日における内国株券（`'011'`）をステージと RS ランク下限で絞り、`{date, results}` を返す（`indicators` が空なら `[]`） | [画面設計（スクリーナー）](gen/screener.md) |
+| `GET /api/pts?date=YYYY-MM-DD&ranking=night_up&at=…` | 株探の夜間 PTS ランキング（`night_up`・`night_down`・`night_volume`、それ以外は `400`）1 回分と翌営業日始値とのギャップを返す | [PTS](pts.md) |
+
+### `GET /api/earnings` と `detail` の主なフィールド規則
+
+| フィールド | 規則 |
 |---|---|
-| `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を指標ごとに返す（売上・売上総利益・営業利益・経常利益・純利益・EPS。売上総利益は `xbrl_financials` から。KAB-278）。金額は `single`（Q単独。算出できなければ null）と `cumulative`（累計）で、円。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。通期営利予想が直前開示から ±0.1% 以上動いていれば `forecast_revision: {direction: "up"|"down", pct}`、無ければ null。`scheduled` は `{code, name, periods:[{fq, fye, label}], latest}` で銘柄1行。`latest` は直近の実績開示（`disclosure_no` / `period` / `fy_label` / `single` / `cumulative` / `qoq` / `yoy` / `progress` / `forecast_fy`）。実績が無ければ null。どちらの行にも `sector33`（マスタに無ければ null）と `pts`（`pts_snapshots` でその日のセッションに最後に取った値 `{price, chg_pct, base_close, as_of}`。3 つのランキングのどれにも無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
-| `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績。本決算は予想が `raw_json` の来期予想 `NxF*` で、前期通期は出さない) と3か月決算テーブル (直近12四半期のQ単独)。各行に会計期末 (`26.11`) または Q単独の四半期末 (`25.08`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可)。どちらも無ければ最新の実績開示（決算速報の銘柄検索が使う）。実績が無ければ 404。`revisions` は通期予想の修正履歴 (`kind` = `forecast_initial` / `forecast` / `forecast_revised` / `actual_fy`、`growth` は前の行からの修正率で同値は `state: flat`)。選んだ開示の日までの開示から作る。データ源は `revision_source`（既定 `EARNINGS_PARAMS["revision_source"]` = `jquants`）で、`?rev_source=jquants|xbrl` で上書きできる。`jquants` は `statements` の `fy_*` と本決算の `NxF*`（期初）と本決算の実績。`xbrl` は `xbrl_financials` の `forecast`/`FY`（連結優先、レンジは中点）と `annual` の実績。組み立ては `app/revisions.py`、データ源は `app/market/revisions.py` / `app/xbrl/revisions.py`。`notes.half_forecast` は 1Q と本決算（来期）の中間予想の状態で、`given`（あり）/ `fy_only`（`raw_json` の `FSales2Q` などが空で通期予想だけ）/ `none`（中間も通期も無い）/ `unknown`（`raw_json` に項目が無い）。2Q・3Q は `null` |
-| `GET /api/earnings/calendar?month=2026-08&today=2026-10-02` | 日付 → `{kind, n}`。`pending` は今日かつ未発表がいるときだけ。件数は銘柄の distinct。疎。一覧と同じく本体のみを数え、REIT も除外する。`today` を省略するとサーバの今日 |
-| `GET /api/chart/{code}` | 日足を列ごとの配列で返す `{code, name, t, o, h, l, c, v, tv, mc, earnings_dates, fund}`。`t` は日付、`o`〜`c` は調整後の四本値（調整後が無い日は生の値）、`v` は調整後の出来高、`tv` は売買代金（円）、`mc` は時価総額（百万円。無い日は null）。`fund` は業績の階段 `{t, eps, op_q, op_ttm}`（`t` は使い始める日、`eps` は調整後の予想EPS、営業利益は円。値は次の点まで続く。作り方は `docs/screen/stock.md`「業績の数字の作り方」）。週足・月足・移動平均はブラウザで作る（`docs/screen/stock.md`「株価」）。`ETag` は中身のハッシュで、`If-None-Match` が合えば 304。行が無ければ 404 |
-| `GET /api/topix` | TOPIX の終値 `{t, c}`。対TOPIX 相対に使う。`ETag` は同じ |
-| `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
-| `GET /api/ranking/earnings-perf?month=YYYY-MM` | 決算月ごとの決算発表後パフォーマンス（次の決算の前日終値まで）のランキング。`docs/screen/ranking.md` |
-| `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
-| `GET /api/pts?date=2026-10-16&ranking=night_up&at=2026-10-16 23:30:00` | PTS ランキング 1 回分と翌営業日の始値とのギャップ。`ranking` は `night_up` / `night_down` / `night_volume`（ほかは 400）。`date` 省略で最新のセッション、`at`（`fetched_at`）省略かつ不一致で最新の取得。形は `docs/screen/pts.md` |
-| `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件。株（`product_category` が `011` / `021`）だけで、ETF・ETN・REIT・出資証券は出さない。ProdCat がまだ 1 件も入っていない DB では全銘柄 |
-| `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有の保有者検索・提出日（または検索）の一覧・保有者ページ。発行体が株でない報告は出さない。`docs/screen/holders.md` |
-| `GET /api/stock/{code}/holders` | 銘柄の株主タブ。`docs/screen/stock.md` |
-| `GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto` | 財務3表（BS / PL / CF）を有報・短信 XBRL・短信 PDF をまたいで科目×決算期に並べる。セルごとに円の値と出どころ。形は `docs/screen/stock.md`、組み立ては `docs/jobs/xbrl.md`「財務3表」 |
-| `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/screen/supply.md` |
-| `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/screen/supply.md`。素材が無ければ 404 |
-| `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/jobs/monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
-| `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。`dry_run: true` は書かずに mapping と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る。マスタ無しでは 4xx `NOT_IN_MASTER`。mapping の年月が as_of より後なら 400 `FUTURE_COLUMN`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る）。銘柄エイリアスで同じ保存名に寄る行（別表の同じ数字）は 1 行にまとめる。同じ列で値か unit が食い違えば 409 `ROW_MERGE_CONFLICT`（後勝ちで上書きしない） |
-| `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
-| `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
-| `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。全銘柄で親子関係を足す。`config/monthly/monthly_row_order.json` に `tree` があればそれ、無ければ自動の木（`tree_auto: true`）。各行に `tree: {path, leaf, metric}`（根から自分の節までの名前の列、節の中での行名、指標名。指標に振り分けていなければ null。自動の木は全行に指標が付き、3 年を通した並び `order` も付く）、表に `tree`（節 `{name, heading, part, elements, children}` の木。形は config、自動なら表示する 3 年で決まり年で変えない。`elements` はその年の保存名）と `tree_metrics`（指標名の並び。横持ちの一番上の行の順。自動の木は既存 → 全店 → 店舗 の見る順。自動の木は指標どうしの親子 `tree_metric_parent` も付く）を足す。config の木でどの節にも当たらない行に `tree` は付かない（自動の木は全行に付く）。書式は `docs/screen/monthly.md`「親子関係」。表が無ければ 404 |
-| `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
-| `DELETE /api/v1/tables/{code}/{year}/elements` | 空の月次行を消す。body `{element}`。値が残っていれば 409 `ELEMENT_HAS_VALUES`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
-| `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |
-| `GET /api/v1/tables/{code}/{year}/doc` | `PUT /doc` の元になる文書。`{code, year, version, elements}`。行は `sort_order` 順で、値の無い行も出す。各行 `{element, unit, values, tree?}`（`values` は `"1"`〜`"12"`、`tree` は木の path）。`version` は行名・unit・並び・値のハッシュ。公開の nginx の口には載せない（Access の後ろ） |
-| `PUT /api/v1/tables/{code}/{year}/doc` | 文書を丸ごと返して 1 トランザクションで書く。body `{version, elements, allow_structure_change?, dry_run?}`。行名は渡したまま（正規化・エイリアスを掛けない）。`was` で改名（値はサーバーが移す）、文書に無い行は削除、`was` の無い新しい名前は作成（`unit` 必須、末尾に並ぶ）。`values` を渡した行は 12 か月を置き換え（無い月・null は削除）、省いた行は値をそのまま。`version` が違えば 409 `VERSION_MISMATCH`。改名・作成・削除・unit 変更は `allow_structure_change=true` のときだけ（無ければ 409 `STRUCTURE_CHANGED`）。`dry_run=true` は書かずに `changes` を返す。config の木に入らない行は `warnings` の `NOT_IN_TREE` |
+| `kind` / `ready` | 過去日は `actual`、未来日は `scheduled`、当日で開示済みと未発表の両方があるときは `mixed` を返す。`today` 省略時はサーバー当日を使う。発表予定台帳が取得窓を埋める前の未来日には `ready: false` を付ける |
+| `actuals` | 決算短信本体のみを 1 開示 1 行で返す（予想修正のみの開示と、損益が初回と同一の再提出は除外し、損益が変わった再提出には `restated: true` を付ける）。金額（`single`・`cumulative`）は円単位で、売上総利益は `xbrl_financials` から補う。通期営業利益予想が同一事業年度の直前開示から `±0.1%` 以上動いたときは `forecast_revision: {direction: "up" \| "down", pct}` を付ける |
+| `scheduled` | 未発表銘柄を 1 銘柄 1 行 `{code, name, sector33, pts, periods: [{fq, fye, label}], latest}` で返す。`latest` は直近の実績開示（無ければ `null`） |
+| `pts` | `actuals`・`scheduled` ともに、そのセッション日の最終 PTS スナップショットにあれば `{price, chg_pct, base_close, as_of}`、無ければ `null` を付ける |
+| `revisions`（`detail`） | 選択した開示日までの通期予想の推移（`kind` は `forecast_initial`・`forecast`・`forecast_revised`・`actual_fy`、前回と同値は `state: "flat"`）。既定のデータ源は `jquants`（`?rev_source=jquants\|xbrl` で切替可） |
+| `notes.half_forecast`（`detail`） | 1Q と本決算（来期予想）における中間予想の状態を `given`・`fy_only`・`none`・`unknown` で返す。2Q・3Q では `null` を返す |
 
-月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Cloudflare Access（`deploy/README.md` の「Cloudflare」）。
+## 株価・銘柄詳細・大量保有
 
-## 画面ごとの文書
+| エンドポイント | 応答の要点 | 詳細仕様 |
+|---|---|---|
+| `GET /api/stocks/search?q=…` | 銘柄名（NFKC 正規化とひらがな→カタカナ変換を含む部分一致）とコード前方一致で最大 20 件返す。対象は株券（`'011'`・`'021'`）のみで、ETF・REIT・出資証券は出さない（`product_category` 未投入 DB では全銘柄） | [銘柄](stock.md) |
+| `GET /api/chart/{code}` | 日足と業績階段データを列配列 `{code, name, t, o, h, l, c, v, tv, mc, earnings_dates, fund}` で返す。`o`〜`c` と `v` は調整後（欠損時は調整前）、`tv` は売買代金（円）、`mc` は時価総額（百万円）、`fund` は `{t, eps, op_q, op_ttm}`。株価が無ければ `404` | [銘柄](stock.md) |
+| `GET /api/topix` | TOPIX の日足終値を列配列 `{t, c}` で返す | [銘柄](stock.md) |
+| `GET /api/earnings-performance/{code}` | 指定銘柄の決算発表後リターンと対 TOPIX 超過リターン（`earnings_events`）を返す | [銘柄](stock.md) |
+| `GET /api/stock/{code}/overview` | 銘柄ヘッダーと概要タブ用の株価・時価総額・次回決算予定日・バリュエーション指標（予想 PER、実績 PBR、予想配当利回り、実績 ROE、自己資本比率）を返す | [銘柄](stock.md) |
+| `GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto` | 有報・短信 XBRL・短信 PDF を統合した財務 3 表（`BS`・`PL`・`CF`、最大 20 期）を科目×決算期で返す。会計基準が変わった銘柄は旧基準分を `earlier` に分けて返す | [銘柄](stock.md)、[XBRL 規則](../jobs/xbrl.md) |
+| `GET /api/stock/{code}/filings` | TDnet の決算短信・予想修正 XBRL と、PDF から変換した過去短信の一覧を返す | [銘柄](stock.md) |
+| `GET /api/stock/filings/{filing_id}/documents/{seq}` | 短信の iXBRL 原文からスクリプトや外部通信要素を除去したサニタイズ済み HTML（`text/html`、CSP 付き）を返す | [銘柄](stock.md) |
+| `GET /api/stock/pdf/{disclosure_no}` | IR BANK の PDF から変換した短信 HTML（`tdnet_pdf_documents.status = 'ok'` の行のみ、それ以外は `404`）を同じ CSP ヘッダー付きで返す | [銘柄](stock.md) |
+| `GET /api/stock/{code}/decks` | 銘柄の決算説明資料一覧（最大 200 件、新しい順）と読み取り状態（`done`・`submitted`・`failed`・`null`）を返す | [銘柄](stock.md) |
+| `GET /api/stock/{code}/decks/{key}` | 決算説明資料 1 冊の抽出メタデータとページ別の要約・数値表 `{document, extract, pages}` を返す（原本 PDF は返さない） | [銘柄](stock.md) |
+| `GET /api/stock/{code}/holders` | 銘柄別の大量保有者一覧（保有割合推移つき）と最新の自己株買い状況 `treasury` を返す | [銘柄](stock.md) |
+| `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有報告書の提出者検索、直近提出一覧、提出者別の保有銘柄一覧を返す（株券以外の発行体は除外する） | [大量保有報告書](holders.md) |
 
-### ヘッダーとパンくずの置き場所
+## サプライ
 
-見た目の正本は `docs/screen/SPEC.md`（共通見た目 9・10）。置き場所だけここにも書く。
+| エンドポイント | 応答の要点 | 詳細仕様 |
+|---|---|---|
+| `GET /api/supply/graph` | 素材ノードと工程エッジの定義（`config/supply/supply_chain.json`）を返す | [サプライ](supply.md) |
+| `GET /api/supply/companies` | 素材ごとの関連上場企業マスタ（`config/supply/supply_companies.json`）を返す | [サプライ](supply.md) |
+| `GET /api/supply/monthly/{material_id}` | 指定素材の月次統計系列（生産・出荷・在庫・輸出入と見掛け消費）を返す。未登録の `material_id` は `404` を返す | [サプライ](supply.md) |
+| `GET /api/supply/countries/{material_id}?flow=import` | 指定素材の相手国別貿易統計（`flow` は `import` または `export`、それ以外は `400`）を返す | [サプライ](supply.md) |
 
-- `nav#crumbs` はヘッダーに置く。`/app` は `#menu-btn` の右（PC はタブ行の下）。公開月次はサイト名の右。`main` には置かない
-- パンくずがある画面はヘッダーのページ名（`#cur-tab`）を出さない。無い画面はいまどおりページ名
-- 区切りは ` > `。幅に収まらないときは折り返さず横スクロールし、先頭を省略して末尾（いまの画面）が見えるようにする
+## 月次（`/api/v1/tables`）
 
-### 決算速報の画面
+月次 API の画面側の使い方は [月次](monthly.md)、行名の正規化と保存名凍結は [月次の行名](../jobs/monthly_labels.md)、取込規則は [月次の取込規則](../jobs/monthly.md) を参照する。
 
-画面は `docs/screen/earnings.md`。書き方は `docs/screen/SPEC.md`。
+### 読み取り API
 
-### 銘柄タブの画面
+| エンドポイント | 応答の要点 |
+|---|---|
+| `GET /api/v1/tables` | 月次表を持つ銘柄一覧をコード昇順で返す。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}` で、`industry` 未設定時は `"その他"` を返す |
+| `GET /api/v1/tables/{code}` | 指定銘柄に存在する暦年の一覧を返す |
+| `GET /api/v1/tables/{code}/{year}` | 指定年の月次表を返す（1 年を通じて値が無い行は除外し、表が無ければ `404`）。各行は `{element, unit, label, values, tree?}` で、`values` は `1`〜`12` 月の値（欠損は `null`、`0` は実ゼロ）。`config/monthly/monthly_row_order.json` に定義があればその木、無ければ自動構築した木（`tree_auto: true`）から `tree` と `tree_metrics` を付与する |
+| `GET /api/v1/tables/{code}/{year}/doc` | `PUT /doc` 用の編集元文書 `{code, year, version, elements}` を `sort_order` 順で返す（値が空の行も含む）。`version` は行名・`unit`・並び・値のハッシュである |
 
-画面は `docs/screen/stock.md`。書き方は `docs/screen/SPEC.md`。原文の保存は `docs/jobs/xbrl.md`「短信の原文 HTML」。
+### 書き込み API（loopback 限定）
 
-### 大量保有報告書タブの画面
+| エンドポイント | 動作 |
+|---|---|
+| `POST /api/v1/tables/{code}/ingest` | 資料の列順と `as_of` 時点の決算期から暦年を割り当てて一括投入する（`dry_run: true` は書かずに割当結果とセルを返し、`only_months` は `YYYY-MM` で対象月を絞る）。銘柄エイリアスで同じ保存名に寄る行は 1 行に統合する |
+| `POST /api/v1/tables/{code}/{year}/elements` | 月次行を登録する（`unit` 必須、表が無ければ作成）。トークン正規化と銘柄エイリアス適用後に保存名と完全一致する既存行があれば冪等に `200`、新規作成時は `201` を返す |
+| `PUT /api/v1/tables/{code}/{year}/elements` | 既存行の `unit` を変更し、新しい `unit` の正規名へ改名する（既に同名行があれば値を統合する） |
+| `DELETE /api/v1/tables/{code}/{year}/elements` | 値が 1 件も入っていない空の行を削除する（表自体は残す） |
+| `PUT /api/v1/tables/{code}/{year}/values` | 単一セル `{element, month, value}` を更新または削除（`value: null`）する |
+| `PUT /api/v1/tables/{code}/{year}/values/batch` | 1 行の複数月 `values: [{month, value}, ...]` を検証後に 1 トランザクションで更新する |
+| `PUT /api/v1/tables/{code}/{year}/doc` | 文書全体 `{version, elements, allow_structure_change?, dry_run?}` を 1 トランザクションで反映する。行名には正規化やエイリアスを掛けず、`was` 指定で改名、省略行は削除、新規名は末尾追加として扱う |
+| `PUT /api/v1/tables/{code}/industry` | 銘柄の月次業種 `{industry}`（1〜50 文字）を更新する |
 
-画面は `docs/screen/holders.md`。書き方は `docs/screen/SPEC.md`。データは `docs/jobs/edinet.md`「大量保有報告書」。
+### 月次 API のエラー応答
 
-### ランキングタブの画面
+月次 API のエラーはすべて `{"error": {"code": "...", "message": "..."}}` 形式で返す。主なステータスとエラーコードは以下のとおりである。
 
-画面は `docs/screen/ranking.md`。書き方は `docs/screen/SPEC.md`。PTS は同タブの中で、画面は `docs/screen/pts.md`。
-
-### 月次タブの画面
-
-画面は `docs/screen/monthly.md`。書き方は `docs/screen/SPEC.md`。
-
-### サプライタブの画面
-
-画面とマスタの形は `docs/screen/supply.md`。書き方は `docs/screen/SPEC.md`。
+| HTTP | `error.code` | 発生条件 |
+|---|---|---|
+| `400` | `UNIT_REQUIRED` / `INVALID_PARAM` | `unit` の省略・不正値、月や数値の型不正、正規化後 50 文字超の行名 |
+| `400` | `PRIOR_PERIOD_ELEMENT` | 前期・前年同月などの実数行を登録しようとしたとき |
+| `400` | `FUTURE_COLUMN` | `POST /ingest` で割り当てた年月が `as_of` より未来になるとき |
+| `403` | `FORBIDDEN` | プロキシ経由（loopback 以外）から書き込み API を呼んだとき |
+| `404` | `NOT_IN_MASTER` / `TABLE_NOT_FOUND` | `stocks` マスタに銘柄が無いとき、または対象の月次表・行が存在しないとき |
+| `409` | `SIMILAR_ELEMENT` / `UNIT_CONFLICT` | 類似行が既にあるとき、または既存行と `unit` が異なるとき（`force: true` で上書き可） |
+| `409` | `YOY_NUMBER_CONFLICT` | 同じ指標の実数行と前年比行が別名になるとき（両方を同一 `POST /ingest` に含めるか `force: true` で作成可） |
+| `409` | `ROW_MERGE_CONFLICT` / `FOLD_CONFLICT` | エイリアス統合または `unit` 変更による行統合で、同じ月に異なる非 NULL 値や異なる `unit` が衝突したとき |
+| `409` | `ELEMENT_HAS_VALUES` | 値が残っている行を `DELETE /elements` で消そうとしたとき |
+| `409` | `VERSION_MISMATCH` / `STRUCTURE_CHANGED` | `PUT /doc` で `version` が一致しないとき、または `allow_structure_change: true` なしで行の追加・削除・改名・`unit` 変更を行ったとき |
