@@ -305,9 +305,15 @@
   "comment": 8,
   "docstring": 21
  },
+ "app/offsite_settings.py": {
+  "docstring": 1
+ },
  "app/revisions.py": {
   "comment": 3,
   "docstring": 5
+ },
+ "app/share_paths.py": {
+  "docstring": 1
  },
  "app/supply/__init__.py": {
   "docstring": 1
@@ -330,6 +336,9 @@
  },
  "app/xbrl/__init__.py": {
   "docstring": 1
+ },
+ "app/xbrl/codes.py": {
+  "docstring": 2
  },
  "app/xbrl/context.py": {
   "comment": 6,
@@ -731,7 +740,7 @@
  },
  "jobs/ops/backup_db.py": {
   "comment": 1,
-  "docstring": 10
+  "docstring": 9
  },
  "jobs/ops/backup_store.py": {
   "comment": 1,
@@ -747,16 +756,13 @@
  "jobs/ops/vps_packages_r2.py": {
   "docstring": 1
  },
- "jobs/share_paths.py": {
-  "docstring": 1
- },
  "jobs/supply/material_stats.py": {
   "comment": 2,
   "docstring": 13
  },
  "jobs/xbrl/tdnet_xbrl_r2.py": {
   "comment": 1,
-  "docstring": 11
+  "docstring": 9
  },
  "jobs/xbrl/xbrl_normalize.py": {
   "docstring": 1

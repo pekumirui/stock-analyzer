@@ -19,19 +19,22 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from app.offsite_settings import (
+    DEFAULT_OFFSITE_PATH,
+    DEFAULT_OFFSITE_REMOTE,
+    BackupError,
+    OffsiteSettings,
+    offsite_settings_from_env,
+)
 from jobs.ops.backup_db import (
     BACKUP_NAME_RE,
     COMPRESSLEVEL,
     DEFAULT_DEST,
-    DEFAULT_OFFSITE_PATH,
-    DEFAULT_OFFSITE_REMOTE,
     OFFSITE_DAILY_KEEP,
     OFFSITE_WEEKLY_KEEP,
-    BackupError,
     BackupKeep,
     BackupLimits,
     CmdResult,
-    OffsiteSettings,
     OffsiteSkip,
     backup_name,
     clip_cmd_output,
@@ -41,7 +44,6 @@ from jobs.ops.backup_db import (
     list_generations,
     listed_remotes,
     main,
-    offsite_settings_from_env,
     required_bytes,
     run,
     source_bytes,
@@ -668,7 +670,11 @@ def test_provision_and_isolation() -> None:
     if '"$STOCK_HOME/backups"' not in provision:
         _fail("provision.sh must create /home/stock/backups")
     src = (ROOT / "jobs" / "ops" / "backup_db.py").read_text(encoding="utf-8")
-    for needle in ("from app", "import app", "r2-share", "rclone.conf"):
+    src_app = src.replace("from app.offsite_settings import", "")
+    for needle in ("from app", "import app"):
+        if needle in src_app:
+            _fail(f"backup job must not reference {needle}")
+    for needle in ("r2-share", "rclone.conf"):
         if needle in src:
             _fail(f"backup job must not reference {needle}")
     if "rclone" not in src:

@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from app.config import XBRL_DEST
+from app.xbrl.codes import to_code4
 import jobs.xbrl.tdnet_xbrl_r2 as xbrl_mod
 from jobs.xbrl.tdnet_xbrl_r2 import (
     NOCODE_DIR,
@@ -31,7 +32,6 @@ from jobs.xbrl.tdnet_xbrl_r2 import (
     pubdate_time,
     save_zip_bytes,
     tdnet_xbrl_id,
-    to_code4,
     unmatched_reason,
     validate_zip,
     xbrl_id_from_record,
@@ -316,7 +316,7 @@ def test_manifest_skip_by_xbrl_id(tmp: Path) -> None:
 
 
 def test_default_dest_shares_xbrl_dest() -> None:
-    from jobs.share_paths import share_path
+    from app.share_paths import share_path
 
     want = str(share_path("xbrl"))
     if "data/xbrl" not in want:

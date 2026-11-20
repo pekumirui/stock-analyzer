@@ -40,11 +40,15 @@ _ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from app.offsite_settings import (
+    BackupError,
+    OffsiteSettings,
+    offsite_settings_from_env,
+)
+
 JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DEST = Path("/home/stock/backups")
-DEFAULT_OFFSITE_REMOTE = "onedrive"
-DEFAULT_OFFSITE_PATH = "stock-analyzer-backups"
 OFFSITE_DAILY_KEEP = 7
 OFFSITE_WEEKLY_KEEP = 4
 COMPRESSLEVEL = 1
@@ -74,10 +78,6 @@ SnapshotFn = Callable[[Path, Path], None]
 WhichFn = Callable[[str], str | None]
 
 
-class BackupError(Exception):
-    """想定内の失敗（容量・破損・欠ファイル・オフサイト）。traceback ではなく fail 行にする。"""
-
-
 class OffsiteSkip(Exception):
     """rclone 欠如など。ローカルは成功のまま、世代は消さない。"""
 
@@ -86,17 +86,6 @@ class OffsiteSkip(Exception):
 class BackupKeep:
     offsite_daily: int = OFFSITE_DAILY_KEEP
     offsite_weekly: int = OFFSITE_WEEKLY_KEEP
-
-
-@dataclass(frozen=True)
-class OffsiteSettings:
-    remote: str = DEFAULT_OFFSITE_REMOTE
-    root: str = DEFAULT_OFFSITE_PATH
-    rclone_bin: str = "rclone"
-    enabled: bool = True
-
-    def dest(self, kind: str) -> str:
-        return f"{self.remote}:{self.root}/{kind}"
 
 
 @dataclass(frozen=True)
@@ -512,17 +501,6 @@ def clean_tmp(dest: Path) -> None:
                     pass
 
 
-def env_flag(environ: Mapping[str, str], name: str, default: bool) -> bool:
-    raw = (environ.get(name) or "").strip().lower()
-    if not raw:
-        return default
-    if raw in ("0", "false", "no", "off"):
-        return False
-    if raw in ("1", "true", "yes", "on"):
-        return True
-    raise BackupError(f"{name}={raw!r} must be 0/1")
-
-
 def env_int(environ: Mapping[str, str], name: str, default: int) -> int:
     raw = (environ.get(name) or "").strip()
     if not raw:
@@ -541,25 +519,6 @@ def keep_from_env(environ: Mapping[str, str] | None = None) -> BackupKeep:
     return BackupKeep(
         offsite_daily=env_int(env, "BACKUP_OFFSITE_DAILY_KEEP", OFFSITE_DAILY_KEEP),
         offsite_weekly=env_int(env, "BACKUP_OFFSITE_WEEKLY_KEEP", OFFSITE_WEEKLY_KEEP),
-    )
-
-
-def _norm_remote(raw: str) -> str:
-    return raw.strip().rstrip(":")
-
-
-def offsite_settings_from_env(environ: Mapping[str, str] | None = None) -> OffsiteSettings:
-    env = os.environ if environ is None else environ
-    remote = _norm_remote(env.get("BACKUP_OFFSITE_REMOTE") or DEFAULT_OFFSITE_REMOTE)
-    root = (env.get("BACKUP_OFFSITE_PATH") or DEFAULT_OFFSITE_PATH).strip().strip("/")
-    bin_name = (env.get("BACKUP_RCLONE_BIN") or "rclone").strip() or "rclone"
-    if not remote or not root:
-        raise BackupError("BACKUP_OFFSITE_REMOTE and BACKUP_OFFSITE_PATH must be non-empty")
-    return OffsiteSettings(
-        remote=remote,
-        root=root,
-        rclone_bin=bin_name,
-        enabled=env_flag(env, "BACKUP_OFFSITE", True),
     )
 
 

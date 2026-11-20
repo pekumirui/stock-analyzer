@@ -26,7 +26,7 @@ from app.db import SessionLocal
 from app.market import briefing_batch as bb
 from app.market.homepages import ordinary_code
 from app.models import BriefingExtract
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

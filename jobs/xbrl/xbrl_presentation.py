@@ -37,7 +37,7 @@ from app.edinet.client import skip_on_maintenance
 from app.xbrl.presentation_backfill import SOURCES, line, origins, run, targets
 from app.xbrl.presentation_backfill import edinet_fetcher, stage_offsite, tdnet_fetcher
 from jobs._r2common import fail_if_mount_down
-from jobs.xbrl.tdnet_xbrl_r2 import jq_lookup_code
+from app.xbrl.codes import jq_lookup_code
 
 JOB = "xbrl_presentation"
 
