@@ -25,7 +25,7 @@ def _filings(db, no: str) -> int:
     return db.query(XbrlFiling).filter_by(source="tdnet_pdf", doc_id=no).count()
 
 
-def test_filing_is_retired_once_the_code_leaves_stocks() -> None:
+def test_filing_is_kept_once_the_code_leaves_stocks() -> None:
     no = "20240509526001"
     db = SessionLocal()
     try:
@@ -35,9 +35,23 @@ def test_filing_is_retired_once_the_code_leaves_stocks() -> None:
         assert _filings(db, no) == 1
         db.query(Stock).filter_by(code="52610").delete()
         db.commit()
-        assert sync_pdf_filing(db, no) is SyncOutcome.RETIRED
-        assert _filings(db, no) == 0
+        first = db.query(XbrlFiling.id).filter_by(source="tdnet_pdf", doc_id=no).scalar()
+        assert sync_pdf_filing(db, no) is SyncOutcome.UNCHANGED
+        assert sync_pdf_filing(db, no, reparse=True) is not SyncOutcome.ABSENT
+        assert db.query(XbrlFiling.id).filter_by(source="tdnet_pdf", doc_id=no).scalar() == first
+    finally:
+        db.close()
+
+
+def test_no_filing_is_made_for_codes_not_in_stocks() -> None:
+    no = "20240509526004"
+    db = SessionLocal()
+    try:
+        _seed(db, no, HTML, _statement(no, "52640"))
+        db.query(Stock).filter_by(code="52640").delete()
+        db.commit()
         assert sync_pdf_filing(db, no) is SyncOutcome.ABSENT
+        assert _filings(db, no) == 0
     finally:
         db.close()
 

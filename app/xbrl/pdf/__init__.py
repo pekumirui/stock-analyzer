@@ -161,7 +161,7 @@ class _Build:
 class _Absent:
     reason: Literal[
         "zip", "no-html", "no-statement", "doc-type", "reit", "irregular-period", "no-dates", "flash-results",
-        "other-standard", "not-in-master",
+        "other-standard",
     ]
 
 
@@ -190,8 +190,6 @@ def _plan(db: Session, disclosure_no: str, zip_parsed: bool) -> _Build | _Absent
     statement = db.get(Statement, disclosure_no)
     if statement is None:
         return _Absent("no-statement")
-    if db.get(Stock, statement.code) is None:
-        return _Absent("not-in-master")
     if doc.title and "速報値" in doc.title:
         return _Absent("flash-results")
     if disclosure_no in other_standard_disclosures():
@@ -295,6 +293,8 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
         delete_filing(db, filing)
         db.commit()
         return SyncOutcome.RETIRED
+    if filing is None and db.get(Stock, plan.disclosure.code) is None:
+        return SyncOutcome.ABSENT
     fp = plan.fingerprint
     if (
         filing is not None
