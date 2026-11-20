@@ -12,7 +12,7 @@
 載せない:
 
 - `.cursor/` と `.claude/`（中の `AGENTS.md` も含む）
-- ルートの `README.md` / `DESIGN.md`
+- ルートの `README.md`
 - `analyzer/` / `deploy/` など、上記以外の md
 - `.venv` / `node_modules` / `data/` などの生成物・依存物
 

@@ -33,7 +33,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 |---|---|---|
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
-| `EDINET_API_KEY` | 任意 | EDINET API v2 のキー（`docs/DESIGN_edinet.md`）。あるときだけ `.env` の当該行を更新。無ければ `jobs/edinet/edinet_documents.py` は何もしない（コードリストはキー不要） |
+| `EDINET_API_KEY` | 任意 | EDINET API v2 のキー（`docs/jobs/edinet.md`）。あるときだけ `.env` の当該行を更新。無ければ `jobs/edinet/edinet_documents.py` は何もしない（コードリストはキー不要） |
 | `ANTHROPIC_API_KEY` | 任意 | Claude API のキー（従量課金。Console で利用額の上限を付ける）。あるときだけ `.env` の当該行を更新。無ければ `jobs/market/briefing_extract.py` の submit / collect は動かない（`--dry-run` と `status` は動く） |
 | `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/supply/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 残置 | 残置の rclone FUSE（`/home/stock/r2-share`）用。ジョブの dest は `data/`。あるときだけ `.env` と `~/.config/rclone/rclone.conf` の `[r2]` を upsert（他 remote は残す）。無ければ既存を触らない |
@@ -247,7 +247,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access �
 - `monthly_add_element` — 要素登録
 - `monthly_put_values` — セル一括 upsert（null で削除）。year は暦年。訂正用
 - `monthly_delete_element` — 値の無い行を消す。値が残っていれば 409。表は残す
-- `monthly_get_doc` / `monthly_put_doc` — 年の表を 1 枚の文書で読んで、直して丸ごと返す。行名はそのまま（正規化・エイリアスなし）。改名は `was`、文書に無い行は削除。構造の変更は `allow_structure_change`、`dry_run` で差分だけ。仕様は `DESIGN.md` の API 表
+- `monthly_get_doc` / `monthly_put_doc` — 年の表を 1 枚の文書で読んで、直して丸ごと返す。行名はそのまま（正規化・エイリアスなし）。改名は `was`、文書に無い行は削除。構造の変更は `allow_structure_change`、`dry_run` で差分だけ。仕様は `docs/screen/api.md` の API 表
 - `monthly_set_industry` — 月次業種。PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別
 - `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない。
   列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`。`dry_run: true` は書かずに年割当と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る
@@ -257,13 +257,13 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access �
   - `earnings_docs` / `earnings_doc_read` — `/api/stock/{code}/filings` と `/decks` の一覧、本文。短信の原文（`kind=filing`）と IR BANK の PDF 変換（`kind=pdf`）は HTML をテキストにして、説明資料（`kind=deck`）は読み取り済みのページ要約と表を返す。`offset` / `length` で区切る
   - `stock_overview` — `/api/stock/{code}/overview` と `/api/chart/{code}` と `/api/earnings-performance/{code}`。PER・PBR・利回り・ROE・自己資本比率・時価総額、次の決算予定、`today` 時点の騰落と 1 年高安からの距離、過去の決算後の株価
   - `market_context` — `/api/topix` の `date` 時点の騰落と直近の日足
-  - `financial_statements` — `GET /api/stock/{code}/financials`。1銘柄の財務3表（`statement` = `BS`（既定）/ `PL` / `CF`）を、科目が行・決算期が列（古い → 新しい、見出しは `25.06`）の TSV で返す。百万円（1株当たりは円）。PL・CF は期首からの累計。2 列目は XBRL の要素名（`ext:` は会社独自、`pdf:` は短信 PDF にしか無い行）、BS と CF は区分が変わる所に `# 大区分 > 区分` の 1 行を挟む（`# 資産 > 流動資産`、区分の外は `# 資産`、どちらも無ければ `# -`。CF は `# 営業活動によるキャッシュ・フロー` など。区分の無い表には挟まない）。最後の行が出どころ（`有報` / `XBRL` / `PDF`）。出す列の会計基準が 2 つ以上ある表（日本基準から IFRS に移った会社）だけ、出どころの前に列ごとの会計基準の行（`会計基準` の後ろに `JPGAAP` / `IFRS` …）を足す。XBRL のタグが替わって 2 行に割れた同じ科目は 1 行にまとまり、2 列目は新しい期の要素名（まとめられた要素名は TSV に出さない。API の `merged_keys`）。`periods` は 1-20（既定 8）、既定は連結で `consolidated=false` で個別（画面の業績詳細と違い、連結の前の期を個別で埋めない）。有報・短信 XBRL・短信 PDF の合わせ方は `docs/DESIGN_xbrl.md` §17
+  - `financial_statements` — `GET /api/stock/{code}/financials`。1銘柄の財務3表（`statement` = `BS`（既定）/ `PL` / `CF`）を、科目が行・決算期が列（古い → 新しい、見出しは `25.06`）の TSV で返す。百万円（1株当たりは円）。PL・CF は期首からの累計。2 列目は XBRL の要素名（`ext:` は会社独自、`pdf:` は短信 PDF にしか無い行）、BS と CF は区分が変わる所に `# 大区分 > 区分` の 1 行を挟む（`# 資産 > 流動資産`、区分の外は `# 資産`、どちらも無ければ `# -`。CF は `# 営業活動によるキャッシュ・フロー` など。区分の無い表には挟まない）。最後の行が出どころ（`有報` / `XBRL` / `PDF`）。出す列の会計基準が 2 つ以上ある表（日本基準から IFRS に移った会社）だけ、出どころの前に列ごとの会計基準の行（`会計基準` の後ろに `JPGAAP` / `IFRS` …）を足す。XBRL のタグが替わって 2 行に割れた同じ科目は 1 行にまとまり、2 列目は新しい期の要素名（まとめられた要素名は TSV に出さない。API の `merged_keys`）。`periods` は 1-20（既定 8）、既定は連結で `consolidated=false` で個別（画面の業績詳細と違い、連結の前の期を個別で埋めない）。有報・短信 XBRL・短信 PDF の合わせ方は `docs/jobs/xbrl.md` §17
 
 任意コマンドも restart もない。任意 SQL は `db_query` の読み取り専用 SELECT / WITH 1 文（先頭の `EXPLAIN` / `EXPLAIN QUERY PLAN` 可）だけ。月次ツールと決算ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx は通らない。決算ツールは決まった GET だけ）。ログ系の行数は最大 500。`.env` の値は伏せる。
 `fs_*` のプロセスユーザは `stock`。`stock-analyzer-mcp.service` の `LogsDirectory=app`（mode 0755）で `/var/log/app` の所有者は既に `stock` なので、ログ root を読むための追加 ACL や supplementary group は不要。`data/` は `WorkingDirectory` 配下。`LogsDirectoryMode` を後から絞るときは `stock` が `/var/log/app` を読める状態を保つ。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
-月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
-月次の保存名は起動時に書き換えない（`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。ずれた行があるとデプロイ（`jobs/migrate.py`）のログに `月次の保存名ドリフト: N 行` が出る。正規化や `config/monthly/issuer_aliases.json` を変えたあとは Actions の **Monthly names** を `plan`（既定、書かない）で流してログを見てから `apply`。中身は `jobs/monthly/monthly_names.py`。
+月次の unit は PDF 見出しから付ける（`docs/jobs/monthly.md` の unit の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
+月次の保存名は起動時に書き換えない（`docs/jobs/monthly_labels.md`「同一行・保存名の凍結」）。ずれた行があるとデプロイ（`jobs/migrate.py`）のログに `月次の保存名ドリフト: N 行` が出る。正規化や `config/monthly/issuer_aliases.json` を変えたあとは Actions の **Monthly names** を `plan`（既定、書かない）で流してログを見てから `apply`。中身は `jobs/monthly/monthly_names.py`。
 
 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
 
@@ -342,7 +342,7 @@ MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 ### 残置: rclone FUSE（`/home/stock/r2-share`）
 
 VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する（KAB-66 以前の保存先。ジョブの既定 dest ではない）。
-ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。`Restart=always` / `RestartSec=5` で rclone プロセスが落ちたら付け直す。プロセスが残ったまま FUSE だけ切れる場合は `r2-share-watch.timer`（5 分ごと）が `/proc/mounts` と `ls` を見て `r2-share.service` を restart する。デプロイ（`provision.sh` → `r2-share-apply.sh`）はユニット / `rclone.conf` / watch の内容ハッシュが変わったときだけ daemon-reload し、**マウント unit か rclone.conf が変わったときだけ** `r2-share.service` を restart する。同じなら動いているマウントには触らない。ジョブ側の打ち切りは `DESIGN.md` §3。マウントと `r2-share-watch.timer` は残す。撤去は別 issue。
+ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。`Restart=always` / `RestartSec=5` で rclone プロセスが落ちたら付け直す。プロセスが残ったまま FUSE だけ切れる場合は `r2-share-watch.timer`（5 分ごと）が `/proc/mounts` と `ls` を見て `r2-share.service` を restart する。デプロイ（`provision.sh` → `r2-share-apply.sh`）はユニット / `rclone.conf` / watch の内容ハッシュが変わったときだけ daemon-reload し、**マウント unit か rclone.conf が変わったときだけ** `r2-share.service` を restart する。同じなら動いているマウントには触らない。ジョブ側の打ち切りは `docs/jobs/monthly.md`「月次ファイルの取得と投入」。マウントと `r2-share-watch.timer` は残す。撤去は別 issue。
 
 ### data/ へのコピー
 
@@ -360,11 +360,11 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 マウント上と `data/` の接頭辞:
 
 - `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
-- `briefing/{code}/YYYYMMDD_CODE_….pdf`（決算説明資料。`{code}` は月次と同じ 4 桁。索引の code は 5 桁。`DESIGN.md`）
+- `briefing/{code}/YYYYMMDD_CODE_….pdf`（決算説明資料。`{code}` は月次と同じ 4 桁。索引の code は 5 桁。`docs/jobs/market.md`）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
 - `inventory/vps-packages.txt`（上書き）と `inventory/history/vps-packages-YYYYMMDD.txt`
-- `intraday/1m/YYYY/YYYY-MM-DD.parquet`（yfinance 1 分足。1 日 1 ファイル・全銘柄。書いた銘柄は上書きしない。`DESIGN.md` §3「分足」）
-- `stats/meti/{seidou,sekiyu}/<経産省のファイル名>`（素材の月次量の Excel の控え。中身が変わった版は `_YYYYMMDD` つき。`DESIGN.md` §3）
+- `intraday/1m/YYYY/YYYY-MM-DD.parquet`（yfinance 1 分足。1 日 1 ファイル・全銘柄。書いた銘柄は上書きしない。`docs/jobs/market.md`「分足」）
+- `stats/meti/{seidou,sekiyu}/<経産省のファイル名>`（素材の月次量の Excel の控え。中身が変わった版は `_YYYYMMDD` つき。`docs/jobs/supply.md`）
 
 初回設定:
 
@@ -394,7 +394,7 @@ python tools/briefing/irbank_ingest.py --code 7203 --dry-run
 deploy/cron-run.sh tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1
 ```
 
-保存した決算説明資料を Claude の Message Batches API で読む（KAB-349。`DESIGN.md`）のも、いまは手で回す。cron には入れない。`ANTHROPIC_API_KEY` が要る（従量課金）。`submit` で出し、1 時間ほどしてから `collect`（終わっていない Batch は次の `collect` で拾う。何度流してもよい）。`--dry-run` は PDF を読んで依頼の数を数えるだけ。ログは `/var/log/app/briefing_extract.log`（`batch_logs` の `job=briefing_extract`）。
+保存した決算説明資料を Claude の Message Batches API で読む（KAB-349。`docs/jobs/market.md`）のも、いまは手で回す。cron には入れない。`ANTHROPIC_API_KEY` が要る（従量課金）。`submit` で出し、1 時間ほどしてから `collect`（終わっていない Batch は次の `collect` で拾う。何度流してもよい）。`--dry-run` は PDF を読んで依頼の数を数えるだけ。ログは `/var/log/app/briefing_extract.log`（`batch_logs` の `job=briefing_extract`）。
 
 ```bash
 python jobs/market/briefing_extract.py submit --code 6857 --dry-run
@@ -454,7 +454,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。OneDrive へ送れて確認できたら、VPS の今回の gzip は消す。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 | `jobs/market/briefing_offsite.py` | 01:40（1 年以上前の決算説明資料を OneDrive へ。既に同じジョブが動いていれば始めない） |
 
-振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
+振る舞いは `docs/jobs/monthly.md` と `docs/jobs/xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
 ### VPS パッケージ一覧（セキュリティ照合）
 
@@ -512,7 +512,7 @@ deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP
 
 ### J-Quants の期の日付が 1 年前の開示を直す（KAB-454）
 
-取込は `config/market/statement_period_fixes.json` の開示だけ期の日付を 1 年進める（`DESIGN.md` §6）。一覧を足したとき・初めて入れたときは、既存の `statements` の行を手で直す。J-Quants は引き直さず、DB の `raw_json` から取込と同じ関数で行を作り、一覧の開示の期の 4 列だけ書く。ほかの列・ほかの行は触らない。
+取込は `config/market/statement_period_fixes.json` の開示だけ期の日付を 1 年進める（`docs/jobs/market.md`「日次バッチ」）。一覧を足したとき・初めて入れたときは、既存の `statements` の行を手で直す。J-Quants は引き直さず、DB の `raw_json` から取込と同じ関数で行を作り、一覧の開示の期の 4 列だけ書く。ほかの列・ほかの行は触らない。
 
 日次の回の `WARNING jquants statements period-candidate`（#alerts-batch）は候補。短信の原本の期の印字（1 ページ目の「2026年9月期 第2四半期決算短信」など）で確かめ、期が 1 年前なら一覧に足す（開示番号・J-Quants が返す `CurPerEn`・根拠）。1 年後の出し直し（訂正）なら何もしない（同じ開示では二度と出ない）。`period-fix-mismatch` は J-Quants が直した印なので、その開示を一覧から外す。
 
@@ -529,7 +529,7 @@ deploy/cron-run.sh jobs/ops/backup_db.py
 
 ### 短信 PDF の行に XBRL の要素を付ける（`xbrl_pdf_matches`）
 
-デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。対象は `stocks` にある銘柄だけで、全銘柄で流すと `stocks` に無い銘柄の既存の行を消す。設計は `docs/DESIGN_xbrl.md` §18。
+デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。対象は `stocks` にある銘柄だけで、全銘柄で流すと `stocks` に無い銘柄の既存の行を消す。設計は `docs/jobs/xbrl.md` §18。
 
 ```bash
 cd /home/stock/stock-analyzer
@@ -540,7 +540,7 @@ cd /home/stock/stock-analyzer
 
 ### XBRL の表示リンクを過去の書類に埋める（`xbrl_presentation_roles`）
 
-デプロイの `migrate.py` が表と `xbrl_filings.presentation_status` の列を足す（全件 NULL）。新しく取り込む書類は取り込みが書くので、過去分を 1 回だけ手で流す。cron には入れない。新しい提出から 1 件ずつ commit するので、止めて流し直してよい。短信 XBRL と手元の EDINET の ZIP を先に流し、残りの EDINET（OneDrive・EDINET から取る分）は `--limit` で区切って流す。退避の記録がある ZIP は OneDrive から読み（手元には残さない）、記録が無い ZIP は EDINET から取る。EDINET から取った ZIP は `data/edinet` にたまり、翌朝の `backup_data.py` が OneDrive へ移す。出力の `local=件/秒 edinet=件/秒 offsite=件/秒` が ZIP の出どころごとの件数と取得の秒（`offsite` が OneDrive）。設計は `docs/DESIGN_xbrl.md` §4.5。
+デプロイの `migrate.py` が表と `xbrl_filings.presentation_status` の列を足す（全件 NULL）。新しく取り込む書類は取り込みが書くので、過去分を 1 回だけ手で流す。cron には入れない。新しい提出から 1 件ずつ commit するので、止めて流し直してよい。短信 XBRL と手元の EDINET の ZIP を先に流し、残りの EDINET（OneDrive・EDINET から取る分）は `--limit` で区切って流す。退避の記録がある ZIP は OneDrive から読み（手元には残さない）、記録が無い ZIP は EDINET から取る。EDINET から取った ZIP は `data/edinet` にたまり、翌朝の `backup_data.py` が OneDrive へ移す。出力の `local=件/秒 edinet=件/秒 offsite=件/秒` が ZIP の出どころごとの件数と取得の秒（`offsite` が OneDrive）。設計は `docs/jobs/xbrl.md` §4.5。
 
 ```bash
 cd /home/stock/stock-analyzer
@@ -593,7 +593,7 @@ cd /home/stock/stock-analyzer
 
 ### TDnet 月次 PDF の自動投入（前回と同じ書式だけ）
 
-2 段。どちらも cron（上の表）。振る舞いの正本は `DESIGN.md` §3。
+2 段。どちらも cron（上の表）。振る舞いの正本は `docs/jobs/monthly.md`。
 
 1. `jobs/monthly/tdnet_monthly_pdf_sidecar.py` が、DB の最新月より新しい PDF を持つ銘柄だけ、DB に入った前回の PDF から「どの行が DB のどの行か」を学び、同じ書式なら PDF の隣に `….pdf-ingest.json` を書く。POST しない
 2. `jobs/monthly/tdnet_monthly_pdf_ingest.py` が code ごとに最新の `.pdf-ingest.json` を loopback へ POST する。先に `dry_run` して、サーバが決めた列の暦年が sidecar の `columns` と違えば POST しない。sha256 ledger で同じ sidecar は二度送らない

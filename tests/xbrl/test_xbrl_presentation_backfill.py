@@ -1,4 +1,4 @@
-"""過去の書類の表示リンクを ZIP から埋めるバッチ（jobs/xbrl/xbrl_presentation.py。docs/DESIGN_xbrl.md §4.5）。"""
+"""過去の書類の表示リンクを ZIP から埋めるバッチ（jobs/xbrl/xbrl_presentation.py。docs/jobs/xbrl.md §4.5）。"""
 from __future__ import annotations
 
 import io

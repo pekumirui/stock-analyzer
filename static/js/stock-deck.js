@@ -1,4 +1,4 @@
-// 決算説明資料の中身（KAB-350。docs/DESIGN_stock.md）。ニュースの行から開く。読み取った表・要約の復元ビュー。
+// 決算説明資料の中身（KAB-350。docs/screen/stock.md）。ニュースの行から開く。読み取った表・要約の復元ビュー。
 // 原本の PDF は出さない。表（列 × 行、行の of）からグラフと表を組み直す。規則は analyzer/deck_reader/view.py と同じ
 let stockDecks = null;
 let stockDeckKey = "";

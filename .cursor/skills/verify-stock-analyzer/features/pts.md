@@ -1,10 +1,10 @@
 # PTS
 
-PTS lives inside the ランキング tab. It lists one night-session PTS ranking (株探, 75 names) for a session day and fetch time, and puts the next trading day's open beside it: 終値→翌始値, PTS→翌始値, and 追随率. Spec is `docs/DESIGN_pts.md`; code is `static/js/pts.js` + `static/js/ranking.js` (`showRankingSub("pts")`) + `app/api/pts.py`. There is no header `PTS` tab (`data-tab="pts"` / `#tab-pts` are gone; KAB-265).
+PTS lives inside the ランキング tab. It lists one night-session PTS ranking (株探, 75 names) for a session day and fetch time, and puts the next trading day's open beside it: 終値→翌始値, PTS→翌始値, and 追随率. Spec is `docs/screen/pts.md`; code is `static/js/pts.js` + `static/js/ranking.js` (`showRankingSub("pts")`) + `app/api/pts.py`. There is no header `PTS` tab (`data-tab="pts"` / `#tab-pts` are gone; KAB-265).
 
 ## Sub-features
 
-- `pts-open` shows `#tab-ranking` with `#rk-subs [data-rksub="pts"]` `.on`, unhides `#rk-sub-pts`, and calls `loadPts()` (`GET /api/pts?ranking=night_up`) when `#pts-tbl` is empty. `restoreRoute` on `#ranking/pts` (and old `#pts`) always calls it.
+- `pts-open` shows `#tab-ranking` with `#rk-subs [data-rksub="pts"]` `.on`, unhides `#rk-sub-pts`, and calls `loadPts()` (`GET /api/pts?ranking=night_up`) when `#pts-tbl` is empty. `restoreRoute` on `#ranking/pts` (and old `#pts`) calls it on boot / a reload (`force: !pop`). `popstate` skips the fetch when `#pts-tbl` already has HTML.
 - `pts-ranking` switches `#pts-ranking .ftab[data-ranking]` (`night_up` 値上がり default / `night_down` 値下がり / `night_volume` 出来高). The clicked button gets `.on`; the request keeps `date` from `#pts-date` and drops `at`, so it shows that pair's latest fetch.
 - `pts-date` is `#pts-date` (session days, newest first, up to 60). Changing it reloads with the current ranking.
 - `pts-at` is `#pts-at` (one option per fetch, `MM-DD HH:MM（HH:MM現在）`, newest first; `hidden` when there are no snapshots). Picking one sends `at=`.

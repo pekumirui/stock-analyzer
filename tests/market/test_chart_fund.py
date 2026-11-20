@@ -1,4 +1,4 @@
-"""株価チャートの業績の階段（KAB-301。app/market/chart_fund.py、docs/DESIGN_stock.md「業績の数字の作り方」）。"""
+"""株価チャートの業績の階段（KAB-301。app/market/chart_fund.py、docs/screen/stock.md「業績の数字の作り方」）。"""
 from __future__ import annotations
 
 import json

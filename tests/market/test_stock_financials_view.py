@@ -1,4 +1,4 @@
-"""銘柄の業績詳細（docs/DESIGN_stock.md「業績詳細」）。node で static/js/stock-financials.js の表の組み立てを呼ぶ。"""
+"""銘柄の業績詳細（docs/screen/stock.md「業績詳細」）。node で static/js/stock-financials.js の表の組み立てを呼ぶ。"""
 from __future__ import annotations
 
 import json

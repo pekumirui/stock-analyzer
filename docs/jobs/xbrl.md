@@ -1,17 +1,26 @@
 # TDnet XBRL 財務データ蓄積 設計書（stock-analyzer 向け）
 
-正本の置き場は本ファイル。全体設計は [`DESIGN.md`](../DESIGN.md)。実装時の約束は [`AGENTS.md`](../AGENTS.md)。
+正本の置き場は本ファイル。全体は [`docs/OVERVIEW.md`](../OVERVIEW.md)。実装時の約束は [`AGENTS.md`](../../AGENTS.md)。
 
 不明点は推測で仕様を変えない。特にマッピング定義は業務知識に依存するため、§7.2 に無い科目を独断で足さない。
 
 ---
 
+## ほかの取込との関係
+
+TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
+スキーマとジョブは [`docs/jobs/xbrl.md`](xbrl.md)。EDINET の提出者・書類一覧は [`docs/jobs/edinet.md`](edinet.md)。決算速報 UI が読むのは `statements`。短信 XBRL から同じ形の行を作って入れ、数値は XBRL を優先する（KAB-383。`docs/jobs/xbrl.md` §3.2）。
+決算一覧の売上総利益は `idx_xbrl_financials_gp_cover` と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。
+有報・短信 XBRL の表示リンク（`*pre.xml`）のうち財務3表の区分と、その要素の並びは `xbrl_presentation_roles`（書類 × 区分で 1 行。取り込みで入れ替え、`xbrl_filings.presentation_status` に済みの印を付ける。過去分は `jobs/xbrl/xbrl_presentation.py` を 1 回流す。`docs/jobs/xbrl.md` §4.4・§4.5）。
+短信 PDF だけの期の行と XBRL の要素の対応は `xbrl_pdf_matches`（PDF の fact 1 つに 1 行。付け直しは `tools/tdnet_pdf/matches.py`）、有報・短信 XBRL・短信 PDF を要素名で並べる集計用のビューは `xbrl_statement_values`（`docs/jobs/xbrl.md` §18）。表と索引（`xbrl_elements` の `local_name` と `'ext:' || local_name`）は `init_db` / `jobs/migrate.py` が足す。ビューも `init_db` が作り、定義の文字列が変わっていれば作り直す。リポジトリのビューはこれだけ。
+
+
 ## 0. 確定事項（2026-09-07）
 
 実装前に確認済み。覆すときはこの節と該当箇所を両方直す。
 
-1. 第1弾の取得・パース対象は **TDnet 短信 iXBRL のみ**。EDINET の有報・半期報は KAB-73 で `source='edinet'` として足した（取得・対象・fact の絞り込みは `docs/DESIGN_edinet.md` §4）。パース・正規化・マッピングは同じものを使う。
-2. 企業キーは `stocks.code`（5桁）だけ。`stocks.edinet_code`（nullable）は KAB-72 で足した（`docs/DESIGN_edinet.md` §2）。XBRL 層のキーには使わない。
+1. 第1弾の取得・パース対象は **TDnet 短信 iXBRL のみ**。EDINET の有報・半期報は KAB-73 で `source='edinet'` として足した（取得・対象・fact の絞り込みは `docs/jobs/edinet.md` §4）。パース・正規化・マッピングは同じものを使う。
+2. 企業キーは `stocks.code`（5桁）だけ。`stocks.edinet_code`（nullable）は KAB-72 で足した（`docs/jobs/edinet.md` §2）。XBRL 層のキーには使わない。
 3. context から連結/単体が取れなければ **連結として扱う**（`is_consolidated=1`）。
 4. 生データ・正規化層は **既存と同じ SQLite**（`DATABASE_URL` / 本番 `stock.db`）に載せる。分離は容量が問題になってから。
 5. 決算速報 UI / API が読むのは **`statements`**。短信 XBRL から同じ形の行を開示番号で作って入れる（KAB-383。§3.2）。例外として、決算表の修正履歴（KAB-57）は `?rev_source=xbrl` / `EARNINGS_PARAMS["revision_source"]` で `xbrl_financials` を読める（既定は `jquants`）。読むだけで `statements` は変えない。修正履歴が読むのは `source='tdnet'` の filing だけ。
@@ -40,7 +49,7 @@
 
 ### 1.3 スコープ外（第1弾）
 
-- EDINET 有報・四半期報告書の取得とパース（有報・半期報は KAB-73 で足した。`docs/DESIGN_edinet.md` §4）
+- EDINET 有報・四半期報告書の取得とパース（有報・半期報は KAB-73 で足した。`docs/jobs/edinet.md` §4）
 - AuditDoc / 監査報告書
 - セグメント軸付き fact の正規化層投入（KAB-77 で別表 `xbrl_segments` に入れた。§14）
 - `statements` との自動突合・置換
@@ -142,7 +151,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 
 ### 4.1 ER
 
-ER 図は [`schema/xbrl.md`](schema/xbrl.md)（`app/models.py` から自動生成）。企業キーは `stocks.code` との文字列照合（§3.1）。
+ER 図は [`schema/xbrl.md`](../schema/xbrl.md)（`app/models.py` から自動生成）。企業キーは `stocks.code` との文字列照合（§3.1）。
 
 FK は XBRL テーブル同士にだけ付ける。`stocks` への FK は付けない（月次と同じ。`PRAGMA foreign_keys` も有効化しない）。parse 前に `db.get(Stock, code)` で存在確認する。
 
@@ -150,7 +159,7 @@ FK は XBRL テーブル同士にだけ付ける。`stocks` への FK は付け�
 
 SQLite 前提。Postgres に切っても動く型にする。`JSONB` / `GENERATED ALWAYS` / 部分 INDEX の `WHERE` は使わない。
 
-テーブル・列・索引は [`schema/xbrl.md`](schema/xbrl.md)（`app/models.py` から自動生成。列の意味もそこに出る）。
+テーブル・列・索引は [`schema/xbrl.md`](../schema/xbrl.md)（`app/models.py` から自動生成。列の意味もそこに出る）。
 
 `unmapped` は VIEW ではなく `jobs/xbrl/xbrl_parse.py report-unmapped` のクエリで出す。VIEW は §18 の `xbrl_statement_values` だけ（定義は `app/xbrl/statement_values.py`、作るのは `init_db`）。
 
@@ -383,7 +392,7 @@ filing 単位。
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` と大株主の表を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。大株主は軸付き fact が無ければ 0 行のまま（`docs/DESIGN_edinet.md` §9）。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` と大株主の表を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。大株主は軸付き fact が無ければ 0 行のまま（`docs/jobs/edinet.md` §9）。
 
 ### 6.5 CLI
 
@@ -622,7 +631,7 @@ XBRL_PARSE_WORKERS=2
 
 ## 13. 後続（今書かない）
 
-- （済）EDINET API v2 で有報・半期報 ZIP を取り、`source='edinet'` の filing を足す（KAB-73。`docs/DESIGN_edinet.md` §4）
+- （済）EDINET API v2 で有報・半期報 ZIP を取り、`source='edinet'` の filing を足す（KAB-73。`docs/jobs/edinet.md` §4）
 - 伝統的 instance `.xbrl` パーサ
 - 正規化層の実績を決算詳細 API に出す（`statements` の予想列は残す）
 - facts の DB 分離
@@ -644,14 +653,14 @@ XBRL_PARSE_WORKERS=2
 
 ### 14.2 生データ層
 
-- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない。大株主・所有者別の軸（`MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis`）も、要素名があるときだけ残す（KAB-266。`docs/DESIGN_edinet.md` §9）
+- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない。大株主・所有者別の軸（`MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis`）も、要素名があるときだけ残す（KAB-266。`docs/jobs/edinet.md` §9）
 - `xbrl_contexts.member_labels_json`: 連結/単体以外の次元メンバー → その書類の日本語ラベル（`{"prefix:Member": "自動車"}`）。無ければ NULL。パーサは fact の要素に加えて、context の次元メンバーのラベルも引く（`app/xbrl/parser.py parse_package`）
 - 過去分は `edinet_xbrl.py --reparse` でダウンロードし直さないと入らない
 - デプロイ: `jobs/migrate.py`（表と列）→ `python jobs/xbrl/xbrl_parse.py load-mappings`（SEG の科目とマッピング）。そのあとの取込から入る。取込済みの書類は `edinet_xbrl.py --reparse`
 
 ### 14.3 正規化層 `xbrl_segments`
 
-列と索引は [`schema/xbrl.md`](schema/xbrl.md) の `xbrl_segments`。
+列と索引は [`schema/xbrl.md`](../schema/xbrl.md) の `xbrl_segments`。
 
 - 科目は `config/xbrl/std_items.yaml` の `statement: SEG`（`seg_net_sales` 計 / `seg_external_sales` 外部顧客への売上高 / `seg_profit` / `seg_assets`）、マッピングは `config/xbrl/mappings/segments.yaml`。`xbrl_financials` の正規化は SEG の科目とマッピングを読まない（同じ `jppfs_cor:NetSales` を取り合わない）
 - `normalize_filing` の最後に `app/xbrl/segments.py normalize_segments` を呼ぶ（取込・`xbrl_normalize.py`・`--rebuild` の全部で作り直す）。TDnet の filing にも効く
@@ -673,7 +682,7 @@ XBRL_PARSE_WORKERS=2
 
 ## 15. 短信の原文 HTML（KAB-161）
 
-銘柄タブ（`docs/DESIGN_stock.md`）で短信を PDF と同じ並びで読むため、ZIP の HTML を `xbrl_documents` に入れる。数値の層とは別。パース・正規化の結果は変えない。
+銘柄タブ（`docs/screen/stock.md`）で短信を PDF と同じ並びで読むため、ZIP の HTML を `xbrl_documents` に入れる。数値の層とは別。パース・正規化の結果は変えない。
 
 ### 15.1 実データで分かったこと（2026-08-10〜10-23 の 304 件。種類ごとに最大 40 件）
 
@@ -685,7 +694,7 @@ XBRL_PARSE_WORKERS=2
 
 ### 15.2 表 `xbrl_documents`
 
-列は [`schema/xbrl.md`](schema/xbrl.md) の `xbrl_documents`。
+列は [`schema/xbrl.md`](../schema/xbrl.md) の `xbrl_documents`。
 
 `xbrl_filings.documents_status`: 原文を作ったかどうか。NULL（まだ）/ `stored` / `empty`（選べる HTML が 0 件）。
 
@@ -719,7 +728,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 
 ### 16.3 表 `tdnet_pdf_documents`
 
-列は [`schema/xbrl.md`](schema/xbrl.md) の `tdnet_pdf_documents`。
+列は [`schema/xbrl.md`](../schema/xbrl.md) の `tdnet_pdf_documents`。
 
 ### 16.4 取込 `tools/tdnet_pdf/ingest.py`
 
@@ -822,7 +831,7 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 
 ## 17. 財務3表を出どころをまたいで並べる（`GET /api/stock/{code}/financials`）
 
-`app/xbrl/three_statements.py`。テーブルもバッチも足さず、読むたびに 1 銘柄の `xbrl_facts` から組み立てる（filing_id で絞る。連結と個別は 1 回の読み込みで分ける）。PDF だけの期の対応は §18 の `xbrl_pdf_matches` にも残す（API は読まない）。API の形は `docs/DESIGN_stock.md` の「API」、MCP `financial_statements`（`mcp/earnings_tools.py`）はこの API を TSV にするだけ。
+`app/xbrl/three_statements.py`。テーブルもバッチも足さず、読むたびに 1 銘柄の `xbrl_facts` から組み立てる（filing_id で絞る。連結と個別は 1 回の読み込みで分ける）。PDF だけの期の対応は §18 の `xbrl_pdf_matches` にも残す（API は読まない）。API の形は `docs/screen/stock.md` の「API」、MCP `financial_statements`（`mcp/earnings_tools.py`）はこの API を TSV にするだけ。
 
 **材料**: `source` が `edinet` / `tdnet` / `tdnet_pdf`、`doc_type` が `annual` / `semiannual` / `quarterly` の `parsed` の filing。当期（`relative_period='current'`）の fact で、次元が連結/単体のメンバーだけのもの（`is_primary_statement` と同じ）。同じ filing・同じ連結区分で同じ要素に当期の期間の fact が複数あるとき（四半期報告書・半期報告書・短信 XBRL の期首からの累計と 3 か月）は、`start_date` がいちばん早いもの（期首からの累計）だけを使う（表の振り分けは捨てる前の並びで決める）。連結/個別は `xbrl_contexts.is_consolidated`（有報の単体は `NonConsolidatedMember` の軸付きで 0、PDF は `_NonConsolidated` の context で 0）。DEI が「連結財務諸表を作っていない」の有報は全部個別（`normalize` と同じ）。`consolidated=auto`（API の既定）は、連結の fact でどれかの表が組める filing が 1 つでもあれば連結を主にし、個別の材料もあれば、その表の連結の列のいちばん古い期より前・いちばん新しい期より後の期を個別の列で埋める（途中から連結を始めた会社・連結をやめた会社）。連結の列の間の期は個別で埋めない（連結の会社の有報の個別を混ぜない）。列は連結・個別それぞれで組んでから期でまとめるので、短信 PDF の突き合わせは同じ方の中だけ。科目名は連結のほうを採る。連結の材料が無ければ個別だけ。`jpdei_cor` / `jpcrp_cor` / `tse-ed-t` / `pdf-sum` は出さない。XBRL は `jppfs_cor` / `jpigp_cor` と会社独自（`is_custom`）だけ。
 
@@ -891,7 +900,7 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 
 §17 の対応（PDF の行 → XBRL の要素）を表に残し、有報・短信 XBRL・短信 PDF を同じ要素名で SQL から引く。画面・API は使わない（集計用）。
 
-**対応の表 `xbrl_pdf_matches`**（列は [`schema/xbrl.md`](schema/xbrl.md)）: 対象は PDF だけの期の開示。同じ銘柄・同じ期末・同じ連結区分に、本表の付いた `edinet` / `tdnet` の `parsed` の filing が無い `tdnet_pdf` の filing（§17 の材料と同じ `doc_type`）。その本表（`pdf-bs` / `pdf-pl` / `pdf-cf`）の当期 fact ごとに 1 行（CF の期首残高でどの要素にも当たらない行は入れない。§17 の限界）。同じ期末に XBRL がある期の PDF は入れない。突き合わせは `three_statements.pdf_only_matches`（§17 の `load_both` → `learn_pair` → `apply_learned` を、PDF が主の列と同じ引数で呼ぶ。別の実装は持たない）。`element_key` は §17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）。会社独自の要素は有報（`jpcrp…_E…`）と短信 XBRL（`tse-…-証券コード`）で `xbrl_elements` の行が分かれるので、`element_id` ではなく文字列で持つ。付かない行は `element_key` と `matched_by` が NULL。同じ期末の PDF が 2 つ（訂正）なら両方に付ける（ビューが新しい方を採る）。PL の 2 回目の印字（§17）は前の行と同じ `element_key` で入る（ビューは同じ filing の fact の id の小さい方を採るので 1 つ）。対象の銘柄は銘柄マスタ `stocks` にある銘柄だけ（無い会社には突き合わせる有報も短信 XBRL も無い）。`xbrl_facts` の PDF の fact は消さない。
+**対応の表 `xbrl_pdf_matches`**（列は [`schema/xbrl.md`](../schema/xbrl.md)）: 対象は PDF だけの期の開示。同じ銘柄・同じ期末・同じ連結区分に、本表の付いた `edinet` / `tdnet` の `parsed` の filing が無い `tdnet_pdf` の filing（§17 の材料と同じ `doc_type`）。その本表（`pdf-bs` / `pdf-pl` / `pdf-cf`）の当期 fact ごとに 1 行（CF の期首残高でどの要素にも当たらない行は入れない。§17 の限界）。同じ期末に XBRL がある期の PDF は入れない。突き合わせは `three_statements.pdf_only_matches`（§17 の `load_both` → `learn_pair` → `apply_learned` を、PDF が主の列と同じ引数で呼ぶ。別の実装は持たない）。`element_key` は §17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）。会社独自の要素は有報（`jpcrp…_E…`）と短信 XBRL（`tse-…-証券コード`）で `xbrl_elements` の行が分かれるので、`element_id` ではなく文字列で持つ。付かない行は `element_key` と `matched_by` が NULL。同じ期末の PDF が 2 つ（訂正）なら両方に付ける（ビューが新しい方を採る）。PL の 2 回目の印字（§17）は前の行と同じ `element_key` で入る（ビューは同じ filing の fact の id の小さい方を採るので 1 つ）。対象の銘柄は銘柄マスタ `stocks` にある銘柄だけ（無い会社には突き合わせる有報も短信 XBRL も無い）。`xbrl_facts` の PDF の fact は消さない。
 
 **付け直し**: `tools/tdnet_pdf/matches.py`（全銘柄か `--code`）。銘柄ごとに消して入れ直して commit するので何度流しても同じ。`--batch N` は N 銘柄ごとに `pdf_matches batch done=… codes=… filings=… matched=… unmatched=… failed=… left=…` を 1 行出し、`database is locked` の銘柄は区切りの終わりに 5 秒待って 1 回やり直す（§16.5 の `financials.py` と同じ）。最後の行は `pdf_matches codes=… filings=… matched=… unmatched=… failed=… skipped=… deleted=…`（`skipped` は `stocks` に無くて対象にしなかった銘柄の数、`deleted` は全銘柄で流したときに消した、`stocks` に無い銘柄の既存の行数。`--batch` の行も `failed` と `left` の間に同じ 2 項目が入る）。`--code` で `stocks` に無い銘柄を指定すると `pdf_matches skipped code=… reason=not in stocks` を出して飛ばす（既存の行は触らない）。全銘柄で流すと、`stocks` に無い銘柄の既存の行は銘柄ごとに DELETE して commit する（`database is locked` は他の銘柄と同じく区切りで待ってやり直す）。`tools/tdnet_pdf/financials.py` は最後に、その実行で `parsed` / `retired` / `failed` になった開示の銘柄だけ同じ処理を流す（`--no-matches` で流さない。失敗しても読み直しの結果は残り、終了コードが 1）。cron には入れない。付け直すのは次のとき:
 

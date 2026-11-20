@@ -3,7 +3,7 @@
 使い方:
   python jobs/market/pts_snapshot.py
 
-cron は平日 15:30〜24:00 の 30 分ごと（deploy/crontab）。設計は DESIGN.md「PTS」。
+cron は平日 15:30〜24:00 の 30 分ごと（deploy/crontab）。設計は docs/jobs/market.md「PTS ランキング」。
 表 pts_snapshots はデプロイの jobs/migrate.py が作る。ここでは作らない（無ければ no such table で落ちる）。
 """
 from __future__ import annotations
