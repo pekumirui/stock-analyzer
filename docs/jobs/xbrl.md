@@ -582,7 +582,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 
 #### 取込 `tools/tdnet_pdf/ingest.py`
 
-- 対象: 指定した銘柄（`--code` 複数可、`--all` で全銘柄）の `statements` のうち、XBRL の原文（`xbrl_documents`。ZIP 名の後ろ 14 桁で照合）も、この表の `ok` / `missing` も無い回。新しい順。`failed` は `--retry-failed` のときだけ
+- 対象: 指定した銘柄（`--code` 複数可、`--all` で全銘柄）の `statements` のうち、銘柄マスタ（`stocks`）にある銘柄で、XBRL の原文（`xbrl_documents`。ZIP 名の後ろ 14 桁で照合）も、この表の `ok` / `missing` も無い回。新しい順。`failed` は `--retry-failed` のときだけ
 - 1 件ずつ 取得 → 変換 → 保存（commit）。間隔は `--sleep`（既定 1 秒）、件数は `--limit`。IR BANK が 429 / 503 を返したら上限とみなして止める（終了コード 0）。途中で止めても次の実行で続きから
 - 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`remaining` はこの実行のあとに `targets()` を取り直した件数で、`failed`（この実行で failed にした件数）とは別。`--retry-failed` 無しでは failed 済みは残件に入らない。`stopped=done` なのに remaining>0 なら、実行開始時の対象に含まれなかった回（実行中に statements が増えた等）が残っている。`--dry-run` は対象の件数と先頭 10 件だけ
 - 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
@@ -601,7 +601,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 | 要素の名前空間 | `pdf-sum` / `pdf-bs` / `pdf-pl` / `pdf-cf`（カスタム。URI は `http://stock-analyzer.local/taxonomy/tdnet-pdf/`） |
 | マッピング | `config/xbrl/mappings/tdnet_pdf.yaml`。`name` は `label_key` の結果 |
 
-読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。PDF 1 ページ目の題名（`tdnet_pdf_documents.title`）に「速報値」がある開示は filing を作らない（`absent` / `flash-results`。failed に数えない）。元の短信と別の会計基準の財務諸表を追加したお知らせ（IFRS の短信に日本基準の財務諸表を追加した 2130・436A）は、`config/xbrl/pdf_other_standard.json` の開示番号の一覧にあるものだけ filing を作らない（`absent` / `other-standard`。規則では決めない。題名に「追加」があっても、同じ基準の表を足したお知らせがある）。訂正のお知らせは `is_amendment=True`（題名の「訂正」、または「決算短信」かつ「の修正について」「の一部修正」。本文の「（訂正前）」「（訂正後）」「（訂正版）」「<変更前>」「<変更後>」。業績予想・配当の「修正について」だけでは付けない。KAB-226）
+銘柄マスタ（`stocks`）に無い銘柄は filing を作らない（`absent` / `not-in-master`。XBRL の取込と同じ。KAB-526）。すでにある filing は、次に流したときに消す（`retired`。上場廃止で `stocks` から消えた銘柄も）。読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。PDF 1 ページ目の題名（`tdnet_pdf_documents.title`）に「速報値」がある開示は filing を作らない（`absent` / `flash-results`。failed に数えない）。元の短信と別の会計基準の財務諸表を追加したお知らせ（IFRS の短信に日本基準の財務諸表を追加した 2130・436A）は、`config/xbrl/pdf_other_standard.json` の開示番号の一覧にあるものだけ filing を作らない（`absent` / `other-standard`。規則では決めない。題名に「追加」があっても、同じ基準の表を足したお知らせがある）。訂正のお知らせは `is_amendment=True`（題名の「訂正」、または「決算短信」かつ「の修正について」「の一部修正」。本文の「（訂正前）」「（訂正後）」「（訂正版）」「<変更前>」「<変更後>」。業績予想・配当の「修正について」だけでは付けない。KAB-226）
 
 HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、億円は 10^8 倍（「円」より先。8630 20231206599881）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の連結の経常利益はマッピングしない（`standard: JPGAAP` だけ）。IFRS 提出会社の個別（#nc）表は JPGAAP として経常利益を採る（KAB-243）。IFRS 本表の売上原価・販管費は ZIP に合わせて正にする（印字の △ を外す）。
 

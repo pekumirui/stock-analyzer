@@ -37,7 +37,7 @@ from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, run_sqlite_write
-from app.models import Statement, TdnetPdfDocument, XbrlDocument, XbrlFiling
+from app.models import Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
@@ -68,6 +68,7 @@ def _now() -> datetime:
 def targets(db: Session, codes: list[str] | None, *, retry_failed: bool = False) -> list[Statement]:
     """原文の無い開示。新しい順。codes が None なら全銘柄。"""
     q = db.query(Statement).filter(Statement.disclosure_no.isnot(None))
+    q = q.filter(exists().where(Stock.code == Statement.code))
     if codes is not None:
         q = q.filter(Statement.code.in_(codes))
     done_status = ["ok", "missing"] if retry_failed else ["ok", "missing", "failed"]

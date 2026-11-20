@@ -20,7 +20,7 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from app.config import PDF_OTHER_STANDARD_PATH
-from app.models import Statement, TdnetPdfDocument, XbrlFiling, XbrlFinancial
+from app.models import Statement, Stock, TdnetPdfDocument, XbrlFiling, XbrlFinancial
 from app.xbrl.normalize import is_normalizable_context, normalize_filing
 from app.xbrl.parser import ParsedPackage
 from app.xbrl.pdf._layout import (
@@ -161,7 +161,7 @@ class _Build:
 class _Absent:
     reason: Literal[
         "zip", "no-html", "no-statement", "doc-type", "reit", "irregular-period", "no-dates", "flash-results",
-        "other-standard",
+        "other-standard", "not-in-master",
     ]
 
 
@@ -190,6 +190,8 @@ def _plan(db: Session, disclosure_no: str, zip_parsed: bool) -> _Build | _Absent
     statement = db.get(Statement, disclosure_no)
     if statement is None:
         return _Absent("no-statement")
+    if db.get(Stock, statement.code) is None:
+        return _Absent("not-in-master")
     if doc.title and "速報値" in doc.title:
         return _Absent("flash-results")
     if disclosure_no in other_standard_disclosures():
