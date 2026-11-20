@@ -2354,3 +2354,256 @@ def test_table_shows_declared_heads_and_lends_them_to_rows_of_older_filings() ->
     assert got["LongTermPrepaidExpenses"] == (("資産", "固定資産"), 0)
     lent = rows(table(DECLARED))["OtherCA"]["heads"]
     assert [h["key"] for h in lent] == ["AssetsAbstract", "CurrentAssetsAbstract"]
+
+
+def test_learn_pair_breaks_equal_value_ties_by_label() -> None:
+    xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="Q1", period_end=date(2025, 6, 30),
+                      submitted="2025-08-10", standard="JPGAAP")
+    xbrl.by_statement = {"BS": [
+        xbrl_fact(1, "ShortTermLoansPayable", 448, "短期借入金", True),
+        xbrl_fact(2, "CurrentLiabilities", 448, "流動負債", True),
+        xbrl_fact(3, "Liabilities", 448, "負債", True),
+    ]}
+    xbrl.seq = list(xbrl.by_statement["BS"])
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="Q1", period_end=date(2025, 6, 30),
+                     submitted="2025-08-01", standard="JPGAAP")
+    pdf.by_statement = {"BS": [bs_fact("短期借入金─", 448), bs_fact("負債合計", 448)]}
+    learned = fst.learn_pair(pdf, xbrl)
+    assert learned.maps["BS"] == {
+        "短期借入金": fst.Mapped("ShortTermLoansPayable", 1),
+        "負債合計": fst.Mapped("Liabilities", 1),
+    }
+
+
+def test_contention_falls_back_to_alternate_learned_element_and_total_tail() -> None:
+    p1 = fst.Learned(
+        period_end=date(2025, 3, 31), cls="FY",
+        maps={"CF": {
+            "現金及び現金同等物の期末残高": fst.Mapped("CashAndCashEquivalentsIFRS", 1),
+            "現金及び現金同等物の四半期末残高(要約四半期連結財政状態計算書計上額)": fst.Mapped("CashAndCashEquivalentsIFRS", 1),
+        }},
+        order={"CF": ["CashAndCashEquivalentsIFRS"]},
+    )
+    p2 = fst.Learned(
+        period_end=date(2024, 9, 30), cls="Q",
+        maps={"CF": {
+            "現金及び現金同等物の期末残高": fst.Mapped("CashAndCashEquivalentsIfDifferentFromBSBalanceIFRS", 1),
+            "現金及び現金同等物の四半期末残高(要約四半期連結財政状態計算書計上額)": fst.Mapped("CashAndCashEquivalentsIFRS", 1),
+        }},
+        order={"CF": ["CashAndCashEquivalentsIfDifferentFromBSBalanceIFRS", "CashAndCashEquivalentsIFRS"]},
+    )
+    cf_rows = [
+        fst.Fact(1, "pdf:現金及び現金同等物の期末残高", "現金及び現金同等物の期末残高", "現金及び現金同等物の期末残高", True, "JPY", 90),
+        fst.Fact(
+            2, "pdf:現金及び現金同等物の四半期末残高(要約四半期連結財政状態計算書計上額)",
+            "現金及び現金同等物の四半期末残高(要約四半期連結財政状態計算書計上額)",
+            "現金及び現金同等物の四半期末残高(要約四半期連結財政状態計算書計上額)", True, "JPY", 100,
+        ),
+    ]
+    assert keys_of(fst.apply_learned(cf_rows, [p1, p2], "CF", date(2025, 6, 30), "Q")) == [
+        "CashAndCashEquivalentsIfDifferentFromBSBalanceIFRS", "CashAndCashEquivalentsIFRS",
+    ]
+    t1 = fst.Learned(period_end=date(2025, 9, 30), cls="Q",
+                     maps={"PL": {"法人税等": fst.Mapped("IncomeTaxes", 1)}}, order={"PL": ["IncomeTaxes"]})
+    t2 = fst.Learned(period_end=date(2025, 3, 31), cls="FY",
+                     maps={"PL": {"法人税等合計": fst.Mapped("IncomeTaxes", 1)}}, order={"PL": ["IncomeTaxes"]})
+    tax_rows = [pl_fact("法人税等", 12), pl_fact("法人税等合計", 15)]
+    assert keys_of(fst.apply_learned(tax_rows, [t1, t2], "PL", date(2025, 6, 30), "Q")) == [None, "IncomeTaxes"]
+
+
+def test_global_order_keeps_canonical_section_order_and_nearby_period_order() -> None:
+    with_ei = fst.Learned(
+        period_end=date(2026, 3, 31), cls="FY",
+        maps={"PL": {
+            "経常利益": fst.Mapped("OrdinaryIncome", 1),
+            "固定資産売却益": fst.Mapped("GainOnSalesOfNoncurrentAssetsEI", 1),
+            "特別利益合計": fst.Mapped("ExtraordinaryIncome", 1),
+            "税引前当期純利益": fst.Mapped("IncomeBeforeIncomeTaxes", 1),
+        }},
+        order={"PL": ["OrdinaryIncome", "GainOnSalesOfNoncurrentAssetsEI", "ExtraordinaryIncome", "IncomeBeforeIncomeTaxes"]},
+    )
+    with_el = fst.Learned(
+        period_end=date(2025, 3, 31), cls="FY",
+        maps={"PL": {
+            "経常利益": fst.Mapped("OrdinaryIncome", 1),
+            "固定資産除却損": fst.Mapped("LossOnRetirementOfNoncurrentAssetsEL", 1),
+            "特別損失合計": fst.Mapped("ExtraordinaryLoss", 1),
+            "税引前当期純利益": fst.Mapped("IncomeBeforeIncomeTaxes", 1),
+        }},
+        order={"PL": ["OrdinaryIncome", "LossOnRetirementOfNoncurrentAssetsEL", "ExtraordinaryLoss", "IncomeBeforeIncomeTaxes"]},
+    )
+    both_rows = [
+        pl_fact("経常利益", 50), pl_fact("特別利益固定資産売却益", 5), pl_fact("特別利益合計", 5),
+        pl_fact("特別損失固定資産除却損", 3), pl_fact("特別損失合計", 3), pl_fact("税引前当期純利益", 52),
+    ]
+    assert keys_of(fst.apply_learned(both_rows, [with_ei, with_el], "PL", date(2025, 12, 31), "Q")) == [
+        "OrdinaryIncome", "GainOnSalesOfNoncurrentAssetsEI", "ExtraordinaryIncome",
+        "LossOnRetirementOfNoncurrentAssetsEL", "ExtraordinaryLoss", "IncomeBeforeIncomeTaxes",
+    ]
+    old_q = fst.Learned(
+        period_end=date(2024, 6, 30), cls="Q",
+        maps={"PL": {
+            "営業利益": fst.Mapped("OperatingProfitLossIFRS", 1),
+            "金融収益": fst.Mapped("FinanceIncomeIFRS", 1),
+            "金融費用": fst.Mapped("FinanceCostsIFRS", 1),
+            "税引前利益": fst.Mapped("ProfitLossBeforeTaxIFRS", 1),
+        }},
+        order={"PL": ["OperatingProfitLossIFRS", "FinanceIncomeIFRS", "FinanceCostsIFRS", "ProfitLossBeforeTaxIFRS"]},
+    )
+    new_q = fst.Learned(
+        period_end=date(2026, 6, 30), cls="Q",
+        maps={"PL": {
+            "金融収益": fst.Mapped("FinanceIncomeIFRS", 1),
+            "金融費用": fst.Mapped("FinanceCostsIFRS", 1),
+            "営業利益": fst.Mapped("OperatingProfitLossIFRS", 1),
+            "税引前利益": fst.Mapped("ProfitLossBeforeTaxIFRS", 1),
+        }},
+        order={"PL": ["FinanceIncomeIFRS", "FinanceCostsIFRS", "OperatingProfitLossIFRS", "ProfitLossBeforeTaxIFRS"]},
+    )
+    old_rows = [pl_fact("営業利益", 20), pl_fact("金融収益", 2), pl_fact("金融費用", -1), pl_fact("税引前利益", 21)]
+    assert keys_of(fst.apply_learned(old_rows, [old_q, new_q], "PL", date(2024, 9, 30), "Q")) == [
+        "OperatingProfitLossIFRS", "FinanceIncomeIFRS", "FinanceCostsIFRS", "ProfitLossBeforeTaxIFRS",
+    ]
+
+
+def test_name_index_collapses_disjoint_split_elements_within_same_section() -> None:
+    old_f = fst.Filing(id=1, doc_id="X1", source="edinet", period_type="FY", period_end=date(2024, 3, 31),
+                       submitted="2024-06-20", standard="JPGAAP")
+    old_f.by_statement = {"BS": [
+        xbrl_fact(1, "DeferredTaxLiabilitiesNCL", 10, "繰延税金負債", True),
+        xbrl_fact(2, "AllowanceForDoubtfulAccountsNCL", -1, "貸倒引当金", True),
+        xbrl_fact(3, "NoncurrentLiabilities", 9, "固定負債合計", True),
+    ]}
+    new_f = fst.Filing(id=2, doc_id="X2", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                       submitted="2025-06-20", standard="JPGAAP")
+    new_f.by_statement = {"BS": [
+        xbrl_fact(4, "DeferredTaxLiabilities", 12, "繰延税金負債", True),
+        xbrl_fact(5, "AllowanceForDoubtfulAccountsIOAByGroup", -2, "貸倒引当金", True),
+        xbrl_fact(6, "NoncurrentLiabilities", 10, "固定負債合計", True),
+    ]}
+    names = fst.name_index([old_f, new_f], "BS")
+    assert names.keys["繰延税金負債"] == "DeferredTaxLiabilities"
+    assert "貸倒引当金" not in names.keys
+    excluded = fst.name_index([old_f, new_f], "BS", {frozenset({"DeferredTaxLiabilitiesNCL", "DeferredTaxLiabilities"})})
+    assert "繰延税金負債" not in excluded.keys
+
+
+def test_pdf_matching_scopes_learned_and_names_to_accounting_standard() -> None:
+    jp_pdf = fst.Filing(id=1, doc_id="P1", source="tdnet_pdf", period_type="FY", period_end=date(2025, 3, 31),
+                        submitted="2025-05-10", standard="JPGAAP")
+    jp_pdf.by_statement = {"PL": [pl_fact("売上高", 100), pl_fact("営業利益", 15), pl_fact("当期純利益", 10)]}
+    jp_xbrl = fst.Filing(id=2, doc_id="X1", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                         submitted="2025-06-20", standard="JPGAAP")
+    jp_xbrl.by_statement = {"PL": [
+        xbrl_fact(1, "NetSales", 100, "売上高"),
+        xbrl_fact(2, "OperatingIncome", 15, "営業利益"),
+        xbrl_fact(3, "ProfitLoss", 10, "当期純利益"),
+    ]}
+    jp_xbrl.seq = list(jp_xbrl.by_statement["PL"])
+    ifrs_pdf = fst.Filing(id=3, doc_id="P2", source="tdnet_pdf", period_type="Q1", period_end=date(2025, 6, 30),
+                          submitted="2025-08-05", standard="IFRS")
+    ifrs_pdf.by_statement = {"PL": [
+        pl_fact("売上収益", 30), pl_fact("営業利益", 5), pl_fact("税引前当期利益", 4),
+        pl_fact("当期利益", 3), pl_fact("当期利益#2", 3),
+    ]}
+    ifrs_xbrl = fst.Filing(id=4, doc_id="X2", source="edinet", period_type="Q2", period_end=date(2025, 9, 30),
+                           submitted="2025-11-10", standard="IFRS")
+    ifrs_xbrl.by_statement = {"PL": [
+        xbrl_fact(4, "RevenueIFRS", 62, "売上収益"),
+        xbrl_fact(5, "OperatingProfitLossIFRS", 11, "営業利益（△損失）"),
+        xbrl_fact(6, "ProfitLossBeforeTaxIFRS", 9, "税引前利益（△は損失）"),
+        xbrl_fact(7, "ProfitLossIFRS", 6, "中間利益（△は損失）"),
+    ]}
+    ifrs_xbrl.seq = list(ifrs_xbrl.by_statement["PL"])
+    filings = [jp_pdf, jp_xbrl, ifrs_pdf, ifrs_xbrl]
+    learned = [fst.learn_pair(p, x) for p, x in fst._pairs(filings)]
+    cols = fst.build_columns(filings, learned, "PL")
+    q1 = next(c for c in cols if c.period_end == date(2025, 6, 30))
+    assert q1.values == {
+        "RevenueIFRS": 30 * M,
+        "OperatingProfitLossIFRS": 5 * M,
+        "ProfitLossBeforeTaxIFRS": 4 * M,
+        "ProfitLossIFRS": 3 * M,
+    }
+
+
+def test_pairs_use_full_statement_pdf_when_amendment_is_partial() -> None:
+    full_pdf = fst.Filing(id=1, doc_id="P1", source="tdnet_pdf", period_type="FY", period_end=date(2025, 3, 31),
+                          submitted="2025-05-10", standard="JPGAAP")
+    full_pdf.by_statement = {
+        "BS": [bs_fact("現金及び預金", 100), bs_fact("流動資産合計", 100), bs_fact("資産合計", 100)],
+        "PL": [pl_fact("売上高", 200), pl_fact("営業利益", 30), pl_fact("経常利益", 31), pl_fact("当期純利益", 20)],
+    }
+    part_pdf = fst.Filing(id=2, doc_id="P2", source="tdnet_pdf", period_type="FY", period_end=date(2025, 3, 31),
+                          submitted="2025-06-01", standard="JPGAAP")
+    part_pdf.by_statement = {"PL": [pl_fact("当期純利益", 21)]}
+    xbrl = fst.Filing(id=3, doc_id="X1", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                      submitted="2025-06-25", standard="JPGAAP")
+    xbrl.by_statement = {
+        "BS": [xbrl_fact(1, "CashAndDeposits", 100, "現金及び預金", True),
+               xbrl_fact(2, "CurrentAssets", 100, "流動資産合計", True),
+               xbrl_fact(3, "Assets", 100, "資産合計", True)],
+        "PL": [xbrl_fact(4, "NetSales", 200, "売上高"), xbrl_fact(5, "OperatingIncome", 30, "営業利益"),
+               xbrl_fact(6, "OrdinaryIncome", 31, "経常利益"), xbrl_fact(7, "ProfitLoss", 21, "当期純利益")],
+    }
+    xbrl.seq = [*xbrl.by_statement["BS"], *xbrl.by_statement["PL"]]
+    pairs = fst._pairs([full_pdf, part_pdf, xbrl])
+    learned = fst.learn_pair(*pairs[0])
+    assert "現金及び預金" in learned.maps["BS"]
+    assert {"売上高", "営業利益", "経常利益"} <= set(learned.maps["PL"])
+
+
+def test_label_cleaning_canonical_wording_twice_printed_loss_and_cf_cash_decrease() -> None:
+    assert fst._clean_label("営業利益（損失）") == "営業利益"
+    assert fst._clean_label("デリバティブ評価益─") == "デリバティブ評価益"
+    assert fst.strip_heads("販売費及び一般管理費運送費及び保管費", "PL") == "運送費及び保管費"
+    assert fst.strip_heads("その他の包括利益その他有価証券評価差額金", "PL") == "その他有価証券評価差額金"
+    assert fst.strip_heads("特別法上の準備金金融商品取引責任準備金", "BS") == "金融商品取引責任準備金"
+    assert fst.strip_heads("負債及び資本営業債務及びその他の債務", "BS") == "営業債務及びその他の債務"
+    assert fst.strip_heads("負債及び資本合計", "BS") == "負債及び資本合計"
+    assert fst.strip_heads("その他の包括利益累計額合計", "BS") == "その他の包括利益累計額合計"
+    assert fst._pdf_label("その他の包括利益累計額合計") == "その他の包括利益累計額合計"
+    assert fst.strip_heads("1株当たり当期利益(円)基本的1株当たり当期利益(円)", "PL") == "基本的1株当たり当期利益(円)"
+    assert fst.strip_heads("1株当たり当期利益基本的", "PL") == "1株当たり当期利益基本的"
+    pl_xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="Q2", period_end=date(2025, 9, 30),
+                         submitted="2025-11-10", standard="JPGAAP")
+    pl_xbrl.by_statement = {"PL": [
+        xbrl_fact(1, "IncomeBeforeIncomeTaxes", 50, "税引前当期純利益"),
+        xbrl_fact(2, "ProfitLoss", 30, "中間純利益又は中間純損失（△）"),
+        xbrl_fact(3, "ComprehensiveIncome", 35, "中間包括利益"),
+        xbrl_fact(4, "ComprehensiveIncomeAttributableToOwnersOfTheParent", 34, "親会社株主に係る中間包括利益"),
+    ]}
+    pl_xbrl.seq = list(pl_xbrl.by_statement["PL"])
+    pl_pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="Q2", period_end=date(2025, 9, 30),
+                        submitted="2025-11-01", standard="JPGAAP")
+    pl_pdf.by_statement = {"PL": [pl_fact("当期純利益", 30), pl_fact("当期純利益#2", 30)]}
+    learned = fst.learn_pair(pl_pdf, pl_xbrl)
+    names = fst.name_index([pl_xbrl], "PL")
+    q1_rows = [
+        pl_fact("税金等調整前当期純利益", -10), pl_fact("当期純損失", -10), pl_fact("当期純損失#2", -10),
+        pl_fact("四半期包括利益", -8), pl_fact("親会社株主に係る四半期包括利益", -8),
+    ]
+    assert keys_of(fst.apply_learned(q1_rows, [learned], "PL", date(2025, 6, 30), "Q", names)) == [
+        "IncomeBeforeIncomeTaxes", "ProfitLoss", "ProfitLoss",
+        "ComprehensiveIncome", "ComprehensiveIncomeAttributableToOwnersOfTheParent",
+    ]
+    cf_xbrl = fst.Filing(id=3, doc_id="CX", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                         submitted="2025-06-20", standard="JPGAAP")
+    cf_xbrl.by_statement = {"CF": [
+        xbrl_fact(10, "NetIncreaseDecreaseInCashAndCashEquivalents", 25, "現金及び現金同等物の増減額（△は減少）"),
+    ]}
+    cf_xbrl.seq = list(cf_xbrl.by_statement["CF"])
+    cf_pdf = fst.Filing(id=4, doc_id="CP", source="tdnet_pdf", period_type="FY", period_end=date(2025, 3, 31),
+                        submitted="2025-05-10", standard="JPGAAP")
+    cf_pdf.by_statement = {"CF": [
+        fst.Fact(11, "pdf:現金及び現金同等物の増減額", "現金及び現金同等物の増減額", "現金及び現金同等物の増減額", False, "JPY", 25),
+    ]}
+    cf_learned = fst.learn_pair(cf_pdf, cf_xbrl)
+    cf_names = fst.name_index([cf_xbrl], "CF")
+    dec_row = [
+        fst.Fact(12, "pdf:現金及び現金同等物の減少額", "現金及び現金同等物の減少額", "現金及び現金同等物の減少額", False, "JPY", -7),
+    ]
+    assert keys_of(fst.apply_learned(dec_row, [cf_learned], "CF", date(2025, 6, 30), "Q", cf_names)) == [
+        "NetIncreaseDecreaseInCashAndCashEquivalents",
+    ]
+

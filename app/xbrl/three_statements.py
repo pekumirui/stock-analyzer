@@ -77,15 +77,28 @@ OPENING_CASH_RE = re.compile(
 LABEL_NOISE_RES = (
     re.compile(r"又は[^（(]*?(?:（△）|\(△\))"),
     re.compile(r"（△[^）]*）|\(△[^)]*\)"),
+    re.compile(r"(?<=利益)\(損失\)|(?<=損失)\(利益\)"),
+    re.compile(r"[─―]+$"),
+)
+TRAIL_BAR_RE = re.compile(r"[─―]+$")
+CANON_NOISE_RE = re.compile(r"\((?:円|銭|注\d*)\)$")
+CANON_PERIOD_RE = re.compile(r"(?:四半期|中間)(純?(?:利益|損失)|包括利益)")
+CANON_TAX_RE = re.compile(r"^税金等調整前(当期純(?:利益|損失))$")
+CANON_PRETAX_IFRS_RE = re.compile(r"^税引前当期(利益|損失)$")
+PL_TWICE_FALLBACK = ("当期利益", "当期純利益", "当期損失", "当期純損失")
+PER_SHARE_HEAD_RE = re.compile(
+    r"^1株当たり(?:当期|四半期|中間)純?(?:利益|損失)(?:\(円\))?(?=(?:基本的|希薄化後)1株当たり)",
 )
 SECTION_HEADS = (
-    "流動資産", "投資その他の資産", "繰延資産", "流動負債", "固定負債", "株主資本",
-    "その他の包括利益累計額", "評価・換算差額等", "営業外収益", "営業外費用", "特別利益", "特別損失",
+    "流動資産", "投資その他の資産", "繰延資産", "流動負債", "固定負債", "特別法上の準備金",
+    "負債及び資本", "負債純資産", "株主資本", "その他の包括利益累計額", "評価・換算差額等",
+    "販売費及び一般管理費", "営業外収益", "営業外費用", "特別利益", "特別損失", "その他の包括利益",
 )
 GENERIC_LABELS = frozenset({"その他"})
 NEVER_MERGED_LABELS = frozenset({"その他", "貸倒引当金"})
 NEVER_MERGED_PREFIXES = ("減価償却累計額", "減損損失累計額")
-SIGNED_PROFIT_RE = re.compile(r"^(.+利益)(?:又は.*損失\(△\)|\(△は?損失\))$")
+SIGNED_PROFIT_RE = re.compile(r"^(.+利益)(?:又は.*損失(?:\(△\))?|\(△?は?損失\))$")
+SIGNED_CASH_RE = re.compile(r"^(.+の)(?:純)?増減額\(△は減少\)$")
 MIN_LOOSE_MATCH = 100
 PDF_FULL_RATIO = 0.7
 NAME_WEIGHT = 1
@@ -210,13 +223,31 @@ MATCH_MARKERS = {
 PDF_HEADS = {
     "BS": (
         "流動資産", "有形固定資産", "無形固定資産", "投資その他の資産", "繰延資産", "非流動資産", "流動負債",
-        "固定負債", "非流動負債", "株主資本", "その他の包括利益累計額", "評価・換算差額等",
+        "固定負債", "非流動負債", "特別法上の準備金", "負債及び資本", "負債純資産", "株主資本",
+        "その他の包括利益累計額", "評価・換算差額等",
     ),
-    "PL": ("営業外収益", "営業外費用", "特別利益", "特別損失"),
+    "PL": ("販売費及び一般管理費", "営業外収益", "営業外費用", "特別利益", "特別損失", "その他の包括利益"),
     "CF": ("営業活動によるキャッシュ・フロー", "投資活動によるキャッシュ・フロー", "財務活動によるキャッシュ・フロー"),
 }
-HEAD_KEEP_RE = re.compile(r"^(合計|小計|合$|計(#\d+|[─―ー]*)$|#|[（(、─―ー※・にへをと]|の(?!れん)|及び|並びに|等$)")
+HEAD_KEEP_RE = re.compile(
+    r"^(合計|小計|累計額|合$|計(#\d+|[─―ー]*)$|又は|#|[（(、─―ー※・にへをと]|の(?!れん)|及び|並びに|等$)",
+)
 HEAD_SEP_RE = re.compile(r"^[:：]")
+MARKER_ORDER = {
+    "BS": (
+        "CurrentAssets", "PropertyPlantAndEquipment", "IntangibleAssets",
+        "InvestmentsAndOtherAssets", "NoncurrentAssets", "DeferredAssets", "Assets",
+        "CurrentLiabilities", "NoncurrentLiabilities", "Liabilities",
+        "ShareholdersEquity", "ValuationAndTranslationAdjustments", "NetAssets", "LiabilitiesAndNetAssets",
+        "CurrentAssetsIFRS", "NonCurrentAssetsIFRS", "AssetsIFRS",
+        "CurrentLiabilitiesIFRS", "NonCurrentLiabilitiesIFRS", "LiabilitiesIFRS",
+        "EquityIFRS", "LiabilitiesAndEquityIFRS",
+    ),
+    "PL": (
+        "GrossProfit", "OperatingIncome", "NonOperatingIncome", "NonOperatingExpenses",
+        "OrdinaryIncome", "ExtraordinaryIncome", "ExtraordinaryLoss",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -296,6 +327,7 @@ class Learned:
     twice: dict[str, set[str]] = field(default_factory=dict)
     losses: dict[str, dict[str, Mapped]] = field(default_factory=dict)
     homes: dict[str, dict[str, str | None]] = field(default_factory=dict)
+    standard: str | None = None
 
 
 @dataclass
@@ -305,6 +337,8 @@ class Names:
     by_section: dict[tuple[str, str], str] = field(default_factory=dict)
     per_share: set[str] = field(default_factory=set)
     losses: dict[str, str] = field(default_factory=dict)
+    canon_keys: dict[str, str] = field(default_factory=dict)
+    canon_by_section: dict[tuple[str, str], str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -350,13 +384,14 @@ def financial_table(
     stitched = consolidated is None and _has_material(both[True]) and _has_material(both[False])
     if consolidated is None:
         consolidated = _has_material(both[True]) or not _has_material(both[False])
-    columns, labels, units = _basis_columns(both[consolidated], consolidated, statement)
+    excluded = _merge_exclusions().get((code, statement), set())
+    columns, labels, units = _basis_columns(both[consolidated], consolidated, statement, excluded)
     if stitched:
-        other, other_labels, other_units = _basis_columns(both[False], False, statement)
+        other, other_labels, other_units = _basis_columns(both[False], False, statement, excluded)
         columns = _stitch(columns, other)
         labels = {**other_labels, **labels}
         units = {**other_units, **units}
-    merged = merge_split_rows(columns, statement, labels, units, _merge_exclusions().get((code, statement), set()))
+    merged = merge_split_rows(columns, statement, labels, units, excluded)
     shown_from = columns
     columns = columns[-periods:]
     bases = {c.consolidated for c in columns}
@@ -509,10 +544,10 @@ def _period(column: Column) -> dict[str, Any]:
 
 
 def _basis_columns(
-    filings: Sequence[Filing], consolidated: bool, statement: str,
+    filings: Sequence[Filing], consolidated: bool, statement: str, excluded: Iterable[frozenset[str]] = (),
 ) -> tuple[list[Column], dict[str, str], dict[str, str | None]]:
     learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
-    columns = build_columns(filings, learned, statement)
+    columns = build_columns(filings, learned, statement, excluded)
     for column in columns:
         column.consolidated = consolidated
     return columns, _labels(filings, learned), _units(filings)
@@ -990,20 +1025,25 @@ def _same(a: float, b: float, tol: float) -> bool:
     return tol > 0 and abs(abs(a) - abs(b)) < tol
 
 
-def _lcs(a: Sequence[float], b: Sequence[float], tol: float) -> list[tuple[int, int]]:
+def _lcs(
+    a: Sequence[float], b: Sequence[float], tol: float, prefer: set[tuple[int, int]] | None = None,
+) -> list[tuple[int, int]]:
     n, m = len(a), len(b)
-    dp = [[0] * (m + 1) for _ in range(n + 1)]
+    fav = prefer or set()
+    dp: list[list[tuple[int, int]]] = [[(0, 0)] * (m + 1) for _ in range(n + 1)]
     for i in range(n - 1, -1, -1):
         row, nxt = dp[i], dp[i + 1]
         for j in range(m - 1, -1, -1):
+            best = max(nxt[j], row[j + 1])
             if _same(a[i], b[j], tol):
-                row[j] = nxt[j + 1] + 1
-            else:
-                row[j] = max(nxt[j], row[j + 1])
+                cand = (nxt[j + 1][0] + 1, nxt[j + 1][1] + ((i, j) in fav))
+                if cand > best:
+                    best = cand
+            row[j] = best
     out: list[tuple[int, int]] = []
     i = j = 0
     while i < n and j < m:
-        if _same(a[i], b[j], tol) and dp[i][j] == dp[i + 1][j + 1] + 1:
+        if _same(a[i], b[j], tol) and dp[i][j] == (dp[i + 1][j + 1][0] + 1, dp[i + 1][j + 1][1] + ((i, j) in fav)):
             out.append((i, j))
             i += 1
             j += 1
@@ -1015,7 +1055,7 @@ def _lcs(a: Sequence[float], b: Sequence[float], tol: float) -> list[tuple[int, 
 
 
 def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
-    learned = Learned(period_end=pdf.period_end, cls=pdf.cls)
+    learned = Learned(period_end=pdf.period_end, cls=pdf.cls, standard=xbrl.standard or pdf.standard)
     pdf_money = [f.value for facts in pdf.by_statement.values() for f in facts if f.unit in MONEY_UNITS]
     xbrl_money = [f.value for f in xbrl.seq if f.unit in MONEY_UNITS]
     g_pdf, g_xbrl = _granularity(pdf_money), _granularity(xbrl_money)
@@ -1024,7 +1064,16 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
     for statement, rows in pdf.by_statement.items():
         target = xbrl.by_statement.get(statement, [])
         in_rule = {f.key for f in target}
-        pairs = _lcs([f.value for f in rows], [f.value for f in target], tol)
+        row_bases = [_base(f, statement) for f in rows]
+        row_stems = [_total_stem(b) for b in row_bases]
+        tgt_labels = [_clean_label(f.label) for f in target]
+        prefer = {
+            (i, j)
+            for i, (b, stem) in enumerate(zip(row_bases, row_stems))
+            for j, tl in enumerate(tgt_labels)
+            if tl and (b == tl or stem == tl or _canon_name(b) == _canon_name(tl))
+        }
+        pairs = _lcs([f.value for f in rows], [f.value for f in target], tol, prefer)
         hit: dict[int, Fact] = {i: target[j] for i, j in pairs}
         used = {target[j].id for _, j in pairs}
         counts = defaultdict(int)
@@ -1071,7 +1120,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         within = _section_names([info.bases[i] for i in live], marks, statement)
         learned.by_section[statement] = {k: maps[names[live[n]]] for n, k in within.items() if live[n] in hit}
         learned.maps[statement] = maps
-        learned.losses[statement] = _losses(maps, xbrl.seq)
+        learned.losses[statement] = _losses(maps, xbrl.seq, statement)
         learned.homes[statement] = _homes([f.key for f in target], statement)
         learned.order[statement] = order
         learned.extras[statement] = extras
@@ -1091,13 +1140,25 @@ def _profit_name(label: str) -> str | None:
     return m.group(1) if m else None
 
 
+def _cash_decrease_name(label: str) -> str | None:
+    m = SIGNED_CASH_RE.match(unicodedata.normalize("NFKC", label).strip())
+    return f"{m.group(1)}減少額" if m else None
+
+
 def _loss_name(profit: str) -> str | None:
     if not profit.endswith("利益") or SUFFIX_RE.search(profit):
         return None
     return profit.removesuffix("利益") + "損失"
 
 
-def _losses(maps: Mapping[str, Mapped], facts: Iterable[Fact]) -> dict[str, Mapped]:
+def _losses(maps: Mapping[str, Mapped], facts: Iterable[Fact], statement: str = "PL") -> dict[str, Mapped]:
+    if statement == "CF":
+        dec = {f.key: name for f in facts if (name := _cash_decrease_name(f.label))}
+        found_cf: dict[str, set[Mapped]] = defaultdict(set)
+        for m in maps.values():
+            if m.key in dec:
+                found_cf[dec[m.key]].add(m)
+        return {name: next(iter(ms)) for name, ms in found_cf.items() if len(ms) == 1 and name not in maps}
     signed = {f.key: profit for f in facts if (profit := _profit_name(f.label))}
     found: dict[str, set[Mapped]] = defaultdict(set)
     for name, m in maps.items():
@@ -1116,6 +1177,20 @@ def _near(pool: Mapping[float, list[Fact]], value: float, tol: float) -> list[Fa
     return [f for v, facts in pool.items() if _same(v, value, tol) for f in facts]
 
 
+def _pair_pdf(pdfs: Sequence[Filing]) -> Filing:
+    newest = _newest(pdfs)
+    if len(pdfs) == 1:
+        return newest
+    by_statement: dict[str, list[Fact]] = {}
+    for st in STATEMENTS:
+        if not any(st in f.by_statement for f in pdfs):
+            continue
+        most = max(len(f.by_statement.get(st, ())) for f in pdfs)
+        chosen = newest if len(newest.by_statement.get(st, ())) >= most * PDF_FULL_RATIO else _pdf_base(pdfs, st)
+        by_statement[st] = chosen.by_statement[st]
+    return replace(newest, by_statement=by_statement)
+
+
 def _pairs(filings: Sequence[Filing]) -> list[tuple[Filing, Filing]]:
     by_end: dict[date, list[Filing]] = defaultdict(list)
     for f in filings:
@@ -1128,7 +1203,7 @@ def _pairs(filings: Sequence[Filing]) -> list[tuple[Filing, Filing]]:
             continue
         top = min(SOURCES.index(f.source) for f in xbrls)
         xbrl = _newest([f for f in xbrls if SOURCES.index(f.source) == top])
-        out.append((_newest(pdfs), xbrl))
+        out.append((_pair_pdf(pdfs), xbrl))
     return out
 
 
@@ -1153,7 +1228,7 @@ def _revised(
     mapped_keys: list[str] = []
     for filing in revisions:
         facts = filing.by_statement.get(statement, [])
-        copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+        copies = pdf_rows(facts, statement, printed_twice(pool, statement, names)).copies
         for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, filing.cls, names)):
             if n in copies:
                 continue
@@ -1173,22 +1248,37 @@ def _ranked(learned: Sequence[Learned], period_end: date, cls: str) -> list[Lear
     )
 
 
-def _global_order(learned: Iterable[Learned], statement: str) -> dict[str, int]:
+def _order_map(items: Iterable[Learned], statement: str) -> dict[str, int]:
     keys: list[str] = []
-    for item in sorted(learned, key=lambda x: x.period_end, reverse=True):
-        keys = _merge(keys, item.order.get(statement, []))
+    for item in items:
+        keys = _merge_statement(keys, item.order.get(statement, []), statement)
     return {k: i for i, k in enumerate(keys)}
 
 
-def _ranks(learned: Sequence[Learned], statement: str, cls: str) -> list[dict[str, int]]:
+def _global_order(learned: Iterable[Learned], statement: str) -> dict[str, int]:
+    return _order_map(sorted(learned, key=lambda x: x.period_end, reverse=True), statement)
+
+
+def _ranks(
+    learned: Sequence[Learned], statement: str, cls: str, period_end: date | None = None,
+) -> list[dict[str, int]]:
     ranks = [_global_order(learned, statement)]
     same = [x for x in learned if x.cls == cls]
     if same and len(same) < len(learned):
         ranks.append(_global_order(same, statement))
+    if period_end is not None and len(learned) > 1:
+        near = _order_map(_ranked(learned, period_end, cls), statement)
+        if near not in ranks:
+            ranks.append(near)
     return ranks
 
 
 def strip_heads(name: str, statement: str) -> str:
+    if statement == "PL":
+        norm = unicodedata.normalize("NFKC", name)
+        stripped = PER_SHARE_HEAD_RE.sub("", norm)
+        if stripped != norm:
+            name = stripped
     heads = sorted(PDF_HEADS.get(statement, ()), key=len, reverse=True)
     while True:
         for head in heads:
@@ -1229,8 +1319,22 @@ def pdf_rows(rows: Sequence[Fact], statement: str, twice: Iterable[str] | None =
     return PdfRows(names, bases, copies)
 
 
-def printed_twice(learned: Iterable[Learned], statement: str) -> set[str]:
-    return {name for item in learned for name in item.twice.get(statement, ())}
+def printed_twice(learned: Iterable[Learned], statement: str, names: Names | None = None) -> set[str]:
+    items = list(learned)
+    out = {name for item in items for name in item.twice.get(statement, ())}
+    if statement == "PL":
+        for item in items:
+            losses = item.losses.get("PL", {})
+            for name in item.twice.get("PL", ()):
+                loss = _loss_name(name)
+                if loss is not None and loss in losses:
+                    out.add(loss)
+        if not items and names is not None:
+            for name in PL_TWICE_FALLBACK:
+                cname = _canon_name(name)
+                if name in names.keys or cname in names.canon_keys or name in names.losses or cname in names.losses:
+                    out.add(name)
+    return out
 
 
 def _is_marker(key: str | None, statement: str) -> bool:
@@ -1264,6 +1368,17 @@ def _homes(keys: Sequence[str], statement: str) -> dict[str, str | None]:
         if _is_marker(key, statement):
             section = key
         out[key] = section if out.get(key, section) == section else None
+    return out
+
+
+def _lookup_all(ranked: Sequence[Learned], statement: str, name: str) -> list[Mapped]:
+    seen: set[str] = set()
+    out: list[Mapped] = []
+    for item in ranked:
+        m = item.maps.get(statement, {}).get(name)
+        if m is not None and m.key not in seen:
+            seen.add(m.key)
+            out.append(m)
     return out
 
 
@@ -1307,14 +1422,60 @@ def _loss_rows(
     return out
 
 
+def _resolve_contention(
+    proposals: Sequence[Mapped | None],
+    bases: Sequence[str],
+    cands: Sequence[Sequence[Mapped]],
+    extra_taken: set[str],
+) -> list[Mapped | None]:
+    resolved = list(proposals)
+    counts = Counter(m.key for m in resolved if m is not None)
+    taken = {k for k, c in counts.items() if c == 1} | extra_taken
+    by_key: dict[str, list[int]] = defaultdict(list)
+    for i, m in enumerate(resolved):
+        if m is not None and counts[m.key] > 1:
+            by_key[m.key].append(i)
+    for key, group in by_key.items():
+        alts: dict[int, Mapped | None] = {}
+        for i in group:
+            own = cands[i] if resolved[i] in cands[i] else ()
+            alts[i] = next((a for a in own if a.key != key and a.key not in taken), None)
+        locked = [i for i in group if alts[i] is None]
+        shifted = [i for i in group if alts[i] is not None]
+        alt_keys = [alts[i].key for i in shifted if alts[i] is not None]
+        if len(locked) == 1 and len(shifted) == len(alt_keys) == len(set(alt_keys)):
+            taken.add(key)
+            for i in shifted:
+                alt = alts[i]
+                if alt is not None:
+                    resolved[i] = alt
+                    taken.add(alt.key)
+            continue
+        if len(group) == 2 and _total_stem(bases[group[1]]) == bases[group[0]]:
+            taken.add(key)
+            alt0 = alts[group[0]]
+            if alt0 is not None and alt0.key not in taken:
+                resolved[group[0]] = alt0
+                taken.add(alt0.key)
+            else:
+                resolved[group[0]] = None
+    return resolved
+
+
 def _ordered(
     names: Sequence[str], proposals: Sequence[Mapped | None], ranks: Sequence[Mapping[str, int]],
+    bases: Sequence[str] = (), cands: Sequence[Sequence[Mapped]] = (), extra_taken: set[str] | None = None,
 ) -> tuple[list[Mapped | None], list[set[int]]]:
+    resolved = (
+        _resolve_contention(proposals, bases, cands, extra_taken or set())
+        if bases and cands
+        else list(proposals)
+    )
     counts = defaultdict(int)
-    for m in proposals:
+    for m in resolved:
         if m is not None:
             counts[m.key] += 1
-    unique = [m if m is not None and counts[m.key] == 1 else None for m in proposals]
+    unique = [m if m is not None and counts[m.key] == 1 else None for m in resolved]
     keeps = [
         _lis([
             (i, rank[m.key], 1 if _generic(names[i]) else 2)
@@ -1329,7 +1490,7 @@ def apply_learned(
     rows: Sequence[Fact], learned: Sequence[Learned], statement: str, period_end: date, cls: str,
     names: Names | None = None,
 ) -> list[tuple[Fact, Mapped | None]]:
-    info = pdf_rows(rows, statement, printed_twice(learned, statement))
+    info = pdf_rows(rows, statement, printed_twice(learned, statement, names))
     live = [i for i in range(len(rows)) if i not in info.copies]
     keys = [info.names[i] for i in live]
     bases = [info.bases[i] for i in live]
@@ -1381,7 +1542,7 @@ def _totals(
         if found[n] is not None or count[base] != 1 or keys[n] in known or base in names.keys:
             continue
         stem = _total_stem(base)
-        key = names.keys.get(stem) if stem is not None else None
+        key = (names.keys.get(stem) or names.canon_keys.get(_canon_name(stem))) if stem is not None else None
         if key is None or key in taken or (key in names.per_share) != (live_rows[n].unit in PER_SHARE_UNITS):
             continue
         out[n] = Mapped(key, 1, "name")
@@ -1399,12 +1560,14 @@ def _matched(
     period_end: date, cls: str, names: Names | None, totals: Mapping[int, Mapped],
 ) -> list[Mapped | None]:
     ranked = _ranked(learned, period_end, cls)
-    ranks = _ranks(learned, statement, cls)
-    proposals = [_lookup(ranked, statement, name) for name in keys]
+    ranks = _ranks(learned, statement, cls, period_end)
+    cands = [_lookup_all(ranked, statement, name) for name in keys]
+    proposals: list[Mapped | None] = [cs[0] if cs else None for cs in cands]
     losses = _loss_rows(live_rows, keys, bases, proposals, ranked, statement)
     for i, m in losses.items():
         proposals[i] = m
-    first, keeps = _ordered(keys, proposals, ranks)
+    total_keys = {m.key for m in totals.values()}
+    first, keeps = _ordered(keys, proposals, ranks, bases, cands, total_keys)
     kept = set().union(*keeps)
     marks = [first[i].key if i in kept and first[i] is not None else None for i in range(len(keys))]
     for i, m in totals.items():
@@ -1421,10 +1584,10 @@ def _matched(
             proposals[i] = None
     for i in totals:
         proposals[i] = None
+    proposals, keeps = _ordered(keys, proposals, ranks, bases, cands, total_keys)
     used = Counter(m.key for m in proposals if m is not None)
     used.update(m.key for m in totals.values())
     claimed = set(used)
-    proposals, keeps = _ordered(keys, proposals, ranks)
     keep = set().union(*keeps)
     by_name: dict[int, Mapped] = {}
     per_share = [f.unit in PER_SHARE_UNITS for f in live_rows]
@@ -1436,7 +1599,10 @@ def _matched(
     picked: set[int] = set()
     if by_name:
         for rank, kept_here in zip(ranks, keeps):
-            pos = {k: i for i, k in enumerate(_merge(sorted(rank, key=rank.__getitem__), names.order))}
+            pos = {
+                k: i
+                for i, k in enumerate(_merge_statement(sorted(rank, key=rank.__getitem__), names.order, statement))
+            }
             picked |= _lis([
                 (i, pos[by_name[i].key] if i in by_name else pos[proposals[i].key],
                  NAME_WEIGHT if i in by_name else KEPT_WEIGHT)
@@ -1458,38 +1624,109 @@ def _matched(
     return [proposals[n] if n in keep else None for n in range(len(keys))]
 
 
-def name_index(filings: Sequence[Filing], statement: str) -> Names:
-    found: dict[str, set[str]] = defaultdict(set)
-    within: dict[tuple[str, str], set[str]] = defaultdict(set)
+def name_index(filings: Sequence[Filing], statement: str, excluded: Iterable[frozenset[str]] = ()) -> Names:
+    xbrls = [
+        f for f in sorted(filings, key=lambda f: (f.period_end, f.submitted), reverse=True)
+        if not f.is_pdf
+    ]
+    skip = set(excluded)
+    found: dict[str, list[str]] = defaultdict(list)
+    within: dict[tuple[str, str], list[str]] = defaultdict(list)
+    canon_found: dict[str, list[str]] = defaultdict(list)
+    canon_within: dict[tuple[str, str], list[str]] = defaultdict(list)
+    losses: dict[str, list[str]] = defaultdict(list)
+    periods: dict[str, set[date]] = defaultdict(set)
+    homes_by_key: dict[str, set[str | None]] = defaultdict(set)
+    parts_by_key: dict[str, Part] = {}
+    multi_name: set[str] = set()
+    multi_canon: set[str] = set()
+    multi_within: set[tuple[str, str]] = set()
+    multi_canon_within: set[tuple[str, str]] = set()
     order: list[str] = []
     per_share: set[str] = set()
-    losses: dict[str, set[str]] = defaultdict(set)
-    for filing in sorted(filings, key=lambda f: (f.period_end, f.submitted), reverse=True):
-        if filing.is_pdf:
-            continue
+    for filing in xbrls:
         facts = filing.by_statement.get(statement, [])
+        if not facts:
+            continue
         labels = [_clean_label(f.label) for f in facts]
         labels = ["" if OPENING_CASH_RE.match(name) else name for name in labels]
+        canons = [_canon_name(name) if name else "" for name in labels]
         per_share.update(f.key for f in facts if f.unit in PER_SHARE_UNITS)
-        for f, name in zip(facts, labels):
+        declared = filing.parts.get(statement, {})
+        for k, part in declared.items():
+            parts_by_key.setdefault(k, part)
+        fhomes = _homes([f.key for f in facts], statement)
+        seen_name: Counter[str] = Counter()
+        seen_canon: Counter[str] = Counter()
+        for f, name, cname in zip(facts, labels, canons):
+            periods[f.key].add(filing.period_end)
+            homes_by_key[f.key].add(fhomes.get(f.key))
             if name:
-                found[name].add(f.key)
-            loss = _loss_name(_profit_name(f.label) or "")
-            if loss is not None:
-                losses[loss].add(f.key)
+                found[name].append(f.key)
+                seen_name[name] += 1
+            if cname:
+                canon_found[cname].append(f.key)
+                seen_canon[cname] += 1
+            if statement == "CF":
+                dec = _cash_decrease_name(f.label)
+                if dec is not None:
+                    losses[dec].append(f.key)
+            else:
+                loss = _loss_name(_profit_name(f.label) or "")
+                if loss is not None:
+                    losses[loss].append(f.key)
+        multi_name.update(n for n, c in seen_name.items() if c > 1)
+        multi_canon.update(n for n, c in seen_canon.items() if c > 1)
         section: str | None = None
-        for f, name in zip(reversed(facts), reversed(labels)):
+        seen_sec: Counter[tuple[str, str]] = Counter()
+        seen_csec: Counter[tuple[str, str]] = Counter()
+        for f, name, cname in zip(reversed(facts), reversed(labels), reversed(canons)):
             if _is_marker(f.key, statement):
                 section = f.key
             if section is not None and name:
-                within[(section, name)].add(f.key)
-        order = _merge(order, [f.key for f in facts])
+                within[(section, name)].append(f.key)
+                seen_sec[(section, name)] += 1
+            if section is not None and cname:
+                canon_within[(section, cname)].append(f.key)
+                seen_csec[(section, cname)] += 1
+        multi_within.update(k for k, c in seen_sec.items() if c > 1)
+        multi_canon_within.update(k for k, c in seen_csec.items() if c > 1)
+        order = _merge_statement(order, [f.key for f in facts], statement)
+
+    def pick(keys: list[str], label: str, multi: bool, check_home: bool) -> str | None:
+        uniq = list(dict.fromkeys(keys))
+        if len(uniq) == 1:
+            return uniq[0]
+        if multi or _never_merged(label):
+            return None
+        first = uniq[0]
+        ps = first in per_share
+        if any((k in per_share) != ps for k in uniq):
+            return None
+        if len({k.endswith("IFRS") for k in uniq}) > 1:
+            return None
+        key_set = set(uniq)
+        if any(pair <= key_set for pair in skip):
+            return None
+        if sum(len(periods[k]) for k in uniq) != len(set().union(*(periods[k] for k in uniq))):
+            return None
+        if check_home:
+            if len(set().union(*(homes_by_key[k] for k in uniq))) > 1:
+                return None
+            with_parts = [parts_by_key[k] for k in uniq if k in parts_by_key]
+            if len(with_parts) > 1 and any(not _same_part(with_parts[0], p) for p in with_parts[1:]):
+                return None
+        return first
+
     return Names(
-        {name: next(iter(keys)) for name, keys in found.items() if len(keys) == 1},
+        {n: k for n, ks in found.items() if (k := pick(ks, n, n in multi_name, True)) is not None},
         order,
-        {k: next(iter(keys)) for k, keys in within.items() if len(keys) == 1},
+        {sk: k for sk, ks in within.items() if (k := pick(ks, sk[1], sk in multi_within, False)) is not None},
         per_share,
-        {name: next(iter(keys)) for name, keys in losses.items() if len(keys) == 1},
+        {n: k for n, ks in losses.items() if (k := pick(ks, n, False, True)) is not None},
+        {n: k for n, ks in canon_found.items() if (k := pick(ks, n, n in multi_canon, True)) is not None},
+        {sk: k for sk, ks in canon_within.items()
+         if (k := pick(ks, sk[1], sk in multi_canon_within, False)) is not None},
     )
 
 
@@ -1503,11 +1740,12 @@ def _by_name(
         sk = by_section.get(i)
         if name in known or (sk is not None and sk in known):
             continue
-        key = names.keys.get(name) if count[bases[i]] == 1 else None
+        cname = _canon_name(name)
+        key = (names.keys.get(name) or names.canon_keys.get(cname)) if count[bases[i]] == 1 else None
         if key is None and count[bases[i]] == 1 and losing[i]:
-            key = names.losses.get(name)
+            key = names.losses.get(name) or names.losses.get(cname)
         if key is None and sk is not None and bases[i] not in GENERIC_LABELS:
-            key = names.by_section.get(sk)
+            key = names.by_section.get(sk) or names.canon_by_section.get((sk[0], _canon_name(sk[1])))
         if key is not None and key not in claimed and (key in names.per_share) == per_share[i]:
             out[i] = Mapped(key, 1, "name")
     counts = defaultdict(int)
@@ -1533,7 +1771,7 @@ def _in_section(
         if got is None or homes.get(got.key) != {sk[0]}:
             key = None
             if names is not None and bases[i] not in GENERIC_LABELS:
-                key = names.by_section.get(sk)
+                key = names.by_section.get(sk) or names.canon_by_section.get((sk[0], _canon_name(sk[1])))
             if key is None or (key in names.per_share) != per_share[i]:
                 continue
             got = m if m.key == key else Mapped(key, 1, "name")
@@ -1580,6 +1818,41 @@ def _merge(base: list[str], seq: Sequence[str]) -> list[str]:
     return out
 
 
+def _merge_statement(base: list[str], seq: Sequence[str], statement: str) -> list[str]:
+    markers = MARKER_ORDER.get(statement)
+    if not markers or not base:
+        return _merge(base, seq)
+    m_rank = {k: i for i, k in enumerate(markers)}
+    out = list(base)
+    pos = {k: i for i, k in enumerate(out)}
+    i = 0
+    n = len(seq)
+    prev: str | None = None
+    while i < n:
+        if seq[i] in pos:
+            prev = seq[i]
+            i += 1
+            continue
+        j = i
+        while j < n and seq[j] not in pos:
+            j += 1
+        run = seq[i:j]
+        nxt = seq[j] if j < n else None
+        at = pos[prev] + 1 if prev is not None else 0
+        limit = pos[nxt] if nxt is not None and pos[nxt] >= at else len(out)
+        run_m = next((m_rank[k] for k in run if k in m_rank), None)
+        if run_m is not None:
+            for k in range(at, limit):
+                existing = m_rank.get(out[k])
+                if existing is not None and existing < run_m:
+                    at = k + 1
+        out[at:at] = run
+        pos = {k: idx for idx, k in enumerate(out)}
+        prev = run[-1]
+        i = j
+    return out
+
+
 def _with_extras(filing: Filing, statement: str, learned: Sequence[Learned]) -> list[Fact]:
     facts = list(filing.by_statement.get(statement, []))
     present = {f.key for f in facts}
@@ -1599,26 +1872,61 @@ def _opening_cash(key: str) -> bool:
     return key.startswith("pdf:") and OPENING_CASH_RE.match(SUFFIX_RE.sub("", key[4:])) is not None
 
 
+def _scoped_for_pdf(
+    filing: Filing,
+    filings: Sequence[Filing],
+    pool: Sequence[Learned],
+    statement: str,
+    default_names: Names,
+    names_by_std: dict[str, Names],
+    excluded: Iterable[frozenset[str]] = (),
+) -> tuple[Sequence[Learned], Names]:
+    std = filing.standard
+    if not std:
+        return pool, default_names
+    has_same = any(not f.is_pdf and statement in f.by_statement and f.standard == std for f in filings)
+    has_other = any(
+        not f.is_pdf and statement in f.by_statement and f.standard is not None and f.standard != std
+        for f in filings
+    )
+    if not (has_same and has_other):
+        return pool, default_names
+    scoped_pool = [x for x in pool if x.standard in (None, std)]
+    if std not in names_by_std:
+        names_by_std[std] = name_index(
+            [f for f in filings if f.is_pdf or f.standard in (None, std)], statement, excluded,
+        )
+    return scoped_pool, names_by_std[std]
+
+
 def pdf_only_matches(db: Session, code: str) -> list[PdfMatch]:
     out: list[PdfMatch] = []
     for basis, filings in load_both(db, code).items():
         learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
         xbrl_ends = {f.period_end for f in filings if not f.is_pdf and f.by_statement}
         for statement in STATEMENTS:
-            names = name_index(filings, statement)
+            excluded = _merge_exclusions().get((code, statement), set())
+            names = name_index(filings, statement, excluded)
+            names_by_std: dict[str, Names] = {}
             for filing in filings:
                 if not filing.is_pdf or filing.period_end in xbrl_ends or statement not in filing.by_statement:
                     continue
                 facts = filing.by_statement[statement]
-                for fact, mapped in apply_learned(facts, learned, statement, filing.period_end, filing.cls, names):
+                pool, scoped_names = _scoped_for_pdf(
+                    filing, filings, learned, statement, names, names_by_std, excluded,
+                )
+                for fact, mapped in apply_learned(facts, pool, statement, filing.period_end, filing.cls, scoped_names):
                     if statement == "CF" and mapped is None and _opening_cash(fact.key):
                         continue
                     out.append(PdfMatch(filing, basis, statement, fact, mapped))
     return out
 
 
-def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], statement: str) -> list[Column]:
-    names = name_index(filings, statement)
+def build_columns(
+    filings: Sequence[Filing], learned: Sequence[Learned], statement: str, excluded: Iterable[frozenset[str]] = (),
+) -> list[Column]:
+    names = name_index(filings, statement, excluded)
+    names_by_std: dict[str, Names] = {}
     by_end: dict[date, list[Filing]] = defaultdict(list)
     for f in filings:
         if statement in f.by_statement:
@@ -1647,10 +1955,13 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
             if filing.is_pdf:
                 cls = filing.cls
                 pairs = [x for x in learned if x.period_end == period_end]
-                pool = pairs if not primary.is_pdf and pairs else learned
+                raw_pool = pairs if not primary.is_pdf and pairs else learned
+                pool, scoped_names = _scoped_for_pdf(
+                    filing, filings, raw_pool, statement, names, names_by_std, excluded,
+                )
                 facts = filing.by_statement[statement]
-                by_name = names if filing is primary else None
-                copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+                by_name = scoped_names if filing is primary else None
+                copies = pdf_rows(facts, statement, printed_twice(pool, statement, by_name)).copies
                 revised, later = _revised(revisions, pool, statement, period_end, by_name)
                 for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, cls, by_name)):
                     if n in copies:
@@ -1679,7 +1990,7 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                         sources[fact.key] = filing.source
                         if fact.key in declared:
                             parts[fact.key] = declared[fact.key]
-            order = _merge(order, [k for k in seq if k in values])
+            order = _merge_statement(order, [k for k in seq if k in values], statement)
         columns.append(Column(primary, values, order, sources, parts=parts))
     return columns
 
@@ -1771,8 +2082,17 @@ def _clean_label(raw: str) -> str:
     return out.strip()
 
 
+def _canon_name(name: str) -> str:
+    out = CANON_NOISE_RE.sub("", name).strip()
+    out = CANON_PERIOD_RE.sub(r"当期\1", out)
+    out = out.replace("当期包括利益", "包括利益")
+    out = CANON_TAX_RE.sub(r"税引前\1", out)
+    out = CANON_PRETAX_IFRS_RE.sub(r"税引前\1", out)
+    return out
+
+
 def _pdf_label(local: str, xbrl_label: str = "") -> str:
-    name = SUFFIX_RE.sub("", local)
+    name = TRAIL_BAR_RE.sub("", SUFFIX_RE.sub("", local))
     if (
         len(xbrl_label) >= 2
         and xbrl_label not in GENERIC_LABELS
@@ -1781,9 +2101,13 @@ def _pdf_label(local: str, xbrl_label: str = "") -> str:
         and not name.endswith("計")
     ):
         return xbrl_label
+    norm = unicodedata.normalize("NFKC", name)
+    stripped = PER_SHARE_HEAD_RE.sub("", norm)
+    if stripped != norm:
+        return stripped
     for head in sorted(SECTION_HEADS, key=len, reverse=True):
-        rest = name[len(head):]
-        if name.startswith(head) and rest and not rest.startswith("合計"):
+        rest = HEAD_SEP_RE.sub("", name[len(head):])
+        if name.startswith(head) and rest and not HEAD_KEEP_RE.search(rest):
             return rest
     return name
 
