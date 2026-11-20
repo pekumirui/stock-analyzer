@@ -27,7 +27,7 @@ from app.db import run_sqlite_write, upsert
 from app.edinet.client import is_not_found
 from app.edinet.documents import now_jst
 from app.models import EdinetArchive
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 if TYPE_CHECKING:
     from app.edinet_wrapper import EdinetClient

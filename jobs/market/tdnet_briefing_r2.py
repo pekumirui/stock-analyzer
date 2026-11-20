@@ -52,7 +52,7 @@ from jobs.monthly.tdnet_monthly_r2 import (
     jq_lookup_code,
     tdnet_pdf_id,
 )
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("briefing"))
 USER_AGENT = "stock-analyzer-tdnet-briefing/1.0"

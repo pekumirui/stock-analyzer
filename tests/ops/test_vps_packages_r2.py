@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 from jobs.ops.vps_packages_r2 import (
     DEFAULT_DEST,
     LATEST_NAME,

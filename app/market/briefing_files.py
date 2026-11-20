@@ -17,8 +17,8 @@ from app.market.briefing_store import (
     STORAGE_ONEDRIVE,
     find_saved,
 )
-from jobs.ops.backup_db import offsite_settings_from_env
-from jobs.share_paths import share_path
+from app.offsite_settings import offsite_settings_from_env
+from app.share_paths import share_path
 
 RCLONE_CAT_TIMEOUT_S = 300.0
 RemoteGet = Callable[[str], bytes]

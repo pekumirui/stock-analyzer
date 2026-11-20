@@ -53,43 +53,35 @@ config:
   layout: elk
 ---
 flowchart LR
-  n0["app"]:::ext
-  n1["app/edinet"]:::ext
-  n2["app/market"]:::ext
-  n3["app/monthly"]:::ext
-  n4["app/supply"]:::ext
-  n5["app/xbrl"]:::ext
-  n6["jobs"]:::own
-  n7["jobs/edinet"]:::own
-  n8["jobs/market"]:::own
-  n9["jobs/monthly"]:::own
-  n10["jobs/ops"]:::own
-  n11["jobs/supply"]:::own
-  n12["jobs/xbrl"]:::own
-  n13["vendor"]:::ext
-  n0 -.-> n6
-  n1 -.-> n6
-  n2 -.-> n6
-  n2 -.-> n10
-  n5 -.-> n12
-  n6 --> n2
-  n6 --> n3
+  n0["app/edinet"]:::ext
+  n1["app/market"]:::ext
+  n2["app/monthly"]:::ext
+  n3["app/supply"]:::ext
+  n4["app/xbrl"]:::ext
+  n5["jobs"]:::own
+  n6["jobs/edinet"]:::own
+  n7["jobs/market"]:::own
+  n8["jobs/monthly"]:::own
+  n9["jobs/ops"]:::own
+  n10["jobs/supply"]:::own
+  n11["jobs/xbrl"]:::own
+  n12["vendor"]:::ext
+  n5 --> n1
+  n5 --> n2
+  n6 --> n0
+  n6 --> n4
+  n6 --> n12
   n7 --> n1
-  n7 --> n5
-  n7 --> n13
+  n7 --> n8
+  n7 --> n9
   n8 --> n2
-  n8 --> n9
-  n8 --> n10
-  n9 --> n3
+  n10 --> n3
+  n11 --> n0
   n11 --> n4
-  n12 --> n1
-  n12 --> n5
-  n12 --> n13
+  n11 --> n12
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
-
-点線の矢印は `app` が `jobs` を `import` している所（`jobs` 直下への線もここだけ出す）。ふつうは `jobs` が `app` を使う向きなので、逆向きを見分けるために出した。
 
 ## tools・mcp・analyzer
 
@@ -162,13 +154,13 @@ flowchart LR
 | パッケージ | 依存先 |
 |---|---|
 | `analyzer` | `app`, `app/market` |
-| `app` | `app/api`, `app/market`, `app/monthly`, `app/xbrl`, `jobs` |
+| `app` | `app/api`, `app/market`, `app/monthly`, `app/xbrl` |
 | `app/api` | `app`, `app/market`, `app/monthly`, `app/supply`, `app/xbrl` |
-| `app/edinet` | `app`, `app/xbrl`, `jobs`, `vendor` |
-| `app/market` | `app`, `app/xbrl`, `jobs`, `jobs/ops` |
+| `app/edinet` | `app`, `app/xbrl`, `vendor` |
+| `app/market` | `app`, `app/xbrl` |
 | `app/monthly` | `app` |
 | `app/supply` | `app` |
-| `app/xbrl` | `app`, `app/edinet`, `jobs/xbrl`, `vendor` |
+| `app/xbrl` | `app`, `app/edinet`, `vendor` |
 | `jobs` | `app`, `app/market`, `app/monthly` |
 | `jobs/edinet` | `app`, `app/edinet`, `app/xbrl`, `vendor` |
 | `jobs/market` | `app`, `app/market`, `jobs`, `jobs/monthly`, `jobs/ops` |

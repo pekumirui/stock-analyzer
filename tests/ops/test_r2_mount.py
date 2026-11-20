@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "monthly"))
 
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 from jobs._r2common import (
     MOUNT_RETRIES,
     MOUNT_RETRY_WAIT_SEC,
