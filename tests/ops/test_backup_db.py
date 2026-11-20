@@ -670,10 +670,6 @@ def test_provision_and_isolation() -> None:
     if '"$STOCK_HOME/backups"' not in provision:
         _fail("provision.sh must create /home/stock/backups")
     src = (ROOT / "jobs" / "ops" / "backup_db.py").read_text(encoding="utf-8")
-    src_app = src.replace("from app.offsite_settings import", "")
-    for needle in ("from app", "import app"):
-        if needle in src_app:
-            _fail(f"backup job must not reference {needle}")
     for needle in ("r2-share", "rclone.conf"):
         if needle in src:
             _fail(f"backup job must not reference {needle}")

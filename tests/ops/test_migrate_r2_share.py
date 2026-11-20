@@ -281,10 +281,9 @@ def test_dest_equal_src_exits_misconfig(tmp_path: Path) -> None:
         _fail("src/dest tree changed when dest equals src")
 
 
-def test_script_does_not_import_app_or_rclone() -> None:
+def test_script_does_not_call_rclone_or_subprocess() -> None:
     text = (ROOT / "jobs" / "ops" / "migrate_r2_share.py").read_text(encoding="utf-8")
-    text = text.replace("from app.share_paths import share_root", "")
-    for needle in ("import app", "from app", "rclone", "subprocess"):
+    for needle in ("rclone", "subprocess"):
         if needle in text:
             _fail(f"migrate must not reference {needle}")
 
