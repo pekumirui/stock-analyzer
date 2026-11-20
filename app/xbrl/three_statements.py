@@ -27,6 +27,7 @@ __all__ = [
     "PdfRows",
     "apply_learned",
     "financial_table",
+    "gather_heads",
     "learn_pair",
     "load_filings",
     "merge_split_rows",
@@ -365,7 +366,11 @@ def financial_table(
         consolidated = bases.pop()
     keys = _row_keys(columns, statement)
     ifrs = next((part.ifrs for c in reversed(shown_from) for part in c.parts.values()), False)
-    parts = _shown(keys, row_parts(shown_from, keys), statement, labels, ifrs)
+    declared = row_parts(shown_from, keys)
+    parts = _shown(keys, declared, statement, labels, ifrs)
+    if len({part.ifrs for part in declared if part is not None}) < 2:
+        order = gather_heads(keys, [tuple((h["key"], h["name"]) for h in heads) for heads, _ in parts], labels)
+        keys, parts = [keys[i] for i in order], [parts[i] for i in order]
     rows = [
         {
             "key": key,
@@ -1709,6 +1714,43 @@ def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | Non
         else:
             out[i] = after[i] if closed else above
     return out
+
+
+def gather_heads(keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[str, str]) -> list[int]:
+    def total(i: int, head: tuple, depth: int) -> bool:
+        if len(paths[i]) != depth + 1:
+            return False
+        return keys[i] == str(head[0]).replace("Abstract", "", 1) or bool(TOTAL_TAIL_RE.search(labels.get(keys[i], "")))
+
+    def gather(rows: list[int], depth: int) -> list[int]:
+        segments: list[tuple[tuple | None, list[int]]] = []
+        for i in rows:
+            head = paths[i][depth] if len(paths[i]) > depth else None
+            if segments and segments[-1][0] == head:
+                segments[-1][1].append(i)
+            else:
+                segments.append((head, [i]))
+        found: dict[tuple, list[int]] = defaultdict(list)
+        for n, (head, _) in enumerate(segments):
+            if head is not None:
+                found[head].append(n)
+        for head, at in found.items():
+            if len(at) < 2:
+                continue
+            keep = max(at, key=lambda n: (len(segments[n][1]), -n))
+            body = segments[keep][1]
+            before = [i for n in at if n < keep for i in segments[n][1]]
+            after = [i for n in at if n > keep for i in segments[n][1]]
+            tail = [body[-1]] if after and total(body[-1], head, depth) else []
+            merged = before + body[: len(body) - len(tail)] + after + tail
+            for n in at:
+                segments[n] = (head, merged if n == keep else [])
+        out: list[int] = []
+        for head, members in segments:
+            out.extend(members if head is None else gather(members, depth + 1))
+        return out
+
+    return gather(list(range(len(keys))), 0)
 
 
 def _same_part(a: Part | None, b: Part | None) -> bool:

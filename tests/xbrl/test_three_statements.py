@@ -2354,3 +2354,31 @@ def test_table_shows_declared_heads_and_lends_them_to_rows_of_older_filings() ->
     assert got["LongTermPrepaidExpenses"] == (("資産", "固定資産"), 0)
     lent = rows(table(DECLARED))["OtherCA"]["heads"]
     assert [h["key"] for h in lent] == ["AssetsAbstract", "CurrentAssetsAbstract"]
+
+
+def order(rows: list[tuple[str, tuple]], labels: dict[str, str] | None = None) -> list[str]:
+    keys = [key for key, _ in rows]
+    paths = [tuple((name, name) for name in path) for _, path in rows]
+    return [keys[i] for i in fst.gather_heads(keys, paths, labels or {})]
+
+
+def test_rows_of_one_heading_are_gathered_into_the_largest_block() -> None:
+    loss, gain = ("特別損失",), ("特別利益",)
+    rows = [("OrdinaryIncome", ()), ("Damages", loss), ("Subsidy", gain), ("ExtraordinaryIncome", gain),
+            ("Impairment", loss), ("Disaster", loss), ("ExtraordinaryLoss", loss), ("IncomeBeforeIncomeTaxes", ())]
+    assert order(rows) == ["OrdinaryIncome", "Subsidy", "ExtraordinaryIncome", "Damages", "Impairment", "Disaster",
+                           "ExtraordinaryLoss", "IncomeBeforeIncomeTaxes"]
+    late = [("Impairment", loss), ("LossTotal", loss), ("Subsidy", gain), ("Old", loss), ("Tax", ())]
+    assert order(late, {"LossTotal": "特別損失合計"}) == ["Impairment", "Old", "LossTotal", "Subsidy", "Tax"]
+    assert order(late) == ["Impairment", "LossTotal", "Old", "Subsidy", "Tax"]
+
+
+def test_rows_under_an_outer_heading_between_inner_blocks_stay_in_place() -> None:
+    fixed, ppe, ioa = ("資産", "固定資産"), ("資産", "固定資産", "有形"), ("資産", "固定資産", "投資")
+    rows = [("Land", ppe), ("PPE", ppe), ("Intangible", fixed), ("Securities", ioa), ("IOA", ioa),
+            ("NoncurrentAssets", fixed), ("Assets", ("資産",)), ("Total", ())]
+    assert order(rows) == [key for key, _ in rows]
+    split = [("Land", ppe), ("Intangible", fixed), ("Securities", ioa), ("OldBuilding", ppe), ("NoncurrentAssets", fixed)]
+    assert order(split) == ["Land", "OldBuilding", "Intangible", "Securities", "NoncurrentAssets"]
+    deep = [("A", ("負債", "流動")), ("X", ("資産", "流動")), ("B", ("負債", "固定")), ("C", ("負債", "流動"))]
+    assert order(deep) == ["X", "A", "C", "B"]
