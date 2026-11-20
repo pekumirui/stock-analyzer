@@ -1533,6 +1533,13 @@ def test_standard_runs_follow_the_roles_then_the_filing() -> None:
     cols[0].primary.standard = "IFRS"
     assert [len(run) for run in fst._standard_runs(cols[:2])] == [2]
     assert fst._standard_runs([]) == []
+    lone = [column("2022-03-31", {"B": 1}, {"B": ifrs}), column("2022-06-30", {"B": 1}),
+            column("2022-09-30", {"B": 1}, {"B": ifrs}), column("2022-12-31", {"A": 1})]
+    lone[1].primary.standard = "JPGAAP"
+    lone[3].primary.standard = "JPGAAP"
+    assert [len(run) for run in fst._standard_runs(lone)] == [3, 1]
+    lone[1].parts["B"] = jp
+    assert [len(run) for run in fst._standard_runs(lone)] == [1, 1, 1, 1]
 
 
 def test_quarterly_report_takes_year_to_date_over_three_months() -> None:

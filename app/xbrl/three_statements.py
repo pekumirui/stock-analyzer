@@ -361,10 +361,15 @@ def financial_table(
 
 
 def _standard_runs(columns: Sequence[Column]) -> list[list[Column]]:
-    kinds: list[bool | None] = [
-        next((part.ifrs for part in c.parts.values()), None if c.standard is None else c.standard == "IFRS")
-        for c in columns
+    declared = [next((part.ifrs for part in c.parts.values()), None) for c in columns]
+    kinds = [
+        d if d is not None or c.standard is None else c.standard == "IFRS" for c, d in zip(columns, declared)
     ]
+    known = [i for i, kind in enumerate(kinds) if kind is not None]
+    for n, i in enumerate(known[1:-1], 1):
+        around = kinds[known[n - 1]]
+        if declared[i] is None and around == kinds[known[n + 1]]:
+            kinds[i] = around
     for step in (1, -1):
         last: bool | None = None
         for i in range(len(kinds))[::step]:
