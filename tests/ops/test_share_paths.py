@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from jobs._r2common import fail_if_mount_down, path_on_r2_share
-from jobs.share_paths import PREFIXES, share_path, share_root
+from app.share_paths import PREFIXES, share_path, share_root
 
 FUSE = "/home/stock/r2-share"
 

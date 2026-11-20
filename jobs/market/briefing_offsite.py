@@ -45,20 +45,19 @@ from app.market.briefing_store import (
     mark_storage,
 )
 from app.models import BriefingDocument
+from app.offsite_settings import BackupError, offsite_settings_from_env
 from jobs.ops.backup_db import (
     RCLONE_CHECK_TIMEOUT_S,
     RCLONE_COPY_TIMEOUT_S,
-    BackupError,
     OffsiteSkip,
     RcloneRunFn,
     WhichFn,
     clip_cmd_output,
     make_rclone_runner,
-    offsite_settings_from_env,
     probe_offsite,
     rclone_flags,
 )
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 # 1 回に送る件数。少ないと rclone の起動が支配的で、多いと落ちたときのやり直しが大きい。
 BATCH_SIZE = 100

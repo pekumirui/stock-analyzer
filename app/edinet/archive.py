@@ -4,7 +4,7 @@
 EDINET から取った ZIP は data/edinet/{書類種別}/{docID}_type{n}.zip に書き、edinet_archives に
 記録する。OneDrive への退避は jobs/ops/backup_data.py（毎朝 rclone move。VPS 側は消える）。
 OneDrive の場所は backup_data と同じ BACKUP_OFFSITE_REMOTE / BACKUP_OFFSITE_PATH の下の data/edinet。
-設計は docs/jobs/edinet.md §10。
+設計は docs/jobs/edinet.md「書類の ZIP」。
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from app.db import run_sqlite_write, upsert
 from app.edinet.client import is_not_found
 from app.edinet.documents import now_jst
 from app.models import EdinetArchive
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 if TYPE_CHECKING:
     from app.edinet_wrapper import EdinetClient

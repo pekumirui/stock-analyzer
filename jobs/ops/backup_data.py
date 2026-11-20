@@ -24,22 +24,20 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from app.offsite_settings import BackupError, OffsiteSettings, offsite_settings_from_env
 from jobs.ops.backup_db import (
     RCLONE_CHECK_TIMEOUT_S,
     RCLONE_COPY_TIMEOUT_S,
-    BackupError,
     CmdResult,
-    OffsiteSettings,
     OffsiteSkip,
     RcloneRunFn,
     WhichFn,
     clip_cmd_output,
     make_rclone_runner,
-    offsite_settings_from_env,
     probe_offsite,
     rclone_flags,
 )
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 KINDS = ("xbrl", "monthly", "edinet")
 # VPS 側を消す（送って確かめたものだけ）。EDINET の ZIP は EDINET から取り直せる間は

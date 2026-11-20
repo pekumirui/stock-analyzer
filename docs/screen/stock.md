@@ -1,6 +1,6 @@
 # 銘柄タブ
 
-原文の取込と保存は `docs/jobs/xbrl.md` §15（TDnet の ZIP）と §16（過去の回を IR BANK の PDF から変換）。大量保有・自己株買い・公開買付けの取込は `docs/jobs/edinet.md` §5〜§7。共通見た目は `docs/screen/SPEC.md`。
+原文の取込と保存は `docs/jobs/xbrl.md`「短信の原文 HTML」（TDnet の ZIP）と「過去の短信を PDF から HTML にする」（過去の回を IR BANK の PDF から変換）。大量保有・自己株買い・公開買付けの取込は `docs/jobs/edinet.md`「大量保有報告書」「自己株券買付状況報告書」「公開買付け」。共通見た目は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 
@@ -166,7 +166,7 @@
    - 見出し行（`tr.fs-sec`。数字の無い行。科目の列に名前、残りの列は 1 つにまとめた空のセル。背景は月次年表の見出し行と同じ `#f0f3f6`）。行の `heads`（外側からの見出しの道筋）が前の行と分かれる段から下の見出しを、段ごとに 1 行ずつ出す（`fs-sec0` が外側。`fs-sec5` まで。それより深い段は `fs-sec5` のまま）。段の数は決めない（書類の表示リンクの宣言どおり。資産の部 > 固定資産 > 有形固定資産、鉄道事業固定資産などの業種の見出し、PL の営業外収益・特別損失なども出る）。宣言の無い古い書類だけの行は 大区分 > 区分 の 2 段。科目は `heads` の段の数と `indent`（金額のある科目の下の内訳。銀行の 有形固定資産 > 建物 など）を足した段だけ字下げ（`td.d1` 〜 `td.d6`）。見出しの外の行（負債純資産合計、CF の換算差額から後ろ）は見出しを出さず字下げしない。どの行にも `heads` が無い表（宣言の無い書類だけの PL、合計の要素が無い会社）は見出しも字下げも無い
    - 合計行を太字にするなどの区別はしない（行名からは推し量らない）
    - 増減・成長率・Q単独などの計算値は出さない
-4. 前の会計基準の期の表 `#st-fs-earlier`。日本基準から IFRS に移った会社などで、表示する期に前の基準の期が入るとき（API の `earlier`）だけ出す。表ごとに、説明の 1 行（`p.fs-earlier`。`日本基準の期 / 21.12〜23.03 / 連結`）と、3 と同じ作りの表（`table.sheet.fin.fs`。枠は `.tbl-wrap`）。新しい基準の表（3）が上、前の基準の表が下。基準をまたいで科目を 1 行に寄せない（`docs/jobs/xbrl.md` §17「会計基準で表を分ける」）
+4. 前の会計基準の期の表 `#st-fs-earlier`。日本基準から IFRS に移った会社などで、表示する期に前の基準の期が入るとき（API の `earlier`）だけ出す。表ごとに、説明の 1 行（`p.fs-earlier`。`日本基準の期 / 21.12〜23.03 / 連結`）と、3 と同じ作りの表（`table.sheet.fin.fs`。枠は `.tbl-wrap`）。新しい基準の表（3）が上、前の基準の表が下。基準をまたいで科目を 1 行に寄せない（`docs/jobs/xbrl.md`「財務3表」の「会計基準で表を分ける」）
 
 **操作。** 表と期数を押すとその組み合わせで読み直して描く（同じ銘柄・同じ組み合わせは 2 回目から読まない）。銘柄を選び直しても表と期数はそのまま（ルートには残さない）。連結 / 個別の切り替えは置かない（`consolidated=auto`。途中から連結を始めた会社は、始める前の期を個別でつないで 1 本の表にする）。
 
@@ -306,11 +306,11 @@
 }
 ```
 
-財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/jobs/xbrl.md` §17。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結を主にして、連結の列が始まる前・終わった後の期を個別で埋める）/ `true` / `false`（どちらか一方だけ）。応答の `consolidated` / `basis` は出した方で、出した列に連結と個別が混ざれば `null` / `連結・個別`。列ごとの方は `periods[].consolidated`。`cumulative` は PL・CF（期首からの累計）で true。
+財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/jobs/xbrl.md`「財務3表」。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結を主にして、連結の列が始まる前・終わった後の期を個別で埋める）/ `true` / `false`（どちらか一方だけ）。応答の `consolidated` / `basis` は出した方で、出した列に連結と個別が混ざれば `null` / `連結・個別`。列ごとの方は `periods[].consolidated`。`cumulative` は PL・CF（期首からの累計）で true。
 
-`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`heads` は行の見出しの道筋（外側から。1 段は `{key, name}`。`key` は見出しの要素名、`name` は表示名）。段の数は決めない。書類の表示リンクの宣言どおり（BS・PL・CF とも）。宣言の無い古い書類だけの行は `{key: 大区分・区分の合計の要素, name: 資産 / 流動資産 …}` の 2 段（PL は無し）。見出しの外の行と、表示リンクの見出しが無い表は空の一覧。`indent` は金額のある科目の下の内訳の段（銀行の 有形固定資産 の下の建物は 1。ふつうは 0）。決め方は `docs/jobs/xbrl.md` §17。`merged_keys` は、XBRL のタグが替わって 2 行に割れていた同じ科目をこの行にまとめたときの、まとめられた側のキー（新しい期の行から順。まとめていなければ空の一覧。画面には出さない。決め方は `docs/jobs/xbrl.md` §17）。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
+`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`heads` は行の見出しの道筋（外側から。1 段は `{key, name}`。`key` は見出しの要素名、`name` は表示名）。段の数は決めない。書類の表示リンクの宣言どおり（BS・PL・CF とも）。宣言の無い古い書類だけの行は `{key: 大区分・区分の合計の要素, name: 資産 / 流動資産 …}` の 2 段（PL は無し）。見出しの外の行と、表示リンクの見出しが無い表は空の一覧。`indent` は金額のある科目の下の内訳の段（銀行の 有形固定資産 の下の建物は 1。ふつうは 0）。決め方は `docs/jobs/xbrl.md`「財務3表」。`merged_keys` は、XBRL のタグが替わって 2 行に割れていた同じ科目をこの行にまとめたときの、まとめられた側のキー（新しい期の行から順。まとめていなければ空の一覧。画面には出さない。決め方は `docs/jobs/xbrl.md`「財務3表」）。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
 
-`earlier` は、表示する期のうち前の会計基準の期の表（新しい順。無ければ空の一覧）。1 件は `{consolidated, basis, accounting_standards, periods, rows}` で、中身は上と同じ形。`periods` の数は、上の表と `earlier` の全部を通して新しい方から数える。会計基準が変わる所で表を分ける決まりは `docs/jobs/xbrl.md` §17。
+`earlier` は、表示する期のうち前の会計基準の期の表（新しい順。無ければ空の一覧）。1 件は `{consolidated, basis, accounting_standards, periods, rows}` で、中身は上と同じ形。`periods` の数は、上の表と `earlier` の全部を通して新しい方から数える。会計基準が変わる所で表を分ける決まりは `docs/jobs/xbrl.md`「財務3表」。
 
 材料が無ければ `periods` と `rows` は空で、`empty` が `{reason: "no_material", message, other_basis_available}`（`other_basis_available` は連結/個別のもう一方なら組めるか）。マスタに無い銘柄は 404、形の違うコードは 400、引数の範囲外は 422。
 

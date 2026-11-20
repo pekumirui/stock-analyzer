@@ -1,4 +1,4 @@
-"""PDF だけの期の短信 PDF の行に XBRL の要素を付ける（xbrl_pdf_matches。docs/jobs/xbrl.md §18）。
+"""PDF だけの期の短信 PDF の行に XBRL の要素を付ける（xbrl_pdf_matches。docs/jobs/xbrl.md「出どころをまたいで要素名で引く」）。
 
 cron では動かさない。銘柄ごとに入れ替えるので何度流しても同じ。
 

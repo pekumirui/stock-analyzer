@@ -1,6 +1,6 @@
 """EDINET 書類一覧（type=2）→ edinet_documents / edinet_list_days。
 
-設計は docs/jobs/edinet.md §3。一意キーは (file_date, seq_number)。docID では引かない。
+設計は docs/jobs/edinet.md「書類一覧」。一意キーは (file_date, seq_number)。docID では引かない。
 ラッパーは Python 3.11+ なので型以外は関数の中で import する。
 """
 from __future__ import annotations

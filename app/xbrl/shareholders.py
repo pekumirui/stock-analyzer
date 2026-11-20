@@ -1,4 +1,4 @@
-"""有報の大株主の状況・所有者別状況（KAB-266。docs/jobs/edinet.md §9）。
+"""有報の大株主の状況・所有者別状況（KAB-266。docs/jobs/edinet.md「有報の大株主の状況・所有者別状況」）。
 
 対象は当期の MajorShareholdersAxis / MajorShareholdersVotingRightsAxis /
 ClassesOfSharesAxis（連結/単体の軸は付いてよい）。科目は標準要素名で決める。

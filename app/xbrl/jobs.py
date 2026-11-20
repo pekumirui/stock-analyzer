@@ -27,7 +27,7 @@ from app.xbrl.normalize import normalize_filing, rebuild_all
 from app.xbrl.parser import ParsedPackage
 from app.xbrl.store import mark_failed, parse_zip, parse_zip_into_filing
 
-from jobs.xbrl.tdnet_xbrl_r2 import jq_lookup_code
+from app.xbrl.codes import jq_lookup_code
 
 SKIP_PREFIXES = ("_unmatched/", "_nocode/", "_cache/")
 

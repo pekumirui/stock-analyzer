@@ -21,7 +21,7 @@ from sqlalchemy import text
 
 from app.db import SessionLocal
 from app.market.intraday import collect, daily_context, fetch, store
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 DOMESTIC = "011"
 

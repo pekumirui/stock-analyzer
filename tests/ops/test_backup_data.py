@@ -18,7 +18,8 @@ from jobs.ops.backup_data import (
     move_limit_reason,
     run,
 )
-from jobs.ops.backup_db import BackupError, CmdResult
+from app.offsite_settings import BackupError
+from jobs.ops.backup_db import CmdResult
 
 
 def _share(tmp_path: Path) -> dict[str, str]:
