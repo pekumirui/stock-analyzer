@@ -21,7 +21,7 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from app.config import PDF_OTHER_STANDARD_PATH, PDF_STANDARD_FIXES_PATH
-from app.models import Statement, TdnetPdfDocument, XbrlFiling, XbrlFinancial
+from app.models import Statement, Stock, TdnetPdfDocument, XbrlFiling, XbrlFinancial
 from app.xbrl.context import classify_title
 from app.xbrl.normalize import is_normalizable_context, normalize_filing
 from app.xbrl.parser import ParsedPackage
@@ -340,6 +340,8 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
         delete_filing(db, filing)
         db.commit()
         return SyncOutcome.RETIRED
+    if filing is None and db.get(Stock, plan.disclosure.code) is None:
+        return SyncOutcome.ABSENT
     fp = plan.fingerprint
     if (
         filing is not None
