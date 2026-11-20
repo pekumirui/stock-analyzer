@@ -623,6 +623,27 @@ def _fs_cell(cell: Any, per_share: bool) -> str:
     return f"{value / 1e6:,.0f}"
 
 
+def _fs_lines(d: dict[str, Any]) -> list[str]:
+    cols = d.get("periods") or []
+    lines = [_tsv([["科目", "要素", *(c.get("label") for c in cols)]])]
+    items = d.get("rows") or []
+    sectioned = any(r.get("heads") for r in items)
+    at: list[tuple[Any, Any]] | None = None
+    for r in items:
+        path = [(h.get("key"), h.get("name")) for h in r.get("heads") or []]
+        if sectioned and path != at:
+            lines.append("# " + (" > ".join(str(name) for _, name in path) or "-"))
+            at = path
+        per_share = r.get("unit") == "per_share"
+        label = "　" * int(r.get("indent") or 0) + str(r.get("label") or "")
+        lines.append(_tsv([[label, r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])]]))
+    standards = [c.get("accounting_standard") for c in cols]
+    if len({s for s in standards if s}) > 1:
+        lines.append(_tsv([["会計基準", "", *standards]]))
+    lines.append(_tsv([["出どころ", "", *(c.get("source_label") for c in cols)]]))
+    return lines
+
+
 def tool_financial_statements(args: dict[str, Any], get_json: GetJson, code5: str) -> str:
     statement = str(args.get("statement") or "BS").strip().upper()
     if statement not in FS_STATEMENTS:
@@ -640,27 +661,19 @@ def tool_financial_statements(args: dict[str, Any], get_json: GetJson, code5: st
     if empty:
         hint = "。個別は consolidated=false" if d.get("consolidated") and empty.get("other_basis_available") else ""
         return f"{code}: {statement}（{basis}）の材料がない（{empty.get('message')}）{hint}"
-    cols = d.get("periods") or []
     head = (
         f"{code} {d.get('name') or ''} {statement} {basis} 単位:百万円（1株当たりは円） "
         f"会計基準:{'/'.join(d.get('accounting_standards') or []) or '-'}"
     ).replace("  ", " ")
     if d.get("cumulative"):
         head += " 期首からの累計"
-    lines = [_tsv([["科目", "要素", *(c.get("label") for c in cols)]])]
-    items = d.get("rows") or []
-    sectioned = any(r.get("heads") for r in items)
-    at: list[tuple[Any, Any]] | None = None
-    for r in items:
-        path = [(h.get("key"), h.get("name")) for h in r.get("heads") or []]
-        if sectioned and path != at:
-            lines.append("# " + (" > ".join(str(name) for _, name in path) or "-"))
-            at = path
-        per_share = r.get("unit") == "per_share"
-        label = "　" * int(r.get("indent") or 0) + str(r.get("label") or "")
-        lines.append(_tsv([[label, r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])]]))
-    standards = [c.get("accounting_standard") for c in cols]
-    if len({s for s in standards if s}) > 1:
-        lines.append(_tsv([["会計基準", "", *standards]]))
-    lines.append(_tsv([["出どころ", "", *(c.get("source_label") for c in cols)]]))
+    lines = _fs_lines(d)
+    for t in d.get("earlier") or []:
+        cols = t.get("periods") or []
+        span = f"{cols[0].get('label')}〜{cols[-1].get('label')}" if cols else ""
+        lines.append("")
+        lines.append(
+            f"## 前の会計基準の期 {span} {t.get('basis') or ''} 会計基準:{'/'.join(t.get('accounting_standards') or []) or '-'}"
+        )
+        lines.extend(_fs_lines(t))
     return head + "\n" + "\n".join(lines)

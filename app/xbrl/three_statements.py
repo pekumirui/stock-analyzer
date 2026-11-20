@@ -175,29 +175,6 @@ OUTSIDE_SECTIONS = {
     "BS": re.compile(r"^(SubscriptionRightsToShares|NonControllingInterests)(IFRS)?$"),
     "CF": re.compile(r"^(EffectOfExchangeRateChange|NetIncreaseDecreaseInCashAndCashEquivalents|CashAndCashEquivalents)|CCE$"),
 }
-COARSE_IDS = {
-    False: {
-        "assets": "Assets", "liabilities": "Liabilities", "equity": "NetAssets",
-        "current_assets": "CurrentAssets", "noncurrent_assets": "NoncurrentAssets",
-        "current_liabilities": "CurrentLiabilities", "noncurrent_liabilities": "NoncurrentLiabilities",
-        "operating": "NetCashProvidedByUsedInOperatingActivities",
-        "investing": "NetCashProvidedByUsedInInvestmentActivities",
-        "financing": "NetCashProvidedByUsedInFinancingActivities",
-    },
-    True: {
-        "assets": "AssetsIFRS", "liabilities": "LiabilitiesIFRS", "equity": "EquityIFRS",
-        "current_assets": "CurrentAssetsIFRS", "noncurrent_assets": "NonCurrentAssetsIFRS",
-        "current_liabilities": "TotalCurrentLiabilitiesIFRS", "noncurrent_liabilities": "NonCurrentLabilitiesIFRS",
-        "operating": "NetCashProvidedByUsedInOperatingActivitiesIFRS",
-        "investing": "NetCashProvidedByUsedInInvestingActivitiesIFRS",
-        "financing": "NetCashProvidedByUsedInFinancingActivitiesIFRS",
-    },
-}
-COARSE = {
-    **{key: name for ids in COARSE_IDS.values() for name, key in ids.items()},
-    "PropertyPlantAndEquipment": "noncurrent_assets", "IntangibleAssets": "noncurrent_assets",
-    "InvestmentsAndOtherAssets": "noncurrent_assets",
-}
 TOTAL_TAIL_RE = re.compile(r"(合計|計)$")
 
 PL_MARKERS = frozenset({
@@ -357,39 +334,17 @@ def financial_table(
         columns = _stitch(columns, other)
         labels = {**other_labels, **labels}
         units = {**other_units, **units}
-    merged = merge_split_rows(columns, statement, labels, units, _merge_exclusions().get((code, statement), set()))
-    shown_from = columns
-    columns = columns[-periods:]
-    bases = {c.consolidated for c in columns}
-    mixed = len(bases) > 1
-    if bases and not mixed:
-        consolidated = bases.pop()
-    keys = _row_keys(columns, statement)
-    ifrs = next((part.ifrs for c in reversed(shown_from) for part in c.parts.values()), False)
-    declared = row_parts(shown_from, keys)
-    parts = _shown(keys, declared, statement, labels, ifrs)
-    if len({part.ifrs for part in declared if part is not None}) < 2:
-        order = gather_heads(keys, [tuple((h["key"], h["name"]) for h in heads) for heads, _ in parts], labels)
-        keys, parts = [keys[i] for i in order], [parts[i] for i in order]
-    rows = [
-        {
-            "key": key,
-            "label": labels.get(key, key),
-            "unit": _unit_kind(units, key),
-            "unmatched_pdf": key.startswith("pdf:"),
-            "heads": heads,
-            "indent": indent,
-            "merged_keys": merged.get(key, []),
-            "cells": [
-                None if key not in column.values
-                else {"value": column.values[key], "source": column.sources[key]}
-                for column in columns
-            ],
-        }
-        for key, (heads, indent) in zip(keys, parts)
-    ]
+    shown = {id(c) for c in columns[-periods:]}
+    excluded = _merge_exclusions().get((code, statement), set())
+    tables: list[dict[str, Any]] = []
+    for run in _standard_runs(columns):
+        visible = [c for c in run if id(c) in shown]
+        if visible:
+            merged = merge_split_rows(run, statement, labels, units, excluded)
+            tables.append(_table(run, visible, merged, statement, labels, units))
     empty = None
-    if not columns:
+    if not tables:
+        tables.append(_table([], [], {}, statement, labels, units, consolidated))
         empty = {
             "reason": "no_material",
             "message": "有報・短信 XBRL・短信 PDF の本表が無い。米国基準は PDF を読んでいない",
@@ -397,14 +352,74 @@ def financial_table(
         }
     return {
         "statement": statement,
+        "cumulative": statement != "BS",
+        "unit": "JPY",
+        **tables[-1],
+        "earlier": tables[-2::-1],
+        "empty": empty,
+    }
+
+
+def _standard_runs(columns: Sequence[Column]) -> list[list[Column]]:
+    declared = [next((part.ifrs for part in c.parts.values()), None) for c in columns]
+    kinds = [
+        d if d is not None or c.standard is None else c.standard == "IFRS" for c, d in zip(columns, declared)
+    ]
+    known = [i for i, kind in enumerate(kinds) if kind is not None]
+    for n, i in enumerate(known[1:-1], 1):
+        around = kinds[known[n - 1]]
+        if declared[i] is None and around == kinds[known[n + 1]]:
+            kinds[i] = around
+    for step in (1, -1):
+        last: bool | None = None
+        for i in range(len(kinds))[::step]:
+            if kinds[i] is None:
+                kinds[i] = last
+            else:
+                last = kinds[i]
+    runs: list[tuple[bool | None, list[Column]]] = []
+    for column, kind in zip(columns, kinds):
+        if runs and runs[-1][0] == kind:
+            runs[-1][1].append(column)
+        else:
+            runs.append((kind, [column]))
+    return [run for _, run in runs]
+
+
+def _table(
+    run: Sequence[Column], columns: Sequence[Column], merged: Mapping[str, list[str]], statement: str,
+    labels: Mapping[str, str], units: Mapping[str, str | None], consolidated: bool = True,
+) -> dict[str, Any]:
+    bases = {c.consolidated for c in columns}
+    mixed = len(bases) > 1
+    if bases and not mixed:
+        consolidated = bases.pop()
+    keys = _row_keys(columns, statement)
+    parts = _shown(keys, row_parts(run, keys), statement, labels)
+    order = gather_heads(keys, [tuple((h["key"], h["name"]) for h in heads) for heads, _ in parts], labels)
+    rows = [
+        {
+            "key": keys[i],
+            "label": labels.get(keys[i], keys[i]),
+            "unit": _unit_kind(units, keys[i]),
+            "unmatched_pdf": keys[i].startswith("pdf:"),
+            "heads": parts[i][0],
+            "indent": parts[i][1],
+            "merged_keys": merged.get(keys[i], []),
+            "cells": [
+                None if keys[i] not in column.values
+                else {"value": column.values[keys[i]], "source": column.sources[keys[i]]}
+                for column in columns
+            ],
+        }
+        for i in order
+    ]
+    return {
         "consolidated": None if mixed else consolidated,
         "basis": "連結・個別" if mixed else "連結" if consolidated else "個別",
         "accounting_standards": sorted({c.standard for c in columns if c.standard}),
-        "cumulative": statement != "BS",
-        "unit": "JPY",
         "periods": [_period(c) for c in columns],
         "rows": rows,
-        "empty": empty,
     }
 
 
@@ -441,7 +456,6 @@ def merge_split_rows(
 ) -> dict[str, list[str]]:
     """同じ区分・同じ行名・同じ単位で値の期が 1 つも重ならない XBRL の行を 1 行にまとめる（columns を書き換える）。
 
-    区分が同じとは、行の区分（row_parts）が同じか、会計基準が違う行どうしで粗い区分（COARSE）が同じこと。
     残すのはいちばん新しい期に値がある行。返り値は 残した行 → まとめた行（新しい順）。
     """
     keys = _row_keys(columns, statement)
@@ -1756,21 +1770,16 @@ def gather_heads(keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[st
 def _same_part(a: Part | None, b: Part | None) -> bool:
     if a is None or b is None:
         return a is b
-    if a.coarse == b.coarse:
-        return True
-    if a.ifrs == b.ifrs:
-        return False
-    return (COARSE.get(a.group), COARSE.get(a.section)) == (COARSE.get(b.group), COARSE.get(b.section))
+    return a.coarse == b.coarse
 
 
 def _shown(
-    keys: Sequence[str], parts: Sequence[Part | None], statement: str, labels: Mapping[str, str], ifrs: bool,
+    keys: Sequence[str], parts: Sequence[Part | None], statement: str, labels: Mapping[str, str],
 ) -> list[tuple[list[dict[str, str]], int]]:
     """画面に出す見出しの道筋（外側から {key, name}）と字下げ。
 
     深さのある書類の行は、表示リンクの宣言どおり（Part.heads / indent）。深さの無い書類の行は、表の中に同じ大区分・区分の
     合計の要素の行があって深さのある書類のものなら、その行の見出しを借りる。無ければ 大区分・区分 の 2 段（PL は出さない）。
-    表の会計基準（いちばん新しい列）と違う基準の深さの無い行は、粗い区分でその基準の区分に寄せる。
     """
     declared = {k: p for k, p in zip(keys, parts) if p is not None and p.heads is not None}
     out: list[tuple[list[dict[str, str]], int]] = []
@@ -1782,9 +1791,6 @@ def _shown(
             out.append(([{"key": k, "name": n} for k, n in part.heads], part.indent))
             continue
         group, section = part.group, part.section
-        if part.ifrs != ifrs:
-            ids = COARSE_IDS[ifrs]
-            group, section = ids.get(COARSE.get(group, "")), ids.get(COARSE.get(section, ""))
         anchor = declared.get(section or group or "")
         if anchor is not None and (anchor.group, anchor.section) == (group, section):
             out.append(([{"key": k, "name": n} for k, n in anchor.heads or ()], 0))
