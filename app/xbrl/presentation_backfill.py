@@ -1,4 +1,4 @@
-"""取り込み済みの書類の表示リンクを ZIP から埋める（xbrl_presentation_roles。docs/jobs/xbrl.md §4.5）。
+"""取り込み済みの書類の表示リンクを ZIP から埋める（xbrl_presentation_roles。docs/jobs/xbrl.md「過去の書類の表示リンクを埋める」）。
 
 fact・taxonomy には触らない。ZIP から *pre.xml と *.xsd と *lab.xml だけ展開して読む。見出しの表示名はタクソノミ（XBRL_CACHE_DIR）のラベルも引く。1 件ごとに commit する。
 """

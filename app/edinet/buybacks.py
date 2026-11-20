@@ -1,6 +1,6 @@
 """EDINET 自己株券買付状況報告書・訂正（220 / 230）→ edinet_buybacks / edinet_buyback_resolutions。
 
-設計は docs/jobs/edinet.md §6（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロックの表。
+設計は docs/jobs/edinet.md「自己株券買付状況報告書」（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロックの表。
 入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations

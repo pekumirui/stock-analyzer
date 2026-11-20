@@ -1,6 +1,6 @@
 """EDINET 公開買付けの書類（240〜340）→ edinet_tender_offer_docs / edinet_tender_offers。
 
-設計は docs/jobs/edinet.md §7（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロック。
+設計は docs/jobs/edinet.md「公開買付け」（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロック。
 書類は parent_doc_id をたどって大元（公開買付届出書）に束ね、案件の行は取込のたびに全件から決め直す。
 入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """

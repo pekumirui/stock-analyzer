@@ -1,6 +1,6 @@
 # 大量保有報告書タブ
 
-データは既存の `large_holding_reports` / `large_holdings` と日足。取込は `docs/jobs/edinet.md` §5。銘柄側の株主タブは `docs/screen/stock.md`。共通見た目は `docs/screen/SPEC.md`。
+データは既存の `large_holding_reports` / `large_holdings` と日足。取込は `docs/jobs/edinet.md`「大量保有報告書」。銘柄側の株主タブは `docs/screen/stock.md`。共通見た目は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 

@@ -1,4 +1,4 @@
-"""財務3表: 有報・短信 XBRL・短信 PDF を要素でそろえて 1 枚の表にする（docs/jobs/xbrl.md §17）。"""
+"""財務3表: 有報・短信 XBRL・短信 PDF を要素でそろえて 1 枚の表にする（docs/jobs/xbrl.md「財務3表」）。"""
 from __future__ import annotations
 
 import json

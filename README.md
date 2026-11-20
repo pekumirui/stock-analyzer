@@ -124,7 +124,7 @@ scp stock.db user@YOUR_HOST:/home/user/stock-analyzer/stock.db
 
 DB のバックアップは ConoHa の自動バックアップか、日次で別パスへコピー。
 
-過去の決算短信の原文（IR BANK の PDF → HTML。`docs/jobs/xbrl.md` §16）は、VPS で銘柄を指定して流す。
+過去の決算短信の原文（IR BANK の PDF → HTML。`docs/jobs/xbrl.md`「過去の短信を PDF から HTML にする」）は、VPS で銘柄を指定して流す。
 
 ```bash
 cd /home/stock/stock-analyzer

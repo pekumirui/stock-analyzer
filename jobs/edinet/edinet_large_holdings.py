@@ -9,8 +9,8 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_large_holdings.py --refresh-only              # 訂正・取下げ・最新の付け直しだけ
   python jobs/edinet/edinet_large_holdings.py --reparse-fixes             # 義務発生日の誤記補正（KAB-269）を既存行へ反映
 
-1 書類 約 1 秒（CSV を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は残す（docs/jobs/edinet.md §10）。
-設計は docs/jobs/edinet.md §5。
+1 書類 約 1 秒（CSV を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は残す（docs/jobs/edinet.md「書類の ZIP」）。
+設計は docs/jobs/edinet.md「大量保有報告書」。
 """
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""セグメント注記の fact + mappings → xbrl_segments（KAB-77。docs/jobs/xbrl.md §14）。
+"""セグメント注記の fact + mappings → xbrl_segments（KAB-77。docs/jobs/xbrl.md「セグメント注記」）。
 
 対象は当期・`jpcrp_cor:OperatingSegmentsAxis` だけの次元（連結/単体の軸は付いてよい）。
 科目は std_items の statement='SEG'。xbrl_financials の正規化はこの科目を使わない。

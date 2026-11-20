@@ -257,7 +257,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access �
   - `earnings_docs` / `earnings_doc_read` — `/api/stock/{code}/filings` と `/decks` の一覧、本文。短信の原文（`kind=filing`）と IR BANK の PDF 変換（`kind=pdf`）は HTML をテキストにして、説明資料（`kind=deck`）は読み取り済みのページ要約と表を返す。`offset` / `length` で区切る
   - `stock_overview` — `/api/stock/{code}/overview` と `/api/chart/{code}` と `/api/earnings-performance/{code}`。PER・PBR・利回り・ROE・自己資本比率・時価総額、次の決算予定、`today` 時点の騰落と 1 年高安からの距離、過去の決算後の株価
   - `market_context` — `/api/topix` の `date` 時点の騰落と直近の日足
-  - `financial_statements` — `GET /api/stock/{code}/financials`。1銘柄の財務3表（`statement` = `BS`（既定）/ `PL` / `CF`）を、科目が行・決算期が列（古い → 新しい、見出しは `25.06`）の TSV で返す。百万円（1株当たりは円）。PL・CF は期首からの累計。2 列目は XBRL の要素名（`ext:` は会社独自、`pdf:` は短信 PDF にしか無い行）、BS と CF は区分が変わる所に `# 大区分 > 区分` の 1 行を挟む（`# 資産 > 流動資産`、区分の外は `# 資産`、どちらも無ければ `# -`。CF は `# 営業活動によるキャッシュ・フロー` など。区分の無い表には挟まない）。最後の行が出どころ（`有報` / `XBRL` / `PDF`）。出す列の会計基準が 2 つ以上ある表（日本基準から IFRS に移った会社）だけ、出どころの前に列ごとの会計基準の行（`会計基準` の後ろに `JPGAAP` / `IFRS` …）を足す。XBRL のタグが替わって 2 行に割れた同じ科目は 1 行にまとまり、2 列目は新しい期の要素名（まとめられた要素名は TSV に出さない。API の `merged_keys`）。`periods` は 1-20（既定 8）、既定は連結で `consolidated=false` で個別（画面の業績詳細と違い、連結の前の期を個別で埋めない）。有報・短信 XBRL・短信 PDF の合わせ方は `docs/jobs/xbrl.md` §17
+  - `financial_statements` — `GET /api/stock/{code}/financials`。1銘柄の財務3表（`statement` = `BS`（既定）/ `PL` / `CF`）を、科目が行・決算期が列（古い → 新しい、見出しは `25.06`）の TSV で返す。百万円（1株当たりは円）。PL・CF は期首からの累計。2 列目は XBRL の要素名（`ext:` は会社独自、`pdf:` は短信 PDF にしか無い行）、BS と CF は区分が変わる所に `# 大区分 > 区分` の 1 行を挟む（`# 資産 > 流動資産`、区分の外は `# 資産`、どちらも無ければ `# -`。CF は `# 営業活動によるキャッシュ・フロー` など。区分の無い表には挟まない）。最後の行が出どころ（`有報` / `XBRL` / `PDF`）。出す列の会計基準が 2 つ以上ある表（日本基準から IFRS に移った会社）だけ、出どころの前に列ごとの会計基準の行（`会計基準` の後ろに `JPGAAP` / `IFRS` …）を足す。XBRL のタグが替わって 2 行に割れた同じ科目は 1 行にまとまり、2 列目は新しい期の要素名（まとめられた要素名は TSV に出さない。API の `merged_keys`）。`periods` は 1-20（既定 8）、既定は連結で `consolidated=false` で個別（画面の業績詳細と違い、連結の前の期を個別で埋めない）。有報・短信 XBRL・短信 PDF の合わせ方は `docs/jobs/xbrl.md`「財務3表」
 
 任意コマンドも restart もない。任意 SQL は `db_query` の読み取り専用 SELECT / WITH 1 文（先頭の `EXPLAIN` / `EXPLAIN QUERY PLAN` 可）だけ。月次ツールと決算ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx は通らない。決算ツールは決まった GET だけ）。ログ系の行数は最大 500。`.env` の値は伏せる。
 `fs_*` のプロセスユーザは `stock`。`stock-analyzer-mcp.service` の `LogsDirectory=app`（mode 0755）で `/var/log/app` の所有者は既に `stock` なので、ログ root を読むための追加 ACL や supplementary group は不要。`data/` は `WorkingDirectory` 配下。`LogsDirectoryMode` を後から絞るときは `stock` が `/var/log/app` を読める状態を保つ。
@@ -529,7 +529,7 @@ deploy/cron-run.sh jobs/ops/backup_db.py
 
 ### 短信 PDF の行に XBRL の要素を付ける（`xbrl_pdf_matches`）
 
-デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。対象は `stocks` にある銘柄だけで、全銘柄で流すと `stocks` に無い銘柄の既存の行を消す。設計は `docs/jobs/xbrl.md` §18。
+デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。対象は `stocks` にある銘柄だけで、全銘柄で流すと `stocks` に無い銘柄の既存の行を消す。設計は `docs/jobs/xbrl.md`「出どころをまたいで要素名で引く」。
 
 ```bash
 cd /home/stock/stock-analyzer
@@ -540,7 +540,7 @@ cd /home/stock/stock-analyzer
 
 ### XBRL の表示リンクを過去の書類に埋める（`xbrl_presentation_roles`）
 
-デプロイの `migrate.py` が表と `xbrl_filings.presentation_status` の列を足す（全件 NULL）。新しく取り込む書類は取り込みが書くので、過去分を 1 回だけ手で流す。cron には入れない。新しい提出から 1 件ずつ commit するので、止めて流し直してよい。短信 XBRL と手元の EDINET の ZIP を先に流し、残りの EDINET（OneDrive・EDINET から取る分）は `--limit` で区切って流す。退避の記録がある ZIP は OneDrive から読み（手元には残さない）、記録が無い ZIP は EDINET から取る。EDINET から取った ZIP は `data/edinet` にたまり、翌朝の `backup_data.py` が OneDrive へ移す。出力の `local=件/秒 edinet=件/秒 offsite=件/秒` が ZIP の出どころごとの件数と取得の秒（`offsite` が OneDrive）。設計は `docs/jobs/xbrl.md` §4.5。
+デプロイの `migrate.py` が表と `xbrl_filings.presentation_status` の列を足す（全件 NULL）。新しく取り込む書類は取り込みが書くので、過去分を 1 回だけ手で流す。cron には入れない。新しい提出から 1 件ずつ commit するので、止めて流し直してよい。短信 XBRL と手元の EDINET の ZIP を先に流し、残りの EDINET（OneDrive・EDINET から取る分）は `--limit` で区切って流す。退避の記録がある ZIP は OneDrive から読み（手元には残さない）、記録が無い ZIP は EDINET から取る。EDINET から取った ZIP は `data/edinet` にたまり、翌朝の `backup_data.py` が OneDrive へ移す。出力の `local=件/秒 edinet=件/秒 offsite=件/秒` が ZIP の出どころごとの件数と取得の秒（`offsite` が OneDrive）。設計は `docs/jobs/xbrl.md`「過去の書類の表示リンクを埋める」。
 
 ```bash
 cd /home/stock/stock-analyzer

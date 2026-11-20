@@ -1,6 +1,6 @@
 """EDINET コードリスト → edinet_filers、証券コードで stocks.edinet_code を付ける。
 
-設計は docs/jobs/edinet.md §2。ラッパーは Python 3.11+ なので関数の中で import する。
+設計は docs/jobs/edinet.md「提出者」。ラッパーは Python 3.11+ なので関数の中で import する。
 """
 from __future__ import annotations
 

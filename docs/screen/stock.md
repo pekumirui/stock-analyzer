@@ -1,6 +1,6 @@
 # 銘柄タブ
 
-原文の取込と保存は `docs/jobs/xbrl.md` §15（TDnet の ZIP）と §16（過去の回を IR BANK の PDF から変換）。大量保有・自己株買い・公開買付けの取込は `docs/jobs/edinet.md` §5〜§7。共通見た目は `docs/screen/SPEC.md`。
+原文の取込と保存は `docs/jobs/xbrl.md`「短信の原文 HTML」（TDnet の ZIP）と「過去の短信を PDF から HTML にする」（過去の回を IR BANK の PDF から変換）。大量保有・自己株買い・公開買付けの取込は `docs/jobs/edinet.md`「大量保有報告書」「自己株券買付状況報告書」「公開買付け」。共通見た目は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 
@@ -158,7 +158,7 @@
 3. 表 `#st-fs-tbl`（`table.sheet.fin`）。行は科目（API の `rows` の順）、列は決算期（古い → 新しい）
    - 左端は科目。損益計算書と CF計算書は見出しを `科目（累計）`。`unit` が `per_share` の行は科目の後に `（円）`。`title` に要素名（`key`）
    - 列の見出しは 3 段: `label`（`25.06`）、`period_type` の札（1Q / 2Q / 3Q / 通期。色は決算表の札と同じ）、列の出どころ（`source_label` の 有報 / XBRL / PDF）。`title` に期末日・提出日時・書類 ID・会計基準
-   - 列の会計基準（`periods[].accounting_standard`）が 2 つ以上ある表（日本基準から IFRS に移った会社）は、見出しの出どころの下に 4 段目として会計基準（日本基準 / IFRS / 米国基準。出どころと同じ灰色の文字。`.fs-src.fs-std`）。タグが替わって割れた同じ科目は 1 行にまとまる（`docs/jobs/xbrl.md` §17）ので、基準が替わる列の前後で同じ行の中身の定義が変わりうることをここで示す。基準が 1 つの表は 3 段のまま
+   - 列の会計基準（`periods[].accounting_standard`）が 2 つ以上ある表（日本基準から IFRS に移った会社）は、見出しの出どころの下に 4 段目として会計基準（日本基準 / IFRS / 米国基準。出どころと同じ灰色の文字。`.fs-src.fs-std`）。タグが替わって割れた同じ科目は 1 行にまとまる（`docs/jobs/xbrl.md`「財務3表」）ので、基準が替わる列の前後で同じ行の中身の定義が変わりうることをここで示す。基準が 1 つの表は 3 段のまま
    - 連結と個別が混ざる表（`consolidated` が null）は、個別の列の `period_type` の札の右に `個別` の札（灰色）。連結と個別が切り替わる列の左に縦線（`.fs-edge`。見出しと値のセル）。境目の前後は子会社の分だけ値が跳ぶ。同じ年度の中で切り替わると、累計の中身も途中で変わる
    - 値は API の値をそのまま丸めるだけ。金額は百万円（四捨五入）、1株当たりは円で小数 2 桁。3 桁区切り。負の数は `-` を付けて `.loss`（決算表と同じ赤）。丸めて 0 になる負の数は `0`（色なし）。値の無いセルは空
    - 補ったセル（`cells[i].source` が `periods[i].source` と違う）は数字の右に、補った書類の札（`XBRL` / `PDF`）。`title` に `有報 に無く、XBRL から補った値`
@@ -304,9 +304,9 @@
 }
 ```
 
-財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/jobs/xbrl.md` §17。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結を主にして、連結の列が始まる前・終わった後の期を個別で埋める）/ `true` / `false`（どちらか一方だけ）。応答の `consolidated` / `basis` は出した方で、出した列に連結と個別が混ざれば `null` / `連結・個別`。列ごとの方は `periods[].consolidated`。`cumulative` は PL・CF（期首からの累計）で true。
+財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/jobs/xbrl.md`「財務3表」。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結を主にして、連結の列が始まる前・終わった後の期を個別で埋める）/ `true` / `false`（どちらか一方だけ）。応答の `consolidated` / `basis` は出した方で、出した列に連結と個別が混ざれば `null` / `連結・個別`。列ごとの方は `periods[].consolidated`。`cumulative` は PL・CF（期首からの累計）で true。
 
-`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`heads` は行の見出しの道筋（外側から。1 段は `{key, name}`。`key` は見出しの要素名、`name` は表示名）。段の数は決めない。書類の表示リンクの宣言どおり（BS・PL・CF とも）。宣言の無い古い書類だけの行は `{key: 大区分・区分の合計の要素, name: 資産 / 流動資産 …}` の 2 段（PL は無し）。見出しの外の行と、表示リンクの見出しが無い表は空の一覧。`indent` は金額のある科目の下の内訳の段（銀行の 有形固定資産 の下の建物は 1。ふつうは 0）。決め方は `docs/jobs/xbrl.md` §17。`merged_keys` は、XBRL のタグが替わって 2 行に割れていた同じ科目をこの行にまとめたときの、まとめられた側のキー（新しい期の行から順。まとめていなければ空の一覧。画面には出さない。決め方は `docs/jobs/xbrl.md` §17）。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
+`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`heads` は行の見出しの道筋（外側から。1 段は `{key, name}`。`key` は見出しの要素名、`name` は表示名）。段の数は決めない。書類の表示リンクの宣言どおり（BS・PL・CF とも）。宣言の無い古い書類だけの行は `{key: 大区分・区分の合計の要素, name: 資産 / 流動資産 …}` の 2 段（PL は無し）。見出しの外の行と、表示リンクの見出しが無い表は空の一覧。`indent` は金額のある科目の下の内訳の段（銀行の 有形固定資産 の下の建物は 1。ふつうは 0）。決め方は `docs/jobs/xbrl.md`「財務3表」。`merged_keys` は、XBRL のタグが替わって 2 行に割れていた同じ科目をこの行にまとめたときの、まとめられた側のキー（新しい期の行から順。まとめていなければ空の一覧。画面には出さない。決め方は `docs/jobs/xbrl.md`「財務3表」）。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
 
 材料が無ければ `periods` と `rows` は空で、`empty` が `{reason: "no_material", message, other_basis_available}`（`other_basis_available` は連結/個別のもう一方なら組めるか）。マスタに無い銘柄は 404、形の違うコードは 400、引数の範囲外は 422。
 
