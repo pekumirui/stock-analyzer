@@ -1,0 +1,1488 @@
+{
+ ".cursor/install.sh": {
+  "comment": 3
+ },
+ ".cursor/skills/verify-stock-analyzer/helpers/capture.py": {
+  "comment": 2,
+  "docstring": 1
+ },
+ ".cursor/skills/verify-stock-analyzer/helpers/cleanup.py": {
+  "docstring": 1
+ },
+ ".cursor/skills/verify-stock-analyzer/helpers/doctor.py": {
+  "docstring": 1
+ },
+ ".cursor/skills/verify-stock-analyzer/helpers/launch.py": {
+  "comment": 4,
+  "docstring": 1
+ },
+ ".cursor/sync_monthly_from_vps.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/build_conditions.py": {
+  "comment": 2,
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/build_financials.py": {
+  "comment": 2,
+  "docstring": 2
+ },
+ "analyzer/agent_forecast/build_monthly_snapshot.py": {
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/common.py": {
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/fetch_docs.py": {
+  "docstring": 2
+ },
+ "analyzer/agent_forecast/monthly_mcp.py": {
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/pack_cursor_log.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/run.py": {
+  "docstring": 1
+ },
+ "analyzer/agent_forecast/score.py": {
+  "comment": 2,
+  "docstring": 3
+ },
+ "analyzer/agent_forecast/slim_logs.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "analyzer/deck_reader/compare.py": {
+  "comment": 2,
+  "docstring": 2
+ },
+ "analyzer/deck_reader/extract.py": {
+  "comment": 5,
+  "docstring": 16
+ },
+ "analyzer/deck_reader/fetch.py": {
+  "docstring": 1
+ },
+ "analyzer/deck_reader/recheck.py": {
+  "docstring": 1
+ },
+ "analyzer/deck_reader/report.py": {
+  "docstring": 7
+ },
+ "analyzer/deck_reader/run.py": {
+  "comment": 1,
+  "docstring": 4
+ },
+ "analyzer/deck_reader/view.py": {
+  "comment": 5,
+  "docstring": 13
+ },
+ "analyzer/momentum/backtest.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "app/api/__init__.py": {
+  "docstring": 1
+ },
+ "app/api/chart.py": {
+  "docstring": 4
+ },
+ "app/api/earnings.py": {
+  "comment": 3,
+  "docstring": 13
+ },
+ "app/api/holders.py": {
+  "docstring": 1
+ },
+ "app/api/monthly/__init__.py": {
+  "docstring": 1
+ },
+ "app/api/monthly/_common.py": {
+  "comment": 6,
+  "docstring": 15
+ },
+ "app/api/monthly/doc.py": {
+  "docstring": 5
+ },
+ "app/api/monthly/elements.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "app/api/monthly/ingest.py": {
+  "docstring": 2
+ },
+ "app/api/monthly/tables.py": {
+  "comment": 3,
+  "docstring": 4
+ },
+ "app/api/pts.py": {
+  "docstring": 2
+ },
+ "app/api/ranking.py": {
+  "docstring": 2
+ },
+ "app/api/screener.py": {
+  "docstring": 1
+ },
+ "app/api/stock.py": {
+  "comment": 3,
+  "docstring": 6
+ },
+ "app/api/stock_decks.py": {
+  "docstring": 2
+ },
+ "app/api/stocks.py": {
+  "docstring": 1
+ },
+ "app/api/supply.py": {
+  "docstring": 2
+ },
+ "app/assets.py": {
+  "docstring": 3
+ },
+ "app/cf_access.py": {
+  "comment": 1
+ },
+ "app/config.py": {
+  "comment": 26,
+  "docstring": 1
+ },
+ "app/db.py": {
+  "comment": 6,
+  "docstring": 17
+ },
+ "app/edinet/__init__.py": {
+  "docstring": 1
+ },
+ "app/edinet/archive.py": {
+  "comment": 2,
+  "docstring": 8
+ },
+ "app/edinet/buybacks.py": {
+  "comment": 11,
+  "docstring": 23
+ },
+ "app/edinet/client.py": {
+  "docstring": 7
+ },
+ "app/edinet/codes.py": {
+  "docstring": 3
+ },
+ "app/edinet/documents.py": {
+  "comment": 2,
+  "docstring": 9
+ },
+ "app/edinet/large_holdings.py": {
+  "comment": 4,
+  "docstring": 17
+ },
+ "app/edinet/tender_offers.py": {
+  "comment": 12,
+  "docstring": 20
+ },
+ "app/edinet/textblocks.py": {
+  "comment": 2,
+  "docstring": 19
+ },
+ "app/edinet/xbrl.py": {
+  "comment": 5,
+  "docstring": 8
+ },
+ "app/fx.py": {
+  "docstring": 11
+ },
+ "app/holders.py": {
+  "comment": 1,
+  "docstring": 5
+ },
+ "app/main.py": {
+  "comment": 3
+ },
+ "app/market/__init__.py": {
+  "docstring": 1
+ },
+ "app/market/adjust.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "app/market/analytics.py": {
+  "comment": 17,
+  "docstring": 36
+ },
+ "app/market/briefing_batch.py": {
+  "comment": 3,
+  "docstring": 9
+ },
+ "app/market/briefing_extract.py": {
+  "comment": 4,
+  "docstring": 15
+ },
+ "app/market/briefing_files.py": {
+  "docstring": 6
+ },
+ "app/market/briefing_store.py": {
+  "docstring": 7
+ },
+ "app/market/briefing_title.py": {
+  "comment": 1,
+  "docstring": 7
+ },
+ "app/market/chart_fund.py": {
+  "comment": 3,
+  "docstring": 5
+ },
+ "app/market/earnings_schedule.py": {
+  "comment": 2,
+  "docstring": 24
+ },
+ "app/market/homepages.py": {
+  "comment": 10,
+  "docstring": 14
+ },
+ "app/market/ingest.py": {
+  "comment": 2,
+  "docstring": 12
+ },
+ "app/market/intraday.py": {
+  "comment": 3,
+  "docstring": 11
+ },
+ "app/market/jquants.py": {
+  "comment": 1,
+  "docstring": 10
+ },
+ "app/market/period_fixes.py": {
+  "docstring": 5
+ },
+ "app/market/price_limit.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "app/market/pts.py": {
+  "comment": 3,
+  "docstring": 8
+ },
+ "app/market/revisions.py": {
+  "docstring": 2
+ },
+ "app/market/tanshin_cover.py": {
+  "comment": 3,
+  "docstring": 10
+ },
+ "app/market/tlds.py": {
+  "docstring": 1
+ },
+ "app/monthly/__init__.py": {
+  "docstring": 1
+ },
+ "app/monthly/calendar.py": {
+  "docstring": 1
+ },
+ "app/monthly/ingest.py": {
+  "comment": 13,
+  "docstring": 52
+ },
+ "app/monthly/ir_codes.py": {
+  "docstring": 2
+ },
+ "app/monthly/list_cache.py": {
+  "docstring": 1
+ },
+ "app/monthly/maintenance.py": {
+  "docstring": 9
+ },
+ "app/monthly/public.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "app/monthly/store.py": {
+  "docstring": 6
+ },
+ "app/monthly/tree.py": {
+  "comment": 8,
+  "docstring": 21
+ },
+ "app/revisions.py": {
+  "comment": 3,
+  "docstring": 5
+ },
+ "app/supply/__init__.py": {
+  "docstring": 1
+ },
+ "app/supply/chain.py": {
+  "comment": 2,
+  "docstring": 8
+ },
+ "app/supply/estat.py": {
+  "comment": 2,
+  "docstring": 11
+ },
+ "app/supply/material_stats.py": {
+  "comment": 4,
+  "docstring": 12
+ },
+ "app/supply/meti.py": {
+  "comment": 10,
+  "docstring": 12
+ },
+ "app/xbrl/__init__.py": {
+  "docstring": 1
+ },
+ "app/xbrl/context.py": {
+  "comment": 6,
+  "docstring": 9
+ },
+ "app/xbrl/documents.py": {
+  "comment": 6,
+  "docstring": 6
+ },
+ "app/xbrl/gross_profit.py": {
+  "comment": 1,
+  "docstring": 4
+ },
+ "app/xbrl/jobs.py": {
+  "comment": 2,
+  "docstring": 7
+ },
+ "app/xbrl/mappings.py": {
+  "docstring": 2
+ },
+ "app/xbrl/normalize.py": {
+  "comment": 15,
+  "docstring": 14
+ },
+ "app/xbrl/parser.py": {
+  "comment": 7,
+  "docstring": 10
+ },
+ "app/xbrl/pdf/__init__.py": {
+  "comment": 2,
+  "docstring": 8
+ },
+ "app/xbrl/pdf/_layout.py": {
+  "comment": 54,
+  "docstring": 32
+ },
+ "app/xbrl/pdf/_tanshin.py": {
+  "comment": 76,
+  "docstring": 27
+ },
+ "app/xbrl/presentation.py": {
+  "docstring": 6
+ },
+ "app/xbrl/presentation_backfill.py": {
+  "docstring": 9
+ },
+ "app/xbrl/revisions.py": {
+  "comment": 2,
+  "docstring": 1
+ },
+ "app/xbrl/segments.py": {
+  "comment": 3,
+  "docstring": 4
+ },
+ "app/xbrl/shareholders.py": {
+  "docstring": 5
+ },
+ "app/xbrl/statements.py": {
+  "docstring": 5
+ },
+ "app/xbrl/store.py": {
+  "comment": 3,
+  "docstring": 9
+ },
+ "app/xbrl/three_statements.py": {
+  "docstring": 8
+ },
+ "deploy/alert_patterns.py": {
+  "comment": 6,
+  "docstring": 3
+ },
+ "deploy/boxro.sh": {
+  "comment": 8
+ },
+ "deploy/cron-run.sh": {
+  "comment": 6
+ },
+ "deploy/cve-2026-98432.sh": {
+  "comment": 11
+ },
+ "deploy/kernel-upgrade.sh": {
+  "comment": 4
+ },
+ "deploy/monitoring/apply.sh": {
+  "comment": 6
+ },
+ "deploy/monitoring/fetch.sh": {
+  "comment": 2
+ },
+ "deploy/monthly_push.sh": {
+  "comment": 3
+ },
+ "deploy/provision.sh": {
+  "comment": 22
+ },
+ "deploy/r2-share-apply.sh": {
+  "comment": 1
+ },
+ "deploy/setup-github-ssh.sh": {
+  "comment": 3
+ },
+ "deploy/update.sh": {
+  "comment": 10
+ },
+ "deploy/uvicorn-start.sh": {
+  "comment": 3
+ },
+ "deploy/uvicorn_workers.py": {
+  "docstring": 1
+ },
+ "deploy/write_rclone_conf.py": {
+  "docstring": 3
+ },
+ "jobs/_r2common.py": {
+  "comment": 4,
+  "docstring": 17
+ },
+ "jobs/_tdnet.py": {
+  "comment": 1,
+  "docstring": 4
+ },
+ "jobs/edinet/edinet_archive.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_buybacks.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_codes.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_documents.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_large_holdings.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_shareholders.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_tender_offers.py": {
+  "docstring": 1
+ },
+ "jobs/edinet/edinet_xbrl.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "jobs/fx_rates.py": {
+  "docstring": 1
+ },
+ "jobs/golden_db.py": {
+  "docstring": 1
+ },
+ "jobs/market/briefing_extract.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "jobs/market/briefing_offsite.py": {
+  "comment": 3,
+  "docstring": 9
+ },
+ "jobs/market/check_demo.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "jobs/market/homepage_briefing.py": {
+  "comment": 4,
+  "docstring": 18
+ },
+ "jobs/market/homepages.py": {
+  "docstring": 2
+ },
+ "jobs/market/intraday_1m.py": {
+  "docstring": 1
+ },
+ "jobs/market/pts_snapshot.py": {
+  "docstring": 1
+ },
+ "jobs/market/run_batch.py": {
+  "docstring": 1
+ },
+ "jobs/market/tanshin_covers.py": {
+  "docstring": 1
+ },
+ "jobs/market/tdnet_briefing_r2.py": {
+  "docstring": 5
+ },
+ "jobs/migrate.py": {
+  "comment": 3,
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/__init__.py": {
+  "docstring": 3
+ },
+ "jobs/monthly/html_issuers/_branded.py": {
+  "docstring": 13
+ },
+ "jobs/monthly/html_issuers/_page.py": {
+  "docstring": 4
+ },
+ "jobs/monthly/html_issuers/_read.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/_tile.py": {
+  "docstring": 2
+ },
+ "jobs/monthly/html_issuers/i141A.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i1911.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i1928.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2664.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2685.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2698.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2702.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2742.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2769.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2790.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2791.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i2910.py": {
+  "docstring": 5
+ },
+ "jobs/monthly/html_issuers/i3028.py": {
+  "docstring": 2
+ },
+ "jobs/monthly/html_issuers/i3038.py": {
+  "docstring": 4
+ },
+ "jobs/monthly/html_issuers/i3082.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i3148.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i3222.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i3391.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i3542.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i3549.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i3733.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i6045.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i6537.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7416.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7421.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7494.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7512.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7514.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7522.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7561.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7564.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7616.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i7679.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8011.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8016.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8153.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8163.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8179.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8194.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8217.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8255.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8278.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i8281.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i9759.py": {
+  "docstring": 2
+ },
+ "jobs/monthly/html_issuers/i9843.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i9900.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i9946.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "jobs/monthly/html_issuers/i9948.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i9989.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i9993.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_issuers/i9994.py": {
+  "docstring": 1
+ },
+ "jobs/monthly/html_monthly.py": {
+  "comment": 4,
+  "docstring": 24
+ },
+ "jobs/monthly/ir_monthly_html_ingest.py": {
+  "comment": 3,
+  "docstring": 9
+ },
+ "jobs/monthly/ir_monthly_html_r2.py": {
+  "comment": 1,
+  "docstring": 11
+ },
+ "jobs/monthly/ir_monthly_json_ingest.py": {
+  "docstring": 4
+ },
+ "jobs/monthly/ir_monthly_r2.py": {
+  "docstring": 4
+ },
+ "jobs/monthly/ir_monthly_xls_ingest.py": {
+  "docstring": 3
+ },
+ "jobs/monthly/monthly_names.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "jobs/monthly/tdnet_monthly_pdf_ingest.py": {
+  "docstring": 3
+ },
+ "jobs/monthly/tdnet_monthly_pdf_sidecar.py": {
+  "comment": 3,
+  "docstring": 22
+ },
+ "jobs/monthly/tdnet_monthly_r2.py": {
+  "comment": 4,
+  "docstring": 9
+ },
+ "jobs/ops/backup_data.py": {
+  "comment": 4,
+  "docstring": 3
+ },
+ "jobs/ops/backup_db.py": {
+  "comment": 1,
+  "docstring": 10
+ },
+ "jobs/ops/backup_store.py": {
+  "comment": 1,
+  "docstring": 5
+ },
+ "jobs/ops/migrate_r2_share.py": {
+  "docstring": 1
+ },
+ "jobs/ops/rebuild_daily_prices.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "jobs/ops/vps_packages_r2.py": {
+  "docstring": 1
+ },
+ "jobs/share_paths.py": {
+  "docstring": 1
+ },
+ "jobs/supply/material_stats.py": {
+  "comment": 2,
+  "docstring": 13
+ },
+ "jobs/xbrl/tdnet_xbrl_r2.py": {
+  "comment": 1,
+  "docstring": 11
+ },
+ "jobs/xbrl/xbrl_normalize.py": {
+  "docstring": 1
+ },
+ "jobs/xbrl/xbrl_parse.py": {
+  "docstring": 1
+ },
+ "jobs/xbrl/xbrl_presentation.py": {
+  "docstring": 1
+ },
+ "jobs/xbrl/xbrl_statements.py": {
+  "docstring": 1
+ },
+ "mcp/earnings_tools.py": {
+  "docstring": 5
+ },
+ "mcp/fs_tools.py": {
+  "comment": 3,
+  "docstring": 2
+ },
+ "mcp/log_mcp.py": {
+  "comment": 28,
+  "docstring": 24
+ },
+ "mcp/xbrl_compare.py": {
+  "docstring": 2
+ },
+ "run.sh": {
+  "comment": 1
+ },
+ "scripts/vps-job-notify.sh": {
+  "comment": 4
+ },
+ "static/css/app.css": {
+  "comment": 9
+ },
+ "static/js/api.js": {
+  "comment": 1
+ },
+ "static/js/boot.js": {
+  "comment": 3
+ },
+ "static/js/chart-core.js": {
+  "comment": 15
+ },
+ "static/js/earnings.js": {
+  "comment": 2
+ },
+ "static/js/monthly.js": {
+  "comment": 21
+ },
+ "static/js/ranking.js": {
+  "comment": 2
+ },
+ "static/js/screens.js": {
+  "comment": 2
+ },
+ "static/js/stock-deck.js": {
+  "comment": 6
+ },
+ "static/js/stock.js": {
+  "comment": 12
+ },
+ "static/js/supply.js": {
+  "comment": 16
+ },
+ "static/js/tabs.js": {
+  "comment": 3
+ },
+ "static/js/view-mode.js": {
+  "comment": 1
+ },
+ "tests/analyzer/test_momentum_backtest.py": {
+  "docstring": 4
+ },
+ "tests/conftest.py": {
+  "comment": 1,
+  "docstring": 5
+ },
+ "tests/edinet/test_edinet.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/edinet/test_edinet_annual_items.py": {
+  "comment": 7,
+  "docstring": 4
+ },
+ "tests/edinet/test_edinet_archive.py": {
+  "docstring": 2
+ },
+ "tests/edinet/test_edinet_buybacks.py": {
+  "docstring": 34
+ },
+ "tests/edinet/test_edinet_large_holdings.py": {
+  "comment": 2,
+  "docstring": 7
+ },
+ "tests/edinet/test_edinet_maintenance.py": {
+  "docstring": 1
+ },
+ "tests/edinet/test_edinet_segments.py": {
+  "docstring": 1
+ },
+ "tests/edinet/test_edinet_shareholders.py": {
+  "comment": 2,
+  "docstring": 5
+ },
+ "tests/edinet/test_edinet_tender_offers.py": {
+  "comment": 2,
+  "docstring": 4
+ },
+ "tests/edinet/test_edinet_xbrl.py": {
+  "docstring": 4
+ },
+ "tests/edinet/xbrl_fixture.py": {
+  "docstring": 2
+ },
+ "tests/market/test_adjust.py": {
+  "comment": 4,
+  "docstring": 1
+ },
+ "tests/market/test_analytics.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/market/test_backfill.py": {
+  "docstring": 1
+ },
+ "tests/market/test_briefing_extract.py": {
+  "comment": 3,
+  "docstring": 1
+ },
+ "tests/market/test_briefing_offsite.py": {
+  "docstring": 3
+ },
+ "tests/market/test_chart_core_js.py": {
+  "docstring": 1
+ },
+ "tests/market/test_chart_fund.py": {
+  "comment": 6,
+  "docstring": 1
+ },
+ "tests/market/test_chart_history.py": {
+  "docstring": 1
+ },
+ "tests/market/test_earnings_indexes.py": {
+  "comment": 2,
+  "docstring": 5
+ },
+ "tests/market/test_earnings_news_tab.py": {
+  "docstring": 1
+ },
+ "tests/market/test_earnings_perf.py": {
+  "comment": 9,
+  "docstring": 1
+ },
+ "tests/market/test_earnings_schedule.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "tests/market/test_eps_split.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/market/test_forecast_revision.py": {
+  "docstring": 1
+ },
+ "tests/market/test_gross_profit.py": {
+  "comment": 6,
+  "docstring": 1
+ },
+ "tests/market/test_gross_profit_indexes.py": {
+  "docstring": 2
+ },
+ "tests/market/test_holders.py": {
+  "docstring": 1
+ },
+ "tests/market/test_homepage_briefing.py": {
+  "docstring": 2
+ },
+ "tests/market/test_homepages.py": {
+  "docstring": 4
+ },
+ "tests/market/test_indicator_sync.py": {
+  "docstring": 1
+ },
+ "tests/market/test_intraday.py": {
+  "comment": 3,
+  "docstring": 1
+ },
+ "tests/market/test_irbank_briefing.py": {
+  "comment": 2,
+  "docstring": 6
+ },
+ "tests/market/test_jquants.py": {
+  "docstring": 1
+ },
+ "tests/market/test_pts.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/market/test_ranking.py": {
+  "comment": 5,
+  "docstring": 2
+ },
+ "tests/market/test_refetch_prices.py": {
+  "comment": 2,
+  "docstring": 2
+ },
+ "tests/market/test_revisions.py": {
+  "docstring": 1
+ },
+ "tests/market/test_stages.py": {
+  "docstring": 3
+ },
+ "tests/market/test_statement_period_fixes.py": {
+  "docstring": 1
+ },
+ "tests/market/test_stock_decks.py": {
+  "docstring": 1
+ },
+ "tests/market/test_stock_financials.py": {
+  "docstring": 1
+ },
+ "tests/market/test_stock_financials_view.py": {
+  "docstring": 1
+ },
+ "tests/market/test_stock_news_decks.py": {
+  "docstring": 2
+ },
+ "tests/market/test_stock_only.py": {
+  "docstring": 1
+ },
+ "tests/market/test_stock_overview.py": {
+  "comment": 3,
+  "docstring": 4
+ },
+ "tests/market/test_tanshin_cover.py": {
+  "docstring": 1
+ },
+ "tests/market/test_tdnet_briefing_r2.py": {
+  "docstring": 1
+ },
+ "tests/monthly/monthly_html_fixtures.py": {
+  "docstring": 2
+ },
+ "tests/monthly/test_html_3082_scope.py": {
+  "docstring": 1
+ },
+ "tests/monthly/test_html_9946.py": {
+  "docstring": 2
+ },
+ "tests/monthly/test_html_issue248_parity.py": {
+  "docstring": 1
+ },
+ "tests/monthly/test_html_issuers.py": {
+  "comment": 2,
+  "docstring": 25
+ },
+ "tests/monthly/test_html_predicates.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/monthly/test_html_recipe.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/monthly/test_ir_monthly_html_ingest.py": {
+  "docstring": 2
+ },
+ "tests/monthly/test_ir_monthly_html_r2.py": {
+  "docstring": 7
+ },
+ "tests/monthly/test_ir_monthly_json_ingest.py": {
+  "docstring": 1
+ },
+ "tests/monthly/test_ir_monthly_r2.py": {
+  "docstring": 1
+ },
+ "tests/monthly/test_ir_monthly_xls_ingest.py": {
+  "docstring": 3
+ },
+ "tests/monthly/test_monthly_element_sources.py": {
+  "docstring": 3
+ },
+ "tests/monthly/test_monthly_ingest.py": {
+  "comment": 3,
+  "docstring": 16
+ },
+ "tests/monthly/test_monthly_issuers.py": {
+  "comment": 2,
+  "docstring": 5
+ },
+ "tests/monthly/test_monthly_label_snapshot.py": {
+  "docstring": 3
+ },
+ "tests/monthly/test_monthly_list_version.py": {
+  "docstring": 6
+ },
+ "tests/monthly/test_monthly_spa_js.py": {
+  "docstring": 7
+ },
+ "tests/monthly/test_monthly_stock_master.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/monthly/test_monthly_tables.py": {
+  "comment": 3,
+  "docstring": 6
+ },
+ "tests/monthly/test_monthly_tree.py": {
+  "comment": 5,
+  "docstring": 45
+ },
+ "tests/monthly/test_public_monthly.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/monthly/test_sync_monthly_from_vps.py": {
+  "docstring": 1
+ },
+ "tests/monthly/test_tdnet_monthly_pdf_sidecar.py": {
+  "docstring": 7
+ },
+ "tests/monthly/test_tdnet_monthly_pending.py": {
+  "docstring": 1
+ },
+ "tests/monthly/test_tdnet_monthly_r2.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/nonfunctional/test_app_etag.py": {
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_breadcrumbs.py": {
+  "docstring": 4
+ },
+ "tests/nonfunctional/test_dataflow.py": {
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_db_access.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/nonfunctional/test_history_back.py": {
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_list_tables.py": {
+  "docstring": 2
+ },
+ "tests/nonfunctional/test_nav_drawer.py": {
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_stock_nav_tabs.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tests/nonfunctional/test_table_labels.py": {
+  "comment": 4,
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_table_sheet.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_view_mode.py": {
+  "docstring": 1
+ },
+ "tests/nonfunctional/test_wiki_nav.py": {
+  "docstring": 1
+ },
+ "tests/ops/cve_2026_98432_netns.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_alert_patterns.py": {
+  "comment": 5,
+  "docstring": 5
+ },
+ "tests/ops/test_backup_data.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_backup_db.py": {
+  "docstring": 3
+ },
+ "tests/ops/test_boxro.py": {
+  "comment": 2,
+  "docstring": 7
+ },
+ "tests/ops/test_cf_access.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_cve_2026_98432.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/ops/test_earnings_mcp.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_financial_statements_mcp.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_fluent_bit_cron_logs.py": {
+  "comment": 2,
+  "docstring": 7
+ },
+ "tests/ops/test_github_ssh.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_kernel_upgrade.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_log_mcp.py": {
+  "comment": 2,
+  "docstring": 5
+ },
+ "tests/ops/test_mcp_fs.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/ops/test_migrate_r2_share.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_monitoring.py": {
+  "comment": 8,
+  "docstring": 3
+ },
+ "tests/ops/test_monthly_push.py": {
+  "docstring": 3
+ },
+ "tests/ops/test_nginx_public.py": {
+  "docstring": 3
+ },
+ "tests/ops/test_notify_cicd_failure.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_r2_mount.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_rebuild_daily_prices.py": {
+  "docstring": 2
+ },
+ "tests/ops/test_share_paths.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_tdnet_list.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tests/ops/test_uvicorn_workers.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_vps_packages_r2.py": {
+  "docstring": 1
+ },
+ "tests/ops/test_write_rclone_conf.py": {
+  "docstring": 1
+ },
+ "tests/supply/test_material_stats.py": {
+  "docstring": 9
+ },
+ "tests/supply/test_supply_chain.py": {
+  "docstring": 1
+ },
+ "tests/test_fx.py": {
+  "docstring": 1
+ },
+ "tests/test_golden_db.py": {
+  "docstring": 2
+ },
+ "tests/test_smoke.py": {
+  "comment": 2,
+  "docstring": 1
+ },
+ "tests/test_sqlite_deploy.py": {
+  "docstring": 6
+ },
+ "tests/wiki/test_collect.py": {
+  "docstring": 1
+ },
+ "tests/wiki/test_wiki_workflow.py": {
+  "comment": 2,
+  "docstring": 3
+ },
+ "tests/xbrl/test_pdf_matches.py": {
+  "docstring": 1
+ },
+ "tests/xbrl/test_taxonomy_bundle.py": {
+  "comment": 5,
+  "docstring": 7
+ },
+ "tests/xbrl/test_tdnet_pdf.py": {
+  "comment": 9,
+  "docstring": 8
+ },
+ "tests/xbrl/test_tdnet_pdf_batch.py": {
+  "docstring": 4
+ },
+ "tests/xbrl/test_tdnet_pdf_financials.py": {
+  "docstring": 2
+ },
+ "tests/xbrl/test_tdnet_pdf_golden.py": {
+  "comment": 5,
+  "docstring": 7
+ },
+ "tests/xbrl/test_tdnet_pdf_kab212_220.py": {
+  "comment": 3,
+  "docstring": 35
+ },
+ "tests/xbrl/test_tdnet_pdf_kab224_234_237.py": {
+  "comment": 1,
+  "docstring": 10
+ },
+ "tests/xbrl/test_tdnet_pdf_kab226_235.py": {
+  "comment": 3,
+  "docstring": 8
+ },
+ "tests/xbrl/test_tdnet_pdf_kab227.py": {
+  "comment": 1,
+  "docstring": 6
+ },
+ "tests/xbrl/test_tdnet_pdf_kab228.py": {
+  "docstring": 11
+ },
+ "tests/xbrl/test_tdnet_pdf_kab229_231_233.py": {
+  "docstring": 5
+ },
+ "tests/xbrl/test_tdnet_pdf_kab236_240_242_243.py": {
+  "docstring": 15
+ },
+ "tests/xbrl/test_tdnet_pdf_kab238.py": {
+  "docstring": 10
+ },
+ "tests/xbrl/test_tdnet_pdf_kab247.py": {
+  "docstring": 8
+ },
+ "tests/xbrl/test_tdnet_pdf_kab251.py": {
+  "docstring": 8
+ },
+ "tests/xbrl/test_tdnet_pdf_kab259_263.py": {
+  "docstring": 11
+ },
+ "tests/xbrl/test_tdnet_pdf_kab264.py": {
+  "docstring": 4
+ },
+ "tests/xbrl/test_tdnet_pdf_kab426.py": {
+  "docstring": 3
+ },
+ "tests/xbrl/test_tdnet_pdf_kab432.py": {
+  "docstring": 4
+ },
+ "tests/xbrl/test_tdnet_pdf_kab452.py": {
+  "docstring": 2
+ },
+ "tests/xbrl/test_tdnet_pdf_kab464.py": {
+  "docstring": 2
+ },
+ "tests/xbrl/test_tdnet_pdf_layouts.py": {
+  "comment": 2,
+  "docstring": 10
+ },
+ "tests/xbrl/test_tdnet_pdf_verify.py": {
+  "docstring": 3
+ },
+ "tests/xbrl/test_tdnet_xbrl_r2.py": {
+  "docstring": 2
+ },
+ "tests/xbrl/test_three_statements.py": {
+  "docstring": 3
+ },
+ "tests/xbrl/test_xbrl_documents.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "tests/xbrl/test_xbrl_financial_unit.py": {
+  "docstring": 1
+ },
+ "tests/xbrl/test_xbrl_forecast.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "tests/xbrl/test_xbrl_is_custom.py": {
+  "comment": 2,
+  "docstring": 1
+ },
+ "tests/xbrl/test_xbrl_kab52_56.py": {
+  "docstring": 4
+ },
+ "tests/xbrl/test_xbrl_match_rate.py": {
+  "docstring": 2
+ },
+ "tests/xbrl/test_xbrl_parse.py": {
+  "comment": 6,
+  "docstring": 6
+ },
+ "tests/xbrl/test_xbrl_presentation.py": {
+  "docstring": 3
+ },
+ "tests/xbrl/test_xbrl_presentation_backfill.py": {
+  "docstring": 1
+ },
+ "tests/xbrl/test_xbrl_sales_fallback.py": {
+  "docstring": 12
+ },
+ "tests/xbrl/test_xbrl_statements.py": {
+  "docstring": 1
+ },
+ "tests/xbrl/test_xbrl_units.py": {
+  "comment": 1,
+  "docstring": 3
+ },
+ "tools/agent_bench.py": {
+  "docstring": 1
+ },
+ "tools/briefing/irbank_ingest.py": {
+  "comment": 4,
+  "docstring": 8
+ },
+ "tools/dataflow/__init__.py": {
+  "docstring": 1
+ },
+ "tools/dataflow/callgraph.py": {
+  "comment": 5,
+  "docstring": 5
+ },
+ "tools/dataflow/plugin.py": {
+  "comment": 8,
+  "docstring": 4
+ },
+ "tools/dataflow/render.py": {
+  "comment": 5,
+  "docstring": 5
+ },
+ "tools/dataflow/sql.py": {
+  "comment": 2,
+  "docstring": 2
+ },
+ "tools/edinet/sample_zips.py": {
+  "comment": 2,
+  "docstring": 1
+ },
+ "tools/golden/build_golden_db.py": {
+  "comment": 3,
+  "docstring": 1
+ },
+ "tools/market/check_api.py": {
+  "docstring": 1
+ },
+ "tools/market/fix_statement_periods.py": {
+  "docstring": 3
+ },
+ "tools/monthly/fmtdiff.py": {
+  "docstring": 9
+ },
+ "tools/monthly/label_snapshot.py": {
+  "comment": 2,
+  "docstring": 5
+ },
+ "tools/monthly/read_xls.py": {
+  "docstring": 2
+ },
+ "tools/monthly/tdnet_monthly_pending.py": {
+  "comment": 2,
+  "docstring": 4
+ },
+ "tools/monthly/text_mask.py": {
+  "docstring": 1
+ },
+ "tools/ops/notify_cicd_failure.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tools/supply/estat_fetch.py": {
+  "docstring": 1
+ },
+ "tools/tdnet_pdf/__init__.py": {
+  "docstring": 1
+ },
+ "tools/tdnet_pdf/convert.py": {
+  "comment": 6,
+  "docstring": 4
+ },
+ "tools/tdnet_pdf/financials.py": {
+  "docstring": 1
+ },
+ "tools/tdnet_pdf/golden_check.py": {
+  "comment": 13,
+  "docstring": 8
+ },
+ "tools/tdnet_pdf/ingest.py": {
+  "comment": 1,
+  "docstring": 2
+ },
+ "tools/tdnet_pdf/matches.py": {
+  "docstring": 1
+ },
+ "tools/tdnet_pdf/verify_financials.py": {
+  "docstring": 5
+ },
+ "tools/wiki/__init__.py": {
+  "docstring": 1
+ },
+ "tools/wiki/collect.py": {
+  "comment": 1,
+  "docstring": 1
+ },
+ "tools/wiki/mkdocs_hook.py": {
+  "docstring": 2
+ },
+ "tools/xbrl/copy_stocks_for_verify.py": {
+  "docstring": 1
+ },
+ "tools/xbrl/fetch_xbrl_golden.py": {
+  "docstring": 5
+ },
+ "tools/xbrl/taxonomy_bundle.py": {
+  "docstring": 3
+ },
+ "tools/xbrl/xbrl_match_rate.py": {
+  "comment": 1,
+  "docstring": 4
+ },
+ "tools/xbrl/xbrl_statements_check.py": {
+  "docstring": 1
+ },
+ "tools/xbrl/xbrl_vs_statements.py": {
+  "comment": 1,
+  "docstring": 3
+ }
+}

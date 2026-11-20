@@ -3,7 +3,7 @@
 EDINET_API_KEY が要る。閲覧期間の終わりが近い順（自己株買い 1 年 → 大量保有・公開買付け 5 年 →
 有報系 10 年。同じ期間なら古い提出から）。404 は gone として記録し、次の回は飛ばす。
 新しく取り込む書類は各取込（app/edinet/archive.py download）が残すので、ここは過去分だけ。
-OneDrive へは毎朝 jobs/ops/backup_data.py が move する。設計は docs/DESIGN_edinet.md §10。
+OneDrive へは毎朝 jobs/ops/backup_data.py が move する。設計は docs/jobs/edinet.md §10。
 
 使い方:
   python jobs/edinet/edinet_archive.py --limit 1000     # cron（夜間）
@@ -18,9 +18,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet.archive import backfill, backfill_targets  # noqa: E402
-from app.edinet.client import skip_on_maintenance  # noqa: E402
+from app.db import SessionLocal
+from app.edinet.archive import backfill, backfill_targets
+from app.edinet.client import skip_on_maintenance
 
 
 def main(argv: list[str] | None = None) -> int:

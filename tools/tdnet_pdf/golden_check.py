@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""短信 PDF の読み取りの回帰チェック（KAB-244。docs/DESIGN_xbrl.md「短信 PDF の回帰チェック」）。
+"""短信 PDF の読み取りの回帰チェック（KAB-244。docs/jobs/xbrl.md「短信 PDF の回帰チェック」）。
 
 検証済みの開示（XBRL 検証 bot の 1〜3 回目、19 銘柄）を正解データにして、読み取りを直すたびに
 J-Quants と一致を確かめた値が消えたり変わったりしていないかを見る。本番 DB にも VPS にも触れない。
@@ -190,7 +190,7 @@ def dump(expected_path: Path, html_dirs: list[Path], repo: Path) -> dict:
         ]
         for base in html_dirs:
             cmd += ["--html-dir", str(base.resolve())]
-        subprocess.run(cmd, cwd=repo, env=env, check=True)  # nosec B603 (このファイル自身を別のチェックアウトで動かす)
+        subprocess.run(cmd, cwd=repo, env=env, check=True)
         return json.loads(out.read_text(encoding="utf-8"))
 
 

@@ -2,7 +2,7 @@
 
 自己株券買付状況報告書・公開買付の書類は、数値の多くが表の形のテキストブロックにしか無い
 （CSV の type=5 では表がつぶれて 1 行の文になる）。インスタンス（XBRL/PublicDoc/*.xbrl）の
-テキストブロックを HTML として読み、行（セルの列）と文に分ける。設計は docs/DESIGN_edinet.md §6。
+テキストブロックを HTML として読み、行（セルの列）と文に分ける。設計は docs/jobs/edinet.md §6。
 """
 from __future__ import annotations
 
@@ -263,7 +263,7 @@ def doc_metas(db: Session, doc_types: tuple[str, ...]) -> dict[str, DocMeta]:
     T = EdinetDocument
     rows = db.scalars(select(T).where(T.doc_type_code.in_(doc_types))
                       .order_by(T.file_date, T.seq_number)).all()
-    floor = datetime.min  # noqa: DTZ901  JST naive で比べる
+    floor = datetime.min
     best: dict[str, EdinetDocument] = {}
     gone: set[str] = set()
     for r in rows:

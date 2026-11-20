@@ -15,12 +15,12 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-pts-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.market.pts import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.market.pts import (
     JST,
     page_as_of, page_base_day, parse_page, session_date_for, snapshot_all,
 )
-from app.models import DailyPrice, PtsSnapshot  # noqa: E402
+from app.models import DailyPrice, PtsSnapshot
 
 # 株探の表の形（2026-10 時点）。先頭は指数の帯、コード列で始まらない
 PAGE = """

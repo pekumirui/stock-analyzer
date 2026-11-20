@@ -162,7 +162,7 @@ def submit(db: Session, client, briefing_root: Path, docs: list[Pending], *, thi
     for p in docs:
         try:
             pages, _meta = bx.load_pages(read_briefing(p.rel_path, storage=p.storage, root=briefing_root))
-        except Exception as e:  # noqa: BLE001 - 壊れた PDF は飛ばして次へ
+        except Exception as e:
             out.skipped.append(p.document_id)
             log(f"skip {p.document_id}: {type(e).__name__}: {e}")
             continue
@@ -317,7 +317,7 @@ def collect(db: Session, client, briefing_root: Path, *, log: Callable[[str], No
                     raise FileNotFoundError("briefing_documents に無い")
                 pages, _meta = bx.load_pages(
                     read_briefing(doc.rel_path, storage=doc.storage, root=briefing_root), render=False)
-            except Exception as e:  # noqa: BLE001 - PDF が消えた・壊れた資料は failed にして次へ
+            except Exception as e:
                 def fail(ext=ext, e=e):
                     ext.status, ext.error, ext.extracted_at = STATUS_FAILED, f"PDF が読めない: {e}", _now()
                 run_sqlite_write(db, fail)

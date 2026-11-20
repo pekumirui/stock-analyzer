@@ -1,7 +1,7 @@
 # XBRL 検証DBと IRBANK ゴールデン一致率
 
 TDnet 短信 iXBRL の正規化層（`xbrl_financials`）を、IRBANK の百万円値とオフラインで突合する。
-決算 UI / `statements` / `config/xbrl/` マッピングは触らない。設計の科目セットは [`DESIGN_xbrl.md`](DESIGN_xbrl.md) §7.2。
+決算 UI / `statements` / `config/xbrl/` マッピングは触らない。設計の科目セットは [`docs/jobs/xbrl.md`](jobs/xbrl.md) §7.2。
 
 ## 検証用 DB
 

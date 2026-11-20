@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT / "mcp"))
 
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 
-import earnings_tools as et  # noqa: E402
-import log_mcp as m  # noqa: E402
+import earnings_tools as et
+import log_mcp as m
 
 M = 1_000_000
 

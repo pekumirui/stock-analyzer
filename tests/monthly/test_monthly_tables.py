@@ -13,11 +13,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-monthly-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.api.monthly._common import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
-from app.main import app  # noqa: E402
-from app.monthly.ingest import (  # noqa: E402
+from app.api.monthly._common import ApiError, _apply_incoming_unit, _parse_code
+from app.main import app
+from app.monthly.ingest import (
     MonthlyIngestError,
     canonicalize_element_label,
     format_monthly_cell,

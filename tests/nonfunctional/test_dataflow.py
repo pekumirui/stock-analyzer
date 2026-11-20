@@ -122,7 +122,7 @@ def _render():
 def test_render_writes_overview_pages_and_viewer():
     out = _render()
     assert set(out) == {"docs/DATA_FLOW.md", "docs/dataflow/market.md", "docs/dataflow/monthly.md",
-                        "docs/dataflow/viewer.html"}
+                        "docs/dataflow/viewer.html", "docs/dataflow/entries.json"}
     overview = out["docs/DATA_FLOW.md"]
     assert "[月次](dataflow/monthly.md) | 2 | 1 |" in overview
     assert "- `jobs/ops/backup.py`" in overview and "- `GET /api/topix`" in overview
@@ -138,6 +138,7 @@ def test_mermaid_draws_entry_to_table_and_skips_hub_reads():
     assert f"{names['monthly/ingest.py']} -.- {names['statements']}" in graph
     assert "stocks" not in names and "monthly/fetch.py" not in names
     assert '[("statements")]:::ext' in graph
+    assert graph.startswith("\n---\nconfig:\n  layout: elk\n---\nflowchart LR\n")
 
 
 def test_viewer_embeds_parseable_data():
@@ -149,3 +150,17 @@ def test_viewer_embeds_parseable_data():
     assert data["entries"][1]["rw"] == {"monthly_values": "W", "statements": "R", "stocks": "R"}
     assert "<script" not in raw
     assert not re.search(r"""(?:src|href)=["']?(?:https?:)?//""", html)
+
+
+def test_entries_json_round_trips_through_load_entries(tmp_path):
+    from tools.dataflow.render import ENTRIES, load_entries
+
+    path = tmp_path / ENTRIES
+    path.parent.mkdir(parents=True)
+    path.write_text(_render()[ENTRIES], encoding="utf-8")
+    jobs, entries = load_entries(tmp_path)
+    assert jobs == ["jobs/monthly/fetch.py", "jobs/monthly/ingest.py", "jobs/ops/backup.py"]
+    assert [(e.name, e.kind, e.domain) for e in entries][:2] == [
+        ("jobs/monthly/fetch.py", "job", "monthly"), ("jobs/monthly/ingest.py", "job", "monthly"),
+    ]
+    assert entries[1].writes() == ["monthly_values"] and entries[1].reads() == ["statements", "stocks"]

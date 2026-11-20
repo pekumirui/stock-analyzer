@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "monthly"))
 
-import tdnet_monthly_pending as pending  # noqa: E402
+import tdnet_monthly_pending as pending
 
 
 def _fail(msg: str) -> None:

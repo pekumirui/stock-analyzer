@@ -13,9 +13,9 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-xbrl-custom-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db, migrate_xbrl_elements_is_custom  # noqa: E402
-from app.models import XbrlElement  # noqa: E402
-from app.xbrl.parser import namespace_is_standard  # noqa: E402
+from app.db import SessionLocal, init_db, migrate_xbrl_elements_is_custom
+from app.models import XbrlElement
+from app.xbrl.parser import namespace_is_standard
 
 STANDARD = [
     ("jppfs_cor", "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2025-11-01/jppfs_cor"),
@@ -53,7 +53,7 @@ def test_migrate_relabels_existing_elements() -> None:
     init_db()
     db = SessionLocal()
     try:
-        now = datetime(2026, 10, 20)  # noqa: DTZ001
+        now = datetime(2026, 10, 20)
         rows = [(k, u, False) for k, u in CUSTOM] + [(STANDARD[0][0], STANDARD[0][1], True)]
         rows += [(STANDARD[1][0], STANDARD[1][1], False)]
         for i, (key, uri, is_custom) in enumerate(rows):

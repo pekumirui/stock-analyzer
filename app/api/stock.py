@@ -1,4 +1,4 @@
-"""銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと指標、短信一覧と原文 HTML。
+"""銘柄タブ（KAB-161 / KAB-177。docs/screen/stock.md）。共通ヘッダーと指標、短信一覧と原文 HTML。
 
 原文は 2 通り: TDnet XBRL ZIP の HTML（xbrl_documents）と、それが無い過去の回を IR BANK の PDF から
 変換した HTML（tdnet_pdf_documents。KAB-164）。

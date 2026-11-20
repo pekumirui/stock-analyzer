@@ -286,7 +286,7 @@ def pick_homepage_url(html: str, *, allow_jpx: bool = False) -> str | None:
     return urls[0] if urls else None
 
 
-_ASOF_MIN = datetime(1, 1, 1)  # noqa: DTZ001
+_ASOF_MIN = datetime(1, 1, 1)
 
 
 def _as_of_dt(value: datetime | date | None) -> datetime:
@@ -294,7 +294,7 @@ def _as_of_dt(value: datetime | date | None) -> datetime:
         return _ASOF_MIN
     if isinstance(value, datetime):
         return value.replace(tzinfo=None)
-    return datetime(value.year, value.month, value.day)  # noqa: DTZ001
+    return datetime(value.year, value.month, value.day)
 
 
 @dataclass(frozen=True)
@@ -568,7 +568,7 @@ def sync_homepages(
     db: Session,
     codes: list[str] | None = None,
     *,
-    refresh: bool = False,  # noqa: ARG001  manual 以外は毎回新しさで選び直す
+    refresh: bool = False,
     dry_run: bool = False,
     now: datetime | None = None,
 ) -> SyncReport:

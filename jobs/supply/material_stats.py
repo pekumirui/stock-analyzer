@@ -10,7 +10,7 @@
 
 経産省の Excel は data/stats/meti/{seidou,sekiyu}/ に控えを残し、変わらないファイルは控えから読む。
 
-e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は DESIGN.md §3「素材の月次量」。
+e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は docs/jobs/supply.md。
 """
 from __future__ import annotations
 
@@ -24,28 +24,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs._r2common import MountDisconnected, check_r2_mount  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+from jobs._r2common import MountDisconnected, check_r2_mount
+from jobs.share_paths import share_path
 
-from app.config import (  # noqa: E402
+from app.config import (
     ESTAT_APP_ID, METI_FAIL_PAGE_DAYS, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
 )
-from app.db import SessionLocal  # noqa: E402
-from app.supply.estat import (  # noqa: E402
+from app.db import SessionLocal
+from app.supply.estat import (
     EstatClient, match_codes, month_of, parse_production_label, production_dims, production_table,
     published_through, seidou_records, sokuho_month, table_title, trade_country_rows, trade_rows, trade_table,
 )
-from app.supply.material_stats import (  # noqa: E402
+from app.supply.material_stats import (
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, SEKIYU_SOURCE, load_mapping, product_groups, prune_unmapped, sekiyu_rows,
     seidou_rows, summarize_warnings, write_country_rows, write_rows,
 )
-from app.supply.meti import (  # noqa: E402
+from app.supply.meti import (
     MetiChallenged, MetiClient, MetiError, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells,
     sekiyu_nenpo_inventory_cells, sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
-from app.supply.meti import seidou_records as meti_seidou_records  # noqa: E402
-from app.models import MaterialMonthly  # noqa: E402
-from app.supply.chain import load_supply_chain  # noqa: E402
+from app.supply.meti import seidou_records as meti_seidou_records
+from app.models import MaterialMonthly
+from app.supply.chain import load_supply_chain
 
 
 def parse_years(raw: str | None, today: date) -> list[int]:

@@ -28,7 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs._r2common import (  # noqa: E402
+from jobs._r2common import (
     abort_if_disconnected,
     fail_if_mount_down,
     http_get,
@@ -38,8 +38,8 @@ from jobs._r2common import (  # noqa: E402
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
-from jobs.monthly.tdnet_monthly_r2 import display_code, download_skip_reason  # noqa: E402
-from jobs.share_paths import share_path  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import display_code, download_skip_reason
+from jobs.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("monthly"))
 DEFAULT_CONFIG = SCRIPT_DIR.parents[1] / "config" / "monthly" / "ir_monthly.json"

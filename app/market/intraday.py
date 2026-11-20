@@ -148,7 +148,7 @@ def collect(codes: list[str], fetcher: Callable[[str], pd.DataFrame], *, sleep: 
                     return got, stats
                 log(f"rate limit {code} {wait:.0f}s 待つ")
                 time.sleep(wait)
-            except Exception as e:  # noqa: BLE001  1 銘柄の失敗で止めない
+            except Exception as e:
                 log(f"fail {code}: {type(e).__name__}: {str(e)[:120]}")
                 stats["failed"] += 1
                 df = None

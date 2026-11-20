@@ -3,7 +3,7 @@
 使い方:
   python jobs/market/pts_snapshot.py
 
-cron は平日 15:30〜24:00 の 30 分ごと（deploy/crontab）。設計は DESIGN.md「PTS」。
+cron は平日 15:30〜24:00 の 30 分ごと（deploy/crontab）。設計は docs/jobs/market.md「PTS ランキング」。
 表 pts_snapshots はデプロイの jobs/migrate.py が作る。ここでは作らない（無ければ no such table で落ちる）。
 """
 from __future__ import annotations
@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.market.pts import client, snapshot_all  # noqa: E402
+from app.db import SessionLocal
+from app.market.pts import client, snapshot_all
 
 
 def main() -> int:

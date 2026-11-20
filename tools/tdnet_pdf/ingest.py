@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IR BANK が保管する TDnet の開示 PDF → HTML → tdnet_pdf_documents（KAB-164。docs/DESIGN_xbrl.md §16）。
+"""IR BANK が保管する TDnet の開示 PDF → HTML → tdnet_pdf_documents（KAB-164。docs/jobs/xbrl.md §16）。
 
 指定した銘柄の statements（J-Quants の開示。2021-08〜）のうち、原文の無い回を新しい順に取る。
 原文がある回は飛ばす: XBRL ZIP の HTML（xbrl_documents。ZIP 名の後ろ 14 桁が disclosure_no）と、
@@ -32,13 +32,13 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import httpx  # noqa: E402
-from sqlalchemy import exists  # noqa: E402
-from sqlalchemy.orm import Session  # noqa: E402
+import httpx
+from sqlalchemy import exists
+from sqlalchemy.orm import Session
 
-from app.db import SessionLocal, run_sqlite_write  # noqa: E402
-from app.models import Statement, TdnetPdfDocument, XbrlDocument, XbrlFiling  # noqa: E402
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe  # noqa: E402
+from app.db import SessionLocal, run_sqlite_write
+from app.models import Statement, TdnetPdfDocument, XbrlDocument, XbrlFiling
+from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/tdnet_pdf)"

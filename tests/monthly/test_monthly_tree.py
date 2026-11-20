@@ -16,8 +16,8 @@ _tmp = tempfile.mkdtemp(prefix="stock-analyzer-monthly-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 
-import app.monthly.ingest as monthly_ingest_mod  # noqa: E402
-from app.monthly.ingest import (  # noqa: E402
+import app.monthly.ingest as monthly_ingest_mod
+from app.monthly.ingest import (
     apply_issuer_aliases,
     canonicalize_element_label,
     monthly_element_label,

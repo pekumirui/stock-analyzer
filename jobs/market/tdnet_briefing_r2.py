@@ -28,31 +28,31 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from app.market.briefing_store import (  # noqa: E402
+from app.market.briefing_store import (
     SOURCE_TDNET,
     STORAGE_ONEDRIVE,
     get_saved,
     record_briefing,
 )
-from app.market.briefing_title import (  # noqa: E402
+from app.market.briefing_title import (
     compact_title,
     is_material_title,
     spaced_title,
     title_decision,
 )
-from jobs._r2common import (  # noqa: E402
+from jobs._r2common import (
     abort_if_disconnected,
     date_window,
     fail_if_mount_down,
     http_get as _http_get,
 )
-from jobs import _tdnet as tdnet_list  # noqa: E402
-from jobs.monthly.tdnet_monthly_r2 import (  # noqa: E402
+from jobs import _tdnet as tdnet_list
+from jobs.monthly.tdnet_monthly_r2 import (
     dest_path,
     jq_lookup_code,
     tdnet_pdf_id,
 )
-from jobs.share_paths import share_path  # noqa: E402
+from jobs.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("briefing"))
 USER_AGENT = "stock-analyzer-tdnet-briefing/1.0"

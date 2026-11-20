@@ -72,7 +72,7 @@ tmp/
 .mcp-oauth.json
 .audit/
 
-# --- 手元のデザインメモ（リポジトリの DESIGN.md とは別） ---
+# --- 手元のデザインメモ（リポジトリの docs/ とは別） ---
 DESIGN/
 
 # --- MkDocs wiki（ビルド時に集める。元の md は動かさない） ---

@@ -15,9 +15,9 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-refetch-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db, upsert  # noqa: E402
-from app.market.ingest import run_daily, run_refetch_prices  # noqa: E402
-from app.models import DailyPrice  # noqa: E402
+from app.db import SessionLocal, init_db, upsert
+from app.market.ingest import run_daily, run_refetch_prices
+from app.models import DailyPrice
 
 # キオクシアの 2026-09-29 の 1:3 分割（J-Quants の値）
 API = {

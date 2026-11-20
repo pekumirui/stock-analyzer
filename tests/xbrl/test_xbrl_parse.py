@@ -14,28 +14,28 @@ sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-test-')}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.db import upsert  # noqa: E402
-from app.models import Stock, XbrlFact, XbrlFiling, XbrlFinancial, XbrlStdItem  # noqa: E402
-from app.xbrl.context import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.db import upsert
+from app.models import Stock, XbrlFact, XbrlFiling, XbrlFinancial, XbrlStdItem
+from app.xbrl.context import (
     classify_title,
     infer_accounting_standard_from_namespaces,
     fiscal_year_end_from_title,
     infer_consolidated,
 )
-from datetime import date, timedelta  # noqa: E402
-from app.xbrl.jobs import run_normalize  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
-from app.xbrl.parser import (  # noqa: E402
+from datetime import date, timedelta
+from app.xbrl.jobs import run_normalize
+from app.xbrl.mappings import apply_mappings
+from app.xbrl.parser import (
     CachedTimeoutFileLoader,
     TaxonomyMissingError,
     find_ixbrl_files,
     parse_package,
     reset_taxonomy_caches,
 )
-from app.xbrlp.file_loader import FileLoader  # noqa: E402
-from app.xbrl.store import parse_zip_into_filing  # noqa: E402
-from jobs.xbrl.tdnet_xbrl_r2 import append_manifest, build_manifest_row  # noqa: E402
+from app.xbrlp.file_loader import FileLoader
+from app.xbrl.store import parse_zip_into_filing
+from jobs.xbrl.tdnet_xbrl_r2 import append_manifest, build_manifest_row
 
 
 def _fail(msg: str) -> None:
@@ -854,18 +854,18 @@ def test_label_and_xsd_cache_across_filings(tmp: Path) -> None:
     orig_lb = XbrlParser._parse_linkbase
     counts = {"xsd": 0, "lab": 0}
 
-    def wrap_xsd(self, url):  # noqa: ANN001
+    def wrap_xsd(self, url):
         if str(url).startswith(("http://", "https://")):
             counts["xsd"] += 1
         return orig_xsd(self, url)
 
-    def wrap_lb(self, linkbase_url, *a, **k):  # noqa: ANN001
+    def wrap_lb(self, linkbase_url, *a, **k):
         if str(linkbase_url).startswith(("http://", "https://")):
             counts["lab"] += 1
         yield from orig_lb(self, linkbase_url, *a, **k)
 
-    XbrlParser._parse_xsd_schema = wrap_xsd  # type: ignore[method-assign]
-    XbrlParser._parse_linkbase = wrap_lb  # type: ignore[method-assign]
+    XbrlParser._parse_xsd_schema = wrap_xsd
+    XbrlParser._parse_linkbase = wrap_lb
     try:
         labels_ja = []
         for i in range(2):
@@ -880,8 +880,8 @@ def test_label_and_xsd_cache_across_filings(tmp: Path) -> None:
         if counts["xsd"] != 1 or counts["lab"] != 1:
             _fail(f"expected one remote XSD/label parse across two filings, got {counts}")
     finally:
-        XbrlParser._parse_xsd_schema = orig_xsd  # type: ignore[method-assign]
-        XbrlParser._parse_linkbase = orig_lb  # type: ignore[method-assign]
+        XbrlParser._parse_xsd_schema = orig_xsd
+        XbrlParser._parse_linkbase = orig_lb
 
 
 def test_loader_never_downloads(tmp: Path) -> None:

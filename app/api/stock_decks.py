@@ -1,4 +1,4 @@
-"""決算説明資料の一覧と、読み取った中身（KAB-350。docs/DESIGN_stock.md）。ニュースが一覧を使い、行から中身を開く。
+"""決算説明資料の一覧と、読み取った中身（KAB-350。docs/screen/stock.md）。ニュースが一覧を使い、行から中身を開く。
 
 中身は jobs/market/briefing_extract.py（KAB-349）が書いた briefing_pages の表と要約。原本の PDF は返さない
 （VPS の容量。原本は url のリンクで開く）。画面がグラフと表に組み直す（static/js/stock-deck.js）。

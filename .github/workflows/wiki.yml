@@ -11,6 +11,7 @@ on:
       - "mkdocs.yml"
       - "requirements-wiki.txt"
       - "tools/wiki/**"
+      - "tools/schema/erd.py"
       - ".github/workflows/wiki.yml"
       - ".wiki-docs/.gitkeep"
   workflow_dispatch:
@@ -39,6 +40,10 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-wiki.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - name: Install
         run: pip install -r requirements-wiki.txt

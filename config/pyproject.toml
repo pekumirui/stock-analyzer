@@ -8,10 +8,12 @@ per-file-ignores = { "jobs/monthly/html_issuers/i141A.py" = ["N999"] }
 ignore = [
     "B008",     # FastAPI Depends() in defaults
     "BLE001",   # batch/MCP catch Exception
-    "DTZ003",   # naive datetime (SQLite / JST)
+    "DTZ001",   # naive datetime (SQLite / JST)
+    "DTZ003",
     "DTZ005",
     "DTZ007",
     "DTZ011",
+    "DTZ901",
     "FURB157",  # Decimal constructor style
     "FURB167",  # re.I vs re.IGNORECASE
     "FURB188",  # removeprefix
@@ -23,7 +25,6 @@ ignore = [
     "PYI034",   # test fake __enter__
     "RUF007",   # itertools.pairwise
     "RUF034",   # useless if/else
-    "RUF100",   # leftover noqa: E402 (E402 not in 0.16 default)
     "S110",     # try/except/pass
     "S112",     # try/except/continue
     "SIM102",   # collapse nested if

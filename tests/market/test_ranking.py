@@ -13,12 +13,12 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-ranking-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.db import SessionLocal, init_db, upsert  # noqa: E402
-from app.main import app  # noqa: E402
-from app.market.analytics import compute_earnings_events, first_disclosures  # noqa: E402
-from app.models import DailyPrice, EarningsEvent, Statement, Stock, Topix  # noqa: E402
+from app.db import SessionLocal, init_db, upsert
+from app.main import app
+from app.market.analytics import compute_earnings_events, first_disclosures
+from app.models import DailyPrice, EarningsEvent, Statement, Stock, Topix
 
 D = date.fromisoformat
 FY = D("2027-03-31")

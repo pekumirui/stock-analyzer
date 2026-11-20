@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -43,7 +43,6 @@ def inherit_accounting_standard_from_prior_filings(
         XbrlFiling.doc_id != doc_id,
         XbrlFiling.parse_status == "parsed",
         XbrlFiling.accounting_standard.isnot(None),
-        XbrlFiling.accounting_standard != "",
     )
     if submitted_at is not None:
         q = q.filter(XbrlFiling.submitted_at <= submitted_at)
@@ -63,6 +62,10 @@ def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def _now_jst() -> datetime:
+    return datetime.now(timezone(timedelta(hours=9))).replace(tzinfo=None)
+
+
 def _parse_submitted(raw: str) -> datetime:
     text = (raw or "").strip()
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
@@ -70,7 +73,7 @@ def _parse_submitted(raw: str) -> datetime:
             return datetime.strptime(text[:19] if "T" in text or " " in text else text[:10], fmt)
         except ValueError:
             continue
-    return _now()
+    return _now_jst()
 
 
 def delete_filing_payload(db: Session, filing_id: int) -> None:

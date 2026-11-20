@@ -1,4 +1,4 @@
-"""有報の大株主の状況・所有者別状況（KAB-266。docs/DESIGN_edinet.md §9）。
+"""有報の大株主の状況・所有者別状況（KAB-266。docs/jobs/edinet.md §9）。
 
 対象は当期の MajorShareholdersAxis / MajorShareholdersVotingRightsAxis /
 ClassesOfSharesAxis（連結/単体の軸は付いてよい）。科目は標準要素名で決める。
@@ -381,7 +381,7 @@ def refresh_versions(db: Session) -> int:
     for r in rows:
         if r.doc_id in gone:
             continue
-        key = (r.submitted_at or datetime.min, r.doc_id)  # noqa: DTZ901  JST naive で比べる
+        key = (r.submitted_at or datetime.min, r.doc_id)
         group = (r.code, r.fiscal_year_end, r.doc_type)
         if group not in best or key > best[group]:
             best[group] = key

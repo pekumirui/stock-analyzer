@@ -16,9 +16,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal  # noqa: E402
-from app.xbrl.jobs import run_normalize  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
+from app.db import SessionLocal
+from app.xbrl.jobs import run_normalize
+from app.xbrl.mappings import apply_mappings
 
 
 def main() -> int:

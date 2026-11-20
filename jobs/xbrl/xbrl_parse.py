@@ -19,11 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs._r2common import fail_if_mount_down  # noqa: E402
-from app.config import XBRL_DEST  # noqa: E402
-from app.db import SessionLocal  # noqa: E402
-from app.xbrl.jobs import report_unmapped, run_parse  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
+from jobs._r2common import fail_if_mount_down
+from app.config import XBRL_DEST
+from app.db import SessionLocal
+from app.xbrl.jobs import report_unmapped, run_parse
+from app.xbrl.mappings import apply_mappings
 
 
 def _d(raw: str | None) -> date | None:

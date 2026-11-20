@@ -6,7 +6,7 @@
   python tools/edinet/sample_zips.py --failed --out /tmp/edinet-zips
 
 そのあと `python tools/xbrl/taxonomy_bundle.py fetch --zips /tmp/edinet-zips`。
-ZIP は解析しない（落とすだけ）。docs/DESIGN_edinet.md §4。
+ZIP は解析しない（落とすだけ）。docs/jobs/edinet.md §4。
 """
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal  # noqa: E402
-from app.models import XbrlFiling  # noqa: E402
+from app.db import SessionLocal
+from app.models import XbrlFiling
 
 # 提出が集中する日（3 月決算の有報 / 1Q / 2Q / 3Q）。土日なら前後にずらして探す
 SAMPLE_DAYS = ("06-26", "08-13", "11-13", "02-13")

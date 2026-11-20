@@ -151,10 +151,10 @@ def _rec(code: str, name: str, title: str, pdf: str) -> dict:
 def _run(mod, dest: Path, rows: list[dict], body: bytes | None = None, *, dry_run: bool = False):
     gets: list[str] = []
 
-    def fake_days(start, end, get, sleep_sec):  # noqa: ARG001
+    def fake_days(start, end, get, sleep_sec):
         return rows
 
-    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
         gets.append(url)
         if body is not None:
             return body
@@ -275,7 +275,7 @@ def test_run_uses_shared_title_gate(tmp_path: Path) -> None:
     dest = tmp_path / "briefing"
     buf = io.StringIO()
 
-    def fake_days(start, end, get, sleep_sec):  # noqa: ARG001
+    def fake_days(start, end, get, sleep_sec):
         return [row]
 
     with patch.object(mod, "is_material_title", lambda title: False), \

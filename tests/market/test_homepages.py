@@ -38,8 +38,8 @@ from jobs.market.homepages import main as homepages_main
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN_HTML = ROOT / "tests" / "golden" / "tdnet_pdf" / "html"
-NOW = datetime(2026, 11, 2, 16, 30)  # noqa: DTZ001
-LATER = datetime(2026, 11, 3, 9, 0)  # noqa: DTZ001
+NOW = datetime(2026, 11, 2, 16, 30)
+LATER = datetime(2026, 11, 3, 9, 0)
 
 
 @pytest.fixture(autouse=True)
@@ -123,10 +123,10 @@ def _seed_xbrl_url(
         code=code,
         source="tdnet",
         doc_id=doc_id,
-        doc_type="tanshin",
+        doc_type="quarterly",
         submitted_at=submitted_at,
         raw_path=f"{doc_id}.zip",
-        parse_status="ok",
+        parse_status="parsed",
         created_at=NOW,
     )
     db.add(filing)
@@ -254,7 +254,7 @@ def test_xbrl_url_wins_when_not_older_than_tanshin() -> None:
         _seed_stock(db, "95010")
         _seed_xbrl_url(
             db, code="95010", url="https://www.tepco.co.jp/",
-            doc_id="20260212557842", submitted_at=datetime(2026, 2, 12, 17),  # noqa: DTZ001
+            doc_id="20260212557842", submitted_at=datetime(2026, 2, 12, 17),
         )
         _seed_tanshin(
             db, disclosure_no="20260212557842", code="95010",
@@ -277,7 +277,7 @@ def test_newer_tanshin_beats_older_xbrl() -> None:
         _seed_stock(db, "45430")
         _seed_xbrl_url(
             db, code="45430", url="https://www.old-terumo.example/",
-            doc_id="old-xbrl", submitted_at=datetime(2024, 1, 1),  # noqa: DTZ001
+            doc_id="old-xbrl", submitted_at=datetime(2024, 1, 1),
         )
         _seed_tanshin(
             db, disclosure_no="20240510589463", code="45430",
@@ -299,11 +299,11 @@ def test_latest_xbrl_invalid_does_not_fall_back() -> None:
         _seed_stock(db, "80150")
         _seed_xbrl_url(
             db, code="80150", url="https://www.nabtesco.com",
-            doc_id="older", submitted_at=datetime(2025, 1, 1),  # noqa: DTZ001
+            doc_id="older", submitted_at=datetime(2025, 1, 1),
         )
         _seed_xbrl_url(
             db, code="80150", url="https://www.w3.org/TR",
-            doc_id="newer", submitted_at=datetime(2026, 6, 1),  # noqa: DTZ001
+            doc_id="newer", submitted_at=datetime(2026, 6, 1),
         )
         report = sync_homepages(db, ["80150"], now=NOW)
         assert report.chosen.get("none") == 1
@@ -340,7 +340,7 @@ def test_xbrl_normalizes_schemeless_www() -> None:
         _seed_stock(db, "80150")
         _seed_xbrl_url(
             db, code="80150", url="www.nabtesco.com",
-            doc_id="20260399999999", submitted_at=datetime(2026, 5, 1),  # noqa: DTZ001
+            doc_id="20260399999999", submitted_at=datetime(2026, 5, 1),
         )
         sync_homepages(db, ["80150"], now=NOW)
         row = db.get(Homepage, "80150")
@@ -388,7 +388,7 @@ def test_compare_hosts_same_and_diff() -> None:
         _seed_stock(db, "95010")
         _seed_xbrl_url(
             db, code="95010", url="https://www.tepco.co.jp/",
-            doc_id="x", submitted_at=datetime(2026, 2, 12),  # noqa: DTZ001
+            doc_id="x", submitted_at=datetime(2026, 2, 12),
         )
         _seed_tanshin(
             db, disclosure_no="20260212557842", code="95010",
@@ -527,7 +527,7 @@ def test_xbrl_url_space_after_scheme_is_removed() -> None:
         _seed_xbrl_url(
             db, code="61770", url="http:// www.appbank.co.jp/",
             doc_id="081220260813519721",
-            submitted_at=datetime(2026, 8, 13, 16),  # noqa: DTZ001
+            submitted_at=datetime(2026, 8, 13, 16),
         )
         sync_homepages(db, ["61770"], now=NOW)
         row = db.get(Homepage, "61770")
@@ -585,7 +585,7 @@ def test_xbrl_bare_domain_without_www() -> None:
         _seed_stock(db, "36640")
         _seed_xbrl_url(
             db, code="36640", url="wize-inc.jp",
-            doc_id="wize-xbrl", submitted_at=datetime(2026, 8, 14),  # noqa: DTZ001
+            doc_id="wize-xbrl", submitted_at=datetime(2026, 8, 14),
         )
         sync_homepages(db, ["36640"], now=NOW)
         row = db.get(Homepage, "36640")

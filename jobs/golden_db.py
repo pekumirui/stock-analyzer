@@ -14,12 +14,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import Boolean, Date, DateTime, Float, Integer, text  # noqa: E402
+from sqlalchemy import Boolean, Date, DateTime, Float, Integer, text
 
-from app.db import SessionLocal, engine, init_db  # noqa: E402
-from app.market.analytics import compute_earnings_events, compute_indicators  # noqa: E402
-from app.models import Base  # noqa: E402
-from app.monthly.maintenance import backfill_legacy_element_sources  # noqa: E402
+from app.db import SessionLocal, engine, init_db
+from app.market.analytics import compute_earnings_events, compute_indicators
+from app.models import Base
+from app.monthly.maintenance import backfill_legacy_element_sources
 
 GOLDEN_DIR = Path(__file__).resolve().parent.parent / "tests" / "golden" / "db"
 GOLDEN_USER_VERSION = 1

@@ -17,14 +17,14 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-monthly-ver-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import and_, func, select, text  # noqa: E402
+from fastapi.testclient import TestClient
+from sqlalchemy import and_, func, select, text
 
-from app.api.monthly._common import _latest_yoy_by_kind  # noqa: E402
-from app.api.monthly.tables import list_tables_payload  # noqa: E402
-from app.db import SessionLocal, engine, ensure_data_versions, init_db, monthly_list_version  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import MonthlyElement, MonthlyValue  # noqa: E402
+from app.api.monthly._common import _latest_yoy_by_kind
+from app.api.monthly.tables import list_tables_payload
+from app.db import SessionLocal, engine, ensure_data_versions, init_db, monthly_list_version
+from app.main import app
+from app.models import MonthlyElement, MonthlyValue
 
 
 def _fail(msg: object) -> None:

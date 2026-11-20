@@ -4,7 +4,7 @@
 EDINET から取った ZIP は data/edinet/{書類種別}/{docID}_type{n}.zip に書き、edinet_archives に
 記録する。OneDrive への退避は jobs/ops/backup_data.py（毎朝 rclone move。VPS 側は消える）。
 OneDrive の場所は backup_data と同じ BACKUP_OFFSITE_REMOTE / BACKUP_OFFSITE_PATH の下の data/edinet。
-設計は docs/DESIGN_edinet.md §10。
+設計は docs/jobs/edinet.md §10。
 """
 from __future__ import annotations
 
@@ -75,7 +75,7 @@ def rclone_get(rel: str, environ: Mapping[str, str] | None = None) -> bytes:
         raise ArchiveError(f"rclone not installed ({bin_name})")
     src = f"{offsite_root(env)}/{rel}"
     try:
-        proc = subprocess.run(  # nosec B603 - 固定の実行ファイル。shell は使わない
+        proc = subprocess.run(
             [bin_name, "cat", src], capture_output=True, timeout=RCLONE_CAT_TIMEOUT_S, check=False,
         )
     except subprocess.TimeoutExpired as exc:
@@ -99,7 +99,7 @@ def rclone_copy(rels: list[str], dest: Path, *, transfers: int = 8, timeout: flo
     cmd = [bin_name, "copy", offsite_root(env), str(dest), "--files-from", str(listing), "--no-traverse",
            "--transfers", str(int(transfers))]
     try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)  # nosec B603 - 固定の実行ファイル
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)
     except subprocess.TimeoutExpired as exc:
         raise ArchiveError(f"rclone copy timeout files={len(rels)}") from exc
     finally:
@@ -179,7 +179,7 @@ def download(db: Session, client: EdinetClient, doc: EdinetDocument, file_type: 
     return Fetched(got.content, "edinet")
 
 
-# 閲覧期間（年）。書類種別 → 年。DESIGN_edinet.md の早見表と各モジュールの KEEP_YEARS
+# 閲覧期間（年）。書類種別 → 年。docs/jobs/edinet.md の早見表と各モジュールの KEEP_YEARS
 _KEEP_YEARS = {
     **dict.fromkeys(("120", "130", "140", "150", "160", "170"), 10),
     **dict.fromkeys(("220", "230"), 1),

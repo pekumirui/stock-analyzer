@@ -13,9 +13,9 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-adjust-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db, upsert  # noqa: E402
-from app.market.adjust import readjust  # noqa: E402
-from app.models import DailyPrice  # noqa: E402
+from app.db import SessionLocal, init_db, upsert
+from app.market.adjust import readjust
+from app.models import DailyPrice
 
 D = date.fromisoformat
 

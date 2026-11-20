@@ -1,4 +1,4 @@
-"""表示リンク（*pre.xml）の区分と要素の並びの読み取りと保存（xbrl_presentation_roles。docs/DESIGN_xbrl.md §4.2）。"""
+"""表示リンク（*pre.xml）の区分と要素の並びの読み取りと保存（xbrl_presentation_roles。docs/jobs/xbrl.md §4.2）。"""
 from __future__ import annotations
 
 import json
@@ -11,17 +11,17 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal, engine  # noqa: E402
-from app.models import XbrlFact, XbrlFiling  # noqa: E402
-from app.xbrl.mappings import apply_mappings  # noqa: E402
-from app.xbrl.presentation import (  # noqa: E402
+from app.db import SessionLocal, engine
+from app.models import XbrlFact, XbrlFiling
+from app.xbrl.mappings import apply_mappings
+from app.xbrl.presentation import (
     StatementRole,
     classify_role,
     read_presentation,
     statement_roles,
 )
-from app.xbrl.store import delete_filing, delete_filing_payload, parse_zip_into_filing  # noqa: E402
-from tests.xbrl.test_xbrl_parse import MANUFACTURING, build_zip, seed_stock, write_zip  # noqa: E402
+from app.xbrl.store import delete_filing, delete_filing_payload, parse_zip_into_filing
+from tests.xbrl.test_xbrl_parse import MANUFACTURING, build_zip, seed_stock, write_zip
 
 PPFS = "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/jppfs_cor_2024-11-01.xsd"
 IGP = "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2024-11-01/jpigp_cor_2024-11-01.xsd"

@@ -21,9 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.market.homepages import now_jst, ordinary_code  # noqa: E402
-from app.market.tanshin_cover import sync_covers  # noqa: E402
+from app.db import SessionLocal
+from app.market.homepages import now_jst, ordinary_code
+from app.market.tanshin_cover import sync_covers
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

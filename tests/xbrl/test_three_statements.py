@@ -1,4 +1,4 @@
-"""財務3表: 有報・短信 XBRL・短信 PDF を要素でそろえて 1 枚の表にする（docs/DESIGN_xbrl.md §17）。"""
+"""財務3表: 有報・短信 XBRL・短信 PDF を要素でそろえて 1 枚の表にする（docs/jobs/xbrl.md §17）。"""
 from __future__ import annotations
 
 import json
@@ -768,7 +768,7 @@ def test_opening_cash_names() -> None:
 
 
 def test_layout_keeps_print_order_and_places_borrowed_facts_by_position() -> None:
-    items = lambda *names: [["jpigp_cor", n, 0, p] for n, p in names]  # noqa: E731
+    items = lambda *names: [["jpigp_cor", n, 0, p] for n, p in names]
     layouts = fst.statement_layouts([
         (0, "rol_ConsolidatedStatementOfFinancialPositionIFRS", "BS", True, True,
          items(("CashAndCashEquivalentsIFRS", None), ("AssetsIFRS", None))),
@@ -793,7 +793,7 @@ def test_layout_keeps_print_order_and_places_borrowed_facts_by_position() -> Non
 
 
 def test_layout_moves_facts_printed_before_the_statement_and_keeps_print_order_inside() -> None:
-    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]  # noqa: E731
+    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]
     layouts = fst.statement_layouts([
         (0, "rol_ConsolidatedBalanceSheet", "BS", True, False,
          items(("CashAndDeposits", None), ("Assets", None), ("NoncurrentLiabilities", "totalLabel"),
@@ -875,7 +875,7 @@ def test_presentation_without_consolidated_roles_has_no_consolidated_statements(
 
 
 def test_presentation_layout_puts_ci_after_pl_and_period_end_cash_last() -> None:
-    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]  # noqa: E731
+    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]
     got = fst.statement_layouts([
         (3, "rol_ConsolidatedStatementOfComprehensiveIncome", "PL", True, False,
          items(("ProfitLoss", None), ("ComprehensiveIncome", None))),

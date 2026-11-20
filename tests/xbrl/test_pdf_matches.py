@@ -1,4 +1,4 @@
-"""短信 PDF の行と XBRL の要素の対応（xbrl_pdf_matches）と、出どころをまたぐビュー（docs/DESIGN_xbrl.md §18）。"""
+"""短信 PDF の行と XBRL の要素の対応（xbrl_pdf_matches）と、出どころをまたぐビュー（docs/jobs/xbrl.md §18）。"""
 from __future__ import annotations
 
 import importlib.util
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tests.xbrl.test_three_statements import (  # noqa: E402
+from tests.xbrl.test_three_statements import (
     AMENDED,
     CODE,
     LOOSE,

@@ -13,10 +13,10 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-backfill-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.market.ingest import BackfillError, run_backfill  # noqa: E402
-from app.market.jquants import JQuantsClient  # noqa: E402
-from app.models import DailyPrice  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.market.ingest import BackfillError, run_backfill
+from app.market.jquants import JQuantsClient
+from app.models import DailyPrice
 
 
 def _fail(msg: str) -> None:
@@ -62,7 +62,7 @@ class _EmptyCalJQ(_FakeJQ):
 def test_trading_days_empty_raises() -> None:
     jq = JQuantsClient(api_key="x")
     try:
-        jq.calendar = lambda from_, to: []  # type: ignore[method-assign]
+        jq.calendar = lambda from_, to: []
         try:
             jq.trading_days("2026-01-01", "2026-01-05")
         except RuntimeError as exc:
@@ -74,7 +74,7 @@ def test_trading_days_empty_raises() -> None:
         def boom(from_: str, to: str) -> list[dict]:
             raise RuntimeError("network")
 
-        jq.calendar = boom  # type: ignore[method-assign]
+        jq.calendar = boom
         try:
             jq.trading_days("2026-01-01", "2026-01-05")
         except RuntimeError as exc:

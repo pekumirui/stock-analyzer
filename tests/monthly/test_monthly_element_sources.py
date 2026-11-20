@@ -14,12 +14,12 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-sources-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models import MonthlyElement, MonthlyElementSource, Statement, Stock  # noqa: E402
-from app.monthly.maintenance import backfill_legacy_element_sources  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.main import app
+from app.models import MonthlyElement, MonthlyElementSource, Statement, Stock
+from app.monthly.maintenance import backfill_legacy_element_sources
 
 
 def _fail(msg: object) -> None:

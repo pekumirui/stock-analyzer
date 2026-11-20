@@ -1,6 +1,6 @@
 """EDINET 自己株券買付状況報告書・訂正（220 / 230）→ edinet_buybacks / edinet_buyback_resolutions。
 
-設計は docs/DESIGN_edinet.md §6（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロックの表。
+設計は docs/jobs/edinet.md §6（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロックの表。
 入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations
@@ -769,7 +769,7 @@ def refresh_versions(db: Session) -> int:
     for r in reports:
         if r.parse_status != "parsed" or r.doc_id in gone:
             continue
-        key = (r.submit_datetime or datetime.min, r.doc_id)  # noqa: DTZ901  JST naive で比べる
+        key = (r.submit_datetime or datetime.min, r.doc_id)
         g = root[r.doc_id]
         if g not in best or key > best[g]:
             best[g] = key

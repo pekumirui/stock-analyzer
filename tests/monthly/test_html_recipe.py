@@ -10,9 +10,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_issuers import PARSERS  # noqa: E402
-from jobs.monthly.html_issuers.i9989 import parse as parse_9989  # noqa: E402
-from jobs.monthly.ir_monthly_html_r2 import ingest_path, load_html_registry, write_ingest  # noqa: E402
+from jobs.monthly.html_issuers import PARSERS
+from jobs.monthly.html_issuers.i9989 import parse as parse_9989
+from jobs.monthly.ir_monthly_html_r2 import ingest_path, load_html_registry, write_ingest
 
 CONFIG = ROOT / "config" / "monthly" / "ir_monthly.json"
 

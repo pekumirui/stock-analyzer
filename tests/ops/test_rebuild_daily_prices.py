@@ -10,10 +10,10 @@ from sqlalchemy import text
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "jobs" / "ops"))
 
-import rebuild_daily_prices as job  # noqa: E402
+import rebuild_daily_prices as job
 
-from app.db import SessionLocal, engine, upsert  # noqa: E402
-from app.models import DailyPrice  # noqa: E402
+from app.db import SessionLocal, engine, upsert
+from app.models import DailyPrice
 
 
 def _ddl() -> str:

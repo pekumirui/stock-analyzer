@@ -9,11 +9,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.monthly.html_monthly import decode_html_bytes  # noqa: E402
-from jobs.monthly.html_issuers import parse_issuer  # noqa: E402
-from jobs.monthly.ir_monthly_html_r2 import load_html_registry  # noqa: E402
+from jobs.monthly.html_monthly import decode_html_bytes
+from jobs.monthly.html_issuers import parse_issuer
+from jobs.monthly.ir_monthly_html_r2 import load_html_registry
 
-from app.monthly.ingest import (  # noqa: E402
+from app.monthly.ingest import (
     apply_issuer_aliases,
     canonicalize_element_label,
     coerce_monthly_storage,

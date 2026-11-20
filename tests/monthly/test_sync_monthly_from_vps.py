@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / ".cursor"))
-from sync_monthly_from_vps import dump_monthly_slice, replace_monthly  # noqa: E402
+from sync_monthly_from_vps import dump_monthly_slice, replace_monthly
 
 
 def _fail(msg: str) -> None:

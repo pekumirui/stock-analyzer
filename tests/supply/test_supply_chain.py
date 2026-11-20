@@ -12,10 +12,10 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-supply-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from fastapi.testclient import TestClient  # noqa: E402
+from fastapi.testclient import TestClient
 
-from app.main import app  # noqa: E402
-from app.supply.chain import (  # noqa: E402
+from app.main import app
+from app.supply.chain import (
     SupplyChainError,
     country_payload,
     load_companies,

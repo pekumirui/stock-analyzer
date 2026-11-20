@@ -13,15 +13,15 @@ sys.path.insert(0, str(ROOT))
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-sf-')}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import XbrlContext, XbrlElement  # noqa: E402
-from app.xbrl.jobs import run_normalize  # noqa: E402
-from app.xbrl.normalize import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.models import XbrlContext, XbrlElement
+from app.xbrl.jobs import run_normalize
+from app.xbrl.normalize import (
     SOURCE_LAYER_PRIMARY,
     SOURCE_LAYER_SUMMARY,
     source_layer_of,
 )
-from tests.xbrl.test_xbrl_forecast import (  # noqa: E402
+from tests.xbrl.test_xbrl_forecast import (
     AXIS_C,
     AXIS_RF,
     CONS,

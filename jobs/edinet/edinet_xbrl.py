@@ -8,7 +8,7 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_xbrl.py --code 72030 --reparse
   python jobs/edinet/edinet_xbrl.py --retry-failed --limit 100
 
-1 書類 2〜3 秒（ダウンロード 1 秒間隔 + パース）。ZIP は残す（§10）。設計は docs/DESIGN_edinet.md §4。
+1 書類 2〜3 秒（ダウンロード 1 秒間隔 + パース）。ZIP は残す（§10）。設計は docs/jobs/edinet.md §4。
 """
 from __future__ import annotations
 
@@ -20,10 +20,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet.client import skip_on_maintenance  # noqa: E402
-from app.edinet.xbrl import DEFAULT_DOC_TYPES, QUARTERLY, pending_documents, run  # noqa: E402
-from app.xbrl.jobs import finish_run, start_run  # noqa: E402
+from app.db import SessionLocal
+from app.edinet.client import skip_on_maintenance
+from app.edinet.xbrl import DEFAULT_DOC_TYPES, QUARTERLY, pending_documents, run
+from app.xbrl.jobs import finish_run, start_run
 
 
 def _d(raw: str | None) -> date | None:

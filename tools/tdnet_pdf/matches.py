@@ -1,4 +1,4 @@
-"""PDF だけの期の短信 PDF の行に XBRL の要素を付ける（xbrl_pdf_matches。docs/DESIGN_xbrl.md §18）。
+"""PDF だけの期の短信 PDF の行に XBRL の要素を付ける（xbrl_pdf_matches。docs/jobs/xbrl.md §18）。
 
 cron では動かさない。銘柄ごとに入れ替えるので何度流しても同じ。
 
@@ -15,9 +15,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.xbrl.pdf_matches import rebuild_matches, summary, unmatched_names  # noqa: E402
-from tools.tdnet_pdf.financials import code5  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.xbrl.pdf_matches import rebuild_matches, summary, unmatched_names
+from tools.tdnet_pdf.financials import code5
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -97,7 +97,8 @@ def test_collect_real_repo_scope(tmp_path: Path) -> None:
     result = collect_into(ROOT, dest)
     assert (dest / "index.md").is_file()
     assert (dest / "wiki-setup.md").is_file()
-    assert (dest / "DESIGN_monthly.md").is_file()
+    assert (dest / "screen" / "monthly.md").is_file()
+    assert (dest / "OVERVIEW.md").is_file()
     assert (dest / "AGENTS.md").is_file()
     assert (dest / "app" / "api" / "AGENTS.md").is_file()
     assert (dest / "static" / "AGENTS.md").is_file()
@@ -109,13 +110,29 @@ def test_collect_real_repo_scope(tmp_path: Path) -> None:
     assert not (dest / ".cursor").exists()
     assert not (dest / "data").exists()
     assert not any(p.startswith("docs/") for p in result.pages)
-    xbrl = (dest / "DESIGN_xbrl.md").read_text(encoding="utf-8")
-    assert "](../DESIGN.md)" not in xbrl
-    assert "`DESIGN.md`" in xbrl
-    assert "](AGENTS.md)" in xbrl
+    xbrl = (dest / "jobs" / "xbrl.md").read_text(encoding="utf-8")
+    assert "](../OVERVIEW.md)" in xbrl
+    assert "](../AGENTS.md)" in xbrl
     backup = (dest / "DESIGN_backup.md").read_text(encoding="utf-8")
     assert "](../deploy/README.md)" not in backup
     assert "deploy/README.md" in backup
     home = (dest / "index.md").read_text(encoding="utf-8")
     assert "](AGENTS.md)" in home
     assert "](app/api/AGENTS.md)" in home
+
+
+def test_link_to_built_file_keeps_query_and_missing_one_is_dropped(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _write(repo / "docs" / "SCHEMA.md", "# S\n\n[図](schema/erd/index.html?hidden=abc)\n[無い](gone/index.html)\n")
+    dest = tmp_path / "out"
+
+    def build(out: Path) -> None:
+        _write(out / "schema" / "erd" / "index.html", "<html></html>")
+
+    collect_into(repo, dest, build)
+    text = (dest / "SCHEMA.md").read_text(encoding="utf-8")
+    assert "[図](schema/erd/index.html?hidden=abc)" in text
+    assert "](gone/index.html)" not in text
+
+    collect_into(repo, dest)
+    assert "](schema/erd/index.html" not in (dest / "SCHEMA.md").read_text(encoding="utf-8")

@@ -20,11 +20,11 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-edinet-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from sqlalchemy import delete, select  # noqa: E402
+from sqlalchemy import delete, select
 
-from app.db import SessionLocal, init_db  # noqa: E402
-from app.edinet.codes import ingest_code_list, link_stocks, parse_list_date  # noqa: E402
-from app.edinet.documents import (  # noqa: E402
+from app.db import SessionLocal, init_db
+from app.edinet.codes import ingest_code_list, link_stocks, parse_list_date
+from app.edinet.documents import (
     CodeLookup,
     days_to_fetch,
     ingest_days,
@@ -32,8 +32,8 @@ from app.edinet.documents import (  # noqa: E402
     relink_codes,
     store_listing,
 )
-from app.edinet_wrapper._core import parse_document_list  # noqa: E402
-from app.models import (  # noqa: E402
+from app.edinet_wrapper._core import parse_document_list
+from app.models import (
     EdinetDocument,
     EdinetFiler,
     EdinetListDay,

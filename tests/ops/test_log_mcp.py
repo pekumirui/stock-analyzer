@@ -19,9 +19,9 @@ sys.path.insert(0, str(ROOT / "mcp"))
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 os.environ["MCP_APP_DIR"] = str(ROOT)
 
-from starlette.testclient import TestClient  # noqa: E402
+from starlette.testclient import TestClient
 
-import log_mcp as m  # noqa: E402
+import log_mcp as m
 
 
 def _rpc(client: TestClient, method: str, params: dict | None = None, token: str = "test-token-for-ci-only", req_id: int = 1):
@@ -682,7 +682,7 @@ def test_db_tools() -> None:
             sqls: list[str] = []
             real_fetch = m._timed_fetch
 
-            def record_fetch(conn, budget, sql, params=()):  # noqa: ANN001
+            def record_fetch(conn, budget, sql, params=()):
                 sqls.append(sql)
                 return real_fetch(conn, budget, sql, params)
 
@@ -780,7 +780,7 @@ def test_db_stats_approx_timeout_and_stat1() -> None:
 
             real_fetch = m._timed_fetch
 
-            def timeout_stocks(conn, budget, sql, params=()):  # noqa: ANN001
+            def timeout_stocks(conn, budget, sql, params=()):
                 if "MAX(rowid)" in sql and "stocks" in sql:
                     return m._TIMEOUT
                 return real_fetch(conn, budget, sql, params)
@@ -797,7 +797,7 @@ def test_db_stats_approx_timeout_and_stat1() -> None:
 
             orig_budget = m._StatsBudget
 
-            def zero_query_budget(*_a, **_k):  # noqa: ANN002, ANN003
+            def zero_query_budget(*_a, **_k):
                 return orig_budget(total_s=8, query_s=0)
 
             m._StatsBudget = zero_query_budget
@@ -866,7 +866,7 @@ def test_db_query_and_schema() -> None:
         audits: list[tuple] = []
         orig_audit = m._audit_db_query
 
-        def capture_audit(sql, elapsed_s, row_count, truncated, result="ok", error=None):  # noqa: ANN001, ANN202
+        def capture_audit(sql, elapsed_s, row_count, truncated, result="ok", error=None):
             audits.append((sql, elapsed_s, row_count, truncated, result, error))
             orig_audit(sql, elapsed_s, row_count, truncated, result, error)
 
@@ -1040,7 +1040,7 @@ def test_db_query_timeout_value_and_description() -> None:
 def test_db_query_audit_line_format() -> None:
     """監査行: 行頭に JST の日時、result、所要時間、SQL は 1 行で全文。秘密は伏せる。"""
 
-    def line_of(*args) -> str:  # noqa: ANN002
+    def line_of(*args) -> str:
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             m._audit_db_query(*args)
@@ -1574,7 +1574,7 @@ def _monthly_stub():
         store: dict = {}
 
         class Handler(BaseHTTPRequestHandler):
-            def log_message(self, format, *args):  # noqa: A003
+            def log_message(self, format, *args):
                 return
 
             def do_GET(self) -> None:
@@ -2296,13 +2296,13 @@ def test_service_status_skips_self_mcp_curl() -> None:
     calls: list[list[str]] = []
     orig = m.run_cmd
 
-    def fake(argv, timeout=15):  # noqa: ANN001, ARG001, ANN202
+    def fake(argv, timeout=15):
         calls.append(list(argv))
         if argv and argv[0] == "curl":
             return "200"
         return "active"
 
-    m.run_cmd = fake  # type: ignore[assignment]
+    m.run_cmd = fake
     try:
         t0 = time.perf_counter()
         text, is_error = m.call_tool("service_status", {})
@@ -2341,7 +2341,7 @@ def test_service_status_live_server_does_not_timeout() -> None:
 
     orig = m.run_cmd
 
-    def fake(argv, timeout=15):  # noqa: ANN001, ARG001, ANN202
+    def fake(argv, timeout=15):
         if argv and argv[0] == "curl":
             url = next((a for a in argv if isinstance(a, str) and a.startswith("http")), "")
             if "/mcp" in url or f":{m.PORT}/mcp" in url:
@@ -2354,7 +2354,7 @@ def test_service_status_live_server_does_not_timeout() -> None:
             return "200"
         return "active"
 
-    m.run_cmd = fake  # type: ignore[assignment]
+    m.run_cmd = fake
     config = uvicorn.Config(
         m.create_app("test-token-for-ci-only"),
         host="127.0.0.1",
@@ -2445,8 +2445,8 @@ def test_tool_app_logs_joins_file_and_journal(tmp_path: Path) -> None:
     try:
         orig_journal = m.journal
         orig_pick = m.pick_log
-        m.journal = lambda unit, since, lines, grep, until=None: f"journal-{unit}-{since}-{grep}"  # type: ignore[assignment]
-        m.pick_log = lambda name: log  # type: ignore[assignment]
+        m.journal = lambda unit, since, lines, grep, until=None: f"journal-{unit}-{since}-{grep}"
+        m.pick_log = lambda name: log
         out = m.tool_app_logs({"lines": 20, "grep": "ERROR"})
         if "ERROR boom" not in out or "keep" in out:
             raise SystemExit(f"file filter: {out!r}")
@@ -2459,8 +2459,8 @@ def test_tool_app_logs_joins_file_and_journal(tmp_path: Path) -> None:
         else:
             raise SystemExit("bad since")
     finally:
-        m.journal = orig_journal  # type: ignore[assignment]
-        m.pick_log = orig_pick  # type: ignore[assignment]
+        m.journal = orig_journal
+        m.pick_log = orig_pick
         if prev is None:
             os.environ.pop("MCP_APP_DIR", None)
         else:
@@ -2485,14 +2485,14 @@ def test_tool_app_logs_window_reads_rotated(tmp_path: Path) -> None:
     orig = (m.journal, m.pick_log, m._jst_now)
     calls: list[tuple[str, str | None]] = []
 
-    def _journal(unit, since, lines, grep, until=None):  # noqa: ANN001, ANN202
+    def _journal(unit, since, lines, grep, until=None):
         calls.append((since, until))
         return "journal"
 
     try:
-        m.journal = _journal  # type: ignore[assignment]
-        m.pick_log = lambda name: tmp_path / name  # type: ignore[assignment]
-        m._jst_now = lambda: datetime(2026, 10, 5, 12, 0, 0, tzinfo=m.JST).replace(tzinfo=None)  # type: ignore[assignment]
+        m.journal = _journal
+        m.pick_log = lambda name: tmp_path / name
+        m._jst_now = lambda: datetime(2026, 10, 5, 12, 0, 0, tzinfo=m.JST).replace(tzinfo=None)
         if "until" not in m.TOOLS["app_logs"][1]["properties"]:
             raise SystemExit("app_logs schema missing until")
         text, is_error = m.call_tool("app_logs", {"since": "yesterday", "until": "today"})
@@ -2516,7 +2516,7 @@ def test_tool_app_logs_window_reads_rotated(tmp_path: Path) -> None:
         if "ValueError: boom" not in tb or "/today" in tb:
             raise SystemExit(f"grep on continuation: {tb!r}")
     finally:
-        m.journal, m.pick_log, m._jst_now = orig  # type: ignore[assignment]
+        m.journal, m.pick_log, m._jst_now = orig
 
 
 def test_tool_nginx_logs_access_timed_and_redacted(tmp_path: Path) -> None:
@@ -2530,7 +2530,7 @@ def test_tool_nginx_logs_access_timed_and_redacted(tmp_path: Path) -> None:
     )
     orig = (m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG)
     try:
-        m.journal = lambda unit, since, lines, grep: "journal"  # type: ignore[assignment]
+        m.journal = lambda unit, since, lines, grep: "journal"
         m.NGINX_ACCESS_LOG = access
         m.NGINX_ERROR_LOG = tmp_path / "missing-error.log"
         out = m.tool_nginx_logs({"grep": "rt=[1-9]"})
@@ -2541,7 +2541,7 @@ def test_tool_nginx_logs_access_timed_and_redacted(tmp_path: Path) -> None:
         if "code=<redacted>&state=<redacted>&x=1" not in out:
             raise SystemExit(f"redact_url: {out!r}")
     finally:
-        m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG = orig  # type: ignore[assignment]
+        m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG = orig
 
 
 def test_tool_nginx_logs_window_reads_rotated(tmp_path: Path) -> None:
@@ -2572,15 +2572,15 @@ def test_tool_nginx_logs_window_reads_rotated(tmp_path: Path) -> None:
     orig = (m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG, m._jst_now)
     calls: list[tuple[str, str | None]] = []
 
-    def _journal(unit, since, lines, grep, until=None):  # noqa: ANN001, ANN202
+    def _journal(unit, since, lines, grep, until=None):
         calls.append((since, until))
         return "journal"
 
     try:
-        m.journal = _journal  # type: ignore[assignment]
+        m.journal = _journal
         m.NGINX_ACCESS_LOG = access
         m.NGINX_ERROR_LOG = error
-        m._jst_now = lambda: datetime(2026, 10, 5, 12, 0, 0, tzinfo=m.JST).replace(tzinfo=None)  # type: ignore[assignment]
+        m._jst_now = lambda: datetime(2026, 10, 5, 12, 0, 0, tzinfo=m.JST).replace(tzinfo=None)
         props = m.TOOLS["nginx_logs"][1]["properties"]
         if "until" not in props:
             raise SystemExit("nginx_logs schema missing until")
@@ -2615,7 +2615,7 @@ def test_tool_nginx_logs_window_reads_rotated(tmp_path: Path) -> None:
         if not bad_err or "until must be after since" not in bad:
             raise SystemExit(f"bad window: {bad!r}")
     finally:
-        m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG, m._jst_now = orig  # type: ignore[assignment]
+        m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG, m._jst_now = orig
 
 
 def _period_block(text: str, period: str) -> str:

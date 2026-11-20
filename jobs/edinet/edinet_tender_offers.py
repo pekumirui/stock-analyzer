@@ -9,7 +9,7 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_tender_offers.py --refresh-only            # 案件の表の作り直しだけ
 
 届出書・報告書・意見表明は XBRL を 1 回ダウンロード（1〜3 秒）。撤回届出書・対質問回答報告書などは
-一覧のメタデータだけ。ZIP は残す（docs/DESIGN_edinet.md §10）。設計は docs/DESIGN_edinet.md §7。
+一覧のメタデータだけ。ZIP は残す（docs/jobs/edinet.md §10）。設計は docs/jobs/edinet.md §7。
 """
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.edinet.client import skip_on_maintenance  # noqa: E402
-from app.edinet.tender_offers import (  # noqa: E402
+from app.db import SessionLocal
+from app.edinet.client import skip_on_maintenance
+from app.edinet.tender_offers import (
     exit_status,
     mark_outside_window,
     pending_documents,

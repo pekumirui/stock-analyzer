@@ -1,4 +1,4 @@
-"""短信 ZIP の HTML → xbrl_documents（KAB-161。docs/DESIGN_xbrl.md §15）。
+"""短信 ZIP の HTML → xbrl_documents（KAB-161。docs/jobs/xbrl.md §15）。
 
 PDF と同じ中身を画面で読むための原文。サマリーの iXBRL と `Attachment/qualitative.htm`
 （添付資料まるごと）を入れる。qualitative.htm が無い書類（REIT・一部の訂正）は本表の iXBRL を

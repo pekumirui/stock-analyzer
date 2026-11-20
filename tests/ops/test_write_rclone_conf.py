@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "deploy"))
 
-from write_rclone_conf import (  # noqa: E402
+from write_rclone_conf import (
     apply_r2,
     main,
     r2_section_body,
@@ -84,7 +84,7 @@ def test_write_conf_skips_unchanged(tmp_path: Path) -> None:
         _fail(f"mode {oct(mode)}")
 
 
-def test_main_noop_without_keys(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_main_noop_without_keys(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.delenv("R2_ACCESS_KEY_ID", raising=False)
     monkeypatch.delenv("R2_SECRET_ACCESS_KEY", raising=False)
@@ -100,7 +100,7 @@ def test_main_noop_without_keys(tmp_path: Path, monkeypatch) -> None:  # noqa: A
         _fail("must not create conf without keys")
 
 
-def test_main_does_not_print_keys(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_main_does_not_print_keys(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("R2_ACCESS_KEY_ID", "AKIA-CANARY")
     monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "r2-secret-canary")

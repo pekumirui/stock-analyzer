@@ -9,7 +9,7 @@
   python jobs/edinet/edinet_shareholders.py --refresh-only
 
 本番の過去分は fact がまだ無い（次元付きを keep_fact が落としていた）ので、
-先に `python jobs/edinet/edinet_xbrl.py --reparse` が要る。設計は docs/DESIGN_edinet.md §9。
+先に `python jobs/edinet/edinet_xbrl.py --reparse` が要る。設計は docs/jobs/edinet.md §9。
 """
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from app.db import SessionLocal  # noqa: E402
-from app.xbrl.shareholders import rebuild_shareholders, refresh_versions  # noqa: E402
+from app.db import SessionLocal
+from app.xbrl.shareholders import rebuild_shareholders, refresh_versions
 
 
 def main() -> int:
