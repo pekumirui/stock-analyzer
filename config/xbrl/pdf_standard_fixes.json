@@ -1,0 +1,21 @@
+{
+  "_meta": {"use": "J-Quants の DocType の会計基準が誤っている短信。短信 PDF の書類の会計基準を standard に直す。jquants は J-Quants が返す誤った値で、この値のときだけ直す", "researched_at": "2026-11-20", "source": "短信 PDF の表題の〔IFRS〕〔日本基準〕と、同じ会社のほかの期の短信の会計基準（どの会社も、この 1 期だけ違っていた）"},
+  "fixes": [
+    {"disclosure_no": "20250122553652", "code": "26640", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2025年３月期 第３四半期決算短信〔日本基準〕（連結）"},
+    {"disclosure_no": "20240425577253", "code": "28010", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2024年３月期 決算短信〔ＩＦＲＳ〕（連結）"},
+    {"disclosure_no": "20240412569777", "code": "31740", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2024年８月期 第２四半期決算短信〔日本基準〕（連結）"},
+    {"disclosure_no": "20230803533449", "code": "40880", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2024年３月期第１四半期決算短信〔ＩＦＲＳ〕（連結）"},
+    {"disclosure_no": "20250210568279", "code": "42930", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2024年12月期 決算短信〔ＩＦＲＳ〕（連結）"},
+    {"disclosure_no": "20220324510292", "code": "44650", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2022年５月期 第３四半期決算短信〔日本基準〕（連結）"},
+    {"disclosure_no": "20241111518004", "code": "59700", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2025年３月期 第２四半期（中間期）決算短信〔日本基準〕（連結）"},
+    {"disclosure_no": "20220512542868", "code": "63610", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2022年12月期第１四半期決算短信〔ＩＦＲＳ〕（連結）"},
+    {"disclosure_no": "20220627588578", "code": "64710", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "(訂正・数値データ訂正)「2022年3月期決算短信〔ＩＦＲＳ〕(連結)」の一部訂正について"},
+    {"disclosure_no": "20230512570638", "code": "64810", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2023年12月期 第1四半期決算短信〔ＩＦＲＳ〕（連結）"},
+    {"disclosure_no": "20240510589706", "code": "65250", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2024年３月期 決算短信〔ＩＦＲＳ〕（連結）"},
+    {"disclosure_no": "20220202578371", "code": "69300", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2022年3月期第3四半期決算短信〔日本基準〕（連結）"},
+    {"disclosure_no": "20241113520973", "code": "69300", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2025年3月期第2四半期（中間期）決算短信〔日本基準〕（連結）"},
+    {"disclosure_no": "20221107558586", "code": "71870", "jquants": "IFRS", "standard": "JPGAAP", "evidence": "2023年３月期第２四半期決算短信〔日本基準〕(連結)"},
+    {"disclosure_no": "20240506582139", "code": "96130", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2024年3月期決算短信〔ＩＦＲＳ〕(連結)"},
+    {"disclosure_no": "20221031553061", "code": "97190", "jquants": "JPGAAP", "standard": "IFRS", "evidence": "2023年３月期第２四半期決算短信〔ＩＦＲＳ〕（連結）"}
+  ]
+}

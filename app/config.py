@@ -16,6 +16,7 @@ SUPPLY_COMPANIES_PATH = CONFIG_DIR / "supply" / "supply_companies.json"
 MATERIAL_STATS_PATH = CONFIG_DIR / "supply" / "material_stats.json"
 LARGE_HOLDING_DATE_FIXES_PATH = CONFIG_DIR / "large_holding_date_fixes.json"
 PDF_OTHER_STANDARD_PATH = CONFIG_DIR / "xbrl" / "pdf_other_standard.json"
+PDF_STANDARD_FIXES_PATH = CONFIG_DIR / "xbrl" / "pdf_standard_fixes.json"
 XBRL_ROW_MERGE_EXCLUSIONS_PATH = CONFIG_DIR / "xbrl" / "row_merge_exclusions.json"
 STATEMENT_PERIOD_FIXES_PATH = CONFIG_DIR / "market" / "statement_period_fixes.json"
 

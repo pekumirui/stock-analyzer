@@ -15,12 +15,14 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from enum import Enum
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from sqlalchemy.orm import Session
 
-from app.config import PDF_OTHER_STANDARD_PATH
+from app.config import PDF_OTHER_STANDARD_PATH, PDF_STANDARD_FIXES_PATH
 from app.models import Statement, TdnetPdfDocument, XbrlFiling, XbrlFinancial
+from app.xbrl.context import classify_title
 from app.xbrl.normalize import is_normalizable_context, normalize_filing
 from app.xbrl.parser import ParsedPackage
 from app.xbrl.pdf._layout import (
@@ -112,7 +114,7 @@ def inherit_accounting_standard_from_statements(
         dist = abs((st.disclosed_date - disclosed_date).days)
         if best_dist is None or dist < best_dist:
             best_dist = dist
-            best = "IFRS" if matched.group(2) == "IFRS" else "JPGAAP"
+            best = fixed_standard(st.disclosure_no, st.code, "IFRS" if matched.group(2) == "IFRS" else "JPGAAP")
     return best
 
 
@@ -172,6 +174,48 @@ def other_standard_disclosures() -> frozenset[str]:
     return frozenset(str(item["disclosure_no"]).strip() for item in raw.get("disclosures") or [])
 
 
+def load_standard_fixes(path: Path | None = None) -> dict[str, tuple[str, str]]:
+    src = PDF_STANDARD_FIXES_PATH if path is None else path
+    raw = json.loads(src.read_text(encoding="utf-8"))
+    out: dict[str, tuple[str, str]] = {}
+    for item in raw.get("fixes") or []:
+        no = str(item["disclosure_no"]).strip()
+        if no in out:
+            raise ValueError(f"duplicate disclosure_no in pdf standard fixes: {no}")
+        out[no] = (str(item["jquants"]), str(item["standard"]))
+    return out
+
+
+@lru_cache(maxsize=1)
+def standard_fixes() -> dict[str, tuple[str, str]]:
+    return load_standard_fixes()
+
+
+def fixed_standard(disclosure_no: str | None, code: str, standard: str | None) -> str | None:
+    recorded = standard_fixes().get(str(disclosure_no or ""))
+    if recorded is None or standard == recorded[1]:
+        return standard
+    if standard != recorded[0]:
+        print(
+            f"WARNING tdnet_pdf standard-fix-mismatch disclosure_no={disclosure_no} code={code} "
+            f"recorded={recorded[0]} jquants={standard or '-'}",
+            flush=True,
+        )
+        return standard
+    return recorded[1]
+
+
+def _warn_standard_candidate(disclosure: PdfDisclosure, title: str | None) -> None:
+    printed = classify_title(title or "").get("accounting_standard")
+    if printed is None or disclosure.standard is None or printed == disclosure.standard:
+        return
+    print(
+        f"WARNING tdnet_pdf standard-candidate disclosure_no={disclosure.disclosure_no} code={disclosure.code} "
+        f"jquants={disclosure.standard} title={printed}",
+        flush=True,
+    )
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -197,6 +241,9 @@ def _plan(db: Session, disclosure_no: str, zip_parsed: bool) -> _Build | _Absent
     parsed = PdfDisclosure.parse(statement)
     if isinstance(parsed, Unsupported):
         return _Absent(parsed.reason)
+    if parsed.kind is DocKind.EARNINGS:
+        parsed = replace(parsed, standard=fixed_standard(disclosure_no, parsed.code, parsed.standard))
+        _warn_standard_candidate(parsed, doc.title)
     if parsed.standard is None:
         inherited = inherit_accounting_standard_from_statements(
             db, code=parsed.code, disclosed_date=statement.disclosed_date,
