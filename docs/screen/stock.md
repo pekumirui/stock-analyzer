@@ -1,6 +1,6 @@
 # 銘柄タブ
 
-原文の取込と保存は `docs/jobs/xbrl.md` §15（TDnet の ZIP）と §16（過去の回を IR BANK の PDF から変換）。大量保有・自己株買い・公開買付けの取込は `docs/jobs/edinet.md` §5〜§7。共通見た目は `docs/screen/SPEC.md`。
+原文の取込と保存は `docs/jobs/xbrl.md` §15（TDnet の ZIP）と §16（過去の回を IR BANK の PDF から変換）。大量保有・自己株買い・公開買付けの取込は `docs/jobs/edinet.md`「大量保有報告書」「自己株券買付状況報告書」「公開買付け」。共通見た目は `docs/screen/SPEC.md`。
 
 ## 誰のための画面か
 

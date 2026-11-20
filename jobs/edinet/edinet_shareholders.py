@@ -9,7 +9,7 @@
   python jobs/edinet/edinet_shareholders.py --refresh-only
 
 本番の過去分は fact がまだ無い（次元付きを keep_fact が落としていた）ので、
-先に `python jobs/edinet/edinet_xbrl.py --reparse` が要る。設計は docs/jobs/edinet.md §9。
+先に `python jobs/edinet/edinet_xbrl.py --reparse` が要る。設計は docs/jobs/edinet.md「有報の大株主の状況・所有者別状況」。
 """
 from __future__ import annotations
 

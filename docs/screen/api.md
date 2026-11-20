@@ -54,7 +54,7 @@ API の一覧・引数・読み書きする表は [画面設計](../SCREENS.md)�
 
 ### 大量保有報告書タブの画面
 
-画面は `docs/screen/holders.md`。書き方は `docs/screen/SPEC.md`。データは `docs/jobs/edinet.md` §5。
+画面は `docs/screen/holders.md`。書き方は `docs/screen/SPEC.md`。データは `docs/jobs/edinet.md`「大量保有報告書」。
 
 ### ランキングタブの画面
 

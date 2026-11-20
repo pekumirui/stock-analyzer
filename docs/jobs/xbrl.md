@@ -19,8 +19,8 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 実装前に確認済み。覆すときはこの節と該当箇所を両方直す。
 
-1. 第1弾の取得・パース対象は **TDnet 短信 iXBRL のみ**。EDINET の有報・半期報は KAB-73 で `source='edinet'` として足した（取得・対象・fact の絞り込みは `docs/jobs/edinet.md` §4）。パース・正規化・マッピングは同じものを使う。
-2. 企業キーは `stocks.code`（5桁）だけ。`stocks.edinet_code`（nullable）は KAB-72 で足した（`docs/jobs/edinet.md` §2）。XBRL 層のキーには使わない。
+1. 第1弾の取得・パース対象は **TDnet 短信 iXBRL のみ**。EDINET の有報・半期報は KAB-73 で `source='edinet'` として足した（取得・対象・fact の絞り込みは `docs/jobs/edinet.md`「有報・半期報の財務 XBRL」）。パース・正規化・マッピングは同じものを使う。
+2. 企業キーは `stocks.code`（5桁）だけ。`stocks.edinet_code`（nullable）は KAB-72 で足した（`docs/jobs/edinet.md`「提出者」）。XBRL 層のキーには使わない。
 3. context から連結/単体が取れなければ **連結として扱う**（`is_consolidated=1`）。
 4. 生データ・正規化層は **既存と同じ SQLite**（`DATABASE_URL` / 本番 `stock.db`）に載せる。分離は容量が問題になってから。
 5. 決算速報 UI / API が読むのは **`statements`**。短信 XBRL から同じ形の行を開示番号で作って入れる（KAB-383。§3.2）。例外として、決算表の修正履歴（KAB-57）は `?rev_source=xbrl` / `EARNINGS_PARAMS["revision_source"]` で `xbrl_financials` を読める（既定は `jquants`）。読むだけで `statements` は変えない。修正履歴が読むのは `source='tdnet'` の filing だけ。
@@ -49,7 +49,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 ### 1.3 スコープ外（第1弾）
 
-- EDINET 有報・四半期報告書の取得とパース（有報・半期報は KAB-73 で足した。`docs/jobs/edinet.md` §4）
+- EDINET 有報・四半期報告書の取得とパース（有報・半期報は KAB-73 で足した。`docs/jobs/edinet.md`「有報・半期報の財務 XBRL」）
 - AuditDoc / 監査報告書
 - セグメント軸付き fact の正規化層投入（KAB-77 で別表 `xbrl_segments` に入れた。§14）
 - `statements` との自動突合・置換
@@ -392,7 +392,7 @@ filing 単位。
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` と大株主の表を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。大株主は軸付き fact が無ければ 0 行のまま（`docs/jobs/edinet.md` §9）。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` と大株主の表を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。大株主は軸付き fact が無ければ 0 行のまま（`docs/jobs/edinet.md`「有報の大株主の状況・所有者別状況」）。
 
 ### 6.5 CLI
 
@@ -631,7 +631,7 @@ XBRL_PARSE_WORKERS=2
 
 ## 13. 後続（今書かない）
 
-- （済）EDINET API v2 で有報・半期報 ZIP を取り、`source='edinet'` の filing を足す（KAB-73。`docs/jobs/edinet.md` §4）
+- （済）EDINET API v2 で有報・半期報 ZIP を取り、`source='edinet'` の filing を足す（KAB-73。`docs/jobs/edinet.md`「有報・半期報の財務 XBRL」）
 - 伝統的 instance `.xbrl` パーサ
 - 正規化層の実績を決算詳細 API に出す（`statements` の予想列は残す）
 - facts の DB 分離
@@ -653,7 +653,7 @@ XBRL_PARSE_WORKERS=2
 
 ### 14.2 生データ層
 
-- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない。大株主・所有者別の軸（`MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis`）も、要素名があるときだけ残す（KAB-266。`docs/jobs/edinet.md` §9）
+- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない。大株主・所有者別の軸（`MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis`）も、要素名があるときだけ残す（KAB-266。`docs/jobs/edinet.md`「有報の大株主の状況・所有者別状況」）
 - `xbrl_contexts.member_labels_json`: 連結/単体以外の次元メンバー → その書類の日本語ラベル（`{"prefix:Member": "自動車"}`）。無ければ NULL。パーサは fact の要素に加えて、context の次元メンバーのラベルも引く（`app/xbrl/parser.py parse_package`）
 - 過去分は `edinet_xbrl.py --reparse` でダウンロードし直さないと入らない
 - デプロイ: `jobs/migrate.py`（表と列）→ `python jobs/xbrl/xbrl_parse.py load-mappings`（SEG の科目とマッピング）。そのあとの取込から入る。取込済みの書類は `edinet_xbrl.py --reparse`
