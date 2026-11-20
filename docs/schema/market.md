@@ -121,6 +121,8 @@ erDiagram
 
 決算説明資料 PDF の索引
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#briefing_documents)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `source` | VARCHAR(16) |  | PK | `tdnet` / `irbank` / `homepage` |  |  |
@@ -144,6 +146,8 @@ erDiagram
 ### briefing_extracts
 
 決算説明資料の読み取り。資料 1 つに 1 行
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#briefing_extracts)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -177,6 +181,8 @@ erDiagram
 
 読み取った数値。briefing_pages の表を 1 セル 1 行に展開したもの
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#briefing_facts)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `id` | INTEGER |  | PK |  |  |  |
@@ -201,6 +207,8 @@ erDiagram
 
 IR BANK の開示一覧を読み終えた銘柄
 
+書く入口・読むだけの入口（バッチと API）: テストでは観測されていない
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  | 代表の 5 桁（末尾 0 を優先） |
@@ -216,6 +224,8 @@ IR BANK の開示一覧を読み終えた銘柄
 
 読み取った説明資料のページ。表紙・注意事項など Claude に回さないページも kind だけ残す
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#briefing_pages)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `document_id` | VARCHAR(80) |  | PK / → `briefing_extracts.document_id`（制約なし） |  |  |  |
@@ -230,6 +240,8 @@ IR BANK の開示一覧を読み終えた銘柄
 ### daily_prices
 
 日足
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#daily_prices)
 
 `WITHOUT ROWID`
 
@@ -262,6 +274,8 @@ IR BANK の開示一覧を読み終えた銘柄
 
 読み取り結果を使い回すための版。対象表のトリガーが version を +1 する
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#data_versions)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `name` | VARCHAR |  | PK |  |  | 使い回す結果の名前。monthly_list は月次一覧（/monthly、/api/v1/tables、/sitemap.xml） |
@@ -271,6 +285,8 @@ IR BANK の開示一覧を読み終えた銘柄
 
 取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#earnings_date_fetches)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `pub_date` | DATE |  | PK |  |  |  |
@@ -279,6 +295,8 @@ IR BANK の開示一覧を読み終えた銘柄
 ### earnings_date_pubs
 
 決算発表予定の発表履歴。発表のたびに 1 行。現在の予定は (code, fq_name) で pub_date が最新の行。移動前の日が残っている
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#earnings_date_pubs)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -296,6 +314,8 @@ IR BANK の開示一覧を読み終えた銘柄
 ### earnings_events
 
 決算発表イベントと発表後パフォーマンス
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#earnings_events)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -324,6 +344,8 @@ IR BANK の開示一覧を読み終えた銘柄
 
 ECB 対EUR 日次レート。EUR 自身は持たない
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#fx_rates)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `date` | DATE |  | PK |  |  |  |
@@ -338,6 +360,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 
 上場会社のホームページ URL
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#homepages)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK / → `stocks.code`（制約なし） |  |  | 普通株（末尾 0） |
@@ -351,6 +375,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 ### indicators
 
 日次算出テクニカル
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#indicators)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -376,6 +402,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 
 株探の PTS ナイトタイムセッションのランキング。取得 1 回ごとにランキング全行を残す
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#pts_snapshots)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `fetched_at` | DATETIME（`JstDateTime`） |  | PK |  |  | 取得時刻 |
@@ -398,6 +426,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 ### statements
 
 決算短信 (J-Quants /fins/summary ほぼ生保存。短信 XBRL から作った行も入る)
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#statements)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -440,6 +470,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 
 銘柄マスタ
 
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#stocks)
+
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
 | `code` | VARCHAR(5) |  | PK |  |  | 5桁コード (例 "72030", "262A0")。先頭・末尾は数字、途中は 0-9A-Z |
@@ -455,6 +487,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 ### tanshin_covers
 
 決算短信の表紙。短信ごとに1行
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#tanshin_covers)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -476,6 +510,8 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 ### topix
 
 TOPIX日足
+
+書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/market.md#topix)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|

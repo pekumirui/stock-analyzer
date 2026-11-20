@@ -23,6 +23,8 @@ console.log(JSON.stringify({
   mixedMeta: fs.fsMeta(JSON.parse(process.argv[4])),
   standards: fs.fsTableHtml(JSON.parse(process.argv[5])),
   deep: fs.fsTableHtml(JSON.parse(process.argv[6])),
+  earlier: fs.fsEarlierHtml({...d, cumulative: true, earlier: [JSON.parse(process.argv[3])]}),
+  noEarlier: fs.fsEarlierHtml(d),
   amounts: [fs.fsAmount(1234567890, "money"), fs.fsAmount(-2500000, "money"), fs.fsAmount(-400000, "money"),
             fs.fsAmount(41.666, "per_share"), fs.fsAmount(null, "money")],
 }));
@@ -211,3 +213,11 @@ def test_heading_rows_of_any_depth_and_indented_rows() -> None:
     body = [r for r in rows if not r.startswith(' class="fs-sec')]
     depth = [re.search(r'<td class="([^"]*)"', r).group(1) for r in body]
     assert depth == ["l d4", "l d5", "l d3", "l d1", "l d2", "l d6"]
+
+
+def test_tables_of_the_earlier_standard_follow_the_main_table() -> None:
+    r = _run()
+    assert r["noEarlier"] == ""
+    assert r["earlier"].startswith('<p class="sub fs-earlier">日本基準の期 / 25.03〜25.12 / 連結</p>'
+                                   '<div class="tbl-wrap"><table class="sheet fin fs"><thead>')
+    assert r["earlier"].count("<table") == 1 and "科目（累計）" in r["earlier"] and "fs-sec" in r["earlier"]

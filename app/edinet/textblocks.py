@@ -2,7 +2,7 @@
 
 自己株券買付状況報告書・公開買付の書類は、数値の多くが表の形のテキストブロックにしか無い
 （CSV の type=5 では表がつぶれて 1 行の文になる）。インスタンス（XBRL/PublicDoc/*.xbrl）の
-テキストブロックを HTML として読み、行（セルの列）と文に分ける。設計は docs/jobs/edinet.md §6。
+テキストブロックを HTML として読み、行（セルの列）と文に分ける。設計は docs/jobs/edinet.md「自己株券買付状況報告書」。
 """
 from __future__ import annotations
 

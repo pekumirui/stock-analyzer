@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs._r2common import MountDisconnected, fail_if_mount_down
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parents[2]

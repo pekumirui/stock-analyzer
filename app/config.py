@@ -2,7 +2,7 @@ import os
 from collections.abc import MutableMapping
 from pathlib import Path
 
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"

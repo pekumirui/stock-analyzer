@@ -540,7 +540,7 @@ def test_meti_archive() -> None:
 
 
 def test_meti_archive_open_expected_errors() -> None:
-    from jobs.share_paths import share_path
+    from app.share_paths import share_path
 
     probed: list[Path] = []
 
@@ -575,7 +575,7 @@ def test_meti_archive_open_expected_errors() -> None:
 
 def test_meti_archive_open_local_dest_without_fuse_line(tmp_path: Path) -> None:
     from jobs._r2common import check_r2_mount as real_check
-    from jobs.share_paths import share_path
+    from app.share_paths import share_path
 
     share = tmp_path / "share"
     old = os.environ.get("SHARE_ROOT")

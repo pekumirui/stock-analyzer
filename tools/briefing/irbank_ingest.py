@@ -73,12 +73,12 @@ from jobs._r2common import (
 )
 from jobs.market import briefing_offsite
 from jobs.monthly.tdnet_monthly_r2 import dest_path
+from app.offsite_settings import offsite_settings_from_env
 from jobs.ops.backup_db import (
     RcloneRunFn,
     make_rclone_runner,
-    offsite_settings_from_env,
 )
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 LIST_URL = "https://irbank.net/{code}/ir"
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"

@@ -25,7 +25,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs._r2common import MountDisconnected, check_r2_mount
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 from app.config import (
     ESTAT_APP_ID, METI_FAIL_PAGE_DAYS, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,

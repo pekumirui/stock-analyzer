@@ -1,4 +1,4 @@
-"""短信 PDF の行と XBRL の要素の対応（xbrl_pdf_matches）と、出どころをまたぐビュー（docs/jobs/xbrl.md §18）。"""
+"""短信 PDF の行と XBRL の要素の対応（xbrl_pdf_matches）と、出どころをまたぐビュー（docs/jobs/xbrl.md「出どころをまたいで要素名で引く」）。"""
 from __future__ import annotations
 
 import importlib.util

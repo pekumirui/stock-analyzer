@@ -39,7 +39,7 @@ from jobs._r2common import (
     yyyymmdd_from_pubdate,
 )
 from jobs.monthly.tdnet_monthly_r2 import display_code, download_skip_reason
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("monthly"))
 DEFAULT_CONFIG = SCRIPT_DIR.parents[1] / "config" / "monthly" / "ir_monthly.json"

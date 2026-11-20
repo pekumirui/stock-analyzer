@@ -1,4 +1,4 @@
-# セグメント注記（KAB-77。docs/jobs/xbrl.md §14）。jpcrp_cor:OperatingSegmentsAxis の当期 fact だけに効く。
+# セグメント注記（KAB-77。docs/jobs/xbrl.md「セグメント注記」）。jpcrp_cor:OperatingSegmentsAxis の当期 fact だけに効く。
 # seg_net_sales は外部顧客＋セグメント間の合計（注記の「計」の行）、seg_external_sales は外部顧客への売上高。
 - std_item: seg_net_sales
   elements:

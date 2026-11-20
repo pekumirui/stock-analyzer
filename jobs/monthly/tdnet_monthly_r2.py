@@ -33,7 +33,7 @@ from jobs._r2common import (
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
-from jobs.share_paths import share_path
+from app.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("monthly"))
 PDF_BASE = tdnet_list.TDNET_BASE

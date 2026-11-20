@@ -1,4 +1,4 @@
-"""財務3表: 有報・短信 XBRL・短信 PDF を要素でそろえて 1 枚の表にする（docs/jobs/xbrl.md §17）。"""
+"""財務3表: 有報・短信 XBRL・短信 PDF を要素でそろえて 1 枚の表にする（docs/jobs/xbrl.md「財務3表」）。"""
 from __future__ import annotations
 
 import json
@@ -1500,13 +1500,46 @@ def test_group_headings_ignore_labels_that_are_not_totals() -> None:
     assert fst._heading("IntangibleAssets", {"IntangibleAssets": "無形固定資産"}, fst.SECTION_NAMES) == "無形固定資産"
 
 
-def test_table_shows_rows_of_the_older_standard_under_the_newest_sections() -> None:
-    got = {k: heads(r) for k, r in rows(table(SWITCH)).items()}
-    assert got["CashAndDeposits"] == got["CashAndCashEquivalentsIFRS"] == ("資産", "流動資産")
-    assert got["Land"] == got["GoodwillIFRS"] == got["ext:Deposits"] == ("資産", "非流動資産")
-    assert got["CapitalStock"] == ("資本",)
-    one = {k: heads(r) for k, r in rows(table(SWITCH, periods=1)).items()}
-    assert set(one) == {"CashAndCashEquivalentsIFRS", "GoodwillIFRS", "ShareCapitalIFRS", "ext:Deposits"}
+def test_table_is_split_where_the_accounting_standard_changes() -> None:
+    t = table(SWITCH)
+    assert [p["accounting_standard"] for p in t["periods"]] == ["IFRS"] and t["accounting_standards"] == ["IFRS"]
+    assert {k: heads(r) for k, r in rows(t).items()} == {
+        "CashAndCashEquivalentsIFRS": ("資産", "流動資産"), "GoodwillIFRS": ("資産", "非流動資産"),
+        "ext:Deposits": ("資産", "非流動資産"), "ShareCapitalIFRS": ("資本",),
+    }
+    assert all(r["merged_keys"] == [] and len(r["cells"]) == 1 for r in t["rows"])
+    assert rows(t)["GoodwillIFRS"]["cells"][0]["value"] == 6 * M
+    (old,) = t["earlier"]
+    assert set(old) == {"consolidated", "basis", "accounting_standards", "periods", "rows"}
+    assert [p["accounting_standard"] for p in old["periods"]] == ["JPGAAP"] and old["basis"] == "連結"
+    got = {k: heads(r) for k, r in rows(old).items()}
+    assert got["CashAndDeposits"] == got["ext:Deposits"] == ("資産", "流動資産")
+    assert got["Land"] == ("資産", "有形固定資産") and got["Goodwill"] == ("資産", "無形固定資産")
+    assert got["CapitalStock"] == ("純資産", "株主資本")
+    assert rows(old)["Goodwill"]["cells"][0]["value"] == 5 * M and rows(old)["ext:Deposits"]["cells"][0]["value"] == 2 * M
+    one = table(SWITCH, periods=1)
+    assert one["earlier"] == [] and len(one["rows"]) == 4
+    assert table()["earlier"] == [] and table(DEFINED)["earlier"] == []
+
+
+def test_standard_runs_follow_the_roles_then_the_filing() -> None:
+    ifrs = fst.Part(None, None, True)
+    jp = fst.Part(None, None, False)
+    cols = [column("2022-03-31", {"A": 1}, {"A": jp}), column("2023-03-31", {"A": 1}),
+            column("2024-03-31", {"B": 1}, {"B": ifrs}), column("2025-03-31", {"B": 1})]
+    cols[1].primary.standard = None
+    cols[3].primary.standard = "IFRS"
+    assert [len(run) for run in fst._standard_runs(cols)] == [2, 2]
+    cols[0].primary.standard = "IFRS"
+    assert [len(run) for run in fst._standard_runs(cols[:2])] == [2]
+    assert fst._standard_runs([]) == []
+    lone = [column("2022-03-31", {"B": 1}, {"B": ifrs}), column("2022-06-30", {"B": 1}),
+            column("2022-09-30", {"B": 1}, {"B": ifrs}), column("2022-12-31", {"A": 1})]
+    lone[1].primary.standard = "JPGAAP"
+    lone[3].primary.standard = "JPGAAP"
+    assert [len(run) for run in fst._standard_runs(lone)] == [3, 1]
+    lone[1].parts["B"] = jp
+    assert [len(run) for run in fst._standard_runs(lone)] == [1, 1, 1, 1]
 
 
 def test_quarterly_report_takes_year_to_date_over_three_months() -> None:
@@ -2263,27 +2296,6 @@ def test_bs_rows_in_other_sections_stay_apart() -> None:
     assert got == {"B": ["A"]}
 
 
-def test_rows_of_two_standards_merge_within_the_coarse_section() -> None:
-    labels = {"A": "繰延税金資産", "B": "繰延税金資産"}
-    seq = [{"A": 1}, {"B": 1}]
-    ppe = fst.Part("Assets", "PropertyPlantAndEquipment", False)
-    noncurrent = fst.Part("AssetsIFRS", "NonCurrentAssetsIFRS", True)
-    got, _, cols = merged(seq, labels, parts={"A": ppe, "B": noncurrent})
-    assert got == {"B": ["A"]} and cols[0].parts == {"B": ppe}
-    got, _, _ = merged(seq, labels, parts={"A": CA, "B": noncurrent})
-    assert got == {}
-    equity = {"A": fst.Part("NetAssets", "ShareholdersEquity", False), "B": fst.Part("EquityIFRS", None, True)}
-    got, _, _ = merged(seq, labels, parts=equity)
-    assert got == {"B": ["A"]}
-    cf = {"A": fst.Part(None, "NetCashProvidedByUsedInInvestmentActivities", False),
-          "B": fst.Part(None, "NetCashProvidedByUsedInInvestingActivitiesIFRS", True)}
-    got, _, _ = merged(seq, labels, "CF", parts=cf)
-    assert got == {"B": ["A"]}
-    cf["B"] = fst.Part(None, "NetCashProvidedByUsedInFinancingActivitiesIFRS", True)
-    got, _, _ = merged(seq, labels, "CF", parts=cf)
-    assert got == {}
-
-
 def test_pl_rows_in_other_sections_stay_apart_within_one_standard() -> None:
     labels = {"GainNOI": "投資有価証券売却益", "GainEI": "投資有価証券売却益", "SubsidyNOI": "助成金収入",
               "ext:Subsidy": "助成金収入", "GainIFRS": "投資有価証券売却益", "SubsidyIFRS": "助成金収入"}
@@ -2296,8 +2308,8 @@ def test_pl_rows_in_other_sections_stay_apart_within_one_standard() -> None:
     assert got == {"ext:Subsidy": ["SubsidyNOI"]}
     assert "GainNOI" in keys and "GainEI" in keys
     got, keys, _ = merged([*seq, {"GainIFRS": 3, "SubsidyIFRS": 3}], labels, "PL", parts=parts)
-    assert got == {"SubsidyIFRS": ["ext:Subsidy", "SubsidyNOI"]}
-    assert {"GainNOI", "GainEI", "GainIFRS"} <= set(keys)
+    assert got == {"ext:Subsidy": ["SubsidyNOI"]}
+    assert {"GainNOI", "GainEI", "GainIFRS", "SubsidyIFRS"} <= set(keys)
 
 
 def test_pdf_rows_and_other_units_are_not_merged() -> None:
@@ -2332,15 +2344,6 @@ def test_table_merges_split_rows_over_all_periods(monkeypatch: pytest.MonkeyPatc
     excluded = {(SPLIT, "BS"): {frozenset({"NotesAndAccountsReceivableTrade", "AccountsReceivableTrade"})}}
     monkeypatch.setattr(fst, "_merge_exclusions", lambda: excluded)
     assert {"NotesAndAccountsReceivableTrade", "AccountsReceivableTrade"} <= set(rows(table(SPLIT)))
-
-
-def test_table_merges_rows_split_by_a_new_accounting_standard() -> None:
-    t = table(SWITCH)
-    got = rows(t)
-    assert got["GoodwillIFRS"]["merged_keys"] == ["Goodwill"] and "Goodwill" not in got
-    assert got["ext:Deposits"]["merged_keys"] == [] and [c["value"] for c in got["ext:Deposits"]["cells"]] == [2 * M, 4 * M]
-    assert [c["value"] for c in got["GoodwillIFRS"]["cells"]] == [5 * M, 6 * M]
-    assert [p["accounting_standard"] for p in t["periods"]] == ["JPGAAP", "IFRS"]
 
 
 def test_table_shows_declared_heads_and_lends_them_to_rows_of_older_filings() -> None:
@@ -2607,3 +2610,30 @@ def test_label_cleaning_canonical_wording_twice_printed_loss_and_cf_cash_decreas
         "NetIncreaseDecreaseInCashAndCashEquivalents",
     ]
 
+
+def order(rows: list[tuple[str, tuple]], labels: dict[str, str] | None = None) -> list[str]:
+    keys = [key for key, _ in rows]
+    paths = [tuple((name, name) for name in path) for _, path in rows]
+    return [keys[i] for i in fst.gather_heads(keys, paths, labels or {})]
+
+
+def test_rows_of_one_heading_are_gathered_into_the_largest_block() -> None:
+    loss, gain = ("特別損失",), ("特別利益",)
+    rows = [("OrdinaryIncome", ()), ("Damages", loss), ("Subsidy", gain), ("ExtraordinaryIncome", gain),
+            ("Impairment", loss), ("Disaster", loss), ("ExtraordinaryLoss", loss), ("IncomeBeforeIncomeTaxes", ())]
+    assert order(rows) == ["OrdinaryIncome", "Subsidy", "ExtraordinaryIncome", "Damages", "Impairment", "Disaster",
+                           "ExtraordinaryLoss", "IncomeBeforeIncomeTaxes"]
+    late = [("Impairment", loss), ("LossTotal", loss), ("Subsidy", gain), ("Old", loss), ("Tax", ())]
+    assert order(late, {"LossTotal": "特別損失合計"}) == ["Impairment", "Old", "LossTotal", "Subsidy", "Tax"]
+    assert order(late) == ["Impairment", "LossTotal", "Old", "Subsidy", "Tax"]
+
+
+def test_rows_under_an_outer_heading_between_inner_blocks_stay_in_place() -> None:
+    fixed, ppe, ioa = ("資産", "固定資産"), ("資産", "固定資産", "有形"), ("資産", "固定資産", "投資")
+    rows = [("Land", ppe), ("PPE", ppe), ("Intangible", fixed), ("Securities", ioa), ("IOA", ioa),
+            ("NoncurrentAssets", fixed), ("Assets", ("資産",)), ("Total", ())]
+    assert order(rows) == [key for key, _ in rows]
+    split = [("Land", ppe), ("Intangible", fixed), ("Securities", ioa), ("OldBuilding", ppe), ("NoncurrentAssets", fixed)]
+    assert order(split) == ["Land", "OldBuilding", "Intangible", "Securities", "NoncurrentAssets"]
+    deep = [("A", ("負債", "流動")), ("X", ("資産", "流動")), ("B", ("負債", "固定")), ("C", ("負債", "流動"))]
+    assert order(deep) == ["X", "A", "C", "B"]
