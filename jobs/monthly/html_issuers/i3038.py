@@ -10,6 +10,19 @@ from jobs.monthly.html_issuers._page import (
 from jobs.monthly.html_issuers._read import Candidate, emit, pick_scored, read_page
 from jobs.monthly.html_monthly import _section_heading_tail
 
+_OTHER_STATEMENT = ("売上総利益", "営業利益", "経常利益")
+
+
+def _is_sales_table(parsed: dict) -> bool:
+    rows = parsed.get("rows") or []
+    if not rows:
+        return False
+    lead = str(rows[0].get("element") or "").strip()
+    if any(name in lead for name in _OTHER_STATEMENT):
+        return False
+    token = lead.split()[0] if lead else ""
+    return token == "売上高"
+
 
 def _is_purchase_section(section_text: str) -> bool:
     """表直前が見出し「…仕入れ前年対比」。脚注の商品出荷は見ない。"""
@@ -62,13 +75,13 @@ def _merge_purchases(
 def parse(html: str, *, as_of: str | None = None) -> dict:
     sections, candidates = read_page(html)
     monthly = [c for c in candidates if not _store_event(c[2])]
-    sales = [c for c in monthly if not _count_only(c[2])]
-    pool = _prefer_section(sales or monthly or candidates, sections)
+    sales = [c for c in monthly if not _count_only(c[2]) and _is_sales_table(c[2])]
+    if not sales:
+        raise ValueError("3038 page does not match declaration")
+    pool = _prefer_section(sales, sections)
     chosen = pick_scored(html, pool)
     parsed = chosen[2]
     rows = [dict(r, values=dict(r.get("values") or {})) for r in parsed["rows"]]
-    if not any("売上高" in str(r.get("element") or "") for r in rows):
-        raise ValueError("3038 page does not match declaration")
     months = list(parsed.get("months") or [])
     primary = {"months": months, "rows": rows}
     _merge_total_stores(primary, candidates, primary_index=chosen[0])
