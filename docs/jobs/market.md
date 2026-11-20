@@ -49,7 +49,7 @@ J-Quants の応答には、当期の日付（`CurPerSt` / `CurPerEn` / `CurFYSt`
 | 開示番号が一覧に無い | 直さない |
 
 - `raw_json` は応答のまま
-- 短信 XBRL から作った行（`source='xbrl'`）の日付は J-Quants の取込で上書きしない（`docs/jobs/xbrl.md` §3.2）。その行は一覧に載せても日付が変わらない
+- 短信 XBRL から作った行（`source='xbrl'`）の日付は J-Quants の取込で上書きしない（`docs/jobs/xbrl.md`「statements との関係」）。その行は一覧に載せても日付が変わらない
 
 ### 期の誤りの候補（`period-candidate`）
 
