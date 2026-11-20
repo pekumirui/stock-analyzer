@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IR BANK が保管する TDnet の開示 PDF → HTML → tdnet_pdf_documents（KAB-164。docs/jobs/xbrl.md §16）。
+"""IR BANK が保管する TDnet の開示 PDF → HTML → tdnet_pdf_documents（KAB-164。docs/jobs/xbrl.md「過去の短信を PDF から HTML にする」）。
 
 指定した銘柄の statements（J-Quants の開示。2021-08〜）のうち、原文の無い回を新しい順に取る。
 原文がある回は飛ばす: XBRL ZIP の HTML（xbrl_documents。ZIP 名の後ろ 14 桁が disclosure_no）と、

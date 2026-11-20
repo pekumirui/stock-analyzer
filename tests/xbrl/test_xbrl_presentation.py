@@ -1,4 +1,4 @@
-"""表示リンク（*pre.xml）の区分と要素の並びの読み取りと保存（xbrl_presentation_roles。docs/jobs/xbrl.md §4.2）。"""
+"""表示リンク（*pre.xml）の区分と要素の並びの読み取りと保存（xbrl_presentation_roles。docs/jobs/xbrl.md「表示リンクの区分」）。"""
 from __future__ import annotations
 
 import json
