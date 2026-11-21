@@ -247,3 +247,264 @@ def test_rows_matched_by_history_keep_their_element_and_its_element_is_not_reuse
     learned = [fst.learn_pair(pdf, x)]
     rows = [pdf_row(3, "現金及び預金", 60), pdf_row(4, "流動資産合計", 95), pdf_row(5, "流動資産", 1)]
     assert apply(rows, learned=learned) == [("ext:CashOnHand", "value"), ("CurrentAssets", "value"), (None, None)]
+
+
+def cf_company(n: int, *rows: tuple[str, str]) -> list[fst.Filing]:
+    facts = [xfact(i, key, label, instant=False) for i, (key, label) in enumerate(rows, 1)]
+    return [xbrl_filing(n, "CF", facts)]
+
+
+def test_others_are_listed_by_section_and_subtotal() -> None:
+    companies = {}
+    for i in range(5):
+        bs = bs_company(i, ("OtherCA", "その他"), ("CurrentAssets", "流動資産"), ("OtherIOA", "その他"),
+                        ("InvestmentsAndOtherAssets", "投資その他の資産"))[0]
+        cf = cf_company(i, ("OtherNetOpeCF", "その他"), ("SubtotalOpeCF", "小計"), ("OtherNetOpeCFSubtotal", "その他"),
+                        ("NetCashProvidedByUsedInOperatingActivities", "営業活動によるキャッシュ・フロー"))[0]
+        companies[f"{i:04d}0"] = [bs, cf]
+    book = ld.build(seen_of(companies), min_codes=5, min_share=0.95)
+    assert book["others"]["JPGAAP"]["BS"] == {"CurrentAssets": "OtherCA", "InvestmentsAndOtherAssets": "OtherIOA"}
+    assert book["others"]["JPGAAP"]["CF"] == {
+        "NetCashProvidedByUsedInOperatingActivities": "OtherNetOpeCFSubtotal",
+        "NetCashProvidedByUsedInOperatingActivities:小計まで": "OtherNetOpeCF",
+    }
+    assert "その他" not in labels_of(book)
+    assert ld.build(seen_of(companies), min_codes=5, min_share=0.95, drop="00000")["others"] == {}
+
+
+def test_others_twice_in_a_section_or_split_between_elements_are_not_listed() -> None:
+    companies = {f"{i:04d}0": bs_company(i, ("OtherCA", "その他"), ("ext:OtherCA2", "その他"), ("CurrentAssets", "流動資産"))
+                 for i in range(5)}
+    companies.update({f"{i:04d}1": bs_company(i, ("OtherCL", "その他"), ("CurrentLiabilities", "流動負債"))
+                      for i in range(5)})
+    companies.update({f"{i:04d}2": bs_company(i, ("ext:OtherCL", "その他"), ("CurrentLiabilities", "流動負債"))
+                      for i in range(5)})
+    companies.update({f"{i:04d}3": bs_company(i, ("OtherCLX", "その他"), ("CurrentLiabilities", "流動負債"))
+                      for i in range(2)})
+    assert ld.build(seen_of(companies), min_codes=5, min_share=0.95)["others"] == {}
+
+
+def test_other_before_accumulated_depreciation_is_its_own_place() -> None:
+    companies = {}
+    for i in range(5):
+        companies[f"{i:04d}0"] = bs_company(
+            i, ("OtherPPE", "その他"), ("AccumulatedDepreciationOtherPPE", "減価償却累計額"), ("OtherNetPPE", "その他（純額）"),
+            ("PropertyPlantAndEquipment", "有形固定資産"))
+        companies[f"{i:04d}1"] = bs_company(i, ("OtherNetPPE", "その他"), ("PropertyPlantAndEquipment", "有形固定資産"))
+    book = ld.build(seen_of(companies), min_codes=5, min_share=0.95)
+    assert book["others"]["JPGAAP"]["BS"] == {"PropertyPlantAndEquipment": "OtherNetPPE",
+                                              "PropertyPlantAndEquipment:累計額の前": "OtherPPE"}
+
+
+def test_accumulated_rows_are_listed_by_the_asset_above_them() -> None:
+    companies = {}
+    for i in range(5):
+        companies[f"{i:04d}0"] = bs_company(
+            i, ("Buildings", "建物"), ("AccumulatedDepreciationBuildings", "減価償却累計額"),
+            ("AccumulatedImpairmentLossBuildings", "減損損失累計額"), ("BuildingsNet", "建物（純額）"),
+            ("ext:Rental", "賃貸資産"), ("ext:AccumulatedDepreciationRental", "減価償却累計額"), ("ext:RentalNet", "賃貸資産（純額）"),
+            ("Land", "土地"), ("AccumulatedDepreciationPPEByGroup", "減価償却累計額"),
+            ("PropertyPlantAndEquipment", "有形固定資産"))
+    book = ld.build(seen_of(companies), min_codes=5, min_share=0.95)
+    assert book["accumulated"] == {"JPGAAP": {
+        "減価償却累計額": {"Buildings": "AccumulatedDepreciationBuildings"},
+        "減損損失累計額": {"Buildings": "AccumulatedImpairmentLossBuildings"},
+    }}
+    assert not any("累計額" in name for name in labels_of(book))
+
+
+def test_dictionary_without_new_parts_is_read_as_empty() -> None:
+    got = fst.standard_book({"labels": {}, "per_share": []})
+    assert got.others == {} and got.accumulated == {}
+    raw = json.loads(XBRL_STANDARD_LABELS_PATH.read_text(encoding="utf-8"))
+    fst.standard_book({k: v for k, v in raw.items() if k not in ("others", "accumulated")})
+
+
+def full_book(others: dict | None = None, accumulated: dict | None = None, **labels: dict) -> fst.StandardBook:
+    raw: dict = {"labels": {}, "per_share": [], "others": others or {}, "accumulated": accumulated or {}}
+    for spec, item in labels.items():
+        standard, statement, name = spec.split("__")
+        raw["labels"].setdefault(standard, {}).setdefault(statement, {})[name] = item
+    return fst.standard_book(raw)
+
+
+@pytest.fixture()
+def use_book(monkeypatch):
+    def use(got: fst.StandardBook) -> None:
+        monkeypatch.setattr(fst, "_standard_book", lambda: got)
+    return use
+
+
+def section(key: str) -> dict:
+    return {"any": key, "home": key, "within": {key: key}}
+
+
+OTHERS = {"JPGAAP": {
+    "BS": {"CurrentAssets": "OtherCA", "CurrentLiabilities": "OtherCL", "PropertyPlantAndEquipment:累計額の前": "OtherPPE"},
+    "CF": {"NetCashProvidedByUsedInOperatingActivities": "OtherNetOpeCFSubtotal",
+           "NetCashProvidedByUsedInOperatingActivities:小計まで": "OtherNetOpeCF",
+           "NetCashProvidedByUsedInInvestmentActivities": "OtherNetInvCF"},
+}}
+SECTIONS = {
+    "JPGAAP__BS__流動資産": section("CurrentAssets"), "JPGAAP__BS__流動負債": section("CurrentLiabilities"),
+    "JPGAAP__BS__有形固定資産": section("PropertyPlantAndEquipment"),
+    "JPGAAP__CF__営業活動によるキャッシュ・フロー": section("NetCashProvidedByUsedInOperatingActivities"),
+    "JPGAAP__CF__投資活動によるキャッシュ・フロー": section("NetCashProvidedByUsedInInvestmentActivities"),
+    "JPGAAP__CF__小計": {"any": "SubtotalOpeCF", "home": "NetCashProvidedByUsedInOperatingActivities",
+                         "within": {"NetCashProvidedByUsedInOperatingActivities": "SubtotalOpeCF"}},
+}
+
+
+def apply_with(rows: list[fst.Fact], statement: str = "BS", names: fst.Names | None = None,
+               learned: list[fst.Learned] | None = None) -> list[str | None]:
+    got = fst.apply_learned(rows, learned or [], statement, END, "Q", names or fst.Names(), "JPGAAP")
+    return [None if m is None else m.key for _, m in got]
+
+
+def test_other_takes_the_element_of_its_section(use_book) -> None:
+    use_book(full_book(OTHERS, **SECTIONS))
+    rows = [pdf_row(1, "現金及び預金", 5), pdf_row(2, "その他", 1), pdf_row(3, "流動資産合計", 6),
+            pdf_row(4, "その他", 2), pdf_row(5, "流動負債合計", 3)]
+    assert apply_with(rows) == [None, "OtherCA", "CurrentAssets", "OtherCL", "CurrentLiabilities"]
+    got = fst.apply_learned(rows, [], "BS", END, "Q", fst.Names(), "JPGAAP")
+    assert {m.by for _, m in got if m is not None} == {"standard"}
+
+
+def test_other_without_section_or_twice_in_a_section_is_left(use_book) -> None:
+    use_book(full_book(OTHERS, **SECTIONS))
+    assert apply_with([pdf_row(1, "その他", 1), pdf_row(2, "未収入金", 2)]) == [None, None]
+    rows = [pdf_row(1, "その他", 1), pdf_row(2, "その他", 2), pdf_row(3, "流動資産合計", 6)]
+    assert apply_with(rows) == [None, None, "CurrentAssets"]
+
+
+def test_other_in_operating_cash_flow_needs_the_subtotal(use_book) -> None:
+    use_book(full_book(OTHERS, **SECTIONS))
+    rows = [pdf_row(1, "その他", 1), pdf_row(2, "小計", 3), pdf_row(3, "その他", 2),
+            pdf_row(4, "営業活動によるキャッシュ・フロー", 5), pdf_row(5, "その他", 4),
+            pdf_row(6, "投資活動によるキャッシュ・フロー", 7)]
+    assert apply_with(rows, "CF") == ["OtherNetOpeCF", "SubtotalOpeCF", "OtherNetOpeCFSubtotal",
+                                      "NetCashProvidedByUsedInOperatingActivities", "OtherNetInvCF",
+                                      "NetCashProvidedByUsedInInvestmentActivities"]
+    no_subtotal = [pdf_row(1, "その他", 1), pdf_row(2, "営業活動によるキャッシュ・フロー", 5)]
+    assert apply_with(no_subtotal, "CF") == [None, "NetCashProvidedByUsedInOperatingActivities"]
+
+
+def test_other_of_the_company_comes_before_the_dictionary(use_book) -> None:
+    use_book(full_book(OTHERS, **SECTIONS))
+    names = fst.Names(others={"CurrentAssets": "ext:OtherCurrent"})
+    rows = [pdf_row(1, "その他", 1), pdf_row(2, "流動資産合計", 6)]
+    assert apply_with(rows, names=names) == ["ext:OtherCurrent", "CurrentAssets"]
+
+
+def test_other_before_accumulated_depreciation_is_gross(use_book) -> None:
+    use_book(full_book(OTHERS, {"JPGAAP": {"減価償却累計額": {"OtherPPE": "AccumulatedDepreciationOtherPPE"}}},
+                       **SECTIONS))
+    rows = [pdf_row(1, "その他", 9), pdf_row(2, "減価償却累計額", -4), pdf_row(3, "その他(純額)", 5),
+            pdf_row(4, "有形固定資産合計", 5)]
+    assert apply_with(rows) == ["OtherPPE", "AccumulatedDepreciationOtherPPE", None, "PropertyPlantAndEquipment"]
+    assert apply_with([pdf_row(1, "その他", 5), pdf_row(2, "有形固定資産合計", 5)]) == [None, "PropertyPlantAndEquipment"]
+
+
+ACCUMULATED = {"JPGAAP": {"減価償却累計額": {"Buildings": "AccumulatedDepreciationBuildings"},
+                          "減損損失累計額": {"Buildings": "AccumulatedImpairmentLossBuildings"}}}
+
+
+def history(rows: list[tuple[str, str, float]], statement: str = "BS") -> list[fst.Learned]:
+    x = xbrl_filing(1, statement, [xfact(i, key, key, value) for i, (_, key, value) in enumerate(rows, 1)])
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="FY", period_end=date(2025, 3, 31),
+                     submitted="2025-05-10", standard="JPGAAP")
+    pdf.by_statement = {statement: [pdf_row(i, name, value) for i, (name, _, value) in enumerate(rows, 1)]}
+    return [fst.learn_pair(pdf, x)]
+
+
+def test_accumulated_rows_follow_the_asset_above(use_book) -> None:
+    use_book(full_book(None, ACCUMULATED))
+    learned = history([("建物", "Buildings", 100), ("建物(純額)", "BuildingsNet", 60)])
+    rows = [pdf_row(1, "建物", 110), pdf_row(2, "減価償却累計額", -30), pdf_row(3, "減損損失累計額", -5),
+            pdf_row(4, "建物(純額)", 75)]
+    assert apply_with(rows, learned=learned) == [
+        "Buildings", "AccumulatedDepreciationBuildings", "AccumulatedImpairmentLossBuildings", "BuildingsNet"]
+
+
+def test_accumulated_rows_are_left_without_the_asset_or_the_net_row(use_book) -> None:
+    use_book(full_book(None, ACCUMULATED))
+    rows = [pdf_row(1, "建物", 110), pdf_row(2, "減価償却累計額", -30), pdf_row(3, "建物(純額)", 80)]
+    assert apply_with(rows) == [None, None, None]
+    learned = history([("建物", "Buildings", 100), ("土地", "Land", 60)])
+    rows = [pdf_row(1, "建物", 110), pdf_row(2, "減価償却累計額", -30), pdf_row(3, "土地", 70)]
+    assert apply_with(rows, learned=learned) == ["Buildings", None, "Land"]
+
+
+def test_accumulated_rows_of_company_elements_use_the_company_history(use_book) -> None:
+    use_book(full_book(None, ACCUMULATED))
+    learned = history([("賃貸資産", "ext:Rental", 100), ("賃貸資産(純額)", "ext:RentalNet", 60)])
+    names = fst.Names(accumulated={("減価償却累計額", "ext:Rental"): "ext:AccumulatedDepreciationRental"})
+    rows = [pdf_row(1, "賃貸資産", 110), pdf_row(2, "減価償却累計額", -30), pdf_row(3, "賃貸資産(純額)", 80)]
+    assert apply_with(rows, learned=learned) == ["ext:Rental", None, "ext:RentalNet"]
+    assert apply_with(rows, names=names, learned=learned) == [
+        "ext:Rental", "ext:AccumulatedDepreciationRental", "ext:RentalNet"]
+
+
+def test_own_history_of_others_and_accumulated_rows_comes_from_the_xbrl() -> None:
+    facts = [xfact(1, "OtherCA", "その他"), xfact(2, "CurrentAssets", "流動資産"), xfact(3, "ext:Rental", "賃貸資産"),
+             xfact(4, "ext:AccumulatedDepreciationRental", "減価償却累計額"), xfact(5, "ext:RentalNet", "賃貸資産（純額）")]
+    names = fst.name_index([xbrl_filing(1, "BS", facts)], "BS")
+    assert names.others == {"CurrentAssets": "OtherCA"}
+    assert names.accumulated == {("減価償却累計額", "ext:Rental"): "ext:AccumulatedDepreciationRental"}
+
+
+CASH = {"JPGAAP__CF__現金及び現金同等物の残高": {"any": "CashAndCashEquivalents", "home": "-",
+                                                  "within": {"-": "CashAndCashEquivalents"}}}
+
+
+def test_closing_cash_takes_the_cash_element_and_opening_cash_is_left(use_book) -> None:
+    use_book(full_book(**CASH))
+    rows = [pdf_row(1, "現金及び現金同等物の期首残高", 10), pdf_row(2, "現金及び現金同等物の期末残高", 12)]
+    assert apply_with(rows, "CF") == [None, "CashAndCashEquivalents"]
+    assert apply_with([pdf_row(1, "現金及び現金同等物の四半期末残高", 12)], "CF") == ["CashAndCashEquivalents"]
+    names = fst.Names({"現金及び現金同等物の残高": "ext:CashEnd"})
+    assert apply_with([pdf_row(1, "現金及び現金同等物の期末残高", 12)], "CF", names) == ["ext:CashEnd"]
+
+
+EQUITY = {
+    "JPGAAP__BS__資本準備金": {"any": "LegalCapitalSurplus", "home": "ShareholdersEquity",
+                               "within": {"ShareholdersEquity": "LegalCapitalSurplus"}},
+    "JPGAAP__BS__繰越利益剰余金": {"any": "RetainedEarningsBroughtForward", "home": "ShareholdersEquity",
+                                   "within": {"ShareholdersEquity": "RetainedEarningsBroughtForward"}},
+    "JPGAAP__BS__株主資本": section("ShareholdersEquity"),
+    "JPGAAP__BS__評価・換算差額等": section("ValuationAndTranslationAdjustments"),
+    "JPGAAP__BS__その他有価証券評価差額金": {"any": "ValuationDifferenceOnAvailableForSaleSecurities",
+                                            "home": "ValuationAndTranslationAdjustments",
+                                            "within": {"ValuationAndTranslationAdjustments":
+                                                       "ValuationDifferenceOnAvailableForSaleSecurities"}},
+    "JPGAAP__BS__純資産": section("NetAssets"),
+}
+
+
+def test_equity_rows_with_heads_drop_the_heads(use_book) -> None:
+    use_book(full_book(**EQUITY))
+    rows = [pdf_row(1, "資本剰余金資本準備金", 3), pdf_row(2, "利益剰余金その他利益剰余金繰越利益剰余金", 4),
+            pdf_row(3, "利益剰余金合計", 4), pdf_row(4, "株主資本合計", 7)]
+    assert apply_with(rows) == ["LegalCapitalSurplus", "RetainedEarningsBroughtForward", None, "ShareholdersEquity"]
+
+
+def test_accumulated_other_comprehensive_income_takes_the_valuation_total(use_book) -> None:
+    use_book(full_book(**EQUITY))
+    rows = [pdf_row(1, "その他の包括利益累計額その他有価証券評価差額金", 3), pdf_row(2, "その他の包括利益累計額合計", 3),
+            pdf_row(3, "純資産合計", 10)]
+    assert apply_with(rows) == ["ValuationDifferenceOnAvailableForSaleSecurities", "ValuationAndTranslationAdjustments",
+                                "NetAssets"]
+
+
+def test_new_rules_do_not_move_rows_matched_by_history(use_book) -> None:
+    use_book(full_book(OTHERS, ACCUMULATED, **SECTIONS))
+    learned = history([("その他", "ext:OtherCurrentAssets", 1), ("流動資産合計", "CurrentAssets", 6),
+                       ("建物", "Buildings", 100), ("減価償却累計額", "ext:Depreciation", -30),
+                       ("建物(純額)", "BuildingsNet", 70)])
+    rows = [pdf_row(1, "その他", 2), pdf_row(2, "流動資産合計", 7), pdf_row(3, "建物", 110),
+            pdf_row(4, "減価償却累計額", -35), pdf_row(5, "建物(純額)", 75)]
+    assert apply_with(rows, learned=learned) == ["ext:OtherCurrentAssets", "CurrentAssets", "Buildings",
+                                                 "ext:Depreciation", "BuildingsNet"]
+    taken = [pdf_row(1, "未収入金", 1), pdf_row(2, "その他", 2), pdf_row(3, "流動資産合計", 7)]
+    learned = history([("未収入金", "OtherCA", 1), ("流動資産合計", "CurrentAssets", 6)])
+    assert apply_with(taken, learned=learned) == ["OtherCA", None, "CurrentAssets"]

@@ -17,7 +17,13 @@ MIN_CODES = 5
 MIN_SHARE = 0.95
 STANDARDS = ("IFRS", "JPGAAP")
 OUTSIDE = "-"
-VERSION = 1
+VERSION = 2
+OTHER = "その他"
+ABOVE_SUBTOTAL = ":小計まで"
+SUBTOTAL_PREFIX = "Subtotal"
+BEFORE_ACCUMULATED = ":累計額の前"
+NET_TAIL = "(純額)"
+ACCUMULATED = frozenset({"減価償却累計額", "減損損失累計額", "減価償却累計額及び減損損失累計額"})
 
 
 @dataclass
@@ -29,6 +35,13 @@ class Seen:
     codes: set[str] = field(default_factory=set)
     major: dict[str, str] = field(default_factory=dict)
     owners: dict[str, set[str]] = field(default_factory=dict)
+    others: dict[tuple[str, str, str], dict[str, set[str]]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(set)),
+    )
+    accumulated: dict[tuple[str, str, str], dict[str, set[str]]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(set)),
+    )
+    money: dict[str, set[bool]] = field(default_factory=lambda: defaultdict(set))
 
     def borrowed(self, key: str, label: str) -> bool:
         name = plain(label)
@@ -54,6 +67,54 @@ def taxonomy(facts: Iterable[ts.Fact]) -> str | None:
     return STANDARDS[0] if kinds[True] > kinds[False] else STANDARDS[1]
 
 
+def other_homes(keys: list[str], names: list[str], statement: str) -> list[str | None]:
+    section: str | None = None
+    homes: list[str | None] = [None] * len(keys)
+    for n in range(len(keys) - 1, -1, -1):
+        if ts._is_marker(keys[n], statement):
+            section = keys[n]
+        elif (
+            statement == "CF" and keys[n].removeprefix("ext:").startswith(SUBTOTAL_PREFIX) and section is not None
+            and not section.endswith(ABOVE_SUBTOTAL)
+        ):
+            section += ABOVE_SUBTOTAL
+        gross = section is not None and n + 1 < len(names) and names[n + 1] in ACCUMULATED
+        homes[n] = section + BEFORE_ACCUMULATED if gross else section
+    return homes
+
+
+def own_element(fact: ts.Fact) -> bool:
+    return not fact.key.startswith(("ext:", "pdf:"))
+
+
+def observe_others(seen: Seen, code: str, standard: str, statement: str, facts: list[ts.Fact]) -> None:
+    names = [label_key(f.label, statement) for f in facts]
+    homes = other_homes([f.key for f in facts], names, statement)
+    count = Counter(h for h, name in zip(homes, names) if name == OTHER)
+    for f, home, name in zip(facts, homes, names):
+        if name == OTHER and home is not None and count[home] == 1 and own_element(f):
+            seen.others[(standard, statement, home)][f.key].add(code)
+            seen.money[f.key].add(f.unit in ts.PER_SHARE_UNITS)
+
+
+def observe_accumulated(seen: Seen, code: str, standard: str, facts: list[ts.Fact]) -> None:
+    names = [label_key(f.label, "BS") for f in facts]
+    for n, name in enumerate(names):
+        if name not in ACCUMULATED:
+            continue
+        at = n - 1
+        while at >= 0 and names[at] in ACCUMULATED:
+            at -= 1
+        after = n + 1
+        while after < len(names) and names[after] in ACCUMULATED:
+            after += 1
+        if after >= len(names) or not names[after].endswith(NET_TAIL):
+            continue
+        if at >= 0 and own_element(facts[n]) and own_element(facts[at]):
+            seen.accumulated[(standard, name, facts[at].key)][facts[n].key].add(code)
+            seen.money[facts[n].key].add(facts[n].unit in ts.PER_SHARE_UNITS)
+
+
 def observe(seen: Seen, code: str, filings: Iterable[ts.Filing]) -> None:
     for filing in filings:
         if filing.is_pdf:
@@ -62,6 +123,9 @@ def observe(seen: Seen, code: str, filings: Iterable[ts.Filing]) -> None:
             standard = taxonomy(facts)
             if standard is None:
                 continue
+            observe_others(seen, code, standard, statement, facts)
+            if statement == "BS":
+                observe_accumulated(seen, code, standard, facts)
             homes = ts._homes([f.key for f in facts], statement)
             for f in facts:
                 if f.key.startswith(("ext:", "pdf:")) or seen.borrowed(f.key, f.label):
@@ -109,6 +173,19 @@ def entry(
     return out
 
 
+def by_place(
+    found: Mapping[tuple[str, str, str], Mapping[str, set[str]]], seen: Seen, min_codes: int, min_share: float,
+    drop: str | None,
+) -> dict[str, dict[str, dict[str, str]]]:
+    out: dict[str, dict[str, dict[str, str]]] = defaultdict(lambda: defaultdict(dict))
+    for (standard, group, place), uses in found.items():
+        counts = {k: len(cs - {drop}) for k, cs in uses.items() if cs - {drop}}
+        key = _winner(counts, min_codes, min_share)
+        if key is not None and seen.money[key] == {False}:
+            out[standard][group][place] = key
+    return {s: {g: dict(sorted(v.items())) for g, v in sorted(by.items())} for s, by in sorted(out.items())}
+
+
 def build(
     seen: Seen, min_codes: int = MIN_CODES, min_share: float = MIN_SHARE, drop: str | None = None,
 ) -> dict[str, Any]:
@@ -130,6 +207,8 @@ def build(
         "codes": len(seen.codes - {drop}),
         "labels": {s: {st: dict(sorted(names.items())) for st, names in sorted(by.items())} for s, by in sorted(labels.items())},
         "per_share": sorted(k for k in used if True in seen.units[k]),
+        "others": by_place(seen.others, seen, min_codes, min_share, drop),
+        "accumulated": by_place(seen.accumulated, seen, min_codes, min_share, drop),
     }
 
 
@@ -198,7 +277,13 @@ def main(argv: list[str] | None = None) -> int:
     book = build(seen, args.min_codes, args.min_share)
     write(book, Path(args.out))
     sizes = {s: sum(len(v) for v in by.values()) for s, by in book["labels"].items()}
-    print(f"label_dictionary done codes={counts['done']} failed={counts['failed']} labels={sizes} out={args.out}", flush=True)
+    others = {s: sum(len(v) for v in by.values()) for s, by in book["others"].items()}
+    accumulated = {s: sum(len(v) for v in by.values()) for s, by in book["accumulated"].items()}
+    print(
+        f"label_dictionary done codes={counts['done']} failed={counts['failed']} labels={sizes} others={others} "
+        f"accumulated={accumulated} out={args.out}",
+        flush=True,
+    )
     return 0 if not counts["failed"] else 1
 
 
