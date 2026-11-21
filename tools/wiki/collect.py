@@ -88,7 +88,6 @@ def collect_into(repo: Path, dest: Path, build: Callable[[Path], object] | None 
     if build is not None:
         build(dest)
     _rewrite_links(dest, repo)
-    _ensure_section_indexes(dest)
     (dest / "_headers").write_text(HEADERS_FILE, encoding="utf-8")
 
     pages = sorted(
@@ -107,7 +106,9 @@ def collect_into(repo: Path, dest: Path, build: Callable[[Path], object] | None 
             and p.name != ".gitkeep"
         ),
         titles=titles,
-        nav=build_nav(pages, titles),
+        nav=build_nav(
+            (dest / "index.md").read_text(encoding="utf-8"), pages, titles, _page_links(dest, pages)
+        ),
     )
 
 
@@ -125,34 +126,67 @@ def dest_rel_for(src: Path, repo: Path) -> Path | None:
     return None
 
 
-def build_nav(pages: list[str], titles: dict[str, str]) -> list:
-    root: dict = {"files": [], "dirs": {}}
+def build_nav(home: str, pages: list[str], titles: dict[str, str], links: dict[str, list[str]]) -> list:
+    sections = _home_sections(home, pages)
+    listed = [page for _, items in sections for page, _ in items]
+    unlisted = [p for p in pages if p != "index.md" and p not in listed]
+    fanout = {p: sum(t in unlisted for t in links.get(p, [])) for p in listed}
+    children: dict[str, list[str]] = {p: [] for p in listed}
+    for page in unlisted:
+        parents = [p for p in listed if page in links.get(p, [])]
+        if parents:
+            children[max(parents, key=lambda p: fanout[p])].append(page)
+    for parent, kids in children.items():
+        kids.sort(key=links.get(parent, []).index)
+    placed = {c for kids in children.values() for c in kids}
+    orphans = [p for p in unlisted if p not in placed]
+    if orphans:
+        raise ValueError(f"docs/index.md の表からも、そこに載ったページからもリンクされていない: {orphans}")
+    nav: list = [{titles.get("index.md", "ホーム"): "index.md"}]
+    for heading, items in sections:
+        entries: list = []
+        for page, label in items:
+            kids = [{_child_label(titles.get(c, c)): c} for c in children[page]]
+            entries.append({label: [{label: page}, *kids]} if kids else {label: page})
+        nav.append({heading: entries})
+    return nav
+
+
+def _home_sections(home: str, pages: list[str]) -> list[tuple[str, list[tuple[str, str]]]]:
+    sections: list[tuple[str, list[tuple[str, str]]]] = []
+    seen: set[str] = set()
+    for line in home.splitlines():
+        if line.startswith("## "):
+            sections.append((line[3:].strip(), []))
+            continue
+        if not sections:
+            continue
+        for match in MD_LINK_RE.finditer(line):
+            page = match.group(2).split("#", 1)[0]
+            if page in pages and page != "index.md" and page not in seen:
+                seen.add(page)
+                sections[-1][1].append((page, match.group(1).strip("`")))
+    return [s for s in sections if s[1]]
+
+
+def _child_label(title: str) -> str:
+    return title.split(": ", 1)[1] if ": " in title else title
+
+
+def _page_links(dest: Path, pages: list[str]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
     for page in pages:
-        parts = page.split("/")
-        node = root
-        for part in parts[:-1]:
-            node = node["dirs"].setdefault(part, {"files": [], "dirs": {}})
-        node["files"].append(page)
-    return _render_nav(root, titles)
-
-
-def _render_nav(node: dict, titles: dict[str, str]) -> list:
-    items: list = []
-    for page in _sort_pages(node["files"], titles):
-        items.append({titles.get(page, Path(page).stem): page})
-    for name in sorted(node["dirs"].keys(), key=str.lower):
-        children = _render_nav(node["dirs"][name], titles)
-        if children:
-            items.append({name: children})
-    return items
-
-
-def _sort_pages(pages: list[str], titles: dict[str, str]) -> list[str]:
-    def key(page: str) -> tuple[int, str]:
-        home = Path(page).name.lower() == "index.md"
-        return (0 if home else 1, titles.get(page, page).lower())
-
-    return sorted(pages, key=key)
+        text = (dest / page).read_text(encoding="utf-8", errors="replace")
+        targets = []
+        for match in MD_LINK_RE.finditer(text):
+            url = re.split(r"[?#]", match.group(2), maxsplit=1)[0]
+            if not url.endswith(".md") or _is_http(url):
+                continue
+            target = os.path.normpath(os.path.join(os.path.dirname(page), url)).replace(os.sep, "/")
+            if target not in targets:
+                targets.append(target)
+        out[page] = targets
+    return out
 
 
 def _reset_dest(dest: Path) -> None:
@@ -256,45 +290,6 @@ def _resolve_local(src_file: Path, url: str) -> Path | None:
     if not path_part or path_part.startswith("/"):
         return None
     return src_file.parent / path_part
-
-
-def _ensure_section_indexes(dest: Path) -> None:
-    md_files = [p for p in dest.rglob("*.md") if p.is_file()]
-    dirs_with_md: set[Path] = set()
-    for path in md_files:
-        rel_parent = path.parent.relative_to(dest)
-        if rel_parent == Path("."):
-            continue
-        current = rel_parent
-        while current != Path("."):
-            dirs_with_md.add(current)
-            current = current.parent
-    for rel in sorted(dirs_with_md, key=lambda p: len(p.parts)):
-        index = dest / rel / "index.md"
-        readme = dest / rel / "README.md"
-        if index.exists() or readme.exists():
-            continue
-        folder = dest / rel
-        child_pages = sorted(
-            p.name for p in folder.glob("*.md") if p.name != "index.md"
-        )
-        child_dirs = sorted(
-            p.name
-            for p in folder.iterdir()
-            if p.is_dir() and any(p.rglob("*.md"))
-        )
-        lines = [f"# {rel.name}", "", f"`{rel.as_posix()}`", ""]
-        lines.extend(f"- [{name}]({name})" for name in child_pages)
-        for name in child_dirs:
-            child = folder / name
-            href = (
-                f"{name}/README.md"
-                if (child / "README.md").is_file()
-                else f"{name}/index.md"
-            )
-            lines.append(f"- [{name}]({href})")
-        lines.append("")
-        index.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _rel_inside_repo(src: Path, repo: Path) -> Path | None:
