@@ -1,8 +1,6 @@
 # DB スキーマ（テーブル・列・ER 図）
 
-**このファイルと `docs/schema/` は自動生成。手で直さない。** 正は `app/models.py`。作り直しは `python -m tools.schema.render`。
-
-合わなければ `tests/nonfunctional/test_schema_doc.py` が落ちる。
+正は `app/models.py`。
 
 **[動かせる ER 図（Liam ERD）](schema/erd/index.html)**: 全テーブルを 1 枚に出す。拡大・移動・テーブル名の検索ができ、テーブルを押すとつながる相手だけが光る。表の「Liam」の列は、その機能のテーブルと、そこから指す先のテーブルだけを出す。wiki のビルドで作るので wiki でだけ開ける（リポジトリには入力の `docs/schema/tbls.json` だけを置く）。
 

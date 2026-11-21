@@ -1,6 +1,6 @@
 # ジョブ設計: EDINET・大量保有
 
-**自動生成。手で直さない。** 読み方と作り方は [JOBS.md](../../JOBS.md)。表との線は [データの流れ](../../dataflow/edinet.md)。
+読み方と作り方は [JOBS.md](../../JOBS.md)。表との線は [データの流れ](../../dataflow/edinet.md)。
 
 ## ジョブ間の依存
 

@@ -102,8 +102,6 @@ def _overview(all_screens: list[Screen], tab_names: list[str], labels: dict[str,
     lines = [
         "# 画面設計",
         "",
-        f"**このファイルと `{PAGE_DIR}/` は自動生成。手で直さない。** 作り直しは `{REBUILD}`。",
-        "",
         (
             f"- 画面と遷移は `{SCREENS_JS}` の `ROUTES` と `BREADCRUMBS`、画面が呼ぶ API は `{JS_DIR}/*.js` の `/api/…` の文字列、"
             f"API の引数は FastAPI の OpenAPI、読み書きする表は `{ENTRIES}` から拾う"
@@ -192,7 +190,7 @@ def _tab_page(tab: str, labels: dict[str, str], all_screens: list[Screen], found
     lines = [
         f"# 画面設計: {labels[tab]}",
         "",
-        "**自動生成。手で直さない。** 読み方と作り方は [SCREENS.md](../../SCREENS.md)。",
+        "読み方と作り方は [SCREENS.md](../../SCREENS.md)。",
         "",
     ]
     own = [s for s in all_screens if s.tab == tab]

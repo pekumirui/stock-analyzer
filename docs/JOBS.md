@@ -1,7 +1,5 @@
 # ジョブ設計
 
-**このファイルと `docs/jobs/gen/` は自動生成。手で直さない。** 作り直しは `python -m tools.jobs.render`。
-
 - 起動時刻は `deploy/crontab`、引数は各ジョブの `add_argument`、読み書きする表は `docs/dataflow/entries.json`（`python -m pytest tests --dataflow=write` が作る）から拾う
 - 読み書きする表はテストが通った道だけなので下限。読み方は [DATA_FLOW.md](DATA_FLOW.md)
 - ジョブは `jobs/` のうち `__main__` を持つファイル。機能は `jobs/<機能>/` のフォルダ

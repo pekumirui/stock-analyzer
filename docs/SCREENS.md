@@ -1,7 +1,5 @@
 # 画面設計
 
-**このファイルと `docs/screen/gen/` は自動生成。手で直さない。** 作り直しは `python -m tools.screen.render`。
-
 - 画面と遷移は `static/js/screens.js` の `ROUTES` と `BREADCRUMBS`、画面が呼ぶ API は `static/js/*.js` の `/api/…` の文字列、API の引数は FastAPI の OpenAPI、読み書きする表は `docs/dataflow/entries.json` から拾う
 - API の応答の形は載らない（ルートが応答の型を宣言していない）。形は各タブの手書きの画面仕様にある
 - 読み書きする表はテストが通った道だけなので下限。読み方は [DATA_FLOW.md](DATA_FLOW.md)

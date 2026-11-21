@@ -1,6 +1,6 @@
 # 画面設計: 共通
 
-**自動生成。手で直さない。** 読み方と作り方は [SCREENS.md](../../SCREENS.md)。
+読み方と作り方は [SCREENS.md](../../SCREENS.md)。
 
 ## 呼ぶ API と表
 

@@ -1,6 +1,6 @@
 # モジュールの依存
 
-**自動生成。手で直さない。** 作り直しは `python -m tools.overview.render`。入口は [OVERVIEW.md](../OVERVIEW.md)。
+入口は [OVERVIEW.md](../OVERVIEW.md)。
 
 `app`・`jobs`・`mcp`・`tools`・`analyzer` の Python の `import` を AST で読み、パッケージ単位にまとめた。関数の中の `import` も数える。
 

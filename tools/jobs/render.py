@@ -103,8 +103,6 @@ def _overview(all_jobs: list[str], runs: list[Run], tz: str | None, actions: dic
     lines = [
         "# ジョブ設計",
         "",
-        f"**このファイルと `{PAGE_DIR}/` は自動生成。手で直さない。** 作り直しは `{REBUILD}`。",
-        "",
         f"- 起動時刻は `{CRONTAB}`、引数は各ジョブの `add_argument`、読み書きする表は `{ENTRIES}`（`python -m pytest tests --dataflow=write` が作る）から拾う",
         "- 読み書きする表はテストが通った道だけなので下限。読み方は [DATA_FLOW.md](DATA_FLOW.md)",
         "- ジョブは `jobs/` のうち `__main__` を持つファイル。機能は `jobs/<機能>/` のフォルダ",
@@ -213,7 +211,7 @@ def _domain_page(root: Path, domain: str, all_jobs: list[str], by_name: dict[str
     lines = [
         f"# ジョブ設計: {_LABEL[domain]}",
         "",
-        f"**自動生成。手で直さない。** 読み方と作り方は [JOBS.md](../../JOBS.md)。表との線は [データの流れ](../../dataflow/{domain}.md)。",
+        f"読み方と作り方は [JOBS.md](../../JOBS.md)。表との線は [データの流れ](../../dataflow/{domain}.md)。",
         "",
     ]
     graph = _dependency_graph(domain, deps)
