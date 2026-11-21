@@ -123,7 +123,7 @@ erDiagram
 
 EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet → OneDrive
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_archives)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_archives)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -140,7 +140,7 @@ EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet �
 
 自己株券買付状況報告書の 1 書類 × 決議 1 件（取締役会・株主総会・投資法人の役員会）
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_buyback_resolutions)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_buyback_resolutions)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -165,7 +165,7 @@ EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet �
 
 自己株券買付状況報告書・訂正（EDINET 書類種別 220 / 230）の 1 書類。中身は書類取得 API type=1（XBRL）のテキストブロックの表
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_buybacks)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_buybacks)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -204,7 +204,7 @@ EDINET の書類取得 API の ZIP を残した記録。中身は data/edinet �
 
 EDINET 書類一覧 API（type=2）の 1 行。docID は一意でない（修正・不開示・取下げが別レコードで出る）
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_documents)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_documents)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -255,7 +255,7 @@ EDINET 書類一覧 API（type=2）の 1 行。docID は一意でない（修正
 
 EDINET コードリスト（提出者）の写し。上場していない提出者（大量保有の保有者など）も持つ。リストから消えた提出者も残す
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_filers)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_filers)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -281,7 +281,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 
 書類一覧を取った日ごとの記録
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_list_days)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_list_days)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -296,7 +296,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 
 公開買付けの書類 1 件（240〜340）。届出・訂正・撤回・報告書・意見表明・対質問回答など
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_tender_offer_docs)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_tender_offer_docs)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -339,7 +339,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 
 公開買付け 1 件。届出書（240）を大元に、訂正・撤回・意見表明・報告書から決め直す
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#edinet_tender_offers)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#edinet_tender_offers)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -380,7 +380,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 
 大量保有報告書・変更報告書・訂正（EDINET 書類種別 350 / 360）の 1 書類。中身は書類取得 API type=5（XBRL→CSV）
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#large_holding_reports)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#large_holding_reports)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -427,7 +427,7 @@ EDINET コードリスト（提出者）の写し。上場していない提出�
 
 大量保有の 1 書類 × 提出者・共同保有者 1 人（CSV の FilerLargeVolumeHolder<N>Member）
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/edinet.md#large_holdings)
+読み書きするバッチ・API: [データの流れ](../dataflow/edinet.md#large_holdings)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|

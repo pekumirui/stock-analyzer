@@ -9,8 +9,8 @@
 - 起動: 月曜 07:10（`--source estat`）
 - 起動: 毎日 07:15（`--source meti --only seidou --ledger /var/log/app/material_stats_ledger.json`）
 - 起動: 毎日 07:45（`--source meti --only sekiyu --ledger /var/log/app/material_stats_ledger.json`）
-- 書く: `material_monthly`, `material_trade_country`
-- 読むだけ: （観測なし）
+- 書き込み: `material_monthly`, `material_trade_country`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|

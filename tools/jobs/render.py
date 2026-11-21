@@ -220,8 +220,8 @@ def _domain_page(root: Path, domain: str, all_jobs: list[str], by_name: dict[str
             "## ジョブ間の依存",
             "",
             (
-                "矢印の元が書いた表を、先が読むだけで使う（cron のジョブ同士。線の字はその表）。"
-                f"灰色の点線の枠はほかの機能のジョブ。`{'`・`'.join(sorted(HUB))}` と、両方が書く表、ファイル（`data/`）の受け渡しは出ない。"
+                "矢印の元が書き込んだ表を、先が読み取るだけで使う（cron のジョブ同士。線の字はその表）。"
+                f"灰色の点線の枠はほかの機能のジョブ。`{'`・`'.join(sorted(HUB))}` と、両方が書き込む表、ファイル（`data/`）の受け渡しは出ない。"
             ),
             "",
         ]
@@ -239,8 +239,8 @@ def _domain_page(root: Path, domain: str, all_jobs: list[str], by_name: dict[str
             lines.append("- 起動: cron に無い" + (f"（Actions: {_code(actions[job])}）" if job in actions else ""))
         if e and e.calls:
             lines.append("- 呼ぶ API: " + _code(e.calls))
-        lines.append("- 書く: " + (_code(e.writes()) if e and e.writes() else "（観測なし）"))
-        lines.append("- 読むだけ: " + (_code(e.reads()) if e and e.reads() else "（観測なし）"))
+        lines.append("- 書き込み: " + (_code(e.writes()) if e and e.writes() else "（観測なし）"))
+        lines.append("- 読み取りだけ: " + (_code(e.reads()) if e and e.reads() else "（観測なし）"))
         lines.append("")
         lines += _arg_table(job_args(root / job))
     return "\n".join(lines)

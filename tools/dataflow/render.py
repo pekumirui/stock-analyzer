@@ -44,7 +44,7 @@ HEADER = """\
 
 テスト中に SQLite へ実際に流れた SQL を、呼んだバッチ・API に紐づけて集めたもの。
 
-- 「書く」は INSERT / UPDATE / DELETE をした表（読んでもいる表を含む）。「読むだけ」は SELECT だけの表
+- 「書き込み」は INSERT / UPDATE / DELETE をした表（読み取ってもいる表を含む）。「読み取りだけ」は SELECT だけの表
 - テストが通った道だけが載る。テストの無い分岐の読み書きは載らないので、表は**下限**として読む
 - バッチは `jobs/` のうち `__main__` を持つファイル（銘柄ごとの `html_issuers` は除く）。`__main__` から関数の参照をたどって届く `app/` の読み書きも含む。別のプロセスで続けて走るもの（crontab で並べたジョブ）は別の行
 - バッチが HTTP で API を呼ぶとき（月次の取込は loopback の API に POST する）は「呼ぶ API」に出し、その API の読み書きも足す
@@ -144,7 +144,7 @@ def _mermaid(entries: list[Entry], domain: str, kind: str) -> list[str]:
 
 
 def _entry_table(label: str, entries: list[Entry], with_calls: bool) -> list[str]:
-    head = f"| {label} | 書く | 読むだけ |"
+    head = f"| {label} | 書き込み | 読み取りだけ |"
     rule = "|---|---|---|"
     if with_calls:
         head += " 呼ぶ API |"
@@ -169,8 +169,8 @@ def _domain_page(domain: str, entries: list[Entry], tables: list[str]) -> str:
         "読み方と作り方は [DATA_FLOW.md](../DATA_FLOW.md)。全体の表と影響の調べ方は [ビューア](viewer.html)。",
         "",
         (
-            "図の見方: 左が入口、右が表。実線の矢印は書く、点線は読むだけ。灰色の点線の枠はほかの機能の表。"
-            f"`{'`・`'.join(sorted(HUB))}` はほぼ全部が読むので、読む線は省く（表には出す。線が残らない入口は図から外す）。"
+            "図の見方: 左がバッチ・API、右が表。実線の矢印は書き込み、点線は読み取りだけ。灰色の点線の枠はほかの機能の表。"
+            f"`{'`・`'.join(sorted(HUB))}` はほぼ全部が読み取るので、読み取りの線は省く（表には出す。線が残らないバッチ・API は図から外す）。"
         ),
         "",
     ]
@@ -186,15 +186,15 @@ def _domain_page(domain: str, entries: list[Entry], tables: list[str]) -> str:
         lines += [
             "## テーブル",
             "",
-            "ほかの機能のバッチ・API も含めて、その表を書く・読む入口。",
+            "ほかの機能のバッチ・API も含めて、その表を読み書きするバッチ・API。",
             "",
         ]
         for t in own:
             w = [e for e in entries if e.rw.get(t) == "W"]
             r = [e for e in entries if e.rw.get(t) == "R"]
             lines += [f"### {t}", ""]
-            lines.append("- 書く: " + (_code(_tagged(w, domain)) if w else "（観測なし）"))
-            lines.append("- 読むだけ: " + (_code(_tagged(r, domain)) if r else "（観測なし）"))
+            lines.append("- 書き込み: " + (_code(_tagged(w, domain)) if w else "（観測なし）"))
+            lines.append("- 読み取りだけ: " + (_code(_tagged(r, domain)) if r else "（観測なし）"))
             lines.append("")
     return "\n".join(lines)
 
@@ -209,8 +209,8 @@ def _overview(entries: list[Entry], tables: list[str], model_tables: list[str],
     lines += [
         "## 見るところ",
         "",
-        "- 機能ごとのページ（図と表）: 下の表から。入口（バッチ・API）は `jobs/<機能>/` のフォルダと、書く表の多い機能で分ける",
-        "- 全体の表・テーブルを変えたときの影響: [ビューア](dataflow/viewer.html)（wiki で開く。行か列を選ぶと、つながる入口とテーブルだけを図にする）",
+        "- 機能ごとのページ（図と表）: 下の表から。バッチ・API は `jobs/<機能>/` のフォルダと、書き込む表の多い機能で分ける",
+        "- 全体の表・テーブルを変えたときの影響: [ビューア](dataflow/viewer.html)（wiki で開く。行か列を選ぶと、つながるバッチ・API とテーブルだけを図にする）",
         "- エージェントは機能ごとのページか、この下の表を読む。HTML は人が見る用",
         "",
         "| 機能 | バッチ | API | テーブル |",
@@ -230,20 +230,20 @@ def _overview(entries: list[Entry], tables: list[str], model_tables: list[str],
     lines += [
         "## 設計の点検",
         "",
-        "表は下限なので、ここに出たものがすぐに誤りとは限らない（テストの無い道で書く・読むかもしれない）。",
+        "表は下限なので、ここに出たものがすぐに誤りとは限らない（テストの無い道で読み書きするかもしれない）。",
         "",
-        "書く入口が観測されなかった表（読まれるだけ）:",
+        "書き込むバッチ・API が観測されなかった表（読み取られるだけ）:",
         "",
     ]
     lines += [f"- `{t}`" for t in tables if t not in writers] or ["- （無し）"]
     lines += ["", "画面の API から読まれない表（バッチの中だけで使う表）:", ""]
     lines += [f"- `{t}`" for t in tables if t not in shown] or ["- （無し）"]
-    lines += ["", "`app/models.py` にあるのに、どの入口の読み書きにも出なかった表:", ""]
+    lines += ["", "`app/models.py` にあるのに、どのバッチ・API の読み書きにも出なかった表:", ""]
     lines += [f"- `{t}`" for t in model_tables if t not in tables] or ["- （無し）"]
     lines.append("")
 
     lines += [
-        "## SQL を観測しなかった入口",
+        "## SQL を観測しなかったバッチ・API",
         "",
         "テストが通っていないか、DB を使わない（ファイルの取得・バックアップなど）。どちらかはこの表からは分からない。",
         "",

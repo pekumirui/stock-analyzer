@@ -4,7 +4,7 @@
 
 ## ジョブ間の依存
 
-矢印の元が書いた表を、先が読むだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書く表、ファイル（`data/`）の受け渡しは出ない。
+矢印の元が書き込んだ表を、先が読み取るだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書き込む表、ファイル（`data/`）の受け渡しは出ない。
 
 ```mermaid
 ---
@@ -52,8 +52,8 @@ flowchart LR
 
 - 起動: 毎日 12〜23 時の毎時 00 分（`2`）
 - 続けて走る順: **xbrl/tdnet_xbrl_r2** → xbrl/xbrl_parse → xbrl/xbrl_normalize → xbrl/xbrl_statements → market/tanshin_covers → market/tdnet_briefing_r2 → market/homepage_briefing
-- 書く: （観測なし）
-- 読むだけ: `stocks`
+- 書き込み: （観測なし）
+- 読み取りだけ: `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -66,8 +66,8 @@ flowchart LR
 
 - 起動: 毎日 12〜23 時の毎時 00 分
 - 続けて走る順: xbrl/tdnet_xbrl_r2 → xbrl/xbrl_parse → **xbrl/xbrl_normalize** → xbrl/xbrl_statements → market/tanshin_covers → market/tdnet_briefing_r2 → market/homepage_briefing
-- 書く: `xbrl_element_mappings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items`
-- 読むだけ: `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`
+- 書き込み: `xbrl_element_mappings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items`
+- 読み取りだけ: `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -82,8 +82,8 @@ flowchart LR
 
 - 起動: 毎日 12〜23 時の毎時 00 分
 - 続けて走る順: xbrl/tdnet_xbrl_r2 → **xbrl/xbrl_parse** → xbrl/xbrl_normalize → xbrl/xbrl_statements → market/tanshin_covers → market/tdnet_briefing_r2 → market/homepage_briefing
-- 書く: `xbrl_contexts`, `xbrl_documents`, `xbrl_element_mappings`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items`
-- 読むだけ: `statements`, `stocks`, `tdnet_pdf_documents`
+- 書き込み: `xbrl_contexts`, `xbrl_documents`, `xbrl_element_mappings`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items`
+- 読み取りだけ: `statements`, `stocks`, `tdnet_pdf_documents`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -101,8 +101,8 @@ flowchart LR
 `jobs/xbrl/xbrl_presentation.py`
 
 - 起動: cron に無い
-- 書く: `edinet_archives`, `xbrl_filings`, `xbrl_presentation_roles`
-- 読むだけ: `edinet_documents`
+- 書き込み: `edinet_archives`, `xbrl_filings`, `xbrl_presentation_roles`
+- 読み取りだけ: `edinet_documents`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -124,8 +124,8 @@ flowchart LR
 
 - 起動: 毎日 12〜23 時の毎時 00 分
 - 続けて走る順: xbrl/tdnet_xbrl_r2 → xbrl/xbrl_parse → xbrl/xbrl_normalize → **xbrl/xbrl_statements** → market/tanshin_covers → market/tdnet_briefing_r2 → market/homepage_briefing
-- 書く: `statements`
-- 読むだけ: `xbrl_filings`, `xbrl_financials`, `xbrl_std_items`
+- 書き込み: `statements`
+- 読み取りだけ: `xbrl_filings`, `xbrl_financials`, `xbrl_std_items`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
