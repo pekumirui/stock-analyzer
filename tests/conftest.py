@@ -43,6 +43,16 @@ def _edinet_archive_dir(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("EDINET_ARCHIVE_DIR", str(tmp_path_factory.mktemp("edinet-archive")))
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _no_standard_labels():
+    from app.xbrl import three_statements
+
+    patch = pytest.MonkeyPatch()
+    patch.setattr(three_statements, "_standard_book", three_statements.StandardBook)
+    yield
+    patch.undo()
+
+
 @pytest.fixture
 def tmp(tmp_path: Path) -> Path:
     """直接走らせたときに main() が渡していた一時ディレクトリ。"""
