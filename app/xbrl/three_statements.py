@@ -13,7 +13,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
-from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH
+from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_STANDARD_LABELS_PATH
 
 __all__ = [
     "DEFAULT_PERIODS",
@@ -25,6 +25,8 @@ __all__ = [
     "Names",
     "PdfMatch",
     "PdfRows",
+    "StandardBook",
+    "StandardLabel",
     "apply_learned",
     "financial_table",
     "gather_heads",
@@ -36,6 +38,7 @@ __all__ = [
     "pdf_rows",
     "printed_twice",
     "split_by_layout",
+    "standard_book",
     "statement_layouts",
     "strip_heads",
 ]
@@ -104,6 +107,8 @@ MIN_LOOSE_MATCH = 100
 PDF_FULL_RATIO = 0.7
 NAME_WEIGHT = 1
 KEPT_WEIGHT = 1_000_000
+STANDARD_BY = "standard"
+STANDARD_OUTSIDE = "-"
 
 BS_GROUPS = {
     "Assets": "資産", "Liabilities": "負債", "NetAssets": "純資産",
@@ -320,6 +325,19 @@ class Names:
 
 
 @dataclass(frozen=True)
+class StandardLabel:
+    any: str | None
+    home: str | None
+    within: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class StandardBook:
+    labels: Mapping[tuple[str, str, str], StandardLabel] = field(default_factory=dict)
+    per_share: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
 class PdfRows:
     names: list[str]
     bases: list[str]
@@ -477,6 +495,24 @@ def _merge_exclusions() -> dict[tuple[str, str], set[frozenset[str]]]:
     for item in raw.get("pairs") or []:
         out[(str(item["code"]), str(item["statement"]))].add(frozenset(str(k) for k in item["keys"]))
     return dict(out)
+
+
+def standard_book(raw: Mapping[str, Any]) -> StandardBook:
+    labels: dict[tuple[str, str, str], StandardLabel] = {}
+    for standard, statements in (raw.get("labels") or {}).items():
+        for statement, names in statements.items():
+            for name, item in names.items():
+                labels[(str(standard), str(statement), str(name))] = StandardLabel(
+                    item.get("any"), item.get("home"), dict(item.get("within") or {}),
+                )
+    return StandardBook(labels, frozenset(str(k) for k in raw.get("per_share") or ()))
+
+
+@lru_cache(maxsize=1)
+def _standard_book() -> StandardBook:
+    if not XBRL_STANDARD_LABELS_PATH.exists():
+        return StandardBook()
+    return standard_book(json.loads(XBRL_STANDARD_LABELS_PATH.read_text(encoding="utf-8")))
 
 
 def _never_merged(label: str) -> bool:
@@ -1507,7 +1543,7 @@ def _ordered(
 
 def apply_learned(
     rows: Sequence[Fact], learned: Sequence[Learned], statement: str, period_end: date, cls: str,
-    names: Names | None = None,
+    names: Names | None = None, standard: str | None = None,
 ) -> list[tuple[Fact, Mapped | None]]:
     info = pdf_rows(rows, statement, printed_twice(learned, statement, names))
     live = [i for i in range(len(rows)) if i not in info.copies]
@@ -1525,12 +1561,62 @@ def apply_learned(
             for n, m in added.items():
                 if counts[m.key] == 1:
                     found[n] = m
+    if standard is not None:
+        for n, m in _standard_rows(live_rows, bases, found, statement, standard, _standard_book()).items():
+            found[n] = m
     result: list[Mapped | None] = [None] * len(rows)
     for n, i in enumerate(live):
         result[i] = found[n]
     for i, at in info.copies.items():
         result[i] = result[at]
     return list(zip(rows, result))
+
+
+def _standard_entry(book: StandardBook, standard: str, statement: str, base: str) -> StandardLabel | None:
+    found = book.labels.get((standard, statement, _canon_name(base)))
+    stem = _total_stem(base)
+    if found is None and stem is not None:
+        found = book.labels.get((standard, statement, _canon_name(stem)))
+    return found
+
+
+def _alone(picked: Mapping[int, str]) -> dict[int, str]:
+    counts = Counter(picked.values())
+    return {n: k for n, k in picked.items() if counts[k] == 1}
+
+
+def _standard_rows(
+    live_rows: Sequence[Fact], bases: Sequence[str], found: Sequence[Mapped | None], statement: str, standard: str,
+    book: StandardBook,
+) -> dict[int, Mapped]:
+    if not book.labels:
+        return {}
+    taken = {m.key for m in found if m is not None}
+    entries = {
+        n: entry for n, m in enumerate(found)
+        if m is None and (entry := _standard_entry(book, standard, statement, bases[n])) is not None
+    }
+
+    def fits(key: str | None, n: int) -> bool:
+        return key is not None and key not in taken and (key in book.per_share) == (live_rows[n].unit in PER_SHARE_UNITS)
+
+    picked = _alone({n: e.any for n, e in entries.items() if _is_marker(e.any, statement) and fits(e.any, n)})
+    marks = [m.key if m is not None else picked.get(n) for n, m in enumerate(found)]
+    framed = any(_is_marker(k, statement) for k in marks)
+    section: str | None = None
+    homes: list[str | None] = [None] * len(marks)
+    for n in range(len(marks) - 1, -1, -1):
+        if _is_marker(marks[n], statement):
+            section = marks[n]
+        homes[n] = section or (STANDARD_OUTSIDE if framed else None)
+    for n, entry in entries.items():
+        if n in picked:
+            continue
+        home = homes[n]
+        key = entry.any if home is None else entry.within.get(home) or (entry.any if entry.home == home else None)
+        if fits(key, n):
+            picked[n] = str(key)
+    return {n: Mapped(k, 1, STANDARD_BY) for n, k in _alone(picked).items()}
 
 
 def _known(learned: Sequence[Learned], statement: str) -> set[object]:
@@ -1932,7 +2018,9 @@ def pdf_only_matches(db: Session, code: str) -> list[PdfMatch]:
                 pool, scoped_names = _scoped_for_pdf(
                     filing, filings, learned, statement, names, names_by_std, excluded,
                 )
-                for fact, mapped in apply_learned(facts, pool, statement, filing.period_end, filing.cls, scoped_names):
+                for fact, mapped in apply_learned(
+                    facts, pool, statement, filing.period_end, filing.cls, scoped_names, filing.standard,
+                ):
                     if statement == "CF" and mapped is None and _opening_cash(fact.key):
                         continue
                     out.append(PdfMatch(filing, basis, statement, fact, mapped))
@@ -1980,7 +2068,10 @@ def build_columns(
                 by_name = scoped_names if filing is primary else None
                 copies = pdf_rows(facts, statement, printed_twice(pool, statement, by_name)).copies
                 revised, later = _revised(revisions, pool, statement, period_end, by_name)
-                for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, cls, by_name)):
+                standard = filing.standard if filing is primary else None
+                for n, (fact, mapped) in enumerate(
+                    apply_learned(facts, pool, statement, period_end, cls, by_name, standard),
+                ):
                     if n in copies:
                         continue
                     if mapped is None:
