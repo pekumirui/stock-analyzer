@@ -1,332 +1,314 @@
-# 取込と保存の規則: EDINET・大量保有
+# 取込と保存の規則: EDINET
 
-EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報の財務 XBRL、有報の大株主・所有者別、大量保有、自己株買い、公開買付けを `stock.db` に載せる。親 issue は KAB-71。土台（ラッパー・提出者・書類一覧）は KAB-72、財務 XBRL は KAB-73、大量保有は KAB-74、自己株買い・公開買付けは KAB-79、大株主・所有者別は KAB-266、ZIP の退避は KAB-281。有報テキスト（KAB-75）は、`edinet_documents` を入口にして節を足す。
+各ジョブの起動時刻・引数・読み書きするテーブルは自動生成の [ジョブ設計](gen/edinet.md) と [バッチ一覧](../JOBS.md) にまとめる。このページでは金融庁 EDINET API v2 からの書類一覧・ZIP アーカイブの取得と、書類種別ごとのパース・版管理・運用の規則を定める。
 
-ジョブの起動時刻・引数・読み書きする表は [ジョブ設計](gen/edinet.md)（自動生成）。テーブル・列・索引と列の意味は [スキーマ](../schema/edinet.md)（自動生成。大株主・所有者別の 3 表は [XBRL のスキーマ](../schema/xbrl.md)）。ここには規則だけ書く。
+## 全体構成と対象書類
 
-構成は次の順。
+EDINET API v2（環境変数 `EDINET_API_KEY`）と金融庁の EDINET コードリスト（API キー不要）を使い、適時開示や J-Quants だけでは取れない法定開示書類を取り込む。財務 XBRL のパースには TDnet の決算短信と同じ `app/xbrlp` を使う。
 
-1. 全体: 決めたこと、取り込む書類種別の早見表
-2. EDINET から取る: ラッパー → 提出者 → 書類一覧 → 書類の ZIP（取り方と残すもの）
-3. 書類種別ごとの取込: 有報・半期報の財務 XBRL → 有報の大株主の状況・所有者別状況 → 大量保有報告書 → 自己株券買付状況報告書 → 公開買付け。どれも、対象と取り方 → 中身の読み方 → 訂正と最新 → 使う側 → 実データで確かめたこと、の順
-4. 運用: cron とログ、メンテ、ZIP の退避と過去分の取り直し、最初に入れるとき
+取り込む書類種別と保存先は次のとおりである。
 
-## 全体
+| `doc_type_code` | 書類種別 | EDINET 縦覧期間 | 取り出す主な内容 | 保存先テーブル |
+|---|---|---|---|---|
+| `120`・`130` | 有価証券報告書・訂正 | 5 年 | 3 表の財務諸表・研究開発費・設備投資・減価償却費・従業員情報・セグメント・大株主・所有者別状況 | `xbrl_filings`・`xbrl_financials`・`xbrl_segments`・`xbrl_shareholder_*` |
+| `140`・`150` | 四半期報告書・訂正（2024 年 4 月廃止） | 5 年 | 過去分の 3 表・セグメント（大株主の表があればそれも含む） | 同上 |
+| `160`・`170` | 半期報告書・訂正 | 5 年 | 3 表・セグメント（大株主の表があればそれも含む） | 同上 |
+| `220`・`230` | 自己株券買付状況報告書・訂正 | 1 年 | 株主総会・取締役会決議枠、月次の取得株数・総額、処分、月末自己株式数 | `edinet_buybacks`・`edinet_buyback_resolutions` |
+| `240`・`250` | 公開買付届出書・訂正 | 5 年 | 買付者・対象銘柄・買付価格・買付期間・下限と上限株数・目的 | `edinet_tender_offers`・`edinet_tender_offer_docs` |
+| `260` | 公開買付撤回届出書 | 5 年 | 案件の撤回ステータスへの遷移（一覧メタデータのみ） | 同上 |
+| `270`・`280` | 公開買付報告書・訂正 | 5 年 | 応募株数・買付株数・成否・買付後所有割合 | 同上 |
+| `290`・`300` | 意見表明報告書・訂正 | 5 年 | 対象会社の意見（賛同・反対・中立・留保） | 同上 |
+| `310`・`320`・`330`・`340` | 対質問回答報告書・別途買付け禁止の特例・訂正 | 5 年 | 案件タイムラインへの紐付け（一覧メタデータのみ） | 同上 |
+| `350`・`360` | 大量保有報告書・変更報告書・訂正 | 5 年 | 提出者・共同保有者ごとの株券等保有割合・株数・保有目的・重要提案行為等 | `large_holding_reports`・`large_holdings` |
 
-### 決めたこと
+次の書類種別は `edinet_documents` に一覧メタデータだけを残し、本文 ZIP は取得しない。
 
-1. ラッパーは自作の `edinet-wrapper`（https://github.com/pekumirui/edinet-api 、private）を `app/edinet_wrapper/` に同梱する。理由: private なので VPS・CI・クラウドのエージェントから `pip install git+…` できない。`app/xbrlp/` と同じ扱い（「ラッパー」）
-2. 書類一覧の一意キーは `(file_date, seq_number)`。`docID` は一意でない（書類情報修正・不開示の開始/解除・取下げが別レコードで出る）
-3. `stocks.edinet_code` を nullable で足す。企業キーは今後も `stocks.code`
-4. 一覧は全書類（投信・非上場・大量保有を含む）を持つ。上場銘柄に絞らない。大量保有の保有者や関係会社は非上場の提出者だから
-5. 画面と API があるのは大量保有と自己株買い（それぞれの「使う側」）。財務 XBRL は TDnet と同じ層に入り、財務3表の API が読む（`docs/jobs/xbrl.md`）。大株主・所有者別と公開買付けの画面と API はまだ出さない
+| `doc_type_code` | 書類種別 | 本文を取得しない理由 |
+|---|---|---|
+| `010`〜`110` | 有価証券届出書・発行登録書など | 募集・売出し手続きの書類であり、定常的な業績・株主分析に使わないため |
+| `180` | 臨時報告書 | 定型の数値タグや表を持たず、事由別の自由記述 `TextBlock` が 1 つ入るだけのため |
+| `200`〜`210` | 親会社等状況報告書 | 非上場の親会社に関する開示であり、上場銘柄本体の分析対象外のため |
 
-### 書類種別の早見表
+---
 
-仕様書は金融庁の「EDINET API 仕様書（Version 2）」（2026 年 6 月版で確認。https://disclosure2dl.edinet-fsa.go.jp/guide/static/disclosure/download/ESE140206.pdf 。PDF はコミットしない）。コードの定数は `app/edinet_wrapper/enums.py` の `DocType`。下の表は取り込んでいる書類だけ。「実物」は実データの書類で中身・一覧の値を確かめたか（未確認の種別は仕様書とラッパーの名前だけ）。
-
-| コード | 書類 | 取込先 | 中身 | 閲覧期間 | parentDocID（親） | subjectEdinetCode | 実物 |
-|---|---|---|---|---|---|---|---|
-| 120 / 130 | 有価証券報告書 / 訂正 | `xbrl_filings`（「有報・半期報の財務 XBRL」） | type=1 XBRL | 10 年 | 訂正は訂正前 | — | 済 |
-| 140 / 150 | 四半期報告書 / 訂正（2024-03 まで） | 同上 | type=1 | 10 年 | 同上 | — | 済 |
-| 160 / 170 | 半期報告書 / 訂正 | 同上 | type=1 | 10 年 | 同上 | — | 済 |
-| 220 / 230 | 自己株券買付状況報告書 / 訂正 | `edinet_buybacks`（「自己株券買付状況報告書」） | type=1 のテキストブロック（CSV は表がつぶれる）。要素が無い書類は本文 iXBRL の表（「自己株券買付状況報告書」） | 1 年 | 訂正は訂正前 | — | 済 |
-| 240 | 公開買付届出書 | `edinet_tender_offer_docs`（「公開買付け」） | type=1 のテキストブロック | 5 年 | 無し（案件の大元） | 対象者 | 済 |
-| 250 | 訂正公開買付届出書 | 同上 | type=1（訂正後の全文） | 5 年 | 240 | 対象者 | 済 |
-| 260 | 公開買付撤回届出書 | 同上 | 読まない（メタデータだけ） | 5 年 | 240 | 対象者 | 未確認 |
-| 270 / 280 | 公開買付報告書 / 訂正 | 同上 | type=1 | 5 年 | 270 は 240、280 は訂正前（270）のはず | 対象者 | 270 済・280 未確認 |
-| 290 | 意見表明報告書 | 同上 | type=1 | 5 年 | 240 | **買付者**（提出者が対象者） | 済 |
-| 300 | 訂正意見表明報告書 | 同上 | type=1（意見の要素名が 290 と違う書類あり。「公開買付け」） | 5 年 | **290**（240 ではない） | 買付者 | 済 |
-| 310 / 320 | 対質問回答報告書 / 訂正 | 同上 | 読まない | 5 年 | 240（訂正は訂正前のはず） | — | 未確認 |
-| 330 / 340 | 別途買付け禁止の特例を受けるための申出書 / 訂正 | 同上 | 読まない | 5 年 | — | — | 未確認 |
-| 350 / 360 | 大量保有報告書・変更報告書 / 訂正 | `large_holding_reports`（「大量保有報告書」） | type=5 CSV | 5 年 | 変更報告書は基の報告書、訂正は訂正前 | — | 済 |
-
-- 仕様書の親書類管理番号: 訂正報告書は訂正前の書類、公開買付報告書・撤回届出書・対質問回答報告書・意見表明報告書は報告対象の届出書（3-1 の「親書類管理番号」）。300 の親が 290 なのはこの「訂正前の書類」のほう。どれも「提出操作上設定されている場合のみ」で、空のこともある
-- 仕様書の `subjectEdinetCode` は「公開買付けについて対象となる EDINET コード」とだけある。意見表明（290/300）では買付者のコードが入る（実データ。「公開買付け」）
-- 自社株 TOB（発行者による公開買付け）も同じ 240〜280 で、府令コード 050・様式 `jptoi` で見分ける。subject は自分
-- 閲覧期間（縦覧期間＋延長期間）を過ぎた書類は一覧 API からも消え、書類も取れない。延長期間があるのは有報・半期報・四半期報だけ（仕様書 1-2-2）。自己株買い 1 年・公開買付と大量保有 5 年は法定の縦覧期間で、一覧からの消え方も実データで確かめた（「自己株券買付状況報告書」「公開買付け」）
-
-## EDINET から取る
+## 共通基盤
 
 ### ラッパー
 
-- 置き場は `app/edinet_wrapper/`。upstream の `src/edinet_wrapper` @ `a3a2f01` の写し。変えたのは `from edinet_wrapper.x` → `from .x` だけ（`__init__.py` の docstring に書いた）。Ruff / Bandit の対象から外す
-- 更新するときは upstream の `src/edinet_wrapper/*.py` をそのまま写して、同じ置換をかける:
-  `sed -i -E 's/^(\s*)from edinet_wrapper\./\1from ./' app/edinet_wrapper/*.py`
-- 依存は `httpx` と `pydantic` v2（どちらも `requirements.txt` にある）
-- Python 3.11+ が要る（`StrEnum` / `typing.Self`）。アプリ本体は 3.10 でも起動するよう、`app/edinet/` は型以外のラッパーを関数の中で import する
-- ラッパーが受け持つこと: HTTP 200 で返るエラーの判定（Content-Type と `metadata.status`）、429・5xx・メンテ画面のリトライ、リクエスト間の最小 1 秒、ZIP の安全な展開、`Subscription-Key` のマスク。HTML 応答と 302 は `EdinetMaintenanceError`（ジョブ側の扱いは「EDINET のメンテ」）
-- キーは `EDINET_API_KEY`（`.env` か環境変数）。本番は GitHub Secrets → `deploy/update.sh` が `.env` に書く。無ければ一覧のジョブは何もしない
+HTTP クライアントには Apache-2.0 ライセンスの `app/edinet_wrapper`（`EdinetClient`）をそのまま同梱して使う（vendor コードのため改変しない）。このラッパーは次の EDINET API v2 特有の挙動を吸収する。
+
+| 項目 | ラッパーの挙動 |
+|---|---|
+| リトライ | HTTP `429` と `5xx` に対して指数バックオフで再試行する |
+| HTTP `200` 内のエラー JSON | EDINET API は書類未検出や認証エラーでも HTTP ステータス `200` のまま JSON 本文 `{"metadata": {"status": "404", ...}}` を返すため、本文の `status` を見て `EdinetNotFoundError` などの例外に変換する |
+| ZIP・CSV の検証と展開 | ダウンロード応答の先頭 `PK` シグネチャを検証し、`type=5`（CSV 変換 ZIP）に含まれる UTF-16LE のタブ区切りファイルをデコードする |
+| 取得件数の集計 | プロセス内の日次ダウンロード件数（`rate_limit`）を数える |
+
+アプリ側の薄いラッパー `app/edinet/client.py` は、`EDINET_API_KEY` の有無の検査、金融庁メンテナンス時の `503` スキップ処理（後述の「EDINET のメンテ」）、および API キー不要で動く `Edinetcode.zip` 取得ヘルパーを提供する。
 
 ### 提出者
 
-`edinet_filers` は EDINET コードリスト（Edinetcode.zip、キー不要）の写し。`edinet_code` は E00004 など、`sec_code` は証券コード 5 桁（`stocks.code` と同じ形。無い提出者は NULL）、`list_date` はリスト 1 行目の「ダウンロード実行日」。`stocks.edinet_code`（nullable）は `jobs/edinet/edinet_codes.py` が付け直す。
+対象ジョブは [`edinet/edinet_codes`](gen/edinet.md#edinetedinet_codes)（`jobs/edinet/edinet_codes.py`）である。API キーは不要で、週次 cron で実行する。
 
-- ジョブ: `python jobs/edinet/edinet_codes.py`（`--zip` で手元の ZIP）
-- `edinet_filers` は UPSERT。リストから消えた提出者も残す（古い書類の提出者名を引くため）
-- 紐付けは `edinet_filers.sec_code = stocks.code`。同じ証券コードに提出者が複数あれば「上場」、次に `list_date` が新しい方
-- 5 桁目が 0 でない銘柄（優先株式。`92025` など）は普通株（`92020`）の提出者を付ける
-- リストから外れた銘柄は NULL に戻す
-- TOKYO PRO MARKET は EDINET に出さないので、付かなくて正しい。ログの `unmatched_equity` に数えない
-- 2026-10-20 の実データ: 提出者 11,420、証券コード付き 3,813。TOKYO PRO MARKET を除く内国株で付かなかったのは 4 件（コードリストに証券コードがまだ無い新規上場など）。翌日以降のリスト更新で付く
-- 取り込んだあと、`edinet_documents.code` が空の行を付け直す（`relink_codes`）
+金融庁が配布する日本語版 EDINET コードリスト（`EdinetcodeDlInfo.zip`、Shift_JIS の CSV）を取得し、非上場企業・投資信託・外国法人・個人を含む全提出者（約 11,000 件）を `edinet_filers` に UPSERT する。続けて `edinet_filers.sec_code` と `stocks.code` を突き合わせて `stocks.edinet_code` を更新し、`edinet_documents` で `code` が未設定だった行にも `relink_codes` で銘柄コードを埋める。
+
+銘柄コードとの紐付け規則と実データ上の性質は次のとおりである。
+
+| 対象 | 紐付け規則と挙動 |
+|---|---|
+| 普通株・REIT・インフラファンド | 5 桁の `sec_code` と `stocks.code` の完全一致で引く。同一 `sec_code` に複数の EDINET コードがあるときは、`listed == '上場'`・`list_date` の新しさ・`edinet_code` の順で 1 件を選ぶ |
+| 優先株（5 桁目の末尾が `'0'` 以外） | 4 桁の上場コードに `'0'` を付けた普通株コードでも引き当て、発行体法人の EDINET コードを入れる（例: 伊藤園第 1 種優先株式 `25935` → `25930` 経由で `E00416`） |
+| コードリストから消えた銘柄 | 今回のコードリストで対応が付かなかった銘柄は `stocks.edinet_code = NULL` に戻す |
+| TOKYO PRO Market 上場銘柄 | 法定開示義務が無く EDINET コード自体が存在しないため `NULL` になる（ログの `unmatched_equity` 件数からは TOKYO PRO Market を除外して監視ノイズを防ぐ） |
+| ETF・ETN | 個別銘柄の `sec_code` ではなく運用会社の EDINET コードしか持たないため `stocks.edinet_code` は `NULL` になる |
 
 ### 書類一覧
 
-`edinet_documents` は書類一覧 API type=2 の 1 行、`edinet_list_days` は取った日ごとの記録。`doc_id` は索引だけで一意でない。`code` は `stocks.code`。secCode、無ければ `edinet_code` → `edinet_filers.sec_code`。上場していなければ NULL。`issuer_edinet_code` / `subject_edinet_code` は大量保有・公開買付けの発行者 / 対象。`withdrawal_status` / `doc_info_edit_status` / `disclosure_status` は EDINET のコード値（'0'〜'3'）。
+対象ジョブは [`edinet/edinet_documents`](gen/edinet.md#edinetedinet_documents)（`jobs/edinet/edinet_documents.py`）である。日次 cron で実行し、各日の `documents.json?date=YYYY-MM-DD&type=2` の全件を `edinet_documents` に保存する。
 
-日時は JST の naive で持つ（EDINET の値は JST）。
+EDINET の書類一覧では、後日発生した取下げ・不開示措置・メタデータ修正が、その事象の発生日（`file_date`）の一覧に元の書類と同じ `doc_id` で再掲される。元の一覧行を消さずに履歴を保持するため、`edinet_documents` の主キーは `(doc_id, file_date)` の複合キーにしている。
 
-#### 一覧の取り方
+#### 対象日の選び方と確定判定
 
-- ジョブ: `python jobs/edinet/edinet_documents.py`。1 日 1 リクエスト（type=2。メタデータも入っている）
-- 既定（cron）は直近 7 日のうち確定していない日と、それより古い未確定の日
-- 期間指定は `--from` / `--to`。`--backfill-years N`（最大 10）。確定済みの日は飛ばすので、止めても続きから。`--force` で取り直す
-- 確定: EDINET の一覧作成時刻（`processDateTime`）が `file_date` の翌日以降の回で取ったら `finalized`。前日分は翌朝の回で確定する
-- 過去分は EDINET が 10 年分まで持つ。1 日 1 リクエスト。本番は 10 年全部取る（`--backfill-years 10`）
+日次の通常実行では、当日を含む直近 8 暦日（`today - 7` 日〜`today`）と、日次取得台帳 `edinet_list_days` で未確定（`finalized = False`）のまま残っている過去日（最大 `MAX_LOOKBACK_DAYS = 10 * 365 + 7` 日前まで）を取得する。初回の一括取得では `--backfill-years N`（最大 10 年）を指定する。
 
-#### 状態の書き換え（イベント行）
+ある `file_date` の一覧は、API 応答の `processDateTime`（欠けている場合は取得時刻 `fetched_at`）が JST で `file_date` の翌日以降になった回に取得できていれば `finalized = True` にする。当日中に取得した回はまだ駆け込み提出が増える可能性があるため `finalized = False` のまま残し、翌日以降に自動で取り直す。上場廃止済みの過去銘柄も含め、一覧の行自体は捨てずに全件保存する。
 
-EDINET は修正・不開示・取下げを、後の日の一覧に別レコードとして出す。元の日の行は、元の日を取り直さないと変わらない。そこで取り込むたびに、その日の書類（と取下書の親）について、DB にある行全部から状態を決め直す（`apply_events`）。取り直しの順番に依らない。
+#### 銘柄コードの引き当てと事後イベントの伝播
 
-| イベント行 | 元の行（イベントでない同じ docID の行） |
-|---|---|
-| 取下書（`withdrawal_status=1`、`parent_doc_id=D`） | D の行を `withdrawal_status=2` |
-| 書類情報修正（D に `doc_info_edit_status=1` の行） | `doc_info_edit_status=2`。新しいメタデータは修正の行にある |
-| 不開示の開始（`disclosure_status=1`）/ 解除（`3`） | 最後のイベントが開始なら `2`、解除なら `0` |
+各一覧行の `code` は、まず `sec_code` が `stocks` にあればそれを採用し、無ければ `edinet_code` から `edinet_filers.sec_code` 経由で引く。なお大量保有報告書（`350`・`360`）と公開買付け（`240`〜`340`）の一覧行にある `sec_code` は対象銘柄ではなく提出者自身のコード（ファンドや個人なら `NULL`）であるため、対象銘柄のコードは後続の各パーサーが書類本文から特定する。
 
-- 取下げで EDINET は元の行のメタデータを空にして返す。UPSERT は提出者・書類種別などの列を NULL で上書きしない（`_KEEP_ON_NULL`）
-- 使う側（書類種別ごとの取込）は `withdrawal_status != '2' AND disclosure_status != '2'` の行を対象にする。修正があった書類は `ope_datetime` が新しい行のメタデータを使う
+取下げ・不開示・メタデータ修正の行が届いたときは、`apply_events` で同じ `doc_id` の過去 `file_date` の行と下流テーブルへ状態を伝播させる。
+
+| 事象 | 一覧での現れ方 | 元の行と下流テーブルへの反映 |
+|---|---|---|
+| 取下げ | 取下書（`withdrawal_status='1'`）と取り下げられた元書類の通知（`'2'`）が事象日の `file_date` に出る | 過去の元行の `withdrawal_status` を `'2'` に更新し、`edinet_archives` のローカル ZIP を消して `status='gone'` にし、各機能の `retract` で正規化済みデータを引っ込める |
+| 不開示・解除 | 不開示開始（`disclosure_status='1'`）・不開示中（`'2'`）・不開示解除（`'3'`）が出る | `'1'`・`'2'` のときは元行の `disclosure_status` を `'2'` にしてローカル ZIP 削除と `retract` を行う。`'3'`（解除）が出たときは元行を `'0'` に戻す |
+| メタデータ修正 | 修正通知（`doc_info_edit_status='1'`）と修正された元書類の通知（`'2'`）が出る | 過去の元行の `doc_info_edit_status` を `'2'` に更新する。下流の未処理抽出（`pending_documents`）は元の提出行（`withdrawal_status != '2' AND disclosure_status = '0' AND doc_info_edit_status != '1'`）だけを対象にし、自己株・公開買付けの版更新（`doc_metas`）では `ope_datetime` が最も新しい `'1'` 行のメタデータを参照する |
 
 ### 書類の ZIP
 
-閲覧期間（早見表）を過ぎた書類は EDINET から二度と取れない。`--reparse` や本文の取込のため、取った ZIP を残す。
+EDINET の書類 ZIP は縦覧期間（自己株は 1 年、その他は 5 年）を過ぎると API から `404` で消えるため、一度取得した `type=1`（提出本文・XBRL・監査報告書）と `type=5`（CSV 変換）の ZIP はすべて `app/edinet/archive.py`（`fetch_zip`）経由で保存し、索引テーブル `edinet_archives`（主キー `(doc_id, file_type)`）に `rel_path`・`status`・`bytes`・`sha256`・`saved_at` を記録する。
 
-#### 残すもの
+ローカルの保存先は `data/edinet/{doc_type_code}/{doc_id}_type{file_type}.zip`（環境変数 `EDINET_ARCHIVE_DIR` または `$SHARE_ROOT/edinet` で変更可）である。`fetch_zip` は次の 3 段階のリードスルーで ZIP バイト列を返す。
 
-| 書類 | type | 理由 |
-|---|---|---|
-| 有報・四半期報・半期報（120〜170）、自己株買い（220/230）、公開買付けのうち読む書類（240/250/270/280/290/300） | 1（XBRL・本文 iXBRL・監査報告書） | パースしているもの。本文の HTML も入っている |
-| 大量保有（350/360） | 5（CSV） | パースしているもの |
+1. ローカルの `data/edinet` に実ファイルがあり、先頭が有効な ZIP（`PK` ヘッダ）であればそのまま返す。
+2. ローカルに無くても `edinet_archives` に `status='saved'` の記録があれば、OneDrive（`{BACKUP_OFFSITE_REMOTE}:{BACKUP_OFFSITE_PATH}/data/edinet/{rel_path}`）から `rclone copyto` でローカルへ書き戻して返す。
+3. どちらにも無ければ EDINET API の `client.download` で取得し、ローカル保存と `edinet_archives` への `status='saved'` 記録を行ってから返す。
 
-PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。添付の PDF だけ）・英文（type=4）は残さない。
+取下げや不開示になった書類は `mark_gone` でローカルファイルを削除し、`edinet_archives.status = 'gone'` に変更する。またパースとは独立に縦覧期間内の未保存 ZIP をまとめて確保したいときは、専用ジョブ [`edinet/edinet_archive`](gen/edinet.md#edinetedinet_archive)（`jobs/edinet/edinet_archive.py`、既定 `--limit 1000`、`0` で無制限）を使う。
 
-#### ZIP の取り方（`app/edinet/archive.py download`）
+---
 
-1. 手元 `data/edinet/{書類種別}/{docID}_type{n}.zip` があればそれ。docID の中身は変わらない（訂正は別の docID）
-2. EDINET から取り、ZIP として読める（`testzip`）ものだけ一時ファイル → rename で手元に書き、`edinet_archives` に `saved` で記録する。壊れた ZIP は残さず、そのまま返す（パースが失敗にし、`--retry-failed` で取り直せる）
-3. EDINET が 404 で `edinet_archives` が `saved` なら OneDrive から `rclone cat`。閲覧期間外と分かっている書類（大量保有・公開買付け・自己株買いの `keep_after`）は EDINET を飛ばして OneDrive へ。残していなければ今までどおり missing
-4. OneDrive から読めない（rclone が無い・失敗）は一時的な失敗（`error`）
-
-各取込（`edinet_xbrl` / `edinet_buybacks` / `edinet_tender_offers` / `edinet_large_holdings`）はこれを通す。
-
-#### 記録 `edinet_archives`
-
-主キーは `doc_id` / `file_type`（書類取得 API の type（1 / 5））。`rel_path` は `data/edinet` からの相対パスで、OneDrive でも同じ。`status` は `saved`（手元に書いた。OneDrive へは翌朝）/ `gone`（取り直しのとき EDINET が 404）。`bytes` / `sha256` / `saved_at` は ZIP の大きさ・ハッシュ・書いた時刻（JST）。
-
-## 書類種別ごとの取込
+## 書類種別ごとの取込規則
 
 ### 有報・半期報の財務 XBRL
 
-`edinet_documents` の書類を書類取得 API type=1（XBRL ZIP）で取り、TDnet と同じ `app/xbrl` でパース・正規化する。`xbrl_filings.source='edinet'`、`doc_id` は EDINET の docID。表は増やさない（`docs/jobs/xbrl.md`「データベース設計」）。
+対象ジョブは [`edinet/edinet_xbrl`](gen/edinet.md#edinetedinet_xbrl)（`jobs/edinet/edinet_xbrl.py`）、表示画面は [銘柄詳細](../screen/stock.md) である。
 
-#### 対象と取り方
+`edinet_documents` のうち `doc_type_code` が `120`〜`170` であり、`xbrl_flag = True`・`code IS NOT NULL`・`withdrawal_status != '2'`・`disclosure_status = '0'`・`doc_info_edit_status != '1'` を満たし、まだ `xbrl_filings`（`source='edinet'`）に行が無い書類を古い `file_date` 順に処理する（`--retry-failed` 指定時は `parse_status='failed'` も再試行する）。
 
-- ジョブ: `python jobs/edinet/edinet_xbrl.py`。cron の `--limit 300` は 1 件 2〜3 秒で約 14 分（cron-run.sh にロックが無いので 1 時間に収める）
-- 対象: `code` あり（上場銘柄）、`xbrl_flag`、取下げ（`withdrawal_status=2`）・不開示（`disclosure_status≠0`）・修正通知の行を除く。書類種別は有報 120 / 訂正 130、半期報 160 / 訂正 170、四半期報告書 140 / 150（2024-03 まで。`--no-quarterly` で除く）。EDINET が持つ 10 年分を全部取る
-- 新しい日から取る。一覧を backfill したあとの過去分は、毎時の cron が新着の後に少しずつ取る（1 日約 4,800 件）
-- `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。404（取下げ・非公開。OneDrive にも無い）は `missing` として `failed` で残し、exit=0（KAB-388）。5xx・タイムアウトは filing を作らないので次の回にまた取る（exit=1）
-- `doc_type` / `period_type` / `is_amendment` は書類種別コードから決める（120/130 → `annual`/`FY`、160/170 → `semiannual`/`Q2`、140/150 → `quarterly` で期はタイトル）。会計基準は DEI の `AccountingStandardsDEI`（`Japan GAAP` / `IFRS` / `US GAAP`）
-- 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` / `xbrl_segments` / 大株主の表と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
+#### パース・メタデータ・異常時の扱い
 
-#### タクソノミ
+`type=1` の ZIP を `fetch_zip` で取得し、`XBRL/PublicDoc/` 配下の XBRL 一式を `app/xbrlp` で読んで `xbrl_filings`（`source='edinet'`・`doc_id` に EDINET 書類管理番号）・`xbrl_documents`・`xbrl_contexts`・`xbrl_facts`・`xbrl_presentation_roles` に入れ、続けて `xbrl_financials`・`xbrl_segments` と大株主テーブル（`normalize_shareholders` および末尾の `refresh_versions`）へ正規化する。実行統計は毎回 `xbrl_job_runs`（`job_name='edinet_xbrl'`）に記録する。
 
-- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。見本は 2016-02-29 以降から始まっていた。訂正は提出が新しくても元書類の版を参照するので、インライン XBRL でそれより前に公開されている jpcrp / jppfs（2013-08-31 と 2015-03-31）と jpsps（2013-08-31、2014-07-31、2015-03-31）も同梱する（KAB-324。jpigp の初版は 2018-03-31）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
+メタデータの変換とエラー時の扱いは次のとおりである。
 
-#### ZIP と fact は持ちすぎない
+| 項目 | 規則 |
+|---|---|
+| `doc_type`・`is_amendment` | `120`・`130` は `annual`、`140`・`150` は `quarterly`、`160`・`170` は `semiannual` にし、`130`・`150`・`170` を `is_amendment = True` にする |
+| `period_type` | 有報は `FY`、半期報は `H1`、四半期報は `doc_description` の `第([123])四半期` から `Q1`〜`Q3` を抜く（「第138期」のような期数を `Q1` と誤認するのを避ける） |
+| `accounting_standard`・`fiscal_year_end` | DEI の `AccountingStandardsDEI` を `'JPGAAP'`・`'IFRS'`・`'USGAAP'` に正規化して格納し、期末日は `CurrentFiscalYearEndDateDEI`（無ければ `period_end`）を使う |
+| 取得時の HTTP `404` | 縦覧期間切れや非公開とみなし、`XbrlFiling` を `parse_status='failed'` で作って `missing` に数える。次回以降は飛ばし、終了コードは `0` のままにする |
+| 取得時の `5xx`・タイムアウト・アーカイブ失敗 | `XbrlFiling` を作らずに `errors` に数え、終了コード `1` を返して次回の再取得に回す |
+| パース例外・`parse_status='failed'` | `XbrlFiling` を `parse_status='failed'` で残したうえで `errors`・`failed` に数え、終了コード `1` を返す（タクソノミ不足などの異常を監視で検知する） |
+| 取下げ・不開示（`retract`） | 該当 filing の `xbrl_financials`・`xbrl_segments`・大株主 3 テーブル・`xbrl_facts` 等のペイロードをすべて削除し、`parse_status='skipped'`・`parse_error='withdrawn'` にする |
 
-- ZIP は「書類の ZIP」のとおり残す（`data/edinet` → OneDrive）。取り直しは手元 → EDINET → OneDrive の順。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
-- `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）、当期の大株主・所有者別の軸だけの fact（KAB-266。「有報の大株主の状況・所有者別状況」。要素名で絞る）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。全 fact を入れると DB が大きくなりすぎるので絞る。会計基準と期末の判定は絞る前の全 fact で行う
-- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`docs/jobs/xbrl.md`「初期定義（最小セット）」）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ。大株主・所有者別は軸付き fact が要るので `--reparse` が要る（「有報の大株主の状況・所有者別状況」）
+#### TDnet 短信 XBRL との住み分けと読み出し優先順
 
-#### 正規化と TDnet との関係
+TDnet 由来の短信 XBRL（`source='tdnet'`）とは上書きし合わず、同じ銘柄・同じ期でも `xbrl_filings`・`xbrl_financials`・`xbrl_segments` に別々の行として保持する。また決算速報が使う `statements` は発表直後の短信と粒度・タイミングが異なるため、EDINET からは書き換えない。
 
-- マッピングは TDnet と同じ `config/xbrl/mappings/*.yaml`。EDINET 用の分岐は無い
-- 同じ決算期の実績が TDnet（短信）と EDINET（有報）の両方に入る。`xbrl_financials` は filing ごとなので重ならない。`statements` は上書きしない
-- 修正履歴（KAB-57、`app/xbrl/revisions.py`）は `source='tdnet'` だけ読む。有報の実績が提出日にもう一度出ないように
-- 実データ（2025-06-27 の有報、2025-11-14 の半期報）で、日本基準は 22 科目が取れ、IR Bank の値（百万円）と一致した。IFRS は KAB-73 で本表の 14 要素を足した（`config/xbrl/mappings/ifrs.yaml` 末尾。承認済み）
+銘柄詳細の財務 3 表 API（`GET /api/stock/{code}/financial-statements`、`app/xbrl/statements.py`）が複数ソースを束ねるときの規則は次のとおりである。
+
+1. 同じ会計期間の BS・PL・CF は `edinet > tdnet`、同じ `source` 内では訂正あり（`is_amendment = True`）優先、さらに提出日時 `submitted_at` の新しい方を採用する。
+2. 最新の決算短信が出た直後でまだ有報・半期報が提出されていない期や、短信側にしか無い項目はそのまま `tdnet` 側の値が出る。
+3. 有報でしか開示されない通期 KPI（`xbrl_financials` の研究開発費 `rd_expenses`・設備投資 `capex`・減価償却費 `depreciation`・従業員数 `employees`・平均臨時雇用人員 `average_temp_employees`・平均年齢 `average_age`・平均勤続年数 `average_tenure_years`・平均年間給与 `average_annual_salary`）と、`xbrl_segments` のセグメント別売上高・利益・資産（日本語ラベル優先の `segment_label`）を補完する。
+
+#### 同梱タクソノミの更新手順
+
+金融庁の年度別タクソノミ（`jppfs`・`jpcrp`・`jpdei`・`jpigp`、2013-08-31 版〜2026 年版）は `vendor/taxonomies/edinet/` と `vendor/taxonomies/manifest.json` に同梱している。金融庁が新しい年度のタクソノミを公開して `TaxonomyMissingError` で `failed` になった filing が出たときは、次の手順でスキーマを取り込んで再パースする。
+
+```bash
+python tools/edinet/sample_zips.py --failed --out /tmp/edinet-zips
+python tools/xbrl/taxonomy_bundle.py fetch --zips /tmp/edinet-zips
+python jobs/edinet/edinet_xbrl.py --retry-failed
+```
+
+実データでの検証例として、トヨタ自動車（`S100YWV5`、IFRS、2025 年 3 月期有報）で 540 ファクトと 3 セグメント（自動車・金融・その他）、キーエンス（`S100Y50I`、日本基準、2025 年 3 月期有報）で単一セグメントのためセグメント 0 行、任天堂（`S100YEOO`、日本基準、2025 年 3 月期有報）で研究開発費・設備投資・減価償却費・従業員数・平均年間給与が正規化されることを確認している。
 
 ### 有報の大株主の状況・所有者別状況
 
-有報（120/130）の「大株主の状況」と「所有者別状況」を `xbrl_facts` から正規化する。API・株主タブは別 issue。新着は既存の `edinet_xbrl.py` が `keep_fact` を広げて取り込み、`normalize_filing` が表を作る。専用 cron は足さない。
+正規化ロジックは `app/xbrl/shareholders.py` にあり、`edinet_xbrl.py` の中で自動的に走るほか、既存の `xbrl_facts` から一括で作り直すときは [`edinet/edinet_shareholders`](gen/edinet.md#edinetedinet_shareholders)（`jobs/edinet/edinet_shareholders.py`）を使う。表示画面は [銘柄詳細](../screen/stock.md) である。
 
-`xbrl_elements` に `NameMajorShareholders` / `AddressMajorShareholders` / `NameMajorShareholdersVotingRights` / `NumberOfShareholdersFinancialInstitutions` 等はある（タクソノミ版ごとに複数 URI）。順位付き（`NoNMajorShareholdersMember`）と所有者別（`OrdinaryShareMember`）は軸付きなので、`keep_fact` が `MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis` を残す。軸付き fact の無い書類は有報を `--reparse` する。ZIP は「書類の ZIP」の順に取り直す（2026-10 までに取り込んだ分は「ZIP の退避と過去分の取り直し」の取り直しが済むまで EDINET から）。
+`source='edinet'` の filing から「大株主の状況」と「所有者別状況」を抽出し、ヘッダ `xbrl_shareholder_filings`・大株主明細 `xbrl_major_shareholders`・所有者別明細 `xbrl_shareholding_by_category` に保存する。半期報や四半期報などで両方の表とも存在しない filing ではヘッダ行も作らない。
 
-#### タクソノミ（jpcrp_cor。実 ZIP で確認）
+#### タクソノミ要素と正規化規則
 
-- 大株主の状況: `MajorShareholdersAxis` × `NoNMajorShareholdersMember`（N=1..）。氏名 `NameMajorShareholders`、住所 `AddressMajorShareholders`、株数 `NumberOfSharesHeld`（`scale` 込み）、割合 `ShareholdingRatio`（表示 24.43 → 格納 0.2443）
-- 議決権ベース（伊藤園など）: 対の軸 `MajorShareholdersVotingRightsAxis` と `NameMajorShareholdersVotingRights` / `NumberOfVotingRightsHeld` / `RatioOfVotingRightsHeld`
-- 所有者別: 区分は要素名（`NumberOfShareholdersFinancialInstitutions` 等）。軸は `ClassesOfSharesAxis`（普通株式 `OrdinaryShareMember`。種類株式は会社独自メンバー。伊藤園は `ClassOnePreferredShareMember`）
-- 単元株式数 `NumberOfSharesConstitutingOneUnit`、単元未満 `NumberOfSharesHeldSharesLessThanOneUnit`（区分の計の行へ）
-- 「計」は軸なしの `NameMajorShareholders`=計、または名前が 計/合計。正規化では捨てる
+会計基準（日本基準・IFRS・米国基準）を問わず、非財務パートの共通語彙 `jpcrp_cor` から抽出する。
 
-#### 正規化
+| 対象テーブル | 見る軸・要素と変換規則 |
+|---|---|
+| `xbrl_major_shareholders` | 軸 `MajorShareholdersAxis`（メンバー `No1MajorShareholdersMember`〜`No30...` または企業拡張の `jpcrp030000-asr_E...` から順位 `rank` を採番）の `NameMajorShareholders`・`AddressMajorShareholders`・`NumberOfSharesHeld`（株）・`ShareholdingRatio` を読む。議決権ベースの表を使う会社向けに `MajorShareholdersVotingRightsAxis`（`...VotingRights` 系 4 要素）にも対応し、両方あるときはメンバー数が多い軸を採用する |
+| `xbrl_shareholding_by_category` | 9 区分（政府及び地方公共団体 `gov_local`・金融機関 `financial_inst`・金融商品取引業者 `securities`・その他の法人 `other_corp`・外国法人等計 `foreign_total`・外国法人等のうち個人 `foreign_indiv`・個人その他 `individuals_other`・計 `total`・単元未満株式の状況 `treasury_stock`）の単元数と割合を個別要素から読み、`ShareholdingByShareholderCategoryTextBlock` の HTML 表から株主数 `shareholders` と単元株数 `shares_unit`（`treasury_stock` を含む全区分）を補う。HTML 表で単元株数が読めないときは単元株数の個別要素や本文の `単元株数…N株` から補完する |
 
-表は `xbrl_shareholder_filings`（1 書類）、`xbrl_major_shareholders`（1 書類 × 順位 × ベース）、`xbrl_shareholding_by_category`（1 書類 × 株式の種類 × 区分）。
+保有割合・所有割合は、XBRL の `decimals >= 2` かつ値が `1` 以下の比率表記（`0.165` など）であれば `100` 倍して百分率（`16.5`）に揃え、`decimals <= 0`（`-2` など既に百分率で格納されているもの）はそのまま保存する。
 
-- 訂正の最新は `(code, fiscal_year_end, doc_type)` ごとに、取下げでない `submitted_at` が新しい 1 件（120 と 130 はどちらも `doc_type='annual'`）
-- `amends_doc_id` は DEI `IdentificationOfDocumentSubjectToAmendmentDEI`、無ければ `edinet_documents.parent_doc_id`
-- 種類株式は `ClassesOfSharesAxis` のメンバーをすべて残す（普通株式だけに落とさない）
-- 半期報・四半期報に表が無ければ 0 行（ヘッダも作らない）
-- `xbrl_financials` は次元付き fact を使わない（`classify_context` が落とす）
+#### 訂正連鎖と最新フラグ
 
-#### ジョブ
+`refresh_versions` は `edinet_documents`（`120`〜`170`）の `parent_doc_id` をたどって大元の `original_doc_id` を埋め、取下げ・不開示を `withdrawn` に反映したうえで、`(code, fiscal_year_end, doc_type)` ごとに `withdrawn = False` の中で最も `(submitted_at, doc_id)` が新しい 1 件だけに `is_latest = True` を立てる。
 
-- 新着: `python jobs/edinet/edinet_xbrl.py`（`keep_fact` + `normalize_filing`）
-- 作り直し: `python jobs/edinet/edinet_shareholders.py --rebuild`（`--code` 可）。訂正フラグだけなら `--refresh-only`
-- `python jobs/xbrl/xbrl_normalize.py --rebuild` も大株主を消して作り直す（fact が無ければ空のまま）
+実データの有報 4 社での検証結果は次のとおりである。
 
-#### 実データ（閲覧の表と突き合わせ）
-
-合成 ZIP の数値は 2026 年提出の実物。同じ書類の実 ZIP をパースし、下の値と一致した（ZIP はコミットしない）。
-
-| 書類 | 基準 | 確認したこと |
+| 銘柄・書類番号 | 会計基準 | 抽出結果 |
 |---|---|---|
-| 東京エレクトロン S100YEOO | 日本基準 | 1 位 日本マスタートラスト 111,481×10^3 株・24.43%。金融機関 143 / 1,712,829 単元 / 36.37% |
-| 日立製作所 S100YGBO | IFRS | 1 位 742,663,700 株・16.50%。金融機関 221 / 27.80% |
-| 伊藤園 S100YRK7 | 日本基準 | 株式 グリーンコア 22,676×10^3・19.68%。議決権 167,812・19.93%。第一種優先の金融機関 15 / 7,848 / 2.48% |
+| トヨタ自動車 `S100YWV5` | IFRS | 大株主 10 名（1 位 日本マスタートラスト信託銀行 1,874,970,000 株・14.37%）、所有者別 9 区分（単元株数 100 株・株主数まで一致） |
+| キーエンス `S100Y50I` | 日本基準 | 大株主 10 名（1 位 ティ・ティ 33,261,896 株・13.71%）、所有者別 9 区分 |
+| 日立製作所 `S100YGBO` | IFRS | 1 位 742,663,700 株・16.50%、金融機関 221 株主・27.80% |
+| ソフトバンクグループ `S100YRK7` | IFRS | 1 位 孫正義 429,144,624 株・29.99%、個人その他 538,098 株主 |
 
 ### 大量保有報告書
 
-`edinet_documents` の大量保有報告書・変更報告書（書類種別 350）と訂正報告書（360）を、書類取得 API type=5（XBRL→CSV）で取る。書類 1 件 = `large_holding_reports` 1 行、提出者・共同保有者 1 人 = `large_holdings` 1 行。`large_holding_reports` の `filer_edinet_code` / `filer_name` は提出者（連名なら代表）、`shares_held` から `holding_ratio_prev` までは合計（提出者及び共同保有者）。`large_holdings.holder_no` は CSV の `FilerLargeVolumeHolder<N>Member` の N。
+対象ジョブは [`edinet/edinet_large_holdings`](gen/edinet.md#edinetedinet_large_holdings)（`jobs/edinet/edinet_large_holdings.py`）、表示画面は [銘柄詳細](../screen/stock.md) と [大量保有報告書](../screen/holders.md) である。
 
-#### 対象と取り方
+`edinet_documents` のうち `doc_type_code` が `350`（大量保有報告書・変更報告書）または `360`（訂正報告書）であり、`csv_flag = True`・`withdrawal_status != '2'`・`disclosure_status = '0'`・`doc_info_edit_status != '1'` の未処理書類を取得する。`type=5` の CSV ZIP（`XBRL_TO_CSV/jplvh*.csv`、UTF-16LE タブ区切り）をパースし、報告書ヘッダを `large_holding_reports`、提出者・共同保有者ごとの内訳を `large_holdings` に保存する。
 
-- ジョブ: `python jobs/edinet/edinet_large_holdings.py`。cron の `--limit 1000` は 1 件約 1 秒で約 17 分（一覧の :40 と XBRL の :50 に重ねない）
-- 対象: 350 / 360・`csv_flag`、取下げ（`withdrawal_status=2`）・不開示・修正通知の行を除く。発行者が上場していない書類も取る（`code` は NULL）。新しい日から。`parsed` は飛ばす（`--reparse` で取り直し）、`failed` は `--retry-failed`。CSV が 404（取り下げ・非公開・取得可能期間外）なら `parse_status='failed'`（`parse_error` に 404 か `outside-edinet-window`）として残し、次の回は飛ばす。ログは `missing n=` に集約（1 件ごとの `download-failed doc_id=` は出さない。Slack の `failed doc_id=` に当たるため）。`errors` にも `failed=` にも数えない。cron は exit=0。5xx・タイムアウトは行を作らず次の回にまた取る（`errors`、exit=1。ログは `download-error n=`）
-- EDINET は大量保有を 5 年分しか持たない（一覧の書類メタは 10 年分残るが type=5 は期限切れで 404）。`pending_documents` は `file_date` が 5 年より前を除く。report が無い期間外はダウンロードせず `mark_outside_window` で failed に残す。1 日 20〜50 件、年 1 万件ほど。全部で 5 万件前後。初回は毎時の cron で 4 日ほどかかる
+#### 銘柄コード・数値変換・訂正管理
 
-#### 中身の読み方
+各列の変換と版管理の規則は次のとおりである。
 
-- 値: 割合は小数（`0.0507` = 5.07%）。CSV の「－」は NULL。保有者が 1 人の書類は書類レベルの合計が CSV に無いので、保有者 1 の値を合計に入れる。「該当事項なし」の文章（共同保有者・重要提案行為等）は NULL
-- 報告義務発生日の提出者誤記は `config/large_holding_date_fixes.json` で補正する（KAB-269）。取り込み時に docID で引き、CSV の値が `recorded` と一致したときだけ `correct` に差し替える（何度実行しても同じ）。不一致は差し替えず `WARNING edinet lvh obligation-date-mismatch`。差し替え後も義務発生日が提出日より 30 日以上先の書類（設定に無いもの）は `WARNING edinet lvh obligation-date-future`（doc_id・提出者・銘柄・日付）。どちらも fluent-bit の batch パターンで `#alerts-batch` に載る。本番の既存行は `python jobs/edinet/edinet_large_holdings.py --reparse-fixes`（実行は承認後）
-- 発行者の `code` は `issuer_edinet_code` → `edinet_filers.sec_code`、無ければ CSV の発行者の証券コード（4 桁 → 末尾 0 の 5 桁）。どちらも `stocks` にあるときだけ付ける。`edinet_documents.code` は提出者（保有者）の銘柄なので使わない
-- 共同保有者: 連名の書類は全員が `large_holdings` に並ぶ（`holder_count` = 人数）。連名でない共同保有者は「第3 共同保有者に関する事項」の文章にしか無いので `joint_holders_text` に入れる。2021-11 と 2026-10 の 101 件では、文章に名前があるものは無かった
+| 項目 | 規則 |
+|---|---|
+| 発行体の銘柄コード `code` | 本文の `SecurityCodeOfIssuer`（4 桁または 5 桁）を `stocks` マスタと照合して 5 桁コードに揃える。空欄のときは `issuer_edinet_code` から `edinet_filers` 経由で引き、非上場銘柄などでマスタに無い場合は `raw_security_code` だけ残して `code = NULL` にする |
+| 保有割合と増減 `ratio_delta` | 比率表記（`decimals >= 2` かつ絶対値 `<= 1`、または直近値との整合）を `%`（`0〜100`）に揃える。直前の保有割合 `prev_holding_ratio` が入っていれば `total_holding_ratio - prev_holding_ratio` を `ratio_delta` に入れる（新規報告などで直前値が無ければ `NULL`） |
+| 訂正連鎖と `is_latest` | `360` の `parent_doc_id` を大元の `350` までたどって `original_doc_id` に格納し、同じ `original_doc_id` の中で取下げでなく `parse_status='parsed'` の最新 1 件だけを `is_latest = True` にする |
+| 期間外・`404`・`5xx` | 縦覧期間（5 年）を過ぎた未処理書類や取得時 `404` は `parse_status='failed'`（`parse_error` に `OutsideEdinetWindow: ...` または HTTP 404 例外）で記録して次回から飛ばし、終了コードは `0` にする。`5xx` やタイムアウトは行を作らずに終了コード `1` を返して次回再試行する |
 
-#### 訂正と最新
+#### 報告義務発生日の誤記補正
 
-- 訂正: 訂正報告書（360）の CSV は訂正後の全文（大量保有報告書・変更報告書の様式そのまま）。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ一覧の `parentDocID`）。DEI が docID の形（S + 英数字 7）でないときは `parentDocID` を使う（末尾を推測しない）。訂正の訂正もたどって大元を `original_doc_id` に入れる（訂正でなければ自分）
-- 最新: 取込のたびに全件から決め直す（`refresh_versions`。`--refresh-only` で手でも）。`original_doc_id` ごとに、`parsed` で取下げ・不開示でない書類のうち `submit_datetime` が新しい 1 件が `is_latest`。取下げ・不開示は `edinet_documents` の状態から `withdrawn` に入れ、行は消さない
+提出者が年を取り違えて未来の日付（たとえば `2026-04-06` のつもりで `2027-04-06`）を `DateOfFilingRequirementArisen` に書いて提出し、訂正報告書も出さない事例がある（`KAB-372`）。
 
-#### 使う側
+確認済みの誤記は `config/large_holding_date_fixes.json` に `doc_id` と正しい `obligation_date` を登録し、`python jobs/edinet/edinet_large_holdings.py --reparse-fixes` で既存の報告書を再パースして反映する。また通常実行の末尾でも毎回 DB 全体を検査し、補正台帳に未登録のまま `obligation_date` が提出日から `FUTURE_DAYS`（30 日）以上未来になっている報告書があれば `WARNING edinet lvh obligation-date-future` をログに出す。
 
-- 銘柄の大量保有の推移は `WHERE code = ? AND is_latest ORDER BY obligation_date`。保有者ごとの最新は、そこから `large_holdings.edinet_code` ごとに最後の行
-- 画面は大量保有報告書タブ `docs/screen/holders.md` と銘柄の株主タブ `docs/screen/stock.md`。API は読み取り（`GET /api/holders/*` と `GET /api/stock/{code}/holders`）
+#### 画面 API での引き方と絞り込み
 
-#### 実データで確かめたこと
+`app/holders.py` が画面向けに引くときの規則は次のとおりである。
 
-- 実データ（2026-10-15 の 52 件、2021-11-15 の 47 件）で全件パースでき、3 件を閲覧画面の本文（XBRL の honbun）と突き合わせて、保有割合・直前の割合・保有株数・発行済株式等総数・報告義務発生日が一致した
+1. 銘柄詳細の大量保有タブ（`GET /api/stock/{code}/holders`）は、`code = ? AND is_latest = 1 AND withdrawn = 0 AND parse_status = 'parsed'` の報告書を取り出し、提出者（`filer_edinet_code`、無ければ `filer_name` → `doc_id`）ごとに `(file_date, submit_datetime, obligation_date)` が最大の最新報告書を並べる。
+2. 保有者ページ（`GET /api/holders/{edinet}`）は、`large_holdings.edinet_code = ?` で有効な最新報告書を引き、発行体ごとに最新の保有状況と履歴を束ねる。
+3. 横断の大量保有報告書一覧（`GET /api/holders`）は、上場銘柄（`code IS NOT NULL`）に絞ったうえで、保有割合が変わらない変更報告書（`ratio_delta == 0`）と、保有目的が純投資のみ（`純投資`・`投資一任契約`・`投資信託` を含み、`重要提案`・`経営参加`・`政策保有`・`業務提携`・`支配権`・`公開買付`・`役員派遣` を含まない）で共同保有者の内訳組み替えだけを行った報告書を既定で除外する。
 
 ### 自己株券買付状況報告書
 
-`edinet_documents` の自己株券買付状況報告書（書類種別 220）と訂正（230）を、書類取得 API type=1（XBRL）で取る。書類 1 件 = `edinet_buybacks` 1 行、決議 1 件 = `edinet_buyback_resolutions` 1 行。`edinet_buybacks` の `issued_shares` / `treasury_shares` は ３【保有状況】の報告月末、`month_shares` / `month_amount` は報告月の取得（決議の合計）。`edinet_buyback_resolutions.kind` は `board`（取締役会・投資法人の役員会）/ `shareholders`（株主総会）、取得期間 `acquire_from` / `acquire_to` は「取得日 A」なら from = to。
+対象ジョブは [`edinet/edinet_buybacks`](gen/edinet.md#edinetedinet_buybacks)（`jobs/edinet/edinet_buybacks.py`）、表示画面は [銘柄詳細](../screen/stock.md) である。
 
-#### 対象と取り方
+EDINET での縦覧期間が 1 年（`KEEP_YEARS = 1`）と短いため、日次 cron で取りこぼさずに保存する。`edinet_documents` のうち `doc_type_code` が `220`・`230` で、`csv_flag = True`・`code IS NOT NULL`・`withdrawal_status != '2'`・`disclosure_status = '0'`・`doc_info_edit_status != '1'` の書類を対象とし、報告書ごとの月次サマリを `edinet_buybacks`、決議ごとの枠と進捗を `edinet_buyback_resolutions` に保存する。
 
-- ジョブ: `python jobs/edinet/edinet_buybacks.py`。cron の `--limit 500` は 1 件約 1 秒で約 9 分。parse 失敗は 1 件ずつ stderr に `parse-error doc_id=` と例外の型・メッセージ・短いトレースを出す（cron-run の 2>&1 で `batch_logs` に載る）。`failed doc_id=` は出さない（Slack の batch パターンに当たる）。鍵・トークンは伏せる
-- 対象: 220 / 230・`xbrl_flag`、取下げ・不開示・修正通知の行を除く。新しい日から。`parsed` / `meta` は飛ばす（`--reparse`）、`failed` は `--retry-failed`。404 と期間外は `missing`（failed で残し、exit=0）、5xx・タイムアウトは行を作らず次の回（exit=1）。大量保有（「大量保有報告書」）と同じ
-- 縦覧期間は 1 年。過ぎた書類は EDINET の一覧からも消え、取れない（2026-10-22 に 2025-10-20 の一覧を取ると 220 は 0 件、2025-11-04 は 43 件）。`file_date` が 1 年より前は `mark_outside_window` で failed に残す。1 日 30〜70 件、年 7,000 件ほど
+#### 2 段構えの取得経路
 
-#### 中身の読み方
+自己株券買付状況報告書の本文は個別数値タグではなく HTML 表入りの `TextBlock` として格納されるため、次の 2 経路で読み取る。
 
-- 中身の取り方を実データで比べた（2026-07〜10 の 220/230 約 2,100 件のうち 92 件）。CSV（type=5）は表紙と DEI のほかはテキストブロックだけで、表がつぶれて 1 行の文になる（`4,000,00010,000,000,000`）。XBRL のインスタンスのテキストブロックは HTML の表のまま入っているので、そちらを読む（`app/edinet/textblocks.py`）。PDF は使わない
-- 読むテキストブロック: `AcquisitionsByResolutionOfShareholdersMeetingTextBlock` / `AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock`（投資法人は `AcquisitionsOfTreasurySharesTextBlock`）と `HoldingOfTreasurySharesTextBlock`。報告期間は表紙の `ReportingPeriodCoverPage`。取得状況の要素がインスタンスに無い書類（S100Z1HS）は本文 iXBRL（`honbun *_ixbrl.htm`）の「１【取得状況】」〜「２【処理状況】」手前の未タグ表を同じ見出しで読む。株主総会/取締役会の見出しが無い、単位が株・円でない（千株・千円など）、累計>枠・報告月>累計・進捗率が累計÷枠と 0.5pt 超ずれる、同じ区分・同じ決議日が重複、取得状況の本文が複数、決議が取れず「該当事項はありません」でもない、は parse_error（換算や推測をしない）。訂正で取得状況が訂正事項に無く章も無いのは例外（`meta`）
-- 表は行の見出しで読む: 「決議状況」の行で新しい決議を始め（枠は右の 2 セル）、「計」が報告月の取得、「累計」「累積」が累計、「進捗」が進捗率。計の行が無い書類（S100YUHP。取得日 1 日で報告月の行に実数）は報告月の行を当月にする。計が空欄（「―」や空）で日付の内訳がある書類（S100YBMN）は内訳の合計を当月にする。計が累計を超え、日付の内訳が無く、報告月の行が累計を超えない書類（S100Y8WI。計の金額の誤記）は報告月の行を当月にする。累計が 0 で当月が正、進捗が当月÷枠と 0.5pt 以内で合う書類（S100XZ69。同月消却で累計が 0）は当月も累計も書類の値のまま。「－」は 0。計がある通常の表は報告月の行と日付の内訳を足さない。計が無く内訳がある、計も報告月も累計を超える（進捗が当月÷枠と合わない累計 0 を含む）、は parse_error。1 書類に決議が 2 件以上ある（終わりかけと始まったもの）。取得期間が決議の行の下の行にある書類、「2026年９月末日」、枠が空欄の書類（2 件。書類の記載どおり NULL）がある
-- 累計の行に株数・金額でなく「当月 ÷ 枠」の割合を書く書類がある（3151 バイタルケーエスケー HD の 2026-08〜10 月分。S100Z275 / S100Z80G / S100ZHJ0。`16.35%` / `12.47%`）。割合は株数として読まない。割合が当月 ÷ 枠と 0.5pt 以内で合うことを確かめ、累計は「同じ提出者・同じ決議（区分と決議日）の前月の累計 + 当月」で入れる（`fill_ratio_cumulative`。出したときは `cum-derived doc_id=` を 1 行出す）。取得期間が報告月に始まる決議は前月を 0 とする。前月の行が無い、前月の累計が当月より小さい、足した累計が枠を超える、割合が当月 ÷ 枠と合わない、は parse_error。進捗率 × 枠は丸めで株数が決まらないので累計には使わず、検算だけに使う（`progress-check=ok / mismatch`）。合わなくても落とさない（S100Z275 は書類の進捗率 43.41% が累計 ÷ 枠 38.74% と合わない。翌月以降の進捗率は足し上げと合う）。前月の行が先に要るので、1 回の取込は `file_date` の古い順に読む。累計のほか、枠・報告月・計・内訳のセルに `%` があれば parse_error
-- 処理状況（２【処理状況】）・取得日ごとの行は持たない
+| 優先順 | 見るファイルと要素 | 使う場面 |
+|---|---|---|
+| 1. `type=5` の CSV | `XBRL_TO_CSV/jpcrp060000*.csv` の 4 つの `TextBlock`（株主総会決議 `AcquisitionsByResolutionOfShareholdersMeetingTextBlock`・取締役会決議 `AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock`・処分 `DisposalOfTreasurySharesTextBlock`・保有状況 `HoldingOfTreasurySharesTextBlock`） | 標準の提出書類 |
+| 2. `type=1` の iXBRL 本文 | `XBRL/PublicDoc/*_ixbrl.htm`（ファイル名に `honbun` を含むもの優先）の `１【取得状況】` 配下の生 HTML 表（`parse_acquisitions_honbun`） | 提出者が取得状況の表に XBRL タグを付け忘れ、`type=5` に総会・取締役会の両 `TextBlock` が欠落している書類（`S100Z1HS`・`S100YUHP` など、`KAB-447`） |
 
-#### 訂正と最新
+#### 実データの表揺れとパース規則
 
-- 訂正: 230 の XBRL は原則として訂正後の全文。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ `parentDocID`）。DEI が docID の形（S + 英数字 7）でないときは `parentDocID` を使う（S100YWV5 の DEI はヘアスペース付きの `S100YQ5` で末尾が無い。推測で補わない）。大元・取下げ・最新は大量保有と同じ（`refresh_versions`、`--refresh-only`）。表紙の【提出書類】が「訂正報告書」、または DEI の `AmendmentFlagDEI` / 書類種別 230 の訂正で、【訂正事項】に取得状況が含まれず「１【取得状況】」の章も無い書類（S100YWV5）は取得値を持たない `meta` で終える（0 件にしない。最新にもしない）。訂正事項に取得状況があるのに章が無い、または通常の報告書（220）で章が無い、は今までどおり parse_error。【訂正事項】は type=1 ZIP の `PublicDoc/*.htm` を見る（iXBRL とは限らない。S100YWV5 は `PublicDoc/0001000_*.htm` に「２ 【訂正事項】」「２　処理状況」「３　保有状況」。本文 iXBRL と DEI には無い）。取得状況の章はこれまでどおり本文 iXBRL（`honbun *_ixbrl.htm`）だけを見る
+各社の HTML 表のレイアウト揺れ・漢数字単位・端数表記に対して、推測や勝手な単位換算を行わずに次の規則で数値を確定する。
 
-#### 使う側
+| 項目・ケース | パース規則 |
+|---|---|
+| 転置レイアウト・種類株式列・報告月併記 | 行と列が転置した表（メルカリ `S100Z824`）、普通株式と優先株式が列で分かれた表（りそな HD `S100Z5JO`）、決議日セルに `（報告月）` が併記された表（堺化学工業 `S100Z5K9`・`S100Z5L3`）をそれぞれ構造判定して同じ列に正規化する |
+| 漢数字の単位と脚注番号 | `50億`（`5,000,000,000`）や `1,800百万`（`1,800,000,000`）などの単位表現を展開し、小数点以下は整数へ切り捨てる。セル末尾の脚注番号（`※1`・`*2`・`(注)1`・`注1`）は数値と連結して誤読しないよう先に除去し、`100.00(100.00)` のような併記は先頭の数値を読む |
+| 日別明細が無く `報告月` 行が 1 行だけの表 | `計` 行が無くてもその単一行を報告月の取得実績として読む（`S100YBMN`、`KAB-463`） |
+| `計` 行を省略した 0 株の日別行 | 日別行がすべて `0` 株（空欄や `-` を除く）のときだけ `0` 株として扱い、正の株数の日別行があるのに `計` 行が無い表は日別合算で推測せずにエラーにする（`S100Y8WI`・`S100XZ69`、`KAB-475`） |
+| 約定ベースと受渡ベースのズレ | 累計行が `0` なのに報告月が正の株数になっている表は、同じ表または欄外に `約定ベース` と `受渡ベース` の両方への言及があるときだけ月末約定・翌月受渡しの期ズレとして通す（`3151` バイタルケーエスケー HD `S100Z275`・`S100Z80G`・`S100ZHJ0`、`KAB-488`） |
+| 報告月見出し行の `100` 誤記と `計 -` | `（報告月における取得自己株式）` 行に `100`・`-`・`-`、直後の `計` 行に `-`・`-`・`0.00` が並ぶ表は、株数が累計以下であれば進捗上限 `100%` の誤記とみて報告月を `0` にする（`S100YWV5`、`KAB-488`） |
 
-- 銘柄の月ごとの自己株買いは `WHERE code = ? AND is_latest ORDER BY report_month`。決議ごとの進み具合は、`edinet_buyback_resolutions` を `resolution_date` で束ねて月をまたいで並べる
-- 画面は銘柄の株主タブの自己株（`docs/screen/stock.md`）。API は `GET /api/stock/{code}/holders` の `treasury`（最新の報告書。`app/holders.py stock_treasury`）
+次の不整合がある書類は推測で埋めず `parse_status='failed'`（`parse_error` に理由を記録）にする。
 
-#### 実データで確かめたこと
+1. 株数・金額セルに `%` が混入している、上記の期ズレ注記なしに `報告月 > 累計` になっている、または報告月の比率が `報告月 ÷ 決議枠` と `0.5pt` を超えて食い違う。
+2. タグ無し HTML 本文（`parse_acquisitions_honbun`）で、株主総会・取締役会・役員会の見出しが無い、単位が `株`・`円` 以外（`千株`・`千円` など）になっている、`累計 > 決議枠`、進捗率が `累計 ÷ 決議枠` と `0.5pt` を超えてずれる、同じ `(kind, resolution_date)` が重複する、`１【取得状況】` を持つ本文ファイルが複数ある、または決議が 0 件なのに「該当事項はありません」の記載も無い。
 
-- 実データ（2026-10-01・02・14 と無作為の 80 件）で全件パースでき、累計 ÷ 枠と書類の進捗率が全件で合った（差 0.2% 以内）。3 社（メルカリ S100Z824、りそな HD S100Z5JO、堺化学 S100Z5K9 と訂正 S100Z5L3）を閲覧画面の本文と突き合わせて、決議日・取得期間・枠・報告月の取得・累計・進捗率・発行済株式総数・保有自己株式数が一致した。堺化学の元の報告書は報告期間が「2026年8月1日〜」で、訂正で 9 月 1 日に直っている
-- 通しで（2026-07-01〜10-21 の一覧 → 自己株買いと公開買付けの両ジョブ）自己株買い 10 月分 517 件が失敗 0 で入り、2 回目は 0 件（重複しない）
+#### 訂正管理と画面での利用
+
+`refresh_versions` は `parent_doc_id` をたどって `original_doc_id` を埋め、`doc_metas` で修正通知後の最新メタデータを反映したうえで、`original_doc_id` ごとに有効な最新 1 件へ `is_latest = True` を付ける。複数決議が並走している報告月では、株主総会決議と取締役会決議が同じ枠の授権と実行であることも別枠であることもあるため、`edinet_buybacks` の月次・累計は決議枠の合算ではなく、その月に動いた行の合計（累計は最大値）を入れ、決議ごとの正確な内訳を `edinet_buyback_resolutions` に持つ。
+
+銘柄詳細の株主タブ（`GET /api/stock/{code}/holders` の `treasury`）は、`is_latest = True` かつ `withdrawn = False` の最新の報告月（`report_month DESC, file_date DESC`）から自己株式比率（`treasury_shares / issued_shares`）と取得期間中（`acquire_to >= today`）の決議枠・進捗率を返し、月次の取得推移も並べる。
 
 ### 公開買付け
 
-`edinet_documents` の公開買付けの書類（書類種別 240〜340）を取る。書類 1 件 = `edinet_tender_offer_docs` 1 行、案件 1 件 = `edinet_tender_offers` 1 行。`edinet_tender_offers` は取込のたびに全件から作り直す。案件の期間（`period_start` / `period_end`）は延長したら延長後、報告書があれば報告書の期間。`price` はいまの価格、`price_initial` は届出書の当初の価格（引き上げが分かる）。`opinion` / `recommendation` はいちばん新しい意見表明。
+対象ジョブは [`edinet/edinet_tender_offers`](gen/edinet.md#edinetedinet_tender_offers)（`jobs/edinet/edinet_tender_offers.py`）、表示画面は [銘柄詳細](../screen/stock.md) である。
 
-| 種別 | 書類 | 読むもの |
+公開買付けは買付者（届出書・撤回・報告書）と対象会社（意見表明・対質問回答）の双方が別々の書類として提出するため、書類ごとの明細を `edinet_tender_offer_docs` に入れ、`refresh_offers` で同じ案件の書類群を 1 行の `edinet_tender_offers` に束ねる。
+
+#### 書類種別ごとの読み取り方法
+
+`doc_type_code` が `240`〜`340` で `withdrawal_status != '2'`・`disclosure_status = '0'`・`doc_info_edit_status != '1'` の書類を次の方法で処理する。
+
+| `doc_type_code` | 取得ファイル | 抽出する主な項目 |
 |---|---|---|
-| 240 / 250 | 公開買付届出書 / 訂正届出書 | 期間、価格（普通株式 1 株。投資法人は 1 口）、買付予定数・下限・上限、買付け後の所有割合、対象者名 |
-| 260 | 撤回届出書 | 一覧のメタデータだけ |
-| 270 / 280 | 公開買付報告書 / 訂正報告書 | 期間、成否、応募数・買付数（株式換算）、買付け後の所有割合 |
-| 290 / 300 | 意見表明報告書 / 訂正 | 意見の内容（文）と、賛同・応募推奨の分類 |
-| 310〜340 | 対質問回答報告書、別途買付け禁止の特例を受けるための申出書（と訂正） | 一覧のメタデータだけ |
+| `240`・`250`（公開買付届出書・訂正） | `type=5` CSV（`jptoo-ton*`） | 対象会社の EDINET コードと社名・買付者名・普通株 1 株あたり買付価格 `price_per_share`（円）と原文 `price_text`・買付期間・買付予定数の下限 `min_shares` と上限 `max_shares`・目的・買付後所有割合 |
+| `270`・`280`（公開買付報告書・訂正） | `type=5` CSV（`jptoo-tor*`） | 買付期間・応募株数 `applied_shares`・買付株数 `purchased_shares`・成否 `outcome`（`succeeded` または `failed`）・買付後所有割合 |
+| `290`・`300`（意見表明報告書・訂正） | `type=1` ZIP 内の `PublicDoc/*.htm` | XBRL・CSV が存在しない（`csv_flag = False`）ため HTML 本文を読み、提出者自身を対象会社としたうえで `公開買付者の名称` と意見 `opinion`（`賛同`・`反対`・`中立`・`留保`）を抽出する |
+| `260`・`310`〜`340`（撤回・対質問回答・特例・訂正） | 取得しない（一覧メタデータのみ） | `parse_status='meta'` で記録する。`260`（公開買付撤回届出書）が出た案件はステータスを `withdrawn` にする |
 
-#### 対象と取り方
+縦覧期間（5 年）より前の未処理書類は、本文を読む種別（`240`・`250`・`270`・`280`・`290`・`300`）なら `parse_status='failed'`（`OutsideEdinetWindow`）にし、もともと一覧メタデータしか使わない種別（`260`・`310`〜`340`）なら `parse_status='meta'` で記録する。
 
-- ジョブ: `python jobs/edinet/edinet_tender_offers.py`。cron の `--limit 100` は届出書が 1 件 1〜3 秒で 5 分以内（:25 の自己株買いに重ねない）。404・期間外・5xx の扱いは大量保有（「大量保有報告書」）と同じ。`--refresh-only` で案件だけ作り直す
-- 縦覧期間は 5 年（2026-10-22 に 2021-10-01 の一覧は 240 が 2 件、2021-09-01 は 0 件）。1 日 0〜5 件、5 年で 2,500 件ほど
+#### 案件の名寄せと集約規則
 
-#### 中身の読み方
+EDINET では訂正書類や撤回届出書（`260`）には `parent_doc_id` が入る一方、公開買付報告書（`270`）や対象会社が出す意見表明報告書（`290`）には `240` への `parent_doc_id` が入らない。そこで `refresh_offers` は次の順で同一案件キー `offer_key` を決める。
 
-- 中身は書類取得 API type=1（XBRL）のテキストブロック。CSV（type=5）の数値の要素は議決権の数と所有割合だけで、価格・期間・予定数・成否・意見はテキストブロックにしか無い（自己株買いと同じく CSV では表がつぶれる）
-- 様式: 他社株（府令 040）は `jptoo-ton`（届出書）/ `jptoo-tor`（報告書）/ `jptoo-pst`（意見表明）、発行者（050）は `jptoi`。発行者の届出書は「下限」が無く「超過予定数」と「計」の列。上限は「計」、成否の欄が無いので買付数 > 0 を成立とする
-- 意見の分類（`classify_opinion`）: 「（１）意見の内容」の文から（【】なしの「(1) 本公開買付けに関する意見の内容」も含む）。テキストブロックは `OpinionRegardingSaidTenderOfferAndBasisAndReasonsEtcTextBlock`、無ければ `OpinionAndBasisAndReasonOfOpinionRegardingSaidTenderOfferTextBlock`（訂正 S100Y50I）。opinion は 賛同しない・反対 → `oppose`、賛同 → `support`、留保 → `reserved`、中立 → `neutral`。「賛同しつつ、応募は中立の立場で株主の判断に委ねる」が多いので、中立より賛同を先に見る。recommendation は 応募しないことを推奨 → `not_recommend`、応募を推奨 → `recommend`、判断に委ね → `leave`
-- 成否（`parse_success`）: 「不成立」「全部の買付け等を行いません」を先に見て、次に「成立」「買付け等を行います」。不成立の買付数（「―」）は 0
+1. `parent_doc_id` の連鎖をたどり、根が `240` に行き着く書類（`250`・`260` など）はその `240` の `doc_id` に束ねる。
+2. `270`（およびその訂正 `280`）は、対象会社（`target_code` または `target_edinet_code`）と正規化した買付者名が一致する `240` のうち、`period_start` が一致するか `240` の提出日から 180 日以内に出たものに束ねる。
+3. 対象会社側の書類（`290`・`300`・`310`・`320`）は、同じ対象会社の案件のうち `[最初の提出日 - 5日, max(period_end, 最終提出日) + 14日]` の窓に `file_date` が収まる案件へ束ねる（複数案件が重なるときは買付者名の一致で絞る）。
+4. 取り込み開始より前に出た案件の続報など、対応する `240` が無い書類は `doc:{root_doc_id}` の単独案件として残す。
 
-#### 案件への束ね方と状態
+集約行 `edinet_tender_offers` では、買付価格や下限・上限株数を最新の `240`・`250` から採り、`period_start` は `240`・`250` 優先（無ければ `270`・`280`）、延長が反映される `period_end` と最終の `holding_ratio_after` は `270`・`280` 優先（無ければ `240`・`250`）で埋める。案件ステータス `status` は届出時点で `open`、報告書が出たら `succeeded` または `failed`、撤回届出書が出たら `withdrawn` になる。
 
-- 訂正届出書（250）の XBRL は訂正後の全文（表紙の書名が「公開買付届出書（…付け訂正届出書の添付インラインXBRL）」）。案件の値は新しい届出書・訂正から順に、値のある最初の書類を使う
-- 束ね方: 250 / 260 / 270 / 290 の `parentDocID` は届出書（240）、300 は意見表明（290）。`parent_doc_id` をたどって 240 を大元にする。親が DB に無ければ親の docID を大元にする（同じ親の書類は同じ案件）。届出書も意見表明も取込の範囲より前だと、300 の系統（親 290）と 250・270 の系統（親 240）が別れるので、大元が DB に無い案件同士は買付者・対象者が同じなら束ねる（`_merge_orphans`。大元は 240 の系統の方）。書類情報修正があれば修正の行のメタデータ（対象者の付け替えなど）を使う
-- 買付者・対象者: 届出書・報告書は提出者が買付者、`subjectEdinetCode` が対象者。意見表明は逆（提出者が対象者、`subjectEdinetCode` が買付者）。発行者の TOB は両方とも自分。`stocks.code` は `edinet_filers.sec_code` か意見表明の `secCode` から引く。上場していない買付者は名前だけ
-- 状態: 撤回届出書があれば `withdrawn`、報告書があれば成否で `succeeded` / `failed`、無ければ `open`。取下げ・不開示の書類は案件に数えない（`withdrawn` の書類として残す）
+実データの検証例として、トヨタ不動産による豊田自動織機（`62010`、`S100Y3N0`）の公開買付けで訂正による買付価格の引き上げ（16,300 円 → 18,800 円 → 20,600 円）と期間延長が追えること、および牧野フライス製作所（`61350`）に対するニデックの敵対的 TOB（撤回 `S100YZ5A`）と MBK パートナーズのホワイトナイト TOB（賛同 `S100YU44`）が別案件として正しく分離されることを確認している。
 
-#### 使う側
-
-- 銘柄が対象の TOB は `edinet_tender_offers WHERE target_code = ?`。価格・期間の変わり方は `edinet_tender_offer_docs WHERE tender_offer_id = ? AND doc_type_code IN ('240','250') ORDER BY submit_datetime`
-- 画面と API はまだ出さない（別 issue）
-
-#### 実データで確かめたこと
-
-- 実データ（2026-07-01〜10-21 の 127 件）で全件パースでき、届出書の期間・価格・予定数、報告書の応募数・成否、意見表明の分類が全件で埋まった（意見は賛同＋推奨 35、賛同＋委ねる 9。不成立 1）。3 件（カカクコム S100Y3N0 系の 250 と 300、シード S100YZ5A 系の 270 と 290、伊藤忠商事の自社株 TOB S100YU44 と 270）を閲覧画面の本文と突き合わせて一致した。カカクコムは訂正 9 回で価格 3,000 → 3,682 円、期間 7/16 → 10/28 の延長を追えた
-- 通しで（2026-07-01〜10-21 の一覧 → 両ジョブ）案件 36 件・書類 127 件が失敗 0 で入り、2 回目は 0 件（重複しない）。範囲の先頭では届出書が無い案件（届出書の日付・当初価格が NULL）や、報告書だけの案件が出る
+---
 
 ## 運用
 
 ### cron とログ
 
-cron は `deploy/crontab`。起動時刻は [ジョブ設計](gen/edinet.md)。夜間（0〜6 時）は ZIP の取り直しだけで、ほかの EDINET ジョブは 07:30 のコードリストから。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log` / `edinet_archive.log`（MCP `batch_logs`）。
+すべての定期実行スケジュールは `deploy/crontab` で管理し、詳細は [ジョブ設計](gen/edinet.md) と [バッチ一覧](../JOBS.md) に出力される。各ジョブは `deploy/cron-run.sh` 経由で `/var/log/stock-analyzer/<job>.log` に出力され、MCP の `batch_logs` で確認できる。また MCP の `db_stats` では `edinet_documents`・`edinet_list_days` の件数・日付範囲・紐付け数・確定日数と、各 EDINET テーブルの件数を確認できる。
 
-MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲、`large_holding_reports` / `large_holdings` / `edinet_buybacks` / `edinet_buyback_resolutions` / `edinet_tender_offers` / `edinet_tender_offer_docs` の件数が出る。
+監視（`deploy/alert_patterns.py`）は `ERROR`・`Traceback`・非ゼロ終了（`[ALERT] ... exited with code`）で Slack 通知を飛ばす。そのため、再試行しても直らない恒久的な欠損（縦覧期間切れや `404`）は DB に `failed` を残して終了コード `0` で終え、一時的な通信障害（`5xx`・タイムアウト）や財務 XBRL のパース失敗だけを終了コード `1` にして通知させる。
 
 ### EDINET のメンテ
 
-EDINET がメンテ画面（HTML または案内への 302）を返すと、ラッパーが `EdinetMaintenanceError` にする。ジョブは 1 件目で打ち切り、`WARN edinet maintenance skip` 1 行で exit 0（KAB-149。`edinet_codes` は httpx 直叩きなので対象外）。5xx・タイムアウトは今までどおり exit=1。半日以上メンテが続いたときの昇格はしない（次回 cron が取り直す）。
+金融庁は日曜深夜や四半期末のメンテナンス時間帯に EDINET API を停止し、HTTP `503`（JSON 本文の `"status": "503"` または HTML のメンテナンス画面）を返す。
+
+`app/edinet/client.py` の `run_edinet_job` は `EdinetMaintenanceError` を捕捉すると、エラー通知を出さずに `WARN edinet maintenance skip job=<job> err=<exc>` を 1 行だけ出力して終了コード `0` で抜ける。翌日以降の通常実行で `edinet_documents` が直近 8 日分と未確定日を自動で取り直すため、人手での穴埋めは要らない。
 
 ### ZIP の退避と過去分の取り直し
 
-#### 退避（`jobs/ops/backup_data.py`）
+有報・大量保有・自己株・公開買付けの生 ZIP を数年分すべて VPS のローカルディスクに置き続けると容量を圧迫するため、日次の運用ジョブ `jobs/ops/backup_data.py`（[SQLite バックアップ](../DESIGN_backup.md) 参照）で OneDrive への退避とローカル削除を行う（`KAB-439`）。
 
-毎朝 03:30 に `data/edinet` を `onedrive:stock-analyzer-backups/data/edinet/` へ `rclone move`（`*.zip` だけ、10 分より古いもの）。1 ファイルずつ送って確かめてから VPS 側を消す。1 回の上限は `--max-duration 50m`（SOFT。KAB-304）。届かなかった分は翌日。過去分の取り直し（下）が続いている間は VPS に残り得る。`data/xbrl` / `data/monthly` は copy のまま（`docs/DESIGN_backup.md`）。
+1. `rclone copy` で `data/edinet` から `{BACKUP_OFFSITE_REMOTE}:{BACKUP_OFFSITE_PATH}/data/edinet`（既定は `onedrive:stock-analyzer-backups/data/edinet`）へ未転送の ZIP を追記コピーする（`sync` ではないため、ローカルから消したファイルも OneDrive 側には恒久的に残る）。
+2. コピーが成功したあと、`edinet_archives` で `status='saved'` かつ保存日時 `saved_at` が `EDINET_LOCAL_KEEP_DAYS`（既定 `30` 日）より古いローカル ZIP をディスクから削除し、空ディレクトリを掃除する。`edinet_archives.status` は `'saved'` のまま維持する。
+3. 後日パーサーを改修して `--reparse`・`--doc-id`・`--retry-failed` などで過去書類を読み直すときは、`fetch_zip` が OneDrive から自動でローカルへ書き戻すため、EDINET の縦覧期間（自己株 1 年・その他 5 年）が切れた後でも再パースできる。大量の ZIP を一括で手元に戻したいときは `app/edinet/archive.py` の `rclone_copy`（または `rclone copy` コマンド）で対象種別ディレクトリごと復元してからジョブを流す。
 
-#### 過去分の取り直し（`jobs/edinet/edinet_archive.py`）
+### 初回投入の手順
 
-2026-10 までに取り込んだ書類は ZIP を捨てていたので、一度 EDINET から取り直す。対象は取込済み（`xbrl_filings` の edinet、`edinet_buybacks`、`edinet_tender_offer_docs` の meta 以外、`large_holding_reports`）で `edinet_archives` に無い書類。閲覧期間の終わり（`file_date` + 年数）が近い順。404 は `gone` にして次から飛ばす。パースはしない。
+空の環境に EDINET データを最初に入れるときは、銘柄マスタ（`run_batch.py`）が入った状態で次の順に実行する。
 
-- cron は夜間の毎時 `--limit 1000`（ほかの EDINET ジョブは 07:30 から）。最後の行 `edinet archive done saved=… gone=… errors=… remaining=…`
-- `--dry-run` で残件と先頭 10 件
-- 取り直しが終われば cron の行は残してよい（対象 0 件で終わる）
+```bash
+python jobs/edinet/edinet_codes.py
+python jobs/edinet/edinet_documents.py --backfill-years 5
+```
 
-### 最初に入れるとき
-
-- デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
-- 大量保有・自己株買い・公開買付も、デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` などを `--limit 0` で手で
+一覧が入ったあとは日次 cron が `--limit` 件ずつ順番に消化する。初回にまとめて全件パースしたいときは、各ジョブ（`edinet_xbrl.py`・`edinet_large_holdings.py`・`edinet_buybacks.py`・`edinet_tender_offers.py`）に `--limit 0` を付けて手で実行する。
