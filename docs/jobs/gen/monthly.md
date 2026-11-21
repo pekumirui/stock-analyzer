@@ -4,7 +4,7 @@
 
 ## ジョブ間の依存
 
-矢印の元が書いた表を、先が読むだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書く表、ファイル（`data/`）の受け渡しは出ない。
+矢印の元が書き込んだ表を、先が読み取るだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書き込む表、ファイル（`data/`）の受け渡しは出ない。
 
 ```mermaid
 ---
@@ -41,8 +41,8 @@ flowchart LR
 
 - 起動: 毎日 10:30<br>毎日 16:30（`--ledger /var/log/app/html_ingest_ledger.json`）
 - 呼ぶ API: `GET /api/v1/tables/{code}`, `POST /api/v1/tables/{code}/ingest`
-- 書く: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
-- 読むだけ: `statements`, `stocks`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -60,8 +60,8 @@ flowchart LR
 `jobs/monthly/ir_monthly_html_r2.py`
 
 - 起動: 毎日 10:20<br>毎日 16:20
-- 書く: （観測なし）
-- 読むだけ: `stocks`
+- 書き込み: （観測なし）
+- 読み取りだけ: `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -78,8 +78,8 @@ flowchart LR
 
 - 起動: 毎日 10:30<br>毎日 16:30
 - 呼ぶ API: `POST /api/v1/tables/{code}/ingest`
-- 書く: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
-- 読むだけ: `statements`, `stocks`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -94,8 +94,8 @@ flowchart LR
 `jobs/monthly/ir_monthly_r2.py`
 
 - 起動: 毎日 10:00<br>毎日 16:00
-- 書く: （観測なし）
-- 読むだけ: `stocks`
+- 書き込み: （観測なし）
+- 読み取りだけ: `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -110,8 +110,8 @@ flowchart LR
 
 - 起動: 毎日 10:40<br>毎日 16:40（`--all --post`）
 - 呼ぶ API: `GET /api/v1/tables/{code}/{year}`, `POST /api/v1/tables/{code}/ingest`
-- 書く: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
-- 読むだけ: `statements`, `stocks`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -131,8 +131,8 @@ flowchart LR
 `jobs/monthly/monthly_names.py`
 
 - 起動: cron に無い（Actions: `monthly-names.yml`）
-- 書く: `monthly_element_sources`, `monthly_elements`, `monthly_values`
-- 読むだけ: （観測なし）
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_values`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -144,8 +144,8 @@ flowchart LR
 
 - 起動: 毎日 18:30<br>毎日 21:30（`--ledger /var/log/app/pdf_ingest_ledger.json`）
 - 呼ぶ API: `GET /api/v1/tables/{code}`, `POST /api/v1/tables/{code}/ingest`
-- 書く: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
-- 読むだけ: `statements`, `stocks`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -164,8 +164,8 @@ flowchart LR
 
 - 起動: 毎日 18:20<br>毎日 21:20
 - 呼ぶ API: `GET /api/v1/tables/{code}/{year}`
-- 書く: （観測なし）
-- 読むだけ: `monthly_elements`, `monthly_tables`, `monthly_values`
+- 書き込み: （観測なし）
+- 読み取りだけ: `monthly_elements`, `monthly_tables`, `monthly_values`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -179,8 +179,8 @@ flowchart LR
 `jobs/monthly/tdnet_monthly_r2.py`
 
 - 起動: 毎日 18:00<br>毎日 21:00（`7`）
-- 書く: （観測なし）
-- 読むだけ: `stocks`
+- 書き込み: （観測なし）
+- 読み取りだけ: `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|

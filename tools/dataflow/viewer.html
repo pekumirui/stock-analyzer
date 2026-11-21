@@ -91,11 +91,11 @@
   <h1>データの流れ ビューア</h1>
   <label>絞り込み <input id="q" type="search" placeholder="テーブル名・バッチ・API の一部"></label>
   <label>機能 <select id="dom"><option value="">すべて</option></select></label>
-  <span class="legend"><span class="W">W</span>書く（読むも含む） <span class="R">R</span>読むだけ</span>
+  <span class="legend"><span class="W">W</span>書き込み（読み取りも含む） <span class="R">R</span>読み取りだけ</span>
   <span class="note">自動生成（<code>python -m pytest tests --dataflow=write</code>）。テストが通った道だけなので下限。</span>
 </header>
 <section id="panel">
-  <p class="hint" id="hint">行（バッチ・API）か列（テーブル）の名前を押すと、つながる入口とテーブルをここに図で出す。図の箱を押すとそこへ移る。</p>
+  <p class="hint" id="hint">行（バッチ・API）か列（テーブル）の名前を押すと、つながるバッチ・API とテーブルをここに図で出す。図の箱を押すとそこへ移る。</p>
   <div id="detail" hidden>
     <h2 id="title"></h2>
     <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -130,7 +130,7 @@
   domRow.className = "dom";
   const colRow = thead.insertRow();
   colRow.className = "col";
-  const corner = el("th", { class: "corner", rowspan: "2" }, "入口 ＼ テーブル");
+  const corner = el("th", { class: "corner", rowspan: "2" }, "バッチ・API ＼ テーブル");
   domRow.appendChild(corner);
   const colHead = {};
   const domHead = {};
@@ -305,8 +305,8 @@
     if (type === "t") {
       const w = entries.filter((e) => e.rw[name] === "W");
       const r = entries.filter((e) => e.rw[name] === "R");
-      title.textContent = `テーブル ${name}（${domLabel[DATA.tables[name]]}）: 書く ${w.length} ・ 読むだけ ${r.length}`;
-      draw(tNode(name), w.map((e) => eNode(e, "w")), r.map((e) => eNode(e, "r")), "書く入口", "読むだけの入口");
+      title.textContent = `テーブル ${name}（${domLabel[DATA.tables[name]]}）: 書き込み ${w.length} ・ 読み取りだけ ${r.length}`;
+      draw(tNode(name), w.map((e) => eNode(e, "w")), r.map((e) => eNode(e, "r")), "書き込むバッチ・API", "読み取るだけのバッチ・API");
       colHead[name].classList.add("sel");
       colHead[name].scrollIntoView({ block: "nearest", inline: "nearest" });
     } else {
@@ -314,7 +314,7 @@
       const r = Object.keys(e.rw).filter((t) => e.rw[t] === "R");
       const w = Object.keys(e.rw).filter((t) => e.rw[t] === "W");
       title.textContent = `${e.kind === "job" ? "バッチ" : "API"} ${name}（${domLabel[e.domain]}）`;
-      draw(eNode(e), r.map((t) => tNode(t, "r")), w.map((t) => tNode(t, "w")), "読むだけの表", "書く表");
+      draw(eNode(e), r.map((t) => tNode(t, "r")), w.map((t) => tNode(t, "w")), "読み取るだけの表", "書き込む表");
       if (e.calls.length) calls.textContent = `呼ぶ API: ${e.calls.join(" / ")}（その API の読み書きも含めて図にしている）`;
       rows[name].classList.add("sel");
       rows[name].scrollIntoView({ block: "nearest", inline: "nearest" });

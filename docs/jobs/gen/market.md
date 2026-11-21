@@ -4,7 +4,7 @@
 
 ## ジョブ間の依存
 
-矢印の元が書いた表を、先が読むだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書く表、ファイル（`data/`）の受け渡しは出ない。
+矢印の元が書き込んだ表を、先が読み取るだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書き込む表、ファイル（`data/`）の受け渡しは出ない。
 
 ```mermaid
 ---
@@ -38,8 +38,8 @@ flowchart LR
 `jobs/market/briefing_extract.py`
 
 - 起動: cron に無い
-- 書く: `briefing_extracts`, `briefing_facts`, `briefing_pages`
-- 読むだけ: `briefing_documents`
+- 書き込み: `briefing_extracts`, `briefing_facts`, `briefing_pages`
+- 読み取りだけ: `briefing_documents`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -54,8 +54,8 @@ flowchart LR
 `jobs/market/briefing_offsite.py`
 
 - 起動: 毎日 01:40
-- 書く: `briefing_documents`
-- 読むだけ: （観測なし）
+- 書き込み: `briefing_documents`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -68,8 +68,8 @@ flowchart LR
 `jobs/market/check_demo.py`
 
 - 起動: cron に無い
-- 書く: （観測なし）
-- 読むだけ: `statements`, `stocks`
+- 書き込み: （観測なし）
+- 読み取りだけ: `statements`, `stocks`
 
 引数: なし
 
@@ -80,8 +80,8 @@ flowchart LR
 - 起動: 日曜 22:25（`--years 5 --ledger /var/log/app/homepage_briefing_ledger.json`）
 - 起動: 毎日 12〜23 時の毎時 00 分（`--years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json`）
 - 続けて走る順: xbrl/tdnet_xbrl_r2 → xbrl/xbrl_parse → xbrl/xbrl_normalize → xbrl/xbrl_statements → market/tanshin_covers → market/tdnet_briefing_r2 → **market/homepage_briefing**
-- 書く: `briefing_documents`
-- 読むだけ: `tanshin_covers`
+- 書き込み: `briefing_documents`
+- 読み取りだけ: `tanshin_covers`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -99,8 +99,8 @@ flowchart LR
 `jobs/market/homepages.py`
 
 - 起動: cron に無い
-- 書く: `homepages`
-- 読むだけ: `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`
+- 書き込み: `homepages`
+- 読み取りだけ: `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -117,8 +117,8 @@ flowchart LR
 `jobs/market/intraday_1m.py`
 
 - 起動: 平日 20:30
-- 書く: （観測なし）
-- 読むだけ: （観測なし）
+- 書き込み: （観測なし）
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -132,8 +132,8 @@ flowchart LR
 `jobs/market/pts_snapshot.py`
 
 - 起動: 火〜土曜 00:00<br>平日 15:30<br>平日 16〜23 時の毎時 00・30 分
-- 書く: `pts_snapshots`
-- 読むだけ: （観測なし）
+- 書き込み: `pts_snapshots`
+- 読み取りだけ: （観測なし）
 
 引数: なし
 
@@ -142,8 +142,8 @@ flowchart LR
 `jobs/market/run_batch.py`
 
 - 起動: 毎日 19:30
-- 書く: `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix`
-- 読むだけ: （観測なし）
+- 書き込み: `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -160,8 +160,8 @@ flowchart LR
 - 起動: 毎日 12〜23 時の毎時 00 分（`--days 1`）
 - 起動: 毎日 23:35（`--days 3`）
 - 続けて走る順: xbrl/tdnet_xbrl_r2 → xbrl/xbrl_parse → xbrl/xbrl_normalize → xbrl/xbrl_statements → **market/tanshin_covers** → market/tdnet_briefing_r2 → market/homepage_briefing
-- 書く: `tanshin_covers`
-- 読むだけ: `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings`
+- 書き込み: `tanshin_covers`
+- 読み取りだけ: `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -177,8 +177,8 @@ flowchart LR
 - 起動: 毎日 12〜23 時の毎時 00 分（`1`）
 - 起動: 毎日 22:10（`7`）
 - 続けて走る順: xbrl/tdnet_xbrl_r2 → xbrl/xbrl_parse → xbrl/xbrl_normalize → xbrl/xbrl_statements → market/tanshin_covers → **market/tdnet_briefing_r2** → market/homepage_briefing
-- 書く: `briefing_documents`
-- 読むだけ: （観測なし）
+- 書き込み: `briefing_documents`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|

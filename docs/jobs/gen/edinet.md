@@ -4,7 +4,7 @@
 
 ## ジョブ間の依存
 
-矢印の元が書いた表を、先が読むだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書く表、ファイル（`data/`）の受け渡しは出ない。
+矢印の元が書き込んだ表を、先が読み取るだけで使う（cron のジョブ同士。線の字はその表）。灰色の点線の枠はほかの機能のジョブ。`stocks` と、両方が書き込む表、ファイル（`data/`）の受け渡しは出ない。
 
 ```mermaid
 ---
@@ -55,8 +55,8 @@ flowchart LR
 `jobs/edinet/edinet_archive.py`
 
 - 起動: 毎日 0〜6 時の毎時 15 分（`--limit 1000`）
-- 書く: `edinet_archives`
-- 読むだけ: `edinet_buybacks`, `edinet_documents`, `edinet_tender_offer_docs`, `large_holding_reports`, `xbrl_filings`
+- 書き込み: `edinet_archives`
+- 読み取りだけ: `edinet_buybacks`, `edinet_documents`, `edinet_tender_offer_docs`, `large_holding_reports`, `xbrl_filings`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -68,8 +68,8 @@ flowchart LR
 `jobs/edinet/edinet_buybacks.py`
 
 - 起動: 毎日 9〜23 時の毎時 25 分（`--limit 500`）
-- 書く: `edinet_archives`, `edinet_buyback_resolutions`, `edinet_buybacks`
-- 読むだけ: `edinet_documents`, `edinet_filers`, `stocks`
+- 書き込み: `edinet_archives`, `edinet_buyback_resolutions`, `edinet_buybacks`
+- 読み取りだけ: `edinet_documents`, `edinet_filers`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -85,8 +85,8 @@ flowchart LR
 `jobs/edinet/edinet_codes.py`
 
 - 起動: 毎日 07:30
-- 書く: `edinet_documents`, `edinet_filers`, `stocks`
-- 読むだけ: （観測なし）
+- 書き込み: `edinet_documents`, `edinet_filers`, `stocks`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -97,8 +97,8 @@ flowchart LR
 `jobs/edinet/edinet_documents.py`
 
 - 起動: 毎日 8〜23 時の毎時 40 分
-- 書く: `edinet_documents`, `edinet_list_days`
-- 読むだけ: `edinet_filers`, `stocks`
+- 書き込み: `edinet_documents`, `edinet_list_days`
+- 読み取りだけ: `edinet_filers`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -112,8 +112,8 @@ flowchart LR
 `jobs/edinet/edinet_large_holdings.py`
 
 - 起動: 毎日 9〜23 時の毎時 05 分（`--limit 1000`）
-- 書く: `edinet_archives`, `large_holding_reports`, `large_holdings`
-- 読むだけ: `edinet_documents`, `edinet_filers`, `stocks`
+- 書き込み: `edinet_archives`, `large_holding_reports`, `large_holdings`
+- 読み取りだけ: `edinet_documents`, `edinet_filers`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -131,8 +131,8 @@ flowchart LR
 `jobs/edinet/edinet_shareholders.py`
 
 - 起動: cron に無い
-- 書く: `xbrl_major_shareholders`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`
-- 読むだけ: `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`
+- 書き込み: `xbrl_major_shareholders`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`
+- 読み取りだけ: `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -145,8 +145,8 @@ flowchart LR
 `jobs/edinet/edinet_tender_offers.py`
 
 - 起動: 毎日 9〜23 時の毎時 20 分（`--limit 100`）
-- 書く: `edinet_archives`, `edinet_tender_offer_docs`, `edinet_tender_offers`
-- 読むだけ: `edinet_documents`, `edinet_filers`, `stocks`
+- 書き込み: `edinet_archives`, `edinet_tender_offer_docs`, `edinet_tender_offers`
+- 読み取りだけ: `edinet_documents`, `edinet_filers`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -162,8 +162,8 @@ flowchart LR
 `jobs/edinet/edinet_xbrl.py`
 
 - 起動: 毎日 8〜23 時の毎時 50 分（`--limit 300`）
-- 書く: `edinet_archives`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`
-- 読むだけ: `edinet_documents`, `stocks`, `xbrl_element_mappings`, `xbrl_std_items`
+- 書き込み: `edinet_archives`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`
+- 読み取りだけ: `edinet_documents`, `stocks`, `xbrl_element_mappings`, `xbrl_std_items`
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|

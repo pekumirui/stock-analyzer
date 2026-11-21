@@ -113,7 +113,7 @@ def _flow_line(table: str) -> str:
     domain = table_domain(table)
     page = ROOT / FLOW_DIR / f"{domain}.md"
     seen = page.is_file() and f"### {table}\n" in page.read_text(encoding="utf-8")
-    head = "書く入口・読むだけの入口（バッチと API）: "
+    head = "読み書きするバッチ・API: "
     return head + (f"[データの流れ](../dataflow/{domain}.md#{table})" if seen else "テストでは観測されていない")
 
 
