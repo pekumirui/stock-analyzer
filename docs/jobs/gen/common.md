@@ -1,6 +1,6 @@
 # ジョブ設計: 共通・運用
 
-**自動生成。手で直さない。** 読み方と作り方は [JOBS.md](../../JOBS.md)。表との線は [データの流れ](../../dataflow/common.md)。
+読み方と作り方は [JOBS.md](../../JOBS.md)。表との線は [データの流れ](../../dataflow/common.md)。
 
 ## fx_rates
 

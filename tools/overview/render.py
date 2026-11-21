@@ -39,7 +39,7 @@ def _header(title: str) -> list[str]:
     return [
         f"# {title}",
         "",
-        f"**自動生成。手で直さない。** 作り直しは `{REBUILD}`。入口は [OVERVIEW.md](../OVERVIEW.md)。",
+        "入口は [OVERVIEW.md](../OVERVIEW.md)。",
         "",
     ]
 

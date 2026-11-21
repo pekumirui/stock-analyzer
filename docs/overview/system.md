@@ -1,6 +1,6 @@
 # システム構成
 
-**自動生成。手で直さない。** 作り直しは `python -m tools.overview.render`。入口は [OVERVIEW.md](../OVERVIEW.md)。
+入口は [OVERVIEW.md](../OVERVIEW.md)。
 
 `deploy/` の systemd のユニット・crontab・nginx の設定のスクリプトから、書いてある範囲だけを拾った。推測で箱や線は足さない。
 

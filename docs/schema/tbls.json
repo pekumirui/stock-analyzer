@@ -1,6 +1,6 @@
 {
  "name": "stock-analyzer",
- "desc": "自動生成。正は app/models.py。作り直しは python -m tools.schema.render",
+ "desc": "正は app/models.py",
  "tables": [
   {
    "name": "briefing_documents",

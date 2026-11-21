@@ -8,6 +8,8 @@
 
 `mkdocs build` を実行すると、フック `tools/wiki/mkdocs_hook.py` が一時ディレクトリ `.wiki-docs/`（出力先 `site/` とともに `.gitignore` 対象）へ対象ファイルを集め、ナビゲーション木と検索用レスポンスヘッダ `_headers`（`noindex, nofollow`）を生成する。
 
+サイドバーは `docs/index.md` から組む。`##` の見出しが区分になり、その下に載せたリンクを載せた順に並べる。`docs/index.md` に載っていないページ（`schema/<機能>.md` など）は、載っているページのうち、載っていないページへのリンクが一番多いページ（`SCHEMA.md` など）の下にぶら下げる。どこからもリンクされていないページがあるとビルドが失敗するので、ページを足したら `docs/index.md` の表か、親にあたるページからリンクする。
+
 | 区分 | 対象パス・ファイル | ビルド時の扱い |
 |---|---|---|
 | 収録する | `docs/` 配下の `.md` と静的アセット（画像、`docs/dataflow/viewer.html`、`docs/assets/mermaid-elk.js` など） | 先頭の `docs/` を外して `.wiki-docs/` 直下へ配置する（`docs/index.md` がトップページになる） |
