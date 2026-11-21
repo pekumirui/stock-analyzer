@@ -1,4 +1,52 @@
 {
+ "accumulated": {
+  "JPGAAP": {
+   "減価償却累計額": {
+    "Buildings": "AccumulatedDepreciationBuildings",
+    "BuildingsAndAccompanyingFacilities": "AccumulatedDepreciationBuildingsAndAccompanyingFacilities",
+    "BuildingsAndStructures": "AccumulatedDepreciationBuildingsAndStructures",
+    "BuildingsInTrustINV": "AccumulatedDepreciationBuildingsInTrustINV",
+    "EquipmentPPEWAT": "AccumulatedDepreciationEquipmentWAT",
+    "LeaseAssetsPPE": "AccumulatedDepreciationLeaseAssetsPPE",
+    "MachineryAndEquipment": "AccumulatedDepreciationMachineryAndEquipment",
+    "MachineryAndEquipmentInTrustINV": "AccumulatedDepreciationMachineryAndEquipmentInTrustINV",
+    "MachineryEquipmentAndVehicles": "AccumulatedDepreciationMachineryEquipmentAndVehicles",
+    "OtherPPE": "AccumulatedDepreciationOtherPPE",
+    "PropertyPlantAndEquipmentNCAAffiliatedRWY": "AccumulatedDepreciationNCAAffiliatedRWY",
+    "PropertyPlantAndEquipmentNCARailway": "AccumulatedDepreciationPPERailway",
+    "PropertyPlantAndEquipmentNCARelatedRWY": "AccumulatedDepreciationPPERelatedRWY",
+    "RealEstateForInvestment": "AccumulatedDepreciationRealEstateForInvestment",
+    "RealEstateForRent": "AccumulatedDepreciationRealEstateForRent",
+    "RightOfUseAssets": "AccumulatedDepreciationRightOfUseAssets",
+    "RightOfUseAssetsPPE": "AccumulatedDepreciationRightOfUseAssetsPPE",
+    "Structures": "AccumulatedDepreciationStructures",
+    "StructuresInTrustINV": "AccumulatedDepreciationStructuresInTrustINV",
+    "ToolsFurnitureAndFixtures": "AccumulatedDepreciationToolsFurnitureAndFixtures",
+    "ToolsFurnitureAndFixturesInTrustINV": "AccumulatedDepreciationToolsFurnitureAndFixturesInTrustINV",
+    "Vehicles": "AccumulatedDepreciationVehicles",
+    "VehiclesToolsFurnitureAndFixtures": "AccumulatedDepreciationVehiclesToolsFurnitureAndFixtures",
+    "Vessels": "AccumulatedDepreciationVessels"
+   },
+   "減価償却累計額及び減損損失累計額": {
+    "Buildings": "AccumulatedDepreciationAndImpairmentLossBuildings",
+    "BuildingsAndAccompanyingFacilities": "AccumulatedDepreciationAndImpairmentLossBuildingsAndAccompanyingFacilities",
+    "BuildingsAndStructures": "AccumulatedDepreciationAndImpairmentLossBuildingsAndStructures",
+    "LeaseAssetsPPE": "AccumulatedDepreciationAndImpairmentLossLeaseAssetsPPE",
+    "Structures": "AccumulatedDepreciationAndImpairmentLossStructures",
+    "ToolsFurnitureAndFixtures": "AccumulatedDepreciationAndImpairmentLossToolsFurnitureAndFixtures",
+    "Vehicles": "AccumulatedDepreciationAndImpairmentLossVehicles"
+   },
+   "減損損失累計額": {
+    "Buildings": "AccumulatedImpairmentLossBuildings",
+    "BuildingsAndAccompanyingFacilities": "AccumulatedImpairmentLossBuildingsAndAccompanyingFacilities",
+    "LeaseAssetsPPE": "AccumulatedImpairmentLossLeaseAssetsPPE",
+    "OtherPPE": "AccumulatedImpairmentLossOtherPPE",
+    "Structures": "AccumulatedImpairmentLossStructures",
+    "ToolsFurnitureAndFixtures": "AccumulatedImpairmentLossToolsFurnitureAndFixtures",
+    "Vehicles": "AccumulatedImpairmentLossVehicles"
+   }
+  }
+ },
  "codes": 3762,
  "labels": {
   "IFRS": {
@@ -15023,10 +15071,49 @@
  },
  "min_codes": 5,
  "min_share": 0.95,
+ "others": {
+  "IFRS": {
+   "BS": {
+    "CurrentAssetsIFRS": "OtherCurrentAssetsCAIFRS",
+    "NonCurrentAssetsIFRS": "OtherNonCurrentAssetsNCAIFRS",
+    "NonCurrentLabilitiesIFRS": "OtherNonCurrentLiabilitiesNCLIFRS",
+    "TotalCurrentLiabilitiesIFRS": "OtherCurrentLiabilitiesCLIFRS"
+   },
+   "CF": {
+    "NetCashProvidedByUsedInFinancingActivitiesIFRS": "OtherFinCFIFRS",
+    "NetCashProvidedByUsedInInvestingActivitiesIFRS": "OtherInvCFIFRS"
+   }
+  },
+  "JPGAAP": {
+   "BS": {
+    "CurrentAssets": "OtherCA",
+    "CurrentLiabilities": "OtherCL",
+    "DeferredAssets": "OtherDA",
+    "IntangibleAssets": "OtherIA",
+    "InvestmentsAndOtherAssets": "OtherIOA",
+    "Liabilities": "OtherCL",
+    "NoncurrentAssets": "OtherIOA",
+    "NoncurrentLiabilities": "OtherNCL",
+    "PropertyPlantAndEquipment:累計額の前": "OtherPPE"
+   },
+   "CF": {
+    "NetCashProvidedByUsedInFinancingActivities": "OtherNetFinCF",
+    "NetCashProvidedByUsedInInvestmentActivities": "OtherNetInvCF",
+    "NetCashProvidedByUsedInOperatingActivities:小計まで": "OtherNetOpeCF"
+   },
+   "PL": {
+    "ExtraordinaryIncome": "OtherEI",
+    "ExtraordinaryLoss": "OtherEL",
+    "NonOperatingExpenses": "OtherNOE",
+    "NonOperatingIncome": "OtherNOI",
+    "OperatingIncome": "OtherSGA"
+   }
+  }
+ },
  "per_share": [
   "BasicAndDilutedEarningsLossPerShareIFRS",
   "BasicEarningsLossPerShareIFRS",
   "DilutedEarningsLossPerShareIFRS"
  ],
- "version": 1
+ "version": 2
 }
