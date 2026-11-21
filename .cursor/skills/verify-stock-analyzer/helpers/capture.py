@@ -135,6 +135,7 @@ def main() -> None:
         if fst != 200 or not isinstance(fbody, dict):
             raise SystemExit(f"stock {code} financials status={fst}")
         fs_n = len(fbody.get("periods") or [])
+        earlier_n = len(fbody.get("earlier") or [])
         url = f"{base}/api/stock/{code}/filings"
         status, body = _get(url)
         path = _write("stock", "filings.json", "GET", url, status, body)
@@ -159,7 +160,7 @@ def main() -> None:
         req += f"GET {decks_url}\nstatus {dst}\n"
         (ART / "stock" / "request.txt").write_text(req, encoding="utf-8")
         # xbrl_documents / briefing_documents が空の DB でも 200。件数を出して判断を任せる
-        print(path, f"filings={len(filings)} documents={len(docs)} decks={len(decks)} financials={fs_n}")
+        print(path, f"filings={len(filings)} documents={len(docs)} decks={len(decks)} financials={fs_n} earlier={earlier_n}")
         return
 
     if args.feature == "monthly":
