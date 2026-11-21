@@ -1,7 +1,5 @@
 # データの流れ（バッチ・API × テーブル）
 
-**このファイルと `docs/dataflow/` は自動生成。手で直さない。** 作り直しは `python -m pytest tests --dataflow=write`。CI は `--dataflow=check` で実装と合うかを見る（作り方は `tools/dataflow/`）。
-
 テスト中に SQLite へ実際に流れた SQL を、呼んだバッチ・API に紐づけて集めたもの。
 
 - 「書く」は INSERT / UPDATE / DELETE をした表（読んでもいる表を含む）。「読むだけ」は SELECT だけの表

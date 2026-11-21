@@ -306,7 +306,7 @@ def tbls() -> dict:
     tables = _tables()
     return {
         "name": "stock-analyzer",
-        "desc": f"自動生成。正は app/models.py。作り直しは {REBUILD}",
+        "desc": "正は app/models.py",
         "tables": [_tbls_table(t, label[table_domain(t.name)]) for t in tables],
         "relations": [r for t in tables for r in _tbls_relations(t)],
         "driver": {"name": "sqlite"},
@@ -326,7 +326,7 @@ def _page(key: str, label: str, own: list[Table]) -> str:
     lines = [
         f"# スキーマ: {label}",
         "",
-        f"**自動生成。手で直さない。** 正は `app/models.py`。作り直しは `{REBUILD}`。全体は [SCHEMA.md](../SCHEMA.md)。",
+        "正は `app/models.py`。全体は [SCHEMA.md](../SCHEMA.md)。",
         "",
         "図は主キーと参照の列だけ。実線は外部キー、点線はモデルで宣言しただけの参照（DB の制約は無い）。親の側が `}|` の線は、親の列が一意でない（同じ値の行が親に何行もある）。ほかの機能の表は主キーと指される列だけ出す。",
         "",
@@ -359,9 +359,7 @@ def render() -> dict[str, str]:
     out[OVERVIEW] = "\n".join([
         "# DB スキーマ（テーブル・列・ER 図）",
         "",
-        f"**このファイルと `{PAGE_DIR}/` は自動生成。手で直さない。** 正は `app/models.py`。作り直しは `{REBUILD}`。",
-        "",
-        "合わなければ `tests/nonfunctional/test_schema_doc.py` が落ちる。",
+        "正は `app/models.py`。",
         "",
         (
             f"**[動かせる ER 図（Liam ERD）]({erd_link()})**: 全テーブルを 1 枚に出す。"

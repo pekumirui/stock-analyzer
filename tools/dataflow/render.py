@@ -42,8 +42,6 @@ ELK_LAYOUT = ["---", "config:", "  layout: elk", "---"]
 HEADER = """\
 # データの流れ（バッチ・API × テーブル）
 
-**このファイルと `docs/dataflow/` は自動生成。手で直さない。** 作り直しは `python -m pytest tests --dataflow=write`。CI は `--dataflow=check` で実装と合うかを見る（作り方は `tools/dataflow/`）。
-
 テスト中に SQLite へ実際に流れた SQL を、呼んだバッチ・API に紐づけて集めたもの。
 
 - 「書く」は INSERT / UPDATE / DELETE をした表（読んでもいる表を含む）。「読むだけ」は SELECT だけの表
@@ -168,7 +166,7 @@ def _domain_page(domain: str, entries: list[Entry], tables: list[str]) -> str:
     lines = [
         f"# データの流れ: {label}",
         "",
-        "**自動生成。手で直さない。** 読み方と作り方は [DATA_FLOW.md](../DATA_FLOW.md)。全体の表と影響の調べ方は [ビューア](viewer.html)。",
+        "読み方と作り方は [DATA_FLOW.md](../DATA_FLOW.md)。全体の表と影響の調べ方は [ビューア](viewer.html)。",
         "",
         (
             "図の見方: 左が入口、右が表。実線の矢印は書く、点線は読むだけ。灰色の点線の枠はほかの機能の表。"
