@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from tools.wiki.collect import build_nav, collect_into, dest_rel_for
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,7 +24,8 @@ def test_collect_docs_and_agents_only(tmp_path: Path) -> None:
     _write(repo / "static" / "AGENTS.md", "# static\n")
     _write(
         repo / "docs" / "index.md",
-        "# ホーム\n\n[A](a.md)\n[約束](../AGENTS.md)\n",
+        "# ホーム\n\n## 区分\n\n[A](a.md)\n[約束](../AGENTS.md)\n"
+        "[api](../app/api/AGENTS.md)\n[static](../static/AGENTS.md)\n",
     )
     _write(
         repo / "docs" / "a.md",
@@ -83,13 +86,31 @@ def test_dest_rel_strips_docs_keeps_agents() -> None:
     assert dest_rel_for(repo / "analyzer" / "README.md", repo) is None
 
 
-def test_build_nav_home_first() -> None:
-    pages = ["index.md", "AGENTS.md", "a.md"]
-    titles = {"index.md": "ホーム", "AGENTS.md": "約束", "a.md": "A"}
-    nav = build_nav(pages, titles)
-    assert nav[0] == {"ホーム": "index.md"}
-    assert {"約束": "AGENTS.md"} in nav
-    assert {"A": "a.md"} in nav
+def test_build_nav_follows_home_sections_and_hangs_unlisted_pages_under_the_hub() -> None:
+    home = "# ホーム\n\n[前置き](a.md)\n\n## 設計\n\n| [一覧](HUB.md) | x |\n- [A](a.md)\n\n## 約束\n\n- [`AGENTS.md`](AGENTS.md)\n"
+    pages = ["index.md", "AGENTS.md", "HUB.md", "a.md", "hub/x.md", "hub/y.md"]
+    titles = {"index.md": "ホーム", "HUB.md": "一覧", "hub/x.md": "一覧: X", "hub/y.md": "一覧: Y"}
+    links = {"HUB.md": ["hub/y.md", "hub/x.md"], "a.md": ["hub/x.md"]}
+    assert build_nav(home, pages, titles, links) == [
+        {"ホーム": "index.md"},
+        {"設計": [{"一覧": [{"一覧": "HUB.md"}, {"Y": "hub/y.md"}, {"X": "hub/x.md"}]}, {"A": "a.md"}]},
+        {"約束": [{"AGENTS.md": "AGENTS.md"}]},
+    ]
+
+
+def test_build_nav_refuses_a_page_nothing_links_to() -> None:
+    with pytest.raises(ValueError, match="lost.md"):
+        build_nav("# ホーム\n\n## 設計\n\n[A](a.md)\n", ["index.md", "a.md", "lost.md"], {}, {})
+
+
+def test_real_home_puts_every_page_in_the_nav(tmp_path: Path) -> None:
+    result = collect_into(ROOT, tmp_path / "wiki")
+
+    def pages(items: list) -> list[str]:
+        return [p for it in items for v in it.values() for p in (pages(v) if isinstance(v, list) else [v])]
+
+    listed = pages(result.nav)
+    assert sorted(set(listed)) == result.pages
 
 
 def test_collect_real_repo_scope(tmp_path: Path) -> None:
@@ -102,8 +123,7 @@ def test_collect_real_repo_scope(tmp_path: Path) -> None:
     assert (dest / "AGENTS.md").is_file()
     assert (dest / "app" / "api" / "AGENTS.md").is_file()
     assert (dest / "static" / "AGENTS.md").is_file()
-    assert (dest / "app" / "api" / "index.md").is_file()
-    assert (dest / "static" / "index.md").is_file()
+    assert not (dest / "app" / "api" / "index.md").exists()
     assert not (dest / "README.md").exists()
     assert not (dest / "DESIGN.md").exists()
     assert not (dest / "analyzer").exists()
@@ -123,6 +143,7 @@ def test_collect_real_repo_scope(tmp_path: Path) -> None:
 
 def test_link_to_built_file_keeps_query_and_missing_one_is_dropped(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
+    _write(repo / "docs" / "index.md", "# ホーム\n\n## 区分\n\n[S](SCHEMA.md)\n")
     _write(repo / "docs" / "SCHEMA.md", "# S\n\n[図](schema/erd/index.html?hidden=abc)\n[無い](gone/index.html)\n")
     dest = tmp_path / "out"
 
