@@ -126,7 +126,7 @@ def test_render_writes_overview_pages_and_viewer():
     overview = out["docs/DATA_FLOW.md"]
     assert "[月次](dataflow/monthly.md) | 2 | 1 |" in overview
     assert "- `jobs/ops/backup.py`" in overview and "- `GET /api/topix`" in overview
-    assert "どの入口の読み書きにも出なかった表:\n\n- `topix`" in overview
+    assert "どのバッチ・API の読み書きにも出なかった表:\n\n- `topix`" in overview
 
 
 def test_mermaid_draws_entry_to_table_and_skips_hub_reads():

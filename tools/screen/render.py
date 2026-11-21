@@ -203,11 +203,11 @@ def _tab_page(tab: str, labels: dict[str, str], all_screens: list[Screen], found
     lines += [
         "## 呼ぶ API と表",
         "",
-        f"左から JS のファイル、API、表。API から表への実線は書く、点線は読むだけ。`{'`・`'.join(sorted(HUB))}` を読むだけの線は省く。",
+        f"左から JS のファイル、API、表。API から表への実線は書き込み、点線は読み取りだけ。`{'`・`'.join(sorted(HUB))}` を読み取るだけの線は省く。",
         "",
     ]
     lines += _flow(found, by_name)
-    lines += ["| API | 呼ぶ JS | 書く | 読むだけ |", "|---|---|---|---|"]
+    lines += ["| API | 呼ぶ JS | 書き込み | 読み取りだけ |", "|---|---|---|---|"]
     for label in sorted(found):
         e = by_name.get(label)
         where = _code(sorted({c.file for c in found[label]}))

@@ -7,8 +7,8 @@
 `jobs/fx_rates.py`
 
 - 起動: 毎日 08:00
-- 書く: `fx_rates`
-- 読むだけ: （観測なし）
+- 書き込み: `fx_rates`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -21,8 +21,8 @@
 `jobs/golden_db.py`
 
 - 起動: cron に無い
-- 書く: `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `indicators`, `material_monthly`, `material_trade_country`, `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `statements`, `stocks`, `topix`
-- 読むだけ: （観測なし）
+- 書き込み: `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `indicators`, `material_monthly`, `material_trade_country`, `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `statements`, `stocks`, `topix`
+- 読み取りだけ: （観測なし）
 
 引数: なし
 
@@ -31,8 +31,8 @@
 `jobs/migrate.py`
 
 - 起動: cron に無い
-- 書く: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials`
-- 読むだけ: `stocks`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials`
+- 読み取りだけ: `stocks`
 
 引数: なし
 
@@ -41,8 +41,8 @@
 `jobs/ops/backup_data.py`
 
 - 起動: 毎日 03:30
-- 書く: （観測なし）
-- 読むだけ: （観測なし）
+- 書き込み: （観測なし）
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -53,8 +53,8 @@
 `jobs/ops/backup_db.py`
 
 - 起動: 毎日 05:00
-- 書く: （観測なし）
-- 読むだけ: （観測なし）
+- 書き込み: （観測なし）
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -67,8 +67,8 @@
 `jobs/ops/migrate_r2_share.py`
 
 - 起動: cron に無い
-- 書く: （観測なし）
-- 読むだけ: （観測なし）
+- 書き込み: （観測なし）
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -83,8 +83,8 @@
 `jobs/ops/rebuild_daily_prices.py`
 
 - 起動: cron に無い
-- 書く: `daily_prices`
-- 読むだけ: （観測なし）
+- 書き込み: `daily_prices`
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|
@@ -95,8 +95,8 @@
 `jobs/ops/vps_packages_r2.py`
 
 - 起動: 毎日 06:40
-- 書く: （観測なし）
-- 読むだけ: （観測なし）
+- 書き込み: （観測なし）
+- 読み取りだけ: （観測なし）
 
 | 引数 | 種類 | 既定 | 説明 |
 |---|---|---|---|

@@ -35,7 +35,7 @@ erDiagram
 
 サプライタブの素材ごとの月次量
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/supply.md#material_monthly)
+読み書きするバッチ・API: [データの流れ](../dataflow/supply.md#material_monthly)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|
@@ -54,7 +54,7 @@ erDiagram
 
 素材の輸出入の相手国別の月次量（普通貿易統計の品別国別表）。material_monthly の trade の国別内訳。国合計を material_monthly に書かない素材も国別だけはここに持つ
 
-書く入口・読むだけの入口（バッチと API）: [データの流れ](../dataflow/supply.md#material_trade_country)
+読み書きするバッチ・API: [データの流れ](../dataflow/supply.md#material_trade_country)
 
 | 列 | 型 | NULL | キー | 値 | 既定 | 説明 |
 |---|---|---|---|---|---|---|

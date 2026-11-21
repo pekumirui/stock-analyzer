@@ -2,7 +2,7 @@
 
 読み方と作り方は [DATA_FLOW.md](../DATA_FLOW.md)。全体の表と影響の調べ方は [ビューア](viewer.html)。
 
-図の見方: 左が入口、右が表。実線の矢印は書く、点線は読むだけ。灰色の点線の枠はほかの機能の表。`stocks` はほぼ全部が読むので、読む線は省く（表には出す。線が残らない入口は図から外す）。
+図の見方: 左がバッチ・API、右が表。実線の矢印は書き込み、点線は読み取りだけ。灰色の点線の枠はほかの機能の表。`stocks` はほぼ全部が読み取るので、読み取りの線は省く（表には出す。線が残らないバッチ・API は図から外す）。
 
 ## バッチ
 
@@ -102,7 +102,7 @@ flowchart LR
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
 
-| バッチ | 書く | 読むだけ |
+| バッチ | 書き込み | 読み取りだけ |
 |---|---|---|
 | `jobs/edinet/edinet_archive.py` | `edinet_archives` | `edinet_buybacks`, `edinet_documents`, `edinet_tender_offer_docs`, `large_holding_reports`, `xbrl_filings` |
 | `jobs/edinet/edinet_buybacks.py` | `edinet_archives`, `edinet_buyback_resolutions`, `edinet_buybacks` | `edinet_documents`, `edinet_filers`, `stocks` |
@@ -147,7 +147,7 @@ flowchart LR
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
 
-| API | 書く | 読むだけ |
+| API | 書き込み | 読み取りだけ |
 |---|---|---|
 | `GET /api/holders/activity` |  | `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/holders/search` |  | `large_holding_reports`, `large_holdings`, `stocks` |
@@ -156,54 +156,54 @@ flowchart LR
 
 ## テーブル
 
-ほかの機能のバッチ・API も含めて、その表を書く・読む入口。
+ほかの機能のバッチ・API も含めて、その表を読み書きするバッチ・API。
 
 ### edinet_archives
 
-- 書く: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_presentation.py（XBRL・決算書類）`
-- 読むだけ: （観測なし）
+- 書き込み: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_presentation.py（XBRL・決算書類）`
+- 読み取りだけ: （観測なし）
 
 ### edinet_buyback_resolutions
 
-- 書く: `jobs/edinet/edinet_buybacks.py`
-- 読むだけ: `GET /api/stock/{code}/holders`
+- 書き込み: `jobs/edinet/edinet_buybacks.py`
+- 読み取りだけ: `GET /api/stock/{code}/holders`
 
 ### edinet_buybacks
 
-- 書く: `jobs/edinet/edinet_buybacks.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py`, `GET /api/stock/{code}/holders`
+- 書き込み: `jobs/edinet/edinet_buybacks.py`
+- 読み取りだけ: `jobs/edinet/edinet_archive.py`, `GET /api/stock/{code}/holders`
 
 ### edinet_documents
 
-- 書く: `jobs/edinet/edinet_codes.py`, `jobs/edinet/edinet_documents.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_shareholders.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_normalize.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_presentation.py（XBRL・決算書類）`
+- 書き込み: `jobs/edinet/edinet_codes.py`, `jobs/edinet/edinet_documents.py`
+- 読み取りだけ: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_shareholders.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_normalize.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_presentation.py（XBRL・決算書類）`
 
 ### edinet_filers
 
-- 書く: `jobs/edinet/edinet_codes.py`
-- 読むだけ: `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_documents.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`
+- 書き込み: `jobs/edinet/edinet_codes.py`
+- 読み取りだけ: `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_documents.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`
 
 ### edinet_list_days
 
-- 書く: `jobs/edinet/edinet_documents.py`
-- 読むだけ: （観測なし）
+- 書き込み: `jobs/edinet/edinet_documents.py`
+- 読み取りだけ: （観測なし）
 
 ### edinet_tender_offer_docs
 
-- 書く: `jobs/edinet/edinet_tender_offers.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py`
+- 書き込み: `jobs/edinet/edinet_tender_offers.py`
+- 読み取りだけ: `jobs/edinet/edinet_archive.py`
 
 ### edinet_tender_offers
 
-- 書く: `jobs/edinet/edinet_tender_offers.py`
-- 読むだけ: （観測なし）
+- 書き込み: `jobs/edinet/edinet_tender_offers.py`
+- 読み取りだけ: （観測なし）
 
 ### large_holding_reports
 
-- 書く: `jobs/edinet/edinet_large_holdings.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py`, `GET /api/holders/activity`, `GET /api/holders/search`, `GET /api/holders/{edinet}`, `GET /api/stock/{code}/holders`
+- 書き込み: `jobs/edinet/edinet_large_holdings.py`
+- 読み取りだけ: `jobs/edinet/edinet_archive.py`, `GET /api/holders/activity`, `GET /api/holders/search`, `GET /api/holders/{edinet}`, `GET /api/stock/{code}/holders`
 
 ### large_holdings
 
-- 書く: `jobs/edinet/edinet_large_holdings.py`
-- 読むだけ: `GET /api/holders/activity`, `GET /api/holders/search`, `GET /api/holders/{edinet}`, `GET /api/stock/{code}/holders`
+- 書き込み: `jobs/edinet/edinet_large_holdings.py`
+- 読み取りだけ: `GET /api/holders/activity`, `GET /api/holders/search`, `GET /api/holders/{edinet}`, `GET /api/stock/{code}/holders`

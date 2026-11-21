@@ -2,7 +2,7 @@
 
 読み方と作り方は [DATA_FLOW.md](../DATA_FLOW.md)。全体の表と影響の調べ方は [ビューア](viewer.html)。
 
-図の見方: 左が入口、右が表。実線の矢印は書く、点線は読むだけ。灰色の点線の枠はほかの機能の表。`stocks` はほぼ全部が読むので、読む線は省く（表には出す。線が残らない入口は図から外す）。
+図の見方: 左がバッチ・API、右が表。実線の矢印は書き込み、点線は読み取りだけ。灰色の点線の枠はほかの機能の表。`stocks` はほぼ全部が読み取るので、読み取りの線は省く（表には出す。線が残らないバッチ・API は図から外す）。
 
 ## バッチ
 
@@ -65,7 +65,7 @@ flowchart LR
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
 
-| バッチ | 書く | 読むだけ |
+| バッチ | 書き込み | 読み取りだけ |
 |---|---|---|
 | `jobs/fx_rates.py` | `fx_rates` |  |
 | `jobs/golden_db.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `indicators`, `material_monthly`, `material_trade_country`, `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `statements`, `stocks`, `topix` |  |

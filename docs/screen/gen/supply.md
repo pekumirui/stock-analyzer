@@ -10,7 +10,7 @@
 
 ## 呼ぶ API と表
 
-左から JS のファイル、API、表。API から表への実線は書く、点線は読むだけ。`stocks` を読むだけの線は省く。
+左から JS のファイル、API、表。API から表への実線は書き込み、点線は読み取りだけ。`stocks` を読み取るだけの線は省く。
 
 ```mermaid
 ---
@@ -36,7 +36,7 @@ flowchart LR
   classDef tbl fill:#fff4e0,stroke:#e8590c
 ```
 
-| API | 呼ぶ JS | 書く | 読むだけ |
+| API | 呼ぶ JS | 書き込み | 読み取りだけ |
 |---|---|---|---|
 | `GET /api/supply/companies` | `supply.js` |  |  |
 | `GET /api/supply/countries/{material_id}` | `supply.js` |  | `material_trade_country` |
