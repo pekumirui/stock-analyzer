@@ -37,7 +37,7 @@ Preconditions:
 - **Period bar.** Wheel over `#chart`: `stockChart.chart.timeScale().getVisibleRange()` does not change. Drag the window in `.chart-nav` left: the range moves by the same share of the history. Drag the left edge left to the start → still 日足, just thinner.
 - **Reopen.** On that successful 72030 draw, click 概要 then 株価 again: no `/api/chart` or `/api/earnings-performance`. Opening another code and coming back within 10 minutes reuses the in-memory daily data (no `/api/chart`); after that the browser revalidates with `If-None-Match` (304).
 - **Old route.** Reload on `#chart/72030` → hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, only `#st-sub-price` visible. `localStorage` `ui.route=chart/39120` with no hash → `#stock/39120/price`.
-- **gotoChart.** From each caller above: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price?from=…`, `GET /api/stock/{code}/overview` and `GET /api/earnings-performance/{code}`. `GET /api/chart/{code}` is skipped when that code was loaded in the last 10 minutes (including 決算速報 `#e-chart`). A second `gotoChart` of the same code sends nothing.
+- **gotoChart.** From each caller above: `#tab-stock` shown (no `nav button[data-tab="stock"]`), 株価 `.on`, hash `#stock/{code}/price?from=…`, `GET /api/stock/{code}/overview` and `GET /api/earnings-performance/{code}`. `GET /api/chart/{code}` is skipped when that code was loaded in the last 10 minutes (including 決算速報 `#e-chart`). A second `gotoChart` of the same code sends nothing.
 - **Proof.** Keep `body.json` and (if CDP) a screenshot with `#chart` tall enough to show candles and the 銘柄 header.
 
 ## Gotchas
