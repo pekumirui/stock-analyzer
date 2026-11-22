@@ -1,11 +1,8 @@
 """wiki.yml は GitHub ホステッドだけで、secret 未設定ならデプロイしない。"""
 from __future__ import annotations
 
-import importlib
-import re
 from pathlib import Path
 
-import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -82,46 +79,9 @@ def test_cicd_runners_and_ignores_md() -> None:
             _fail(f"CI/CD {name} job must stay on self-hosted")
     if "**/*.md" not in (_on(data).get("push", {}).get("paths-ignore") or []):
         _fail("CI/CD push must keep ignoring markdown")
-
-
-def _glob(pattern: str) -> re.Pattern[str]:
-    out = re.escape(pattern).replace(r"\*\*/", "(.*/)?").replace(r"\*\*", ".*").replace(r"\*", "[^/]*")
-    return re.compile(out + r"\Z")
-
-
-def _pr_runs_on(path: str) -> bool:
-    paths = _on(yaml.safe_load(CICD.read_text(encoding="utf-8")))["pull_request"]["paths"]
-    hit = False
-    for pattern in paths:
-        negated = pattern.startswith("!")
-        if _glob(pattern.lstrip("!")).match(path):
-            hit = not negated
-    return hit
-
-
-@pytest.mark.parametrize("module", ["schema", "jobs", "screen", "dataflow", "overview"])
-def test_cicd_pr_runs_when_a_generated_doc_changes(module: str) -> None:
-    render = importlib.import_module(f"tools.{module}.render")
-    pages = [getattr(render, name) for name in ("OVERVIEW", "MODULES_PAGE", "SYSTEM_PAGE") if hasattr(render, name)]
-    for path in [*pages, f"{render.PAGE_DIR}/x.md"]:
-        assert _pr_runs_on(path), path
-
-
-@pytest.mark.parametrize(
-    ("path", "runs"),
-    [
-        ("app/main.py", True),
-        ("docs/schema/states.md", True),
-        ("docs/OVERVIEW.md", False),
-        ("docs/jobs/market.md", False),
-        ("docs/screen/stock.md", False),
-        ("README.md", False),
-        ("app/api/AGENTS.md", False),
-        (".claude/memory/MEMORY.md", False),
-    ],
-)
-def test_cicd_pr_skips_hand_written_markdown(path: str, runs: bool) -> None:
-    assert _pr_runs_on(path) is runs
+    pr = _on(data).get("pull_request", {})
+    if "paths" in pr or "paths-ignore" in pr:
+        _fail("CI/CD pull_request must run on every change so Test / Lint can be required checks")
 
 
 def test_cicd_push_skips_test_but_still_deploys() -> None:
