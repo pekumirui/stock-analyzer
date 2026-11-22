@@ -4,10 +4,20 @@ name: CI/CD
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - ".claude/memory/**"
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "!docs/**"
+      - "!.claude/memory/**"
+      - "docs/SCHEMA.md"
+      - "docs/schema/**"
+      - "docs/JOBS.md"
+      - "docs/jobs/gen/**"
+      - "docs/SCREENS.md"
+      - "docs/screen/gen/**"
+      - "docs/DATA_FLOW.md"
+      - "docs/dataflow/**"
+      - "docs/overview/**"
   push:
     branches: [main]
     paths-ignore:
