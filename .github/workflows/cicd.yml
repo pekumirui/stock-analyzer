@@ -48,11 +48,11 @@ env:
 
 jobs:
   # main への push では走らせない（PR で通っている前提）。Run workflow では走る。
-  # ランナーは変数 CI_TEST_RUNNER（例 ubuntu-latest）で替える。空なら self-hosted。
+  # ランナーは変数 CI_TEST_RUNNER で替える。空なら ubuntu-latest。
   test:
     name: Test
     if: github.event_name != 'push'
-    runs-on: ${{ vars.CI_TEST_RUNNER || fromJSON('["self-hosted", "arm64"]') }}
+    runs-on: ${{ vars.CI_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
