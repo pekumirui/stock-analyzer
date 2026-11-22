@@ -666,6 +666,18 @@ DB は要素名のまま残し、表の組み立て時（`periods` で切る前�
 
 未対応の CF 期首残高行は表にも `xbrl_pdf_matches` にも出さない（`xbrl_facts` には残る）。四半期新設科目・`0` の行・米国基準 PDF・推定振り分けに合わない独自並び・会社独自の区分合計要素（`ext:`）などは自動対応の限界となる。
 
+#### 当てはめの規則を変えるときの答え合わせ（`tools/xbrl/pdf_match_check.py`）
+
+`three_statements.py` の当てはめ（第 1〜5 段）か標準ラベルの辞書を変える PR は、本番の全銘柄で `tools/xbrl/pdf_match_check.py check` を流して前後を比べる。合成のテストは通っても、実データで付いていた行が外れることがある。DB は読み取り専用で開く。
+
+- 測り方: 同じ期末に PDF と XBRL の両方がある期を、新しい方から `--periods`（既定 3。0 で全部）期、1 期ずつ伏せる。伏せた期を PDF だけの期として `pdf_only_matches` で対応を付け、伏せた XBRL との値の対応（`learn_pair`。辞書は使わない）を答えにする。伏せた期以外の XBRL は全部使う（`--before-only` で伏せた期より後の XBRL も使わない）。
+- 数え方（最後に `stat` の行で出す）: 付いた行は `new_matched_<matched_by>_<ok|wrong|no_truth>`（答えと同じ要素 / 別の要素 / 答えが無い）、付かない行は `new_unmatched_<std_known|std_new|ext_known|ext_new|not_in_xbrl>`（答えが標準の要素か会社独自の要素か、その要素がほかの期の XBRL に出ているか。`not_in_xbrl` は伏せた XBRL に同じ値が無い）。
+- 前後の比較: `--old <古い版の three_statements.py>`（`git show origin/main:app/xbrl/three_statements.py > …` で取り出す）を渡すと、同じ行を古い版でも付けて `change_<fixed|broke|gained_ok|gained_wrong|gained_no_truth|lost_ok|lost_wrong|lost_no_truth|changed_other>` を数え、`--changes <TSV>` に 1 行ずつ書く。新しい版は既定でこのチェックアウトの版（`--new <ファイル>` で別の版）。`broke` と `lost_ok` が、正しく付いていた行が悪くなった数。
+- 標準ラベルの辞書: 既定は版ごとの既定の辞書（`config/xbrl/standard_labels.json`）。`--labels <JSON>` で両方の版に同じ辞書を渡す。`--exclude-own` は全銘柄の XBRL を先に読み（`label_dictionary.collect`）、判定する銘柄を除いて作った辞書で測る（自分の XBRL で自分を当てない。辞書の載せる条件や作り方を変えたときはこれで測る）。
+- `--remain <TSV>`: 付かなかった行を、行名・土台・区分・前後の行と付いた要素・答えの要素・伏せた XBRL に同じ名前の行があるか（要素と値）・同じ値がどこかにあるか、つきで書く。
+- `--code`（繰り返し可）で銘柄を絞る。`--max-seconds` を超えたら次の銘柄に進まず集計を出す。全銘柄は数時間かかる。`matches.py`・`financials.py` と同時に流さない（読み取りが書き込みを待たせ、`database is locked` になる）。
+- `subset --db <本番の DB> --out <新しい DB> --code …`（または `--codes-file`）: 指定した銘柄の `stocks` と `xbrl_filings` / `xbrl_contexts` / `xbrl_facts` / `xbrl_elements` / `xbrl_presentation_roles` だけの DB を作る（悪くなった行のある銘柄を手元で追う用）。できた DB はコミットしない。
+
 ### 出どころをまたいで要素名で引く
 
 「財務3表」の対応を `xbrl_pdf_matches` に保存し、有報・短信 XBRL・短信 PDF を同じ要素名で SQL から引く集計用ビュー `xbrl_statement_values` を提供する（画面・API は参照しない）。
