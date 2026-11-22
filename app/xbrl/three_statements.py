@@ -109,6 +109,20 @@ NAME_WEIGHT = 1
 KEPT_WEIGHT = 1_000_000
 STANDARD_BY = "standard"
 STANDARD_OUTSIDE = "-"
+STANDARD_OTHER = "その他"
+STANDARD_ABOVE_SUBTOTAL = ":小計まで"
+STANDARD_SUBTOTAL_NAME = "小計"
+STANDARD_SUBTOTAL_RE = re.compile(r"^(?:ext:)?Subtotal")
+STANDARD_OPERATING_RE = re.compile(r"Operating")
+NET_TAIL = "(純額)"
+STANDARD_BEFORE_ACCUMULATED = ":累計額の前"
+ACCUMULATED_NAMES = frozenset({"減価償却累計額", "減損損失累計額", "減価償却累計額及び減損損失累計額"})
+STANDARD_EXTRA_HEADS = {"BS": ("その他利益剰余金", "資本剰余金", "利益剰余金")}
+CLOSING_CASH_RE = re.compile(
+    r"^[IVXⅠ-Ⅻ]*(?:現金(?:及び|および)現金同等物の?当?(?:四半期|中間)?期?末残高|期末現金(?:及び|および)現金同等物残高)$"
+)
+CLOSING_CASH_NAMES = ("現金及び現金同等物の残高", "現金及び現金同等物")
+STANDARD_ALIASES = {"BS": {"その他の包括利益累計額": "評価・換算差額等"}}
 
 BS_GROUPS = {
     "Assets": "資産", "Liabilities": "負債", "NetAssets": "純資産",
@@ -322,6 +336,8 @@ class Names:
     losses: dict[str, str] = field(default_factory=dict)
     canon_keys: dict[str, str] = field(default_factory=dict)
     canon_by_section: dict[tuple[str, str], str] = field(default_factory=dict)
+    others: dict[str, str] = field(default_factory=dict)
+    accumulated: dict[tuple[str, str], str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -335,6 +351,8 @@ class StandardLabel:
 class StandardBook:
     labels: Mapping[tuple[str, str, str], StandardLabel] = field(default_factory=dict)
     per_share: frozenset[str] = frozenset()
+    others: Mapping[tuple[str, str, str], str] = field(default_factory=dict)
+    accumulated: Mapping[tuple[str, str, str], str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -505,7 +523,19 @@ def standard_book(raw: Mapping[str, Any]) -> StandardBook:
                 labels[(str(standard), str(statement), str(name))] = StandardLabel(
                     item.get("any"), item.get("home"), dict(item.get("within") or {}),
                 )
-    return StandardBook(labels, frozenset(str(k) for k in raw.get("per_share") or ()))
+    others = {
+        (str(standard), str(statement), str(home)): str(key)
+        for standard, statements in (raw.get("others") or {}).items()
+        for statement, homes in statements.items()
+        for home, key in homes.items()
+    }
+    accumulated = {
+        (str(standard), str(name), str(prev)): str(key)
+        for standard, names in (raw.get("accumulated") or {}).items()
+        for name, prevs in names.items()
+        for prev, key in prevs.items()
+    }
+    return StandardBook(labels, frozenset(str(k) for k in raw.get("per_share") or ()), others, accumulated)
 
 
 @lru_cache(maxsize=1)
@@ -1562,7 +1592,7 @@ def apply_learned(
                 if counts[m.key] == 1:
                     found[n] = m
     if standard is not None:
-        for n, m in _standard_rows(live_rows, bases, found, statement, standard, _standard_book()).items():
+        for n, m in _standard_rows(live_rows, bases, found, statement, standard, _standard_book(), names).items():
             found[n] = m
     result: list[Mapped | None] = [None] * len(rows)
     for n, i in enumerate(live):
@@ -1580,6 +1610,57 @@ def _standard_entry(book: StandardBook, standard: str, statement: str, base: str
     return found
 
 
+def _strip_extra_heads(base: str, statement: str) -> str:
+    heads = sorted(STANDARD_EXTRA_HEADS.get(statement, ()), key=len, reverse=True)
+    name = base
+    while True:
+        for head in heads:
+            rest = HEAD_SEP_RE.sub("", name[len(head):]) if name.startswith(head) else ""
+            if rest and not HEAD_KEEP_RE.search(rest):
+                name = rest
+                break
+        else:
+            return name
+
+
+def _section_homes(marks: Sequence[str | None], statement: str) -> list[str | None]:
+    framed = any(_is_marker(k, statement) for k in marks)
+    section: str | None = None
+    homes: list[str | None] = [None] * len(marks)
+    for n in range(len(marks) - 1, -1, -1):
+        if _is_marker(marks[n], statement):
+            section = marks[n]
+        homes[n] = section or (STANDARD_OUTSIDE if framed else None)
+    return homes
+
+
+def _other_homes(
+    marks: Sequence[str | None], subtotals: Sequence[bool], names: Sequence[str], statement: str,
+) -> list[str | None]:
+    section: str | None = None
+    homes: list[str | None] = [None] * len(marks)
+    for n in range(len(marks) - 1, -1, -1):
+        if _is_marker(marks[n], statement):
+            section = marks[n]
+        elif statement == "CF" and subtotals[n] and section is not None and not section.endswith(STANDARD_ABOVE_SUBTOTAL):
+            section += STANDARD_ABOVE_SUBTOTAL
+        gross = section is not None and n + 1 < len(names) and names[n + 1] in ACCUMULATED_NAMES
+        homes[n] = section + STANDARD_BEFORE_ACCUMULATED if gross else section
+    return homes
+
+
+def _accumulated_prev(names: Sequence[str], n: int) -> int | None:
+    at = n - 1
+    while at >= 0 and names[at] in ACCUMULATED_NAMES:
+        at -= 1
+    after = n + 1
+    while after < len(names) and names[after] in ACCUMULATED_NAMES:
+        after += 1
+    if at < 0 or after >= len(names) or not names[after].endswith(NET_TAIL):
+        return None
+    return at
+
+
 def _alone(picked: Mapping[int, str]) -> dict[int, str]:
     counts = Counter(picked.values())
     return {n: k for n, k in picked.items() if counts[k] == 1}
@@ -1587,9 +1668,9 @@ def _alone(picked: Mapping[int, str]) -> dict[int, str]:
 
 def _standard_rows(
     live_rows: Sequence[Fact], bases: Sequence[str], found: Sequence[Mapped | None], statement: str, standard: str,
-    book: StandardBook,
+    book: StandardBook, names: Names | None = None,
 ) -> dict[int, Mapped]:
-    if not book.labels:
+    if not (book.labels or book.others or book.accumulated):
         return {}
     taken = {m.key for m in found if m is not None}
     entries = {
@@ -1602,21 +1683,97 @@ def _standard_rows(
 
     picked = _alone({n: e.any for n, e in entries.items() if _is_marker(e.any, statement) and fits(e.any, n)})
     marks = [m.key if m is not None else picked.get(n) for n, m in enumerate(found)]
-    framed = any(_is_marker(k, statement) for k in marks)
-    section: str | None = None
-    homes: list[str | None] = [None] * len(marks)
-    for n in range(len(marks) - 1, -1, -1):
-        if _is_marker(marks[n], statement):
-            section = marks[n]
-        homes[n] = section or (STANDARD_OUTSIDE if framed else None)
+    homes = _section_homes(marks, statement)
     for n, entry in entries.items():
-        if n in picked:
-            continue
-        home = homes[n]
-        key = entry.any if home is None else entry.within.get(home) or (entry.any if entry.home == home else None)
-        if fits(key, n):
+        if n not in picked and fits(key := _standard_key(entry, homes[n]), n):
             picked[n] = str(key)
-    return {n: Mapped(k, 1, STANDARD_BY) for n, k in _alone(picked).items()}
+    first = _alone(picked)
+    taken |= set(first.values())
+    own = names or Names()
+    for more in (_standard_named, _standard_again, _standard_accumulated):
+        marks = [m.key if m is not None else first.get(n) for n, m in enumerate(found)]
+        added = _alone({n: k for n, k in more(bases, marks, statement, standard, book, own).items() if fits(k, n)})
+        taken |= set(added.values())
+        first.update(added)
+    return {n: Mapped(k, 1, STANDARD_BY) for n, k in first.items()}
+
+
+def _closing_cash(book: StandardBook, standard: str, names: Names, home: str | None) -> str | None:
+    for name in CLOSING_CASH_NAMES:
+        if key := names.keys.get(name) or names.canon_keys.get(name):
+            return key
+    for name in CLOSING_CASH_NAMES:
+        entry = book.labels.get((standard, "CF", name))
+        if entry is not None and (key := _standard_key(entry, home)):
+            return key
+    return None
+
+
+def _standard_key(entry: StandardLabel, home: str | None) -> str | None:
+    return entry.any if home is None else entry.within.get(home) or (entry.any if entry.home == home else None)
+
+
+def _standard_named(
+    bases: Sequence[str], marks: Sequence[str | None], statement: str, standard: str, book: StandardBook, names: Names,
+) -> dict[int, str]:
+    out: dict[int, str] = {}
+    homes = _section_homes(marks, statement)
+    for n, base in enumerate(bases):
+        if marks[n] is not None:
+            continue
+        stripped = _strip_extra_heads(base, statement)
+        alias = STANDARD_ALIASES.get(statement, {}).get(_total_stem(base) or base)
+        entry = _standard_entry(book, standard, statement, alias or stripped) if alias or stripped != base else None
+        if entry is not None and _is_marker(entry.any, statement):
+            out[n] = str(entry.any)
+        elif entry is not None and (key := _standard_key(entry, homes[n])) is not None:
+            out[n] = key
+        if statement == "CF" and CLOSING_CASH_RE.match(base) and (key := _closing_cash(book, standard, names, homes[n])):
+            out[n] = key
+    subtotals = [bool(STANDARD_SUBTOTAL_RE.match(k or "")) or b == STANDARD_SUBTOTAL_NAME for k, b in zip(marks, bases)]
+    canons = [_canon_name(b) for b in bases]
+    other_homes = _other_homes(marks, subtotals, canons, statement)
+    others = Counter(h for h, b in zip(other_homes, bases) if b == STANDARD_OTHER)
+    for n, base in enumerate(bases):
+        home = other_homes[n]
+        if marks[n] is not None or base != STANDARD_OTHER or home is None or others[home] != 1:
+            continue
+        split = home + STANDARD_ABOVE_SUBTOTAL
+        if split not in other_homes and (split in names.others or (standard, statement, split) in book.others):
+            continue
+        key = names.others.get(home) or book.others.get((standard, statement, home))
+        if key is not None:
+            out[n] = key
+    return out
+
+
+def _standard_again(
+    bases: Sequence[str], marks: Sequence[str | None], statement: str, standard: str, book: StandardBook, names: Names,
+) -> dict[int, str]:
+    homes = _section_homes(marks, statement)
+    return {
+        n: key for n, base in enumerate(bases)
+        if marks[n] is None and (entry := _standard_entry(book, standard, statement, base)) is not None
+        and (key := _standard_key(entry, homes[n])) is not None
+    }
+
+
+def _standard_accumulated(
+    bases: Sequence[str], marks: Sequence[str | None], statement: str, standard: str, book: StandardBook, names: Names,
+) -> dict[int, str]:
+    out: dict[int, str] = {}
+    canons = [_canon_name(b) for b in bases]
+    for n, name in enumerate(canons):
+        if marks[n] is not None or name not in ACCUMULATED_NAMES:
+            continue
+        at = _accumulated_prev(canons, n)
+        prev = marks[at] if at is not None else None
+        if prev is None:
+            continue
+        key = names.accumulated.get((name, prev)) or book.accumulated.get((standard, name, prev))
+        if key is not None:
+            out[n] = key
+    return out
 
 
 def _known(learned: Sequence[Learned], statement: str) -> set[object]:
@@ -1749,6 +1906,8 @@ def name_index(filings: Sequence[Filing], statement: str, excluded: Iterable[fro
     multi_canon_within: set[tuple[str, str]] = set()
     order: list[str] = []
     per_share: set[str] = set()
+    others: dict[str, set[str]] = defaultdict(set)
+    accumulated: dict[tuple[str, str], set[str]] = defaultdict(set)
     for filing in xbrls:
         facts = filing.by_statement.get(statement, [])
         if not facts:
@@ -1756,6 +1915,8 @@ def name_index(filings: Sequence[Filing], statement: str, excluded: Iterable[fro
         labels = [_clean_label(f.label) for f in facts]
         labels = ["" if OPENING_CASH_RE.match(name) else name for name in labels]
         canons = [_canon_name(name) if name else "" for name in labels]
+        _own_others(facts, labels, statement, others)
+        _own_accumulated(facts, canons, accumulated)
         per_share.update(f.key for f in facts if f.unit in PER_SHARE_UNITS)
         declared = filing.parts.get(statement, {})
         for k, part in declared.items():
@@ -1830,7 +1991,26 @@ def name_index(filings: Sequence[Filing], statement: str, excluded: Iterable[fro
         {n: k for n, ks in canon_found.items() if (k := pick(ks, n, n in multi_canon, True)) is not None},
         {sk: k for sk, ks in canon_within.items()
          if (k := pick(ks, sk[1], sk in multi_canon_within, False)) is not None},
+        {home: next(iter(ks)) for home, ks in others.items() if len(ks) == 1},
+        {pair: next(iter(ks)) for pair, ks in accumulated.items() if len(ks) == 1},
     )
+
+
+def _own_others(facts: Sequence[Fact], labels: Sequence[str], statement: str, out: dict[str, set[str]]) -> None:
+    keys = [f.key for f in facts]
+    canons = [_canon_name(name) for name in labels]
+    homes = _other_homes(keys, [bool(STANDARD_SUBTOTAL_RE.match(k)) for k in keys], canons, statement)
+    count = Counter(h for h, name in zip(homes, labels) if name == STANDARD_OTHER)
+    for key, home, name in zip(keys, homes, labels):
+        if name == STANDARD_OTHER and home is not None and count[home] == 1:
+            out[home].add(key)
+
+
+def _own_accumulated(facts: Sequence[Fact], canons: Sequence[str], out: dict[tuple[str, str], set[str]]) -> None:
+    for n, name in enumerate(canons):
+        at = _accumulated_prev(canons, n) if name in ACCUMULATED_NAMES else None
+        if at is not None:
+            out[(name, facts[at].key)].add(facts[n].key)
 
 
 def _by_name(
