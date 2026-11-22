@@ -72,10 +72,9 @@ def test_wiki_workflow_uses_github_hosted_and_skips_unset_secrets() -> None:
 def test_cicd_runners_and_ignores_md() -> None:
     data = yaml.safe_load(CICD.read_text(encoding="utf-8"))
     jobs = data["jobs"]
-    # Test は変数 CI_TEST_RUNNER で替える。空なら self-hosted。
     test_runs_on = str(jobs["test"].get("runs-on"))
-    if "vars.CI_TEST_RUNNER ||" not in test_runs_on or '"self-hosted"' not in test_runs_on:
-        _fail("CI/CD test job must default to self-hosted unless CI_TEST_RUNNER is set")
+    if "vars.CI_TEST_RUNNER ||" not in test_runs_on or "'ubuntu-latest'" not in test_runs_on or "self-hosted" in test_runs_on:
+        _fail("CI/CD test job must default to ubuntu-latest unless CI_TEST_RUNNER is set")
     if jobs["lint"].get("runs-on") != "ubuntu-latest":
         _fail("CI/CD lint job must run on ubuntu-latest")
     for name in ("release", "deploy"):

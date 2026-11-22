@@ -1243,7 +1243,7 @@
   "docstring": 1
  },
  "tests/wiki/test_wiki_workflow.py": {
-  "comment": 2,
+  "comment": 1,
   "docstring": 3
  },
  "tests/xbrl/test_pdf_matches.py": {
