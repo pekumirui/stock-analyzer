@@ -78,6 +78,33 @@ def test_older_rules_show_as_changes(tmp_path, capsys, no_labels) -> None:
     assert all(row["old_key"] == "" and row["new_by"] == "name" for row in rows)
 
 
+def test_rows_on_another_element_are_listed(tmp_path, capsys, no_labels) -> None:
+    forced = tmp_path / "forced_rules.py"
+    source = Path(fst.__file__).read_text(encoding="utf-8")
+    forced.write_text(source + """
+
+_real_matches = pdf_only_matches
+
+
+def pdf_only_matches(db, code):
+    return [
+        m if m.mapped is None else replace(m, mapped=Mapped("Assets", 1, "name"))
+        for m in _real_matches(db, code)
+    ]
+""", encoding="utf-8")
+    wrong = tmp_path / "wrong.tsv"
+    args = ["check", "--db", engine.url.database, "--periods", "0", "--new", str(forced), "--wrong", str(wrong),
+            "--labels", no_labels]
+    assert check.main(args) == 0
+    got = stats(capsys.readouterr().out)
+    rows = table(wrong)
+    assert rows and len(rows) == got["new_matched_name_wrong"]
+    assert all(row["key"] == "Assets" and row["truth_key"] not in ("", "Assets") for row in rows)
+    assert all(row["matched_by"] == "name" and row["truth_label"] for row in rows)
+    on_bs = [row for row in rows if row["statement"] == "BS"]
+    assert on_bs and all(row["key_in_hidden"] == "1" and row["key_hidden_value"] for row in on_bs)
+
+
 def test_dictionary_without_the_company_itself(capsys) -> None:
     args = ["check", "--db", engine.url.database, "--periods", "0", "--exclude-own", "--min-codes", "1", "--code", CODE]
     assert check.main(args) == 0

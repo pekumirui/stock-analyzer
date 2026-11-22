@@ -24,6 +24,10 @@ CHANGE_COLUMNS = (
     "change", "code", "consolidated", "period_end", "statement", "row", "value",
     "old_key", "old_by", "new_key", "new_by", "truth_key",
 )
+WRONG_COLUMNS = (
+    "code", "consolidated", "period_end", "cls", "standard", "statement", "row", "base", "value", "matched_by",
+    "key", "key_label", "key_in_hidden", "key_hidden_value", "truth_key", "truth_label", "truth_in_others",
+)
 REMAIN_COLUMNS = (
     "code", "consolidated", "period_end", "cls", "standard", "statement", "row", "base", "value", "kind",
     "truth_key", "truth_label", "section", "prev_row", "prev_key", "next_row", "next_key",
@@ -165,10 +169,36 @@ def remain_rows(
             )
 
 
+def wrong_rows(
+    module: ModuleType, code: str, basis: bool, pdf: Any, xbrl: Any, view: Sequence[Any], rows: Sequence[Any],
+    truth: dict[int, str | None], seen: set[str],
+) -> Iterable[tuple[object, ...]]:
+    hidden = {}
+    for fact in xbrl.seq:
+        hidden.setdefault(fact.key, fact)
+    known = {}
+    for filing in view:
+        if not filing.is_pdf:
+            for fact in filing.seq:
+                known.setdefault(fact.key, fact.label)
+    for m in rows:
+        t = truth.get(m.fact.id)
+        if m.mapped is None or t is None or m.mapped.key == t:
+            continue
+        key = m.mapped.key
+        there = hidden.get(key)
+        yield (
+            code, int(basis), pdf.period_end, pdf.cls, pdf.standard, m.statement, m.fact.local,
+            module._base(m.fact, m.statement), m.fact.value, m.mapped.by,
+            key, known.get(key) or (there.label if there else None), int(there is not None),
+            there.value if there else None, t, hidden[t].label if t in hidden else None, int(t in seen),
+        )
+
+
 def check_code(
     db: Session, code: str, new: ModuleType, old: ModuleType | None, raw: dict[str, Any] | None,
     defaults: dict[int, Any], periods: int, before_only: bool, stat: Counter,
-    changes: TextIO | None, remain: TextIO | None,
+    changes: TextIO | None, remain: TextIO | None, wrong: TextIO | None,
 ) -> None:
     both_new = new.load_both(db, code)
     both_old = old.load_both(db, code) if old is not None else {}
@@ -190,6 +220,8 @@ def check_code(
                     stat[f"new_matched_{m.mapped.by}_{verdict(m.mapped.key, t)}"] += 1
             for row in remain_rows(new, code, basis, pdf, xbrl, rows, truth, seen):
                 write_row(remain, row)
+            for row in wrong_rows(new, code, basis, pdf, xbrl, view, rows, truth, seen):
+                write_row(wrong, row)
             if old is None:
                 continue
             use_book(old, defaults, raw)
@@ -240,9 +272,11 @@ def run_check(args: argparse.Namespace) -> int:
     with contextlib.ExitStack() as stack:
         changes = stack.enter_context(open(args.changes, "w", encoding="utf-8")) if args.changes else None
         remain = stack.enter_context(open(args.remain, "w", encoding="utf-8")) if args.remain else None
+        wrong = stack.enter_context(open(args.wrong, "w", encoding="utf-8")) if args.wrong else None
         stack.callback(restore_books, defaults, new, old)
         write_row(changes, CHANGE_COLUMNS)
         write_row(remain, REMAIN_COLUMNS)
+        write_row(wrong, WRONG_COLUMNS)
         for code in codes:
             if time.monotonic() - started > args.max_seconds:
                 break
@@ -250,7 +284,7 @@ def run_check(args: argparse.Namespace) -> int:
                 raw = label_dictionary.build(seen, args.min_codes, args.min_share, code)
             try:
                 check_code(
-                    db, code, new, old, raw, defaults, args.periods, args.before_only, stat, changes, remain,
+                    db, code, new, old, raw, defaults, args.periods, args.before_only, stat, changes, remain, wrong,
                 )
             except Exception as exc:
                 failed += 1
@@ -319,6 +353,7 @@ def main(argv: list[str] | None = None) -> int:
     check.add_argument("--before-only", action="store_true", help="伏せた期より後の XBRL も使わない")
     check.add_argument("--changes", help="古い版と変わった行の TSV")
     check.add_argument("--remain", help="付かなかった行の TSV")
+    check.add_argument("--wrong", help="答えと別の要素に付いた行の TSV")
     check.add_argument("--max-seconds", type=float, default=float("inf"))
     check.add_argument("--batch", type=int, default=200)
     check.set_defaults(run=run_check)

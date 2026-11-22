@@ -675,6 +675,7 @@ DB は要素名のまま残し、表の組み立て時（`periods` で切る前�
 - 前後の比較: `--old <古い版の three_statements.py>`（`git show origin/main:app/xbrl/three_statements.py > …` で取り出す）を渡すと、同じ行を古い版でも付けて `change_<fixed|broke|gained_ok|gained_wrong|gained_no_truth|lost_ok|lost_wrong|lost_no_truth|changed_other>` を数え、`--changes <TSV>` に 1 行ずつ書く。新しい版は既定でこのチェックアウトの版（`--new <ファイル>` で別の版）。`broke` と `lost_ok` が、正しく付いていた行が悪くなった数。
 - 標準ラベルの辞書: 既定は版ごとの既定の辞書（`config/xbrl/standard_labels.json`）。`--labels <JSON>` で両方の版に同じ辞書を渡す。`--exclude-own` は全銘柄の XBRL を先に読み（`label_dictionary.collect`）、判定する銘柄を除いて作った辞書で測る（自分の XBRL で自分を当てない。辞書の載せる条件や作り方を変えたときはこれで測る）。
 - `--remain <TSV>`: 付かなかった行を、行名・土台・区分・前後の行と付いた要素・答えの要素・伏せた XBRL に同じ名前の行があるか（要素と値）・同じ値がどこかにあるか、つきで書く。
+- `--wrong <TSV>`: 答えと別の要素に付いた行を、付いた要素とそのラベル・その要素が伏せた XBRL にあるか（あればその値）・答えの要素とラベル・答えの要素がほかの期の XBRL に出ているか、つきで書く（期ごとに要素名を変える会社の、名前が変わっただけの行と、科目の取り違えを分けるのに使う）。
 - `--code`（繰り返し可）で銘柄を絞る。`--max-seconds` を超えたら次の銘柄に進まず集計を出す。全銘柄は数時間かかる。`matches.py`・`financials.py` と同時に流さない（読み取りが書き込みを待たせ、`database is locked` になる）。
 - `subset --db <本番の DB> --out <新しい DB> --code …`（または `--codes-file`）: 指定した銘柄の `stocks` と `xbrl_filings` / `xbrl_contexts` / `xbrl_facts` / `xbrl_elements` / `xbrl_presentation_roles` だけの DB を作る（悪くなった行のある銘柄を手元で追う用）。できた DB はコミットしない。
 
