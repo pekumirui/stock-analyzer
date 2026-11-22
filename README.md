@@ -134,7 +134,7 @@ cd /home/stock/stock-analyzer
 
 ## CI/CD
 
-`main` にマージすると GitHub Actions が Lint → GitHub Release（タグ）→ ConoHa VPS へデプロイする。テストは PR で通す（`main` への push では走らない。確かめたいときは **Run workflow**）。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。ただし PR では、生成文書（`docs/SCHEMA.md`・`docs/JOBS.md`・`docs/SCREENS.md`・`docs/DATA_FLOW.md` とその下のページ、`docs/overview/`）を触ると走る。
+`main` にマージすると GitHub Actions が Lint → GitHub Release（タグ）→ ConoHa VPS へデプロイする。テストは PR で通す（`main` への push では走らない。確かめたいときは **Run workflow**）。PR では変更の中身によらず毎回走る（Test / Lint は main のルールで必須のチェック）。`main` への push は、変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。
 
 ランナー: Lint は GitHub ホスト（`ubuntu-latest`）、Release と Deploy VPS は self-hosted（Azure VM）。Test は GitHub ホスト（`ubuntu-latest`）で、GitHub の Variable `CI_TEST_RUNNER` にラベルを入れるとそのランナーで走る。公開リポジトリなので、フォークからの PR のコードが動く Test を self-hosted に戻さない。
 
