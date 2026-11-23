@@ -1759,6 +1759,33 @@ def test_rows_outside_bs_do_not_take_balances_of_other_statements() -> None:
     assert learned.maps["BS"]["流動負債合計"].key == "CurrentLiabilities"
 
 
+def test_bs_rows_do_not_take_income_statement_items() -> None:
+    bs = [xbrl_fact(1, "CashAndDeposits", 943, instant=True), xbrl_fact(2, "CurrentAssets", 3430, instant=True),
+          xbrl_fact(3, "Assets", 5587, instant=True)]
+    pl = [xbrl_fact(4, "NetSales", 30000), xbrl_fact(5, "IncomeTaxesDeferred", -23.693)]
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2024, 3, 31),
+                   submitted="2024-06-20", standard="JPGAAP")
+    x.by_statement = {"BS": bs, "PL": pl}
+    x.seq = [*bs, *pl]
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="FY", period_end=date(2024, 3, 31),
+                     submitted="2024-05-10", standard="JPGAAP")
+    pdf.by_statement = {"BS": [bs_fact("現金及び預金", 943), bs_fact("流動資産合計", 3430),
+                               bs_fact("繰延税金資産", 23.693), bs_fact("資産合計", 5587)]}
+    learned = fst.learn_pair(pdf, x)
+    assert {k: v.key for k, v in learned.maps["BS"].items()} == {
+        "現金及び預金": "CashAndDeposits", "流動資産合計": "CurrentAssets", "資産合計": "Assets",
+    }
+    assert learned.extras["BS"] == {}
+    cf = [xbrl_fact(6, "CurrentPortionOfLongTermLoansPayable", 35.882, instant=True),
+          xbrl_fact(7, "CurrentLiabilities", 100, instant=True), xbrl_fact(8, "RepaymentOfLongTermLoansPayableFinCF", -35.548)]
+    x.by_statement = {"BS": cf[:2], "CF": cf[2:]}
+    x.seq = list(cf)
+    pdf.by_statement = {"BS": [bs_fact("1年内返済予定の長期借入金", 35.548), bs_fact("流動負債合計", 100)]}
+    learned = fst.learn_pair(pdf, x)
+    assert {k: v.key for k, v in learned.maps["BS"].items()} == {"流動負債合計": "CurrentLiabilities"}
+    assert learned.extras["BS"] == {}
+
+
 def test_pl_rows_do_not_take_cash_flow_items() -> None:
     bs = [xbrl_fact(1, "CashAndDeposits", 950, instant=True), xbrl_fact(2, "Assets", 3000, instant=True)]
     pl = [xbrl_fact(3, "NetSales", 5000), xbrl_fact(4, "IncomeBeforeIncomeTaxes", 1062), xbrl_fact(5, "ProfitLoss", 912)]

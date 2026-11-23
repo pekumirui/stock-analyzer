@@ -1220,8 +1220,10 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
 
 
 def _foreign(statement: str, fact: Fact, own: set[str]) -> bool:
-    if statement == "BS" or fact.key in own:
+    if fact.key in own:
         return False
+    if statement == "BS":
+        return not fact.instant
     if statement == "PL" and CF_MARK_RE.search(fact.local):
         return True
     return fact.instant and not (statement == "CF" and CF_CASH_RE.search(fact.local))
