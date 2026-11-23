@@ -14,7 +14,7 @@ from app.models import Statement
 from app.xbrl.context import ParsedContext, assign_relative_periods, shift_years
 from app.xbrl.normalize import ALLOWED_MEMBERS, PDF_SUMMARY_NS
 from app.xbrl.parser import ParsedFact, ParsedPackage
-from app.xbrl.pdf._layout import Line, Page, PdfLayoutError, grid, split_amounts
+from app.xbrl.pdf._layout import _FURNITURE_TOP, Line, Page, PdfLayoutError, grid, split_amounts
 
 DisclosureNo = NewType("DisclosureNo", str)
 _DISCLOSURE_NO = re.compile(r"\d{14}")
@@ -966,6 +966,15 @@ def _summary_origin(pages: list[Page], specs: tuple[SectionSpec, ...]) -> int:
     return 0
 
 
+def _repeated_running_head(
+    hits: list[tuple[int, SectionSpec, str]], lines: list[Line], index: int, spec: SectionSpec, text: str,
+) -> bool:
+    if spec.name not in _STATEMENTS or not hits or lines[index].base >= _FURNITURE_TOP:
+        return False
+    _prev_index, prev_spec, prev_text = hits[-1]
+    return prev_spec.name == spec.name and prev_text == text
+
+
 def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list[Line], bool, str]]:
     specs = tuple(spec for spec in SECTIONS if d.kind in spec.kinds)
     origin = _summary_origin(pages, specs)
@@ -980,6 +989,8 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         for spec in specs:
             if spec.headings.search(heading) or spec.headings.search(compact):
                 if spec.name.startswith("summary_") and page_of[index] - origin >= _SUMMARY_PAGES:
+                    break
+                if _repeated_running_head(hits, lines, index, spec, heading or compact):
                     break
                 hits.append((index, spec, heading or compact))
                 break
@@ -1118,6 +1129,18 @@ def _split_grids(lines: list[Line]) -> list[list[Line]]:
     return [chunk for chunk in chunks if chunk]
 
 
+def _mixed_periods(headers: tuple[str, ...], spec: SectionSpec, d: PdfDisclosure) -> bool:
+    if spec.shape is not Shape.INSTANT:
+        return False
+    texts = tuple(_compact(text) for text in headers if _compact(text))
+    periods = {
+        dated[0]
+        for day in _dates_in(texts, d)
+        if (dated := _period_from_date(day, d, spec)) is not None
+    }
+    return len(periods) > 1
+
+
 def _statement_roles(table, spec: SectionSpec, d: PdfDisclosure) -> list[Role | None]:
     """本表の列ごとの役割。増減・3 か月・予想の列は None。同じ役割が 2 列に付けば、見出しで決まった方だけ残す。
 
@@ -1138,8 +1161,9 @@ def _statement_roles(table, spec: SectionSpec, d: PdfDisclosure) -> list[Role | 
             roles.append(None)
             explicit.append(False)
             continue
-        right = role_of(column.headers, spec, d, rightmost=True)
-        left = role_of(column.headers, spec, d, rightmost=False)
+        headers = () if _mixed_periods(column.headers, spec, d) else column.headers
+        right = role_of(headers, spec, d, rightmost=True)
+        left = role_of(headers, spec, d, rightmost=False)
         role = right if index == last else left
         if role is not None and "ForecastMember" in role.members:
             role = None
