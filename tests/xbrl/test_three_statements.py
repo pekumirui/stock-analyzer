@@ -480,9 +480,67 @@ def _declared(s: Seeder) -> None:
     s.roles(732, [("rol_QuarterlyConsolidatedBalanceSheetTDnet", "BS", True, False, _tree_items(DECLARED_TREE))])
 
 
+PARENT = "71150"
+PARENT_FY_TREE = """
+AssetsAbstract=資産の部
+  NoncurrentAssetsAbstract=固定資産
+    InvestmentsAndOtherAssetsAbstract=投資その他の資産
+      StocksOfSubsidiariesAndAffiliates
+      InvestmentsAndOtherAssets
+    NoncurrentAssets
+  Assets
+"""
+PARENT_Q_TREE = """
+AssetsAbstract=資産の部
+  NoncurrentAssetsAbstract=固定資産
+    InvestmentsAndOtherAssets
+      StocksOfSubsidiariesAndAffiliates
+      OtherIOA
+    NoncurrentAssets
+  Assets
+"""
+SHIFTED = "71160"
+
+
+def _moved(s: Seeder) -> None:
+    s.stock(PARENT, "投資その他の資産の金額の下に内訳")
+    s.filing(741, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=PARENT)
+    s.facts(741, "2025-03-31", [
+        x("StocksOfSubsidiariesAndAffiliates", "i", 9), x("InvestmentsAndOtherAssets", "i", 9),
+        x("NoncurrentAssets", "i", 9), x("Assets", "i", 9),
+    ])
+    s.roles(741, [("rol_BalanceSheet", "BS", True, False, _tree_items(PARENT_FY_TREE))])
+    s.filing(742, "edinet", "Q2", "2025-09-30", "2025-11-28 15:00:00", code=PARENT)
+    s.facts(742, "2025-09-30", [
+        x("InvestmentsAndOtherAssets", "i", 10), x("StocksOfSubsidiariesAndAffiliates", "i", 9), x("OtherIOA", "i", 1),
+        x("NoncurrentAssets", "i", 10), x("Assets", "i", 10),
+    ])
+    s.roles(742, [("rol_QuarterlyBalanceSheet", "BS", True, False, _tree_items(PARENT_Q_TREE))])
+    s.filing(743, "edinet", "FY", "2026-03-31", "2026-06-20 15:00:00", code=PARENT)
+    s.facts(743, "2026-03-31", [
+        x("StocksOfSubsidiariesAndAffiliates", "i", 8), x("InvestmentsAndOtherAssets", "i", 8),
+        x("NoncurrentAssets", "i", 8), x("Assets", "i", 8),
+    ])
+    s.roles(743, [("rol_BalanceSheet", "BS", True, False, _tree_items(PARENT_FY_TREE))])
+    s.stock(SHIFTED, "流動資産の貸倒引当金が消える")
+    tail = [p("bs", "負債合計", 7), p("bs", "純資産合計", 3)]
+    s.filing(771, "tdnet_pdf", "FY", "2024-03-31", "2024-05-10 15:00:00", code=SHIFTED)
+    s.facts(771, "2024-03-31", [
+        p("bs", "現金及び預金", 100), p("bs", "貸倒引当金", -1), p("bs", "流動資産合計", 99),
+        p("bs", "投資その他の資産投資有価証券", 50), p("bs", "貸倒引当金#2", -2), p("bs", "投資その他の資産合計", 48),
+        p("bs", "固定資産合計", 48), p("bs", "資産合計", 147), *tail, p("bs", "負債純資産合計", 147),
+    ])
+    s.filing(772, "tdnet_pdf", "FY", "2025-03-31", "2025-05-10 15:00:00", code=SHIFTED)
+    s.facts(772, "2025-03-31", [
+        p("bs", "現金及び預金", 120), p("bs", "流動資産合計", 120),
+        p("bs", "投資その他の資産投資有価証券", 60), p("bs", "貸倒引当金", -3), p("bs", "投資その他の資産合計", 57),
+        p("bs", "固定資産合計", 57), p("bs", "資産合計", 177), *tail, p("bs", "負債純資産合計", 177),
+    ])
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed(lambda s: (_presentation(s), _split(s), _declared(s)))
+    seed(lambda s: (_presentation(s), _split(s), _declared(s), _moved(s)))
 
 
 def table(code: str = CODE, statement: str = "BS", periods: int = fst.DEFAULT_PERIODS,
@@ -1701,6 +1759,33 @@ def test_rows_outside_bs_do_not_take_balances_of_other_statements() -> None:
     assert learned.maps["BS"]["流動負債合計"].key == "CurrentLiabilities"
 
 
+def test_bs_rows_do_not_take_income_statement_items() -> None:
+    bs = [xbrl_fact(1, "CashAndDeposits", 943, instant=True), xbrl_fact(2, "CurrentAssets", 3430, instant=True),
+          xbrl_fact(3, "Assets", 5587, instant=True)]
+    pl = [xbrl_fact(4, "NetSales", 30000), xbrl_fact(5, "IncomeTaxesDeferred", -23.693)]
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2024, 3, 31),
+                   submitted="2024-06-20", standard="JPGAAP")
+    x.by_statement = {"BS": bs, "PL": pl}
+    x.seq = [*bs, *pl]
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="FY", period_end=date(2024, 3, 31),
+                     submitted="2024-05-10", standard="JPGAAP")
+    pdf.by_statement = {"BS": [bs_fact("現金及び預金", 943), bs_fact("流動資産合計", 3430),
+                               bs_fact("繰延税金資産", 23.693), bs_fact("資産合計", 5587)]}
+    learned = fst.learn_pair(pdf, x)
+    assert {k: v.key for k, v in learned.maps["BS"].items()} == {
+        "現金及び預金": "CashAndDeposits", "流動資産合計": "CurrentAssets", "資産合計": "Assets",
+    }
+    assert learned.extras["BS"] == {}
+    cf = [xbrl_fact(6, "CurrentPortionOfLongTermLoansPayable", 35.882, instant=True),
+          xbrl_fact(7, "CurrentLiabilities", 100, instant=True), xbrl_fact(8, "RepaymentOfLongTermLoansPayableFinCF", -35.548)]
+    x.by_statement = {"BS": cf[:2], "CF": cf[2:]}
+    x.seq = list(cf)
+    pdf.by_statement = {"BS": [bs_fact("1年内返済予定の長期借入金", 35.548), bs_fact("流動負債合計", 100)]}
+    learned = fst.learn_pair(pdf, x)
+    assert {k: v.key for k, v in learned.maps["BS"].items()} == {"流動負債合計": "CurrentLiabilities"}
+    assert learned.extras["BS"] == {}
+
+
 def test_pl_rows_do_not_take_cash_flow_items() -> None:
     bs = [xbrl_fact(1, "CashAndDeposits", 950, instant=True), xbrl_fact(2, "Assets", 3000, instant=True)]
     pl = [xbrl_fact(3, "NetSales", 5000), xbrl_fact(4, "IncomeBeforeIncomeTaxes", 1062), xbrl_fact(5, "ProfitLoss", 912)]
@@ -2692,3 +2777,31 @@ def test_rows_under_an_outer_heading_between_inner_blocks_stay_in_place() -> Non
     assert order(split) == ["Land", "OldBuilding", "Intangible", "Securities", "NoncurrentAssets"]
     deep = [("A", ("負債", "流動")), ("X", ("資産", "流動")), ("B", ("負債", "固定")), ("C", ("負債", "流動"))]
     assert order(deep) == ["X", "A", "C", "B"]
+
+
+def test_children_of_a_section_total_go_under_the_heading_other_filings_declare() -> None:
+    got = rows(table(PARENT))
+    ioa = ("資産の部", "固定資産", "投資その他の資産")
+    assert (heads(got["OtherIOA"]), got["OtherIOA"]["indent"]) == (ioa, 0)
+    assert (heads(got["StocksOfSubsidiariesAndAffiliates"]), got["StocksOfSubsidiariesAndAffiliates"]["indent"]) == (ioa, 0)
+    keys = list(got)
+    assert keys.index("OtherIOA") < keys.index("InvestmentsAndOtherAssets")
+
+
+def test_pdf_rows_of_the_same_name_keep_their_section_when_one_drops_out(monkeypatch) -> None:
+    totals = {"流動資産": "CurrentAssets", "投資その他の資産": "InvestmentsAndOtherAssets",
+              "固定資産": "NoncurrentAssets", "資産": "Assets"}
+    book = fst.standard_book({"labels": {"JPGAAP": {"BS": {
+        name: {"any": key, "home": key, "within": {key: key}} for name, key in totals.items()
+    }}}})
+    monkeypatch.setattr(fst, "_standard_book", lambda: book)
+    got = table(SHIFTED, consolidated=True)
+    keys = [r["key"] for r in got["rows"]]
+    cells = {r["key"]: [None if c is None else c["value"] for c in r["cells"]] for r in got["rows"]}
+    allowance = [k for k in keys if k.startswith("pdf:貸倒引当金")]
+    assert len(allowance) == 2
+    current, invest = allowance
+    assert cells[current] == [-1 * M, None]
+    assert cells[invest] == [-2 * M, -3 * M]
+    assert keys.index(current) < keys.index("CurrentAssets") < keys.index(invest) < keys.index("InvestmentsAndOtherAssets")
+    assert {r["label"] for r in got["rows"] if r["key"] in allowance} == {"貸倒引当金"}
