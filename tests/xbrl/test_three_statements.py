@@ -1718,6 +1718,14 @@ def test_bs_rows_do_not_take_income_statement_items() -> None:
         "現金及び預金": "CashAndDeposits", "流動資産合計": "CurrentAssets", "資産合計": "Assets",
     }
     assert learned.extras["BS"] == {}
+    cf = [xbrl_fact(6, "CurrentPortionOfLongTermLoansPayable", 35.882, instant=True),
+          xbrl_fact(7, "CurrentLiabilities", 100, instant=True), xbrl_fact(8, "RepaymentOfLongTermLoansPayableFinCF", -35.548)]
+    x.by_statement = {"BS": cf[:2], "CF": cf[2:]}
+    x.seq = list(cf)
+    pdf.by_statement = {"BS": [bs_fact("1年内返済予定の長期借入金", 35.548), bs_fact("流動負債合計", 100)]}
+    learned = fst.learn_pair(pdf, x)
+    assert {k: v.key for k, v in learned.maps["BS"].items()} == {"流動負債合計": "CurrentLiabilities"}
+    assert learned.extras["BS"] == {}
 
 
 def test_pl_rows_do_not_take_cash_flow_items() -> None:
