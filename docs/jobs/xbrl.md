@@ -608,7 +608,7 @@ PDF は名前空間（`pdf-bs`・`pdf-pl`・`pdf-cf`）で分け、XBRL は `pre
 
 行キーは標準要素が `local_name`、会社独自要素が `ext:<local_name>`、未対応の PDF 行が `pdf:<local_name>` である。
 
-同じ期末に PDF（最新開示と同一基準で最大行数の 7 割以上ある最新開示）と XBRL（有報 ＞ 短信 XBRL の新しい方）が揃う回で、表ごとに非ゼロ絶対値の一致（丸め粒度差は許容）による LCS（同長なら土台・語幹・正規化名と要素ラベルの一致数が多い方）を取る。LCS で付かない行も、その表で値が 1 回・XBRL 全体で 1 要素・粒度の `100` 倍以上なら表をまたいで付けるが、PL・CF の行をその表外の時点要素に付けること（`8179` の CF 期首残高→流動負債合計の誤対応防止、`CashAndCashEquivalents*` は例外）と、PL の行を CF 目印要素に付けること（`9206` の事業費明細書→CF 減価償却費の誤対応防止）は禁止する。符号反転があれば向きも記憶し、値で付いた行は（区分, 土台）でも記憶する（ここでの区分は並びで直後に来る合計要素から決める：BS は大区分・区分合計、CF は営業・投資・財務合計、日本基準 PL は `GrossProfit`・`OperatingIncome`・`NonOperatingIncome`・`NonOperatingExpenses`・`ExtraordinaryIncome`・`ExtraordinaryLoss`）。
+同じ期末に PDF（最新開示と同一基準で最大行数の 7 割以上ある最新開示）と XBRL（有報 ＞ 短信 XBRL の新しい方）が揃う回で、表ごとに非ゼロ絶対値の一致（丸め粒度差は許容）による LCS（同長なら土台・語幹・正規化名と要素ラベルの一致数が多い方）を取る。LCS で付かない行も、その表で値が 1 回・XBRL 全体で 1 要素・粒度の `100` 倍以上なら表をまたいで付けるが、PL・CF の行をその表外の時点要素に付けること（`8179` の CF 期首残高→流動負債合計の誤対応防止、`CashAndCashEquivalents*` は例外）と、PL の行を CF 目印要素に付けること（`9206` の事業費明細書→CF 減価償却費の誤対応防止）と、BS の行をその表外の期間要素に付けること（`7443` の 2024/3 の PDF の繰延税金資産→PL の法人税等調整額 `IncomeTaxesDeferred` の誤対応防止。付くとその要素が BS の流動資産の頭に出る）は禁止する。符号反転があれば向きも記憶し、値で付いた行は（区分, 土台）でも記憶する（ここでの区分は並びで直後に来る合計要素から決める：BS は大区分・区分合計、CF は営業・投資・財務合計、日本基準 PL は `GrossProfit`・`OperatingIncome`・`NonOperatingIncome`・`NonOperatingExpenses`・`ExtraordinaryIncome`・`ExtraordinaryLoss`）。
 
 #### PDF 行名の土台と 2 回目の印字
 
