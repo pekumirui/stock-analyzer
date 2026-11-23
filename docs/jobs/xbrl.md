@@ -645,7 +645,7 @@ PDF が主となる列（基準変更会社は同一基準の学習結果と XBR
 
 #### 同じ期末に複数の出どころがある場合の統合と行の並び
 
-表ごとに `有報` ＞ `短信 XBRL` ＞ `短信 PDF`（同一出どころは提出が新しい方）を主とし、短信 PDF は最新開示と同一基準で最大行数の 7 割以上ある最新開示を土台にして、後続の一部訂正 PDF で土台行の値置換（「その他」・`#n` 付きを除く）と要素対応済み追加行の補完を行う。主に無い要素は下位の出どころ（PDF は対応済み行のみ）で補う。行順は最新期を土台に古い期の行を差し込み、分断された同一見出し塊は最多行数の塊へ集約する（`gather_heads`）。
+表ごとに `有報` ＞ `短信 XBRL` ＞ `短信 PDF`（同一出どころは提出が新しい方）を主とし、短信 PDF は最新開示と同一基準で最大行数の 7 割以上ある最新開示を土台にして、後続の一部訂正 PDF で土台行の値置換（「その他」・`#n` 付きを除く）と要素対応済み追加行の補完を行う。主に無い要素は下位の出どころ（PDF は対応済み行のみ）で補う。PDF が主の列で要素の付かなかった BS の行は、同じ土台の名前が区分を変えて 2 つ以上あれば、PDF の `#n` でなく（区分, 区分の中の何番目）で全期そろえた名前にする（`_key_by_section`。区分は付いた区分の合計の行から決め、`MARKER_ORDER` の区分の順に土台、`#2`、`#3` …。`1771` などで流動資産の貸倒引当金が無くなった期に、投資その他の資産の貸倒引当金が `#n` の振り直しで流動資産の行の名前になっていた。KAB-546）。行順は最新期を土台に古い期の行を差し込み、分断された同一見出し塊は最多行数の塊へ集約する（`gather_heads`）。
 
 #### 会計基準で表を分ける
 
@@ -655,7 +655,7 @@ PDF が主となる列（基準変更会社は同一基準の学習結果と XBR
 
 行の区分と見出しは表示リンクから決める。
 
-- 深さがある書類（`_tree_heads`）は `Abstract` 祖先の表示名をそのまま見出しに出し、金額要素配下の子は `indent` で字下げする。例外として、(1) 見出しの合計要素より後ろの子付き見出しは出さず（`6094`・`4052`）、(2) 子なし見出しは後続の兄弟要素を合計まで配下にし、(3) `Subtotal*` の子は字下げせず、(4) 新株予約権・非支配株主持分や CF の換算差額・増減額・期首期末残高・`*CCE`（`OUTSIDE_SECTIONS`）は株主資本や営業・投資・財務の見出し外へ出す。
+- 深さがある書類（`_tree_heads`）は `Abstract` 祖先の表示名をそのまま見出しに出し、金額要素配下の子は `indent` で字下げする。例外として、(1) 見出しの合計要素より後ろの子付き見出しは出さず（`6094`・`4052`）、(2) 子なし見出しは後続の兄弟要素を合計まで配下にし、(3) `Subtotal*` の子は字下げせず、(4) 新株予約権・非支配株主持分や CF の換算差額・増減額・期首期末残高・`*CCE`（`OUTSIDE_SECTIONS`）は株主資本や営業・投資・財務の見出し外へ出す。(5) 金額のある区分の合計の要素（`投資その他の資産` など、`<要素>Abstract` が見出しの要素）の子として字下げした行は、表のほかの行が同じ道筋の下にその見出し（`<要素>Abstract`）を宣言していれば、その見出しの下に 1 段浅く置く（`Part.under`。`8306` 個別の四半期の BS は 投資その他の資産 の金額の下に内訳を並べ、有報は見出しの下に並べる。有報に無い「その他」だけが合計の下に字下げされていた。KAB-546）。
 - 行統合判定用の「大区分・区分」（`_flat_parts`、KAB-481）は深さを見ず並びから決める（BS 大区分は `AssetsAbstract`・`LiabilitiesAbstract`・`NetAssetsAbstract` と IFRS 版、BS 区分は `CurrentAssetsAbstract`・`NoncurrentAssetsAbstract`・`PropertyPlantAndEquipmentAbstract`・`IntangibleAssetsAbstract`・`InvestmentsAndOtherAssetsAbstract`［`InvestmentsAndOtherAssetsGross` を含む］・`DeferredAssetsAbstract`・`CurrentLiabilitiesAbstract`・`NoncurrentLiabilitiesAbstract`・`ReservesUnderTheSpecialLawsAbstract1`・`ShareholdersEquityAbstract`・`ValuationAndTranslationAdjustmentsAbstract` と IFRS 版 `CurrentAssetsIFRSAbstract`・`NonCurrentAssetsIFRSAbstract`・`CurrentLiabilitiesIFRSAbstract`→`TotalCurrentLiabilitiesIFRS`・`NonCurrentLiabilitiesIFRSAbstract`→`NonCurrentLabilitiesIFRS`・`EquityAttributableToOwnersOfParentIFRSAbstract`、CF は営業・投資・財務の 3 区分、日本基準 PL は売上原価・販管費・営業外収益費用・特別利益損失の 6 区分。流動・固定資産負債と営業・投資 CF は `OPEN_AFTER_TOTAL` で後ろに見出しがある間は合計で閉じず、見出しなし 1 行合計は `LONE_SECTIONS` でその区分にする）。各行は値がある最新書類の区分・見出しを使い、深さの無い古い書類のみの行は同じ区分の合計行から宣言見出しを借りる。
 
 #### タグが替わって割れた行をまとめる
