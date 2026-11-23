@@ -268,6 +268,7 @@ class Part:
     ifrs: bool
     heads: tuple[Head, ...] | None = None
     indent: int = 0
+    under: str | None = None
 
     @property
     def coarse(self) -> tuple[str | None, str | None, bool]:
@@ -632,9 +633,13 @@ def _basis_columns(
 ) -> tuple[list[Column], dict[str, str], dict[str, str | None]]:
     learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
     columns = build_columns(filings, learned, statement, excluded)
+    labels = _labels(filings, learned)
     for column in columns:
         column.consolidated = consolidated
-    return columns, _labels(filings, learned), _units(filings)
+        for key in column.values:
+            if key.startswith("pdf:") and key not in labels:
+                labels[key] = _pdf_label(key[4:])
+    return columns, labels, _units(filings)
 
 
 def _stitch(main: list[Column], other: list[Column]) -> list[Column]:
@@ -808,7 +813,7 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
     if not items or any(_depth(item) is None for item in items):
         return flat
     heads = _tree_heads(items, statement)
-    return {key: replace(part, heads=heads[key][0], indent=heads[key][1]) if key in heads else part
+    return {key: replace(part, heads=heads[key][0], indent=heads[key][1], under=heads[key][2]) if key in heads else part
             for key, part in flat.items()}
 
 
@@ -821,7 +826,9 @@ def _head_name(item: Sequence[Any]) -> str:
     return str(label or item[1])
 
 
-def _tree_heads(items: Sequence[Sequence[Any]], statement: str) -> dict[str, tuple[tuple[Head, ...], int]]:
+def _tree_heads(
+    items: Sequence[Sequence[Any]], statement: str,
+) -> dict[str, tuple[tuple[Head, ...], int, str | None]]:
     """深さのある並び → 値の要素ごとの、見出しの道筋（外側から。(要素, 表示名)）と字下げ（値のある親の数）。
 
     見出しは祖先の見出しの要素（名前に Abstract を含む）を全部、宣言どおり使う。値のある要素の子は親の行の下に字下げする。
@@ -833,7 +840,7 @@ def _tree_heads(items: Sequence[Sequence[Any]], statement: str) -> dict[str, tup
     """
     sections = HEAD_SECTIONS[statement]
     outside = OUTSIDE_SECTIONS.get(statement)
-    out: dict[str, tuple[tuple[Head, ...], int]] = {}
+    out: dict[str, tuple[tuple[Head, ...], int, str | None]] = {}
     path: list[dict[str, Any]] = []
     for i, item in enumerate(items):
         depth = int(item[4])
@@ -854,13 +861,14 @@ def _tree_heads(items: Sequence[Sequence[Any]], statement: str) -> dict[str, tup
         key = _item_key(item)
         shown = [e for e in path if e["kind"] == "head"]
         last = max((n for n, e in enumerate(path) if e["kind"] == "head"), default=-1)
-        indent = sum(1 for e in path[last + 1:] if e["kind"] == "value")
+        parents = [e["key"] for e in path[last + 1:] if e["kind"] == "value"]
+        indent = len(parents)
         if outside is not None and outside.search(key):
             while shown and shown[-1]["local"] in sections:
                 shown.pop()
             indent = 0
         if key not in out:
-            out[key] = (tuple(e["head"] for e in shown), indent)
+            out[key] = (tuple(e["head"] for e in shown), indent, parents[0] if indent else None)
         for entry in reversed(path):
             if entry["kind"] in ("head", "hidden"):
                 if not item[2] and name == entry["total"]:
@@ -868,7 +876,7 @@ def _tree_heads(items: Sequence[Sequence[Any]], statement: str) -> dict[str, tup
                 break
         if path and path[-1]["depth"] == depth - 0.5 and not item[2] and name == path[-1]["total"]:
             path.pop()
-        path.append({"depth": depth, "kind": "value" if not name.startswith("Subtotal") else "subtotal"})
+        path.append({"depth": depth, "kind": "value" if not name.startswith("Subtotal") else "subtotal", "key": key})
     return out
 
 
@@ -1212,8 +1220,10 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
 
 
 def _foreign(statement: str, fact: Fact, own: set[str]) -> bool:
-    if statement == "BS" or fact.key in own:
+    if fact.key in own:
         return False
+    if statement == "BS":
+        return not fact.instant
     if statement == "PL" and CF_MARK_RE.search(fact.local):
         return True
     return fact.instant and not (statement == "CF" and CF_CASH_RE.search(fact.local))
@@ -2217,6 +2227,7 @@ def build_columns(
         if statement in f.by_statement:
             by_end[f.period_end].append(f)
     columns: list[Column] = []
+    slots: list[list[tuple[str, str, str | None]]] = []
     for period_end in sorted(by_end):
         group = by_end[period_end]
         chosen = []
@@ -2235,6 +2246,7 @@ def build_columns(
         parts: dict[str, Part] = {}
         order: list[str] = []
         primary = chosen[0]
+        loose: list[tuple[str, str, str | None]] = []
         for filing in chosen:
             seq: list[str] = []
             if filing.is_pdf:
@@ -2249,13 +2261,14 @@ def build_columns(
                 copies = pdf_rows(facts, statement, printed_twice(pool, statement, by_name)).copies
                 revised, later = _revised(revisions, pool, statement, period_end, by_name)
                 standard = filing.standard if filing is primary else None
-                for n, (fact, mapped) in enumerate(
-                    apply_learned(facts, pool, statement, period_end, cls, by_name, standard),
-                ):
+                applied = apply_learned(facts, pool, statement, period_end, cls, by_name, standard)
+                homes = _section_homes([None if m is None else m.key for _, m in applied], statement)
+                for n, (fact, mapped) in enumerate(applied):
                     if n in copies:
                         continue
                     if mapped is None:
                         if filing is primary:
+                            loose.append((fact.key, _base(fact, statement), homes[n]))
                             values[fact.key] = revised.get(fact.key, fact.value)
                             sources[fact.key] = filing.source
                             seq.append(fact.key)
@@ -2280,7 +2293,38 @@ def build_columns(
                             parts[fact.key] = declared[fact.key]
             order = _merge_statement(order, [k for k in seq if k in values], statement)
         columns.append(Column(primary, values, order, sources, parts=parts))
+        slots.append(loose)
+    if statement == "BS":
+        _key_by_section(columns, slots)
     return columns
+
+
+def _key_by_section(columns: Sequence[Column], slots: Sequence[Sequence[tuple[str, str, str | None]]]) -> None:
+    rank = {k: i for i, k in enumerate(MARKER_ORDER["BS"])}
+    found: dict[str, set[tuple[int, str, int]]] = defaultdict(set)
+    placed: list[list[tuple[str, str, tuple[int, str, int]]]] = []
+    for loose in slots:
+        seen: Counter[tuple[str, str | None]] = Counter()
+        here = []
+        for key, base, home in loose:
+            seen[(base, home)] += 1
+            slot = (rank.get(home or "", len(rank)), home or "", seen[(base, home)])
+            found[base].add(slot)
+            here.append((key, base, slot))
+        placed.append(here)
+    for column, here in zip(columns, placed):
+        renamed: dict[str, str] = {}
+        for key, base, slot in here:
+            ordered = sorted(found[base])
+            if len(ordered) < 2:
+                continue
+            at = ordered.index(slot)
+            renamed[key] = f"pdf:{base}" if at == 0 else f"pdf:{base}#{at + 1}"
+        if not renamed or all(k == v for k, v in renamed.items()):
+            continue
+        column.values = {renamed.get(k, k): v for k, v in column.values.items()}
+        column.sources = {renamed.get(k, k): v for k, v in column.sources.items()}
+        column.order = [renamed.get(k, k) for k in column.order]
 
 
 def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | None]:
@@ -2362,13 +2406,21 @@ def _shown(
     合計の要素の行があって深さのある書類のものなら、その行の見出しを借りる。無ければ 大区分・区分 の 2 段（PL は出さない）。
     """
     declared = {k: p for k, p in zip(keys, parts) if p is not None and p.heads is not None}
+    known: dict[tuple[tuple[Head, ...], str], Head] = {}
+    for p in declared.values():
+        for n, head in enumerate(p.heads or ()):
+            known.setdefault((tuple(p.heads or ())[:n], head[0]), head)
     out: list[tuple[list[dict[str, str]], int]] = []
     for part in parts:
         if part is None:
             out.append(([], 0))
             continue
         if part.heads is not None:
-            out.append(([{"key": k, "name": n} for k, n in part.heads], part.indent))
+            path, indent = part.heads, part.indent
+            head = known.get((path, f"{part.under}Abstract")) if part.under else None
+            if head is not None:
+                path, indent = (*path, head), indent - 1
+            out.append(([{"key": k, "name": n} for k, n in path], indent))
             continue
         group, section = part.group, part.section
         anchor = declared.get(section or group or "")

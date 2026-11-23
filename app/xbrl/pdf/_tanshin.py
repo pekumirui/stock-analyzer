@@ -78,6 +78,10 @@ _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ�
 _BS_CLASS = re.compile(
     r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
 )
+_BS_SUBCLASS = re.compile(
+    r"^(有形固定資産|無形固定資産|投資その他の資産|繰延資産|特別法上の準備金|その他の包括利益累計額|評価・換算差額等)$"
+)
+_TOTAL_WRAP = re.compile(r"^(合計|小計|計|累計額)")
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
 # 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
@@ -1071,6 +1075,11 @@ def _attr_class_heading(line: Line, rest: list[Line]) -> bool:
     return nxt is None or bool(_ATTR_ITEM.search(_compact(nxt.text)))
 
 
+def _wraps_into_total(rest: list[Line]) -> bool:
+    nxt = next((other for other in rest if _compact(other.text)), None)
+    return nxt is not None and bool(_TOTAL_WRAP.match(_compact(nxt.text)))
+
+
 def _table_lines(lines: list[Line]) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
     kept: list[Line] = []
@@ -1085,6 +1094,8 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _BS_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
             continue
         if _PL_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _BS_SUBCLASS.fullmatch(compact) and not split_amounts(line)[1] and not _wraps_into_total(lines[index + 1:]):
             continue
         if _BREAKDOWN.fullmatch(compact) and not split_amounts(line)[1]:
             continue
