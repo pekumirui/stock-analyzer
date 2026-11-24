@@ -78,3 +78,17 @@ def test_eps_follows_splits_after_the_disclosure() -> None:
     late = [_st("1", "2025-05-02", "15:00:00", "FY", FY25, 450, NxFEPS=600),
             _st("2", "2025-06-02", "15:00:00", "FY", FY26, doc="EarnForecastRevision", FEPS=130)]
     assert fund_steps(late, days, factors)["eps"] == [120, 26]
+
+
+def test_eps_from_forecast_profit_when_eps_is_blank() -> None:
+    days = _days("2024-04-01", "2025-03-31")
+    stmts = [
+        _st("1", "2024-04-26", "15:00:00", "FY", date(2024, 3, 31), 450, NP=1000, EPS=10, NxFNp=1500, NxFEPS=""),
+        _st("2", "2024-07-31", "15:00:00", "1Q", FY25, 100, AvgSh=120, NP=300, EPS=2, FNP=1800, FEPS=""),
+        _st("3", "2024-09-02", "15:00:00", "FY", FY25, doc="EarnForecastRevision", FNP=2400, FEPS=""),
+        _st("4", "2024-10-31", "15:00:00", "2Q", FY25, 220, ShOutFY=130, TrShFY=10, FNP=2400, FEPS=""),
+        _st("5", "2024-11-15", "15:00:00", "FY", FY25, doc="EarnForecastRevision", FNP=3600, FEPS=""),
+        _st("6", "2025-01-31", "15:00:00", "3Q", FY25, 330, FNP=3600, FEPS=""),
+        _st("7", "2025-02-14", "15:00:00", "FY", FY25, doc="EarnForecastRevision", FNP=4800, FEPS=""),
+    ]
+    assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [15, 15, 20, 20, 30, None]
