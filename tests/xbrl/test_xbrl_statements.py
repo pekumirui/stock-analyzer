@@ -10,7 +10,7 @@ from app.market.ingest import upsert_statements
 from app.models import Statement, XbrlFiling, XbrlFinancial, XbrlStdItem
 from app.xbrl.mappings import apply_mappings
 from app.xbrl.statements import (SOURCE_JQUANTS, SOURCE_XBRL, statement_row, sync_statements,
-                                 withdrawn_forecasts)
+                                 withdrawals_by_filing, withdrawn_forecasts)
 
 FY_START = date(2026, 4, 1)
 FY_END = date(2027, 3, 31)
@@ -277,6 +277,43 @@ def test_withdrawal_notice_marks_items_with_only_previous_forecast() -> None:
     marks += [_fc("dps", "forecast_previous", 25, "annual", 0), _fc("dps", "forecast_previous", 25, "year_end", 0)]
     points = [_fc("dps", "forecast", 0, "Q2", 0)]
     assert withdrawn_forecasts(points, marks, standalone_company=False) == (*EVERY, "div_annual")
+
+
+def test_stock_split_dividend_revision_without_annual_total_is_not_a_withdrawal() -> None:
+    marks = [_fc("dps", "forecast_previous", 60, "annual", 0), _fc("dps", "forecast_previous", 30, "year_end", 0),
+             _fc("dps", "forecast", 15, "year_end", 0)]
+    points = [_fc("dps", "forecast", 15, "year_end", 0), _fc("dps", "actual", 30, "Q2", 0)]
+    assert withdrawn_forecasts(points, marks, standalone_company=False) == ()
+
+
+def test_dividend_to_undecided_with_interim_cut_to_zero_is_a_withdrawal() -> None:
+    marks = [_fc("dps", "forecast_previous", 105, "annual", 0), _fc("dps", "forecast_previous", 55, "year_end", 0),
+             _fc("dps", "forecast_previous", 50, "Q2", 0)]
+    points = [_fc("dps", "actual", 0, "Q2", 0)]
+    assert withdrawn_forecasts(points, marks, standalone_company=False) == ("div_annual",)
+
+
+def test_dividend_with_no_forecast_rows_left_is_a_withdrawal() -> None:
+    marks = [_fc("dps", "forecast_previous", 40, "annual", 0), _fc("dps", "forecast_previous", 20, "year_end", 0)]
+    assert withdrawn_forecasts([], marks, standalone_company=False) == ("div_annual",)
+
+
+def test_stock_split_dividend_revision_from_the_db_is_not_marked() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        apply_mappings(db)
+        split = [_fc("dps", "forecast_previous", 60, "annual", 0), _fc("dps", "forecast_previous", 30, "year_end", 0),
+                 _fc("dps", "forecast", 15, "year_end", 0)]
+        cut = split[:2]
+        a = _seed_filing(db, "091220260820523541", split, doc_type="dividend_revision", title="株式分割に伴う配当予想の修正")
+        b = _seed_filing(db, "091220261116581504", cut, doc_type="dividend_revision", title="期末配当予想の修正（未定）")
+        assert withdrawals_by_filing(db, [a, b]) == {b.id: ("div_annual",)}
+    finally:
+        db.query(XbrlFinancial).filter(XbrlFinancial.filing_id.in_([a.id, b.id])).delete()
+        db.query(XbrlFiling).filter(XbrlFiling.id.in_([a.id, b.id])).delete()
+        db.commit()
+        db.close()
 
 
 def test_dividend_only_revision_marks_nothing() -> None:

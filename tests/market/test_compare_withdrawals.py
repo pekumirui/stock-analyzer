@@ -30,7 +30,7 @@ def _notice(db: Session, code: str, no: str, title: str) -> None:
                    created_at=datetime(2026, 8, 14))
     db.add(f)
     db.flush()
-    for c, target in (*((c, "FY") for c in PL_CODES), ("dps", "annual")):
+    for c, target in (*((c, "FY") for c in PL_CODES), ("dps", "annual"), ("dps", "year_end")):
         db.add(XbrlFinancial(code=code, filing_id=f.id, std_item_id=std[c], is_consolidated=c != "dps",
                              period_type="FY", period_start=date(2026, 4, 1), period_end=FY27, value=1, unit="JPY",
                              value_kind="forecast_previous", range_side="point", target_period=target,

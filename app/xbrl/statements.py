@@ -40,6 +40,7 @@ RAW_RATIOS = {"bps": "BPS", "equity_ratio": "EqAR", "roe": "ROE"}
 ITEM_CODES = (*PL, "dps", *RAW_RATIOS)
 WITHDRAWABLE_CODES = {**PL, "dps": DIVIDEND_ITEM}
 WITHDRAWABLE_TARGETS = {"dps": "annual"}
+DIVIDEND_KEPT_BY = "year_end"
 BEFORE, AFTER = "forecast_previous", "forecast"
 NUMERIC_COLUMNS = (
     "net_sales", "operating_profit", "ordinary_profit", "profit", "eps",
@@ -233,6 +234,8 @@ def withdrawn_forecasts(points, marks, *, standalone_company: bool) -> tuple[str
     consolidated = _Facts(points).consolidated or any(r.is_consolidated for r in pl)
     individual = not consolidated and not standalone_company
     out = _dropped([r for r in rows if r.code == "dps"])
+    if any(r.code == "dps" and r.target_period == DIVIDEND_KEPT_BY and r.value_kind == AFTER for r in marks):
+        out.discard(DIVIDEND_ITEM)
     if not individual:
         out |= _dropped([r for r in pl if bool(r.is_consolidated) == consolidated])
     return tuple(i for i in WITHDRAWABLE_ITEMS if i in out)
@@ -364,7 +367,7 @@ def _mark_facts_by_filing(db: Session, ids: list[int]) -> dict[int, list]:
                   .filter(XbrlFinancial.filing_id.in_(chunk),
                           XbrlStdItem.code.in_(tuple(WITHDRAWABLE_CODES)),
                           XbrlFinancial.value_kind.in_((BEFORE, AFTER)),
-                          XbrlFinancial.target_period.in_(("FY", "annual")))
+                          XbrlFinancial.target_period.in_(("FY", "annual", DIVIDEND_KEPT_BY)))
                   .order_by(XbrlFinancial.filing_id, XbrlFinancial.id)):
             out[r.filing_id].append(r)
     return {k: v for k, v in out.items() if any(r.value_kind == BEFORE for r in v)}
