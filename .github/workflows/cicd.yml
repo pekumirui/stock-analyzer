@@ -46,8 +46,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: |
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
             requirements.txt
             requirements-dev.txt
 
@@ -58,7 +61,7 @@ jobs:
           node-version: "20"
 
       - name: Install
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: uv pip install --system -r requirements.txt -r requirements-dev.txt
 
       # Persistent runner: skip apt when nginx/openssl are already present.
       - name: Ensure nginx
