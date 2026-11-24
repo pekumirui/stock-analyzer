@@ -65,7 +65,7 @@ J-Quants の決算サマリーの空欄は「この開示では触れていな�
 
 予想を開示ごとに畳む共通の層（`app/market/forecasts.py`）は、印のある項目をその開示から未定にし、次の決算短信（または値を出し直した予想修正）で戻す。株価チャートの予想 EPS、銘柄の概要の年間配当予想、決算速報の修正履歴（`app/market/revisions.py`。年度ごとに畳み、印のある開示は `forecast_withdrawn` の行）が使う。一覧の予想修正バッジ（下の「予想修正の検知」）は `raw_json` を読まずに同じ考え方で通期営業利益予想だけを畳み、印は一覧に出る銘柄の予想修正のみの開示（決算短信本体でない行）について開示番号で別に読む。決算短信本体の印は読まないが、決算短信の空欄は未定として扱うので、空欄の予想に付いた印と結果は変わらない。
 
-列を足す前に入った XBRL 由来の行と取り下げのお知らせには印が無い。`jobs/migrate.py`（デプロイの `deploy/update.sh` が呼ぶ）で列を足したあと、`python jobs/xbrl/xbrl_statements.py --since <最初の TDnet XBRL の提出日>` を流すと、その日以降の解析済みの書類から行を作り直して印を付ける（`statements` の数値は XBRL の値で上書きし直す）。印を付ける前後の画面の違いは `python tools/market/compare_withdrawals.py <stock.db>` で比べる（DB は読み取り専用で開き、列が無い・空の DB では `xbrl_financials` から同じ判定で印を作る）。
+列を足す前に入った XBRL 由来の行と取り下げのお知らせには印が無い。`jobs/migrate.py`（デプロイの `deploy/update.sh` が呼ぶ）で列を足したあと、`python jobs/xbrl/xbrl_statements.py --since <最初の TDnet XBRL の提出日>` を流すと、その日以降の解析済みの書類から行を作り直して印を付ける（`statements` の数値は XBRL の値で上書きし直す）。印を付ける前後の画面の違いは `python tools/market/compare_withdrawals.py <stock.db>` で比べる（DB は読み取り専用で開き、列が無い・空の DB では `xbrl_financials` から同じ判定で印を作る）。修正履歴と一覧のバッジを載せ替えた前後（git `a99e5ca` と今）の違いは `tools/market/export_revisions.py` で比べる。`PYTHONPATH=<木> python tools/market/export_revisions.py export <stock.db> <out.jsonl>` を `a99e5ca` を展開した木と今の木で 1 回ずつ流し、`python tools/market/export_revisions.py compare <旧.jsonl> <新.jsonl> [--show]` で、違いの出た銘柄を「印がある」「一部の項目だけの予想修正がある」「決算短信の空欄（未定）の後のバッジ」「古い期の決算短信がある」「それ以外」に分ける（「それ以外」があれば終了コード 1）。
 
 ### 再実行・バックフィル・取り直し
 
