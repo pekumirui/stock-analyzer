@@ -141,3 +141,7 @@ gantt
 | `migrate` | 共通・運用 |  |
 | `ops/migrate_r2_share` | 共通・運用 |  |
 | `ops/rebuild_daily_prices` | 共通・運用 |  |
+
+## MCP のツール
+
+画面が無い。一覧は [MCP のツール](jobs/gen/mcp.md)（`python -m tools.mcp.render` が `mcp/*.py` の `TOOLS` から作る）。
