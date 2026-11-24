@@ -2246,6 +2246,7 @@ def build_columns(
         parts: dict[str, Part] = {}
         order: list[str] = []
         primary = chosen[0]
+        printed = _printed_rows(primary, statement)
         loose: list[tuple[str, str, str | None]] = []
         for filing in chosen:
             seq: list[str] = []
@@ -2274,11 +2275,11 @@ def build_columns(
                             seq.append(fact.key)
                         continue
                     seq.append(mapped.key)
-                    if mapped.key not in values:
+                    if mapped.key not in values and _fills(filing, primary, printed, mapped.key):
                         values[mapped.key] = revised.get(mapped.key, fact.value * mapped.sign)
                         sources[mapped.key] = filing.source
                 for key in later:
-                    if key not in values:
+                    if key not in values and _fills(filing, primary, printed, key):
                         values[key] = revised[key]
                         sources[key] = filing.source
                         seq.append(key)
@@ -2286,7 +2287,7 @@ def build_columns(
                 declared = filing.parts.get(statement, {})
                 for fact in _with_extras(filing, statement, learned):
                     seq.append(fact.key)
-                    if fact.key not in values:
+                    if fact.key not in values and _fills(filing, primary, printed, fact.key):
                         values[fact.key] = fact.value
                         sources[fact.key] = filing.source
                         if fact.key in declared:
@@ -2297,6 +2298,16 @@ def build_columns(
     if statement == "BS":
         _key_by_section(columns, slots)
     return columns
+
+
+def _printed_rows(primary: Filing, statement: str) -> frozenset[str] | None:
+    if statement != "BS" or primary.is_pdf or not primary.parts.get(statement):
+        return None
+    return frozenset(primary.parts[statement])
+
+
+def _fills(filing: Filing, primary: Filing, printed: frozenset[str] | None, key: str) -> bool:
+    return filing is primary or printed is None or key in printed
 
 
 def _key_by_section(columns: Sequence[Column], slots: Sequence[Sequence[tuple[str, str, str | None]]]) -> None:
