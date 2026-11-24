@@ -38,7 +38,7 @@ _AMOUNT = re.compile(
     rf"|[~～〜]\s*[△▲]?\s*{_NUM}[%％]?"
     rf"|{_YEN_SEN}"
     rf"|{_NUM}[%％]?"
-    rf"|[―－−—─‐-]"
+    rf"|[―－−—-]"
     rf"|未定"
     # レンジの「～」だけ（下限の行と上限の行の間）。
     rf"|[~～〜]"
@@ -46,7 +46,7 @@ _AMOUNT = re.compile(
 _TILDE = "~～〜"
 _TILDE_TOL = 30.0
 _RANGE = re.compile(rf"^({_NUM})\s*[~～〜]\s*({_NUM})$")
-_NIL = {"―", "－", "-", "−", "—", "─", "‐", "未定"}
+_NIL = {"―", "－", "-", "−", "—", "未定"}
 _UNIT_NOTE = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
 # 銘柄コード (7453) を負の金額と取り違えない。カンマ付き (1,234) は金額のまま。
 _TICKER_PAREN = re.compile(r"^\(\s*\d{4}\s*\)$")
@@ -632,7 +632,7 @@ def _unit_note(lines: list[Line]) -> str | None:
     return None
 
 
-def grid(lines: list[Line]) -> Grid:
+def grid(lines: list[Line], *, label_below: bool = False) -> Grid:
     parsed = [(line, *split_amounts(line)) for line in lines]
     numeric = [index for index, (_, _, amounts) in enumerate(parsed) if amounts]
     if not numeric:
@@ -782,7 +782,8 @@ def grid(lines: list[Line]) -> Grid:
                     value_only = False
                     continue
             if (
-                rows
+                label_below
+                and rows
                 and not pending
                 and not rows[-1].label.strip()
                 and last_numeric_y is not None

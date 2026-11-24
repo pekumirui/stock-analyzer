@@ -46,12 +46,12 @@ def _year(reiwa: str, raw: str, d: PdfDisclosure | None = None) -> int:
 _DIVIDEND_SLOTS = frozenset({
     "FirstQuarterMember", "SecondQuarterMember", "ThirdQuarterMember", "YearEndMember", "AnnualMember",
 })
-_LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|注\d+\.|\(\d+\)|\d+\.)+")
+_LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
 _HEADING_LEAD = re.compile(r"^(?:[①-⑳]|\(\d+\)|\d+\.)+")
 _HINTS = re.compile(r"\([△▲][^)]*\)")
 _BREAKDOWN_LEAD = re.compile(r"^[（(]内訳[)）]")
 # 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
-_CLASS_HEAD = re.compile(r"の部\)?$")
+_CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
 _RUNNING_HEAD = re.compile(r"\(\d{4}\).*決算短信")
 _UNIT_ROW = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
@@ -77,12 +77,17 @@ _HEADER_ROLE = re.compile(
 _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ・フロー$")
 # 数値の無い BS の区分見出し。hanging が「資産流動資産現金及び預金」にしない。
 _BS_CLASS = re.compile(
-    r"^(資産|負債|純資産|資本|負債及び資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
+    r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
 )
 _BS_SUBCLASS = re.compile(
-    r"^(有形固定資産|無形固定資産|投資その他の資産|繰延資産|特別法上の準備金|その他の包括利益累計額|評価・換算差額等|親会社の所有者に帰属する持分|資本剰余金|利益剰余金|その他利益剰余金)$"
+    r"^(有形固定資産|無形固定資産|投資その他の資産|繰延資産|特別法上の準備金|その他の包括利益累計額|評価・換算差額等)$"
 )
 _TOTAL_WRAP = re.compile(r"^(合計|小計|計|累計額)")
+_BS_ONLY_HEAD = re.compile(
+    r"^(負債及び資本|親会社の所有者に帰属する持分|資本剰余金|利益剰余金|その他利益剰余金|\([^()]*の部\))$"
+)
+_BS_DASH = frozenset({"─", "‐"})
+_BS_NOTE_PREFIX = re.compile(r"^注\d+\.")
 _BS_GRAND_TOTAL = re.compile(r"^負債(及び|・)?(純資産|資本)(の部)?(合計|計)$")
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
@@ -1018,7 +1023,7 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         body = lines[index + 1:end]
         if spec.name in _STATEMENTS:
             body = _statement_body(body)
-        candidates.append((spec, _table_lines(body), consolidated, text))
+        candidates.append((spec, _table_lines(body, bs=spec.namespace is NS_BS), consolidated, text))
     blocks: list[tuple[SectionSpec, list[Line], bool, str]] = []
     taken: set[str] = set()
     has_income_pl = any(
@@ -1082,8 +1087,18 @@ def _wraps_into_total(rest: list[Line]) -> bool:
     return nxt is not None and bool(_TOTAL_WRAP.match(_compact(nxt.text)))
 
 
-def _table_lines(lines: list[Line]) -> list[Line]:
+def _bs_dash_cells(line: Line) -> Line:
+    if not any(word.text.strip() in _BS_DASH for word in line.words):
+        return line
+    return replace(line, words=tuple(
+        replace(word, text="－") if word.text.strip() in _BS_DASH else word for word in line.words
+    ))
+
+
+def _table_lines(lines: list[Line], *, bs: bool = False) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
+    if bs:
+        lines = [_bs_dash_cells(line) for line in lines]
     kept: list[Line] = []
     for index, line in enumerate(lines):
         compact = _compact(line.text)
@@ -1100,6 +1115,11 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _BS_SUBCLASS.fullmatch(compact) and not split_amounts(line)[1] and not _wraps_into_total(lines[index + 1:]):
             continue
         if _BREAKDOWN.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if (
+            bs and _BS_ONLY_HEAD.fullmatch(compact) and not split_amounts(line)[1]
+            and not _wraps_into_total(lines[index + 1:])
+        ):
             continue
         if _attr_class_heading(line, lines[index + 1:]):
             continue
@@ -1256,7 +1276,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                 hint = title_hint
         for chunk in _split_grids(lines):
             try:
-                table = grid(chunk)
+                table = grid(chunk, label_below=spec.namespace is NS_BS)
             except PdfLayoutError:
                 continue
             # サマリーの表は表ごとにためる。同じ科目・同じ期に違う値が 2 つ出たら、どの行が正しいか
@@ -1302,6 +1322,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         # 「１株当たり配当金」は上の 1 列にしか載らないので、ほかの時点列はここで決める。
                         unit = UnitKind.PER_SHARE
                     base_local = label_key(item_text)
+                    if spec.namespace is NS_BS:
+                        base_local = _BS_NOTE_PREFIX.sub("", base_local)
                     if spec.namespace is NS_SUMMARY:
                         base_local = re.sub(r"^(連結|個別)", "", base_local)
                     if not base_local:
@@ -1309,7 +1331,10 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     if spec.name in {"fc_rev", "div_rev"} and "ForecastMember" not in role.members:
                         # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
-                    if _NUMERIC_ITEM.search(_TERM_IN_LABEL.sub("", _ONE_YEAR_LEAD.sub("", base_local))) and "株" not in base_local:
+                    numeric_base = _ONE_YEAR_LEAD.sub("", base_local)
+                    if spec.namespace is NS_BS:
+                        numeric_base = _TERM_IN_LABEL.sub("", numeric_base)
+                    if _NUMERIC_ITEM.search(numeric_base) and "株" not in base_local:
                         continue
                     if unit is UnitKind.PERCENT and "率" not in base_local:
                         continue
