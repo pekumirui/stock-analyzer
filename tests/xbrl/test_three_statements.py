@@ -538,9 +538,42 @@ def _moved(s: Seeder) -> None:
     ])
 
 
+PRINTED = "71170"
+PRINTED_SPLIT = [
+    "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "NotesReceivableTrade", "AccountsReceivableTrade",
+    "CurrentAssets", "NoncurrentAssetsAbstract", "Goodwill", "NoncurrentAssets", "Assets",
+]
+PRINTED_JOINED = [
+    "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "NotesAndAccountsReceivableTrade",
+    "CurrentAssets", "NoncurrentAssetsAbstract", "Goodwill", "NoncurrentAssets", "Assets",
+]
+
+
+def _printed(s: Seeder) -> None:
+    s.stock(PRINTED, "有報は受取手形と売掛金を 1 行、短信は 2 行")
+    s.filing(781, "edinet", "FY", "2025-06-30", "2025-09-26 15:00:00", code=PRINTED)
+    s.facts(781, "2025-06-30", [
+        x("CashAndDeposits", "i", 20), x("NotesReceivableTrade", "i", 1), x("AccountsReceivableTrade", "i", 9),
+        x("CurrentAssets", "i", 30), x("Goodwill", "i", 4), x("NoncurrentAssets", "i", 4), x("Assets", "i", 34),
+    ])
+    s.roles(781, [("rol_ConsolidatedBalanceSheet", "BS", True, False, PRINTED_SPLIT)])
+    s.filing(782, "edinet", "FY", "2026-06-30", "2026-09-25 15:00:00", code=PRINTED)
+    s.facts(782, "2026-06-30", [
+        x("CashAndDeposits", "i", 21), x("NotesAndAccountsReceivableTrade", "i", 8), x("CurrentAssets", "i", 29),
+        x("NoncurrentAssets", "i", 3), x("Assets", "i", 32),
+    ])
+    s.roles(782, [("rol_ConsolidatedBalanceSheet", "BS", True, False, PRINTED_JOINED)])
+    s.filing(783, "tdnet", "FY", "2026-06-30", "2026-08-08 15:00:00", code=PRINTED)
+    s.facts(783, "2026-06-30", [
+        x("CashAndDeposits", "i", 21), x("NotesReceivableTrade", "i", 1), x("AccountsReceivableTrade", "i", 7),
+        x("CurrentAssets", "i", 29), x("Goodwill", "i", 3), x("NoncurrentAssets", "i", 3), x("Assets", "i", 32),
+    ])
+    s.roles(783, [("rol_ConsolidatedBalanceSheetTDnet", "BS", True, False, PRINTED_SPLIT)])
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed(lambda s: (_presentation(s), _split(s), _declared(s), _moved(s)))
+    seed(lambda s: (_presentation(s), _split(s), _declared(s), _moved(s), _printed(s)))
 
 
 def table(code: str = CODE, statement: str = "BS", periods: int = fst.DEFAULT_PERIODS,
@@ -750,6 +783,19 @@ def test_priority_and_supplement_keep_cell_source() -> None:
     assert t["periods"][-1]["source"] == "edinet"
     assert source(t, "OtherIA", "25.06") == "tdnet_pdf"
     assert value(t, "Land", "25.06") is None
+
+
+def test_bs_is_not_supplemented_with_rows_the_primary_filing_does_not_print() -> None:
+    t = table(PRINTED)
+    assert labels(t) == ["25.06", "26.06"]
+    assert value(t, "NotesAndAccountsReceivableTrade", "26.06") == 8 * M
+    assert value(t, "NotesReceivableTrade", "26.06") is None
+    assert value(t, "NotesReceivableTrade", "25.06") == 1 * M
+    current = [r for r in t["rows"] if r["key"] in ("CashAndDeposits", "NotesReceivableTrade",
+                                                    "AccountsReceivableTrade", "NotesAndAccountsReceivableTrade")]
+    assert sum(r["cells"][1]["value"] for r in current if r["cells"][1]) == value(t, "CurrentAssets", "26.06")
+    assert value(t, "Goodwill", "26.06") == 3 * M
+    assert source(t, "Goodwill", "26.06") == "tdnet"
 
 
 def test_sign_follows_xbrl_and_pl_is_cumulative() -> None:

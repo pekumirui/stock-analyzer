@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 PAGE = ROOT / "docs" / "schema" / "states.md"
 _SECTION = re.compile(r"^## (\w+)\.(\w+)\n(.*?)(?=^## |\Z)", re.M | re.S)
 _DIAGRAM = re.compile(r"```mermaid\n---\nconfig:\n  layout: elk\n---\nstateDiagram-v2\n(.*?)```", re.S)
-_EDGE = re.compile(r"^\s+(\[\*\]|\w+) --> (\w+)(?::.*)?$", re.M)
-_ROW = re.compile(r"^\| `(\[\*\]|\w+)` \| `(\w+)` \| .*? \| (.+) \|$", re.M)
+_EDGE = re.compile(r"^\s+(\[\*\]|\w+) --> (\[\*\]|\w+)(?::.*)?$", re.M)
+_ROW = re.compile(r"^\| `(\[\*\]|\w+)` \| `(\[\*\]|\w+)` \| .*? \| (.+) \|$", re.M)
 _BASIS = re.compile(r"`([\w/.]+\.py)` `(\w+)`")
 
 

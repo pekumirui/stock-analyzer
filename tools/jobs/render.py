@@ -7,6 +7,7 @@ from pathlib import Path
 from tools.dataflow.render import DOMAINS, ELK_LAYOUT, ENTRIES, HUB, Entry, entry_domain, load_entries
 from tools.jobs.args import Arg, job_args
 from tools.jobs.crontab import CRONTAB, Run, dow_text, load, schedule_text
+from tools.mcp.render import PAGE as MCP_PAGE
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERVIEW = "docs/JOBS.md"
@@ -155,7 +156,17 @@ def _overview(all_jobs: list[str], runs: list[Run], tz: str | None, actions: dic
     ]
     for job in sorted((j for j in all_jobs if j not in cron_jobs), key=lambda j: (order[_domain(j)], j)):
         lines.append(f"| `{_stem(job)}` | {_LABEL[_domain(job)]} | {_code(actions.get(job, []))} |")
-    lines.append("")
+    lines += [
+        "",
+        "## MCP のツール",
+        "",
+        (
+            "画面が無い。一覧は"
+            f" [MCP のツール]({MCP_PAGE.removeprefix('docs/')})"
+            "（`python -m tools.mcp.render` が `mcp/*.py` の `TOOLS` から作る）。"
+        ),
+        "",
+    ]
     return "\n".join(lines)
 
 
@@ -267,7 +278,12 @@ def stale(root: Path = ROOT) -> list[str]:
     bad = [p for p, text in want.items() if not (root / p).is_file() or (root / p).read_text(encoding="utf-8") != text]
     page_dir = root / PAGE_DIR
     if page_dir.is_dir():
-        bad += [f"{PAGE_DIR}/{p.name}" for p in page_dir.glob("*.md") if f"{PAGE_DIR}/{p.name}" not in want]
+        kept = {MCP_PAGE}
+        bad += [
+            f"{PAGE_DIR}/{p.name}"
+            for p in page_dir.glob("*.md")
+            if f"{PAGE_DIR}/{p.name}" not in want and f"{PAGE_DIR}/{p.name}" not in kept
+        ]
     return sorted(bad)
 
 

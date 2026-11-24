@@ -71,7 +71,8 @@ from jobs._r2common import (
     http_get as _http_get,
     http_get_result as _http_get_result,
 )
-from jobs.monthly.tdnet_monthly_r2 import dest_path, jq_lookup_code
+from app.xbrl.codes import jq_lookup_code
+from jobs.monthly.tdnet_monthly_r2 import dest_path
 from app.share_paths import share_path
 
 DEFAULT_DEST = str(share_path("briefing"))
