@@ -320,7 +320,8 @@
     {
       "code": "7240",
       "name": "ＮＯＫ",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7240/ja/announcement/announcement_10.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7240/ja/announcement/announcement_10.js",
+      "link_re": "^決算補足情報$"
     },
     {
       "code": "7267",
