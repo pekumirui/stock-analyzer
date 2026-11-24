@@ -26,6 +26,9 @@ def _num(raw: dict, key: str) -> float | None:
 
 
 def _shares(raw: dict) -> float | None:
+    average = _num(raw, "AvgSh")
+    if average and average > 0:
+        return average
     profit, eps = _num(raw, "NP"), _num(raw, "EPS")
     if profit and eps and profit / eps > 0:
         return profit / eps
