@@ -114,6 +114,20 @@ def test_quarter_flash_revision_is_not_a_full_year_forecast() -> None:
     assert fund_steps(no_forecast, days, [1.0] * len(days))["eps"] == [None]
 
 
+def test_report_of_the_shortened_year_switches_to_the_next_year_forecast() -> None:
+    feb26, feb27 = date(2026, 2, 28), date(2027, 2, 28)
+    days = _days("2026-02-01", "2026-08-31")
+    stmts = [
+        _st("1", "2026-02-16", "15:00:00", "3Q", FY26, 300, FEPS=30),
+        _st("2", "2026-04-17", "15:00:00", "FY", feb26, 380, NxFEPS=40),
+        _st("3", "2026-07-15", "15:00:00", "1Q", feb27, 120, FEPS=41),
+    ]
+    for s, start in zip(stmts, (date(2025, 4, 1), date(2025, 4, 1), date(2026, 3, 1))):
+        s.fiscal_year_start = start
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-02-16", 30), ("2026-04-17", 40), ("2026-07-15", 41)]
+
+
 def test_half_year_revision_is_still_a_full_year_forecast() -> None:
     days = _days("2025-05-01", "2025-12-31")
     stmts = [

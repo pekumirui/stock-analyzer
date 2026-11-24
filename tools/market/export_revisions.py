@@ -28,7 +28,7 @@ RAW_CURRENT = dict(zip(FORECAST_COLUMNS, ("FSales", "FOP", "FOdP", "FNP", "FEPS"
 FLASH = ("1Q", "3Q")
 PARTS = ("history", "badges", "chart")
 CATEGORIES = ("marked", "columns_without_raw", "partial_revision", "after_undecided_report", "old_period_report",
-              "same_day_order", "other")
+              "same_day_order", "fiscal_year_change", "other")
 
 
 def readonly_session(path: Path) -> Session:
@@ -153,6 +153,16 @@ def old_period_reports(stmts) -> list[str]:
     return out
 
 
+def fiscal_year_changes(stmts) -> list[str]:
+    ends: dict[date, set[date]] = {}
+    for s in stmts:
+        start = getattr(s, "fiscal_year_start", None)
+        if is_actual(s) and start is not None and s.fiscal_year_end is not None:
+            ends.setdefault(start, set()).add(s.fiscal_year_end)
+    return [s.disclosure_no for s in sorted(stmts, key=_order)
+            if is_actual(s) and len(ends.get(getattr(s, "fiscal_year_start", None), ())) > 1]
+
+
 def same_day_out_of_order(stmts) -> list[str]:
     by_day: dict[date, list] = {}
     for s in stmts:
@@ -221,7 +231,8 @@ def export(db, out_path: Path) -> int:
                    "partial_revision": partial_revisions(stmts),
                    "after_undecided_report": after_undecided_report(stmts),
                    "old_period_report": old_period_reports(stmts),
-                   "same_day_order": same_day_out_of_order(stmts)}
+                   "same_day_order": same_day_out_of_order(stmts),
+                   "fiscal_year_change": fiscal_year_changes(stmts)}
             f.write(json.dumps(row, ensure_ascii=False, default=str, sort_keys=True) + "\n")
             db.expire_all()
     print(f"codes={len(codes)} marks_source={source} marked_disclosures={len(marks)} out={out_path}")
@@ -253,13 +264,15 @@ def classify(new: dict, lines: list[tuple[str, str, str]]) -> str:
     changed_badges = {json.loads(x)[0] for p, _, x in lines if p == "badges"}
     if changed_badges - set(new["after_undecided_report"]):
         return "other"
-    if "chart" in parts and not new.get("columns_without_raw"):
+    chart_reasons = [c for c in ("columns_without_raw", "fiscal_year_change") if new.get(c)]
+    if "chart" in parts and not chart_reasons:
         return "other"
-    history_reasons = [c for c in ("partial_revision", "old_period_report", "same_day_order") if new.get(c)]
+    history_reasons = [c for c in ("partial_revision", "old_period_report", "same_day_order", "fiscal_year_change")
+                       if new.get(c)]
     if "history" in parts and not history_reasons:
         return "other"
     if "chart" in parts:
-        return "columns_without_raw"
+        return chart_reasons[0]
     if "history" in parts:
         return history_reasons[0]
     return "after_undecided_report"

@@ -59,6 +59,58 @@ def test_older_period_report_is_ignored() -> None:
     assert late.role == IGNORED and late.values["eps"].value == 8 and late.values["net_sales"].disclosure_no == "1"
 
 
+def _from(start: str, s):
+    s.fiscal_year_start = date.fromisoformat(start)
+    return s
+
+
+def test_shortened_fiscal_year_report_is_used() -> None:
+    feb26, feb27 = date(2026, 2, 28), date(2027, 2, 28)
+    stmts = [
+        _from("2025-04-01", _st("1", "2026-02-16", "3Q", FY26, FSales=900, FEPS=30)),
+        _from("2025-04-01", _st("2", "2026-04-17", "FY", feb26, NxtFYEn=feb27.isoformat(), NxFOP=48_000_000,
+                                NxFEPS=40)),
+        _from("2026-03-01", _st("3", "2026-07-15", "1Q", feb27, FOP=49_000_000, FEPS=41)),
+    ]
+    points = forecast_points(stmts)
+    assert [p.role for p in points] == [REPORT, REPORT, REPORT]
+    assert _values(points[1])["operating_profit"] == 48_000_000 and _values(points[1])["eps"] == 40
+
+
+def test_quarters_after_the_year_end_moved_earlier_are_used() -> None:
+    nov22, aug22 = date(2022, 11, 30), date(2022, 8, 31)
+    stmts = [
+        _from("2021-12-01", _st("1", "2022-04-14", "1Q", nov22, FEPS=10)),
+        _from("2021-12-01", _st("2", "2022-07-15", "2Q", aug22, FEPS=12)),
+        _from("2021-12-01", _st("3", "2022-10-14", "FY", aug22, NxFEPS=15)),
+    ]
+    points = forecast_points(stmts)
+    assert [p.role for p in points] == [REPORT, REPORT, REPORT] and _values(points[-1])["eps"] == 15
+
+
+def test_old_year_report_filed_again_or_late_is_ignored() -> None:
+    again = [
+        _from("2024-07-01", _st("1", "2025-02-12", "2Q", date(2025, 6, 30), FEPS=20)),
+        _from("2023-07-01", _st("2", "2025-02-14", "FY", date(2024, 6, 30), NxFEPS=1)),
+    ]
+    assert [p.role for p in forecast_points(again)] == [REPORT, IGNORED]
+    late = [
+        _from("2021-04-01", _st("1", "2021-10-27", "1Q", date(2022, 3, 31), FEPS=20)),
+        _from("2020-04-01", _st("2", "2021-10-27", "FY", date(2021, 3, 31), NxFEPS=1)),
+    ]
+    late[1].disclosure_no = "3"
+    assert [p.role for p in forecast_points(late)] == [REPORT, IGNORED]
+    assert _values(forecast_points(late)[-1])["eps"] == 20
+
+
+def test_without_the_year_start_the_year_end_decides() -> None:
+    stmts = [
+        _st("1", "2026-02-16", "3Q", FY26, FEPS=30),
+        _st("2", "2026-04-17", "FY", date(2026, 2, 28), NxFEPS=40),
+    ]
+    assert [p.role for p in forecast_points(stmts)] == [REPORT, IGNORED]
+
+
 def test_half_year_only_revision_keeps_full_year() -> None:
     stmts = [
         _st("1", "2026-05-12", "FY", FY26, NxFSales=1000, NxFOP=100, NxFNp=70, NxFEPS=7),

@@ -8,8 +8,8 @@ from types import SimpleNamespace
 from tests.market.jquants_columns import fy_columns
 from tests.market.test_compare_withdrawals import _seed
 from tools.market.compare_quarter_flash import readonly_session
-from tools.market.export_revisions import (after_undecided_report, compare, export, old_period_reports,
-                                           partial_revisions, same_day_out_of_order)
+from tools.market.export_revisions import (after_undecided_report, compare, export, fiscal_year_changes,
+                                           old_period_reports, partial_revisions, same_day_out_of_order)
 
 
 def _export(tmp_path: Path) -> dict[str, dict]:
@@ -117,3 +117,31 @@ def test_compare_allows_chart_changes_only_for_marks_and_columns_without_raw(tmp
     new["99990"]["columns_without_raw"] = []
     assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 1
     assert "changed code=99990 category=other parts=chart" in capsys.readouterr().out
+
+
+def test_reports_of_one_year_start_with_two_year_ends() -> None:
+    q3 = _s("q3", date(2026, 2, 16), "3Q", "3QFinancialStatements_Consolidated_JP")
+    fy = _s("fy", date(2026, 4, 17), "FY", "FYFinancialStatements_Consolidated_JP", fy_end=date(2026, 2, 28))
+    rev = _s("rev", date(2026, 4, 17), "FY", "EarnForecastRevision", fy_end=date(2026, 2, 28))
+    q1 = _s("q1", date(2026, 7, 15), "1Q", "1QFinancialStatements_Consolidated_JP", fy_end=date(2027, 2, 28))
+    for s, start in ((q3, date(2025, 4, 1)), (fy, date(2025, 4, 1)), (rev, date(2025, 4, 1)), (q1, date(2026, 3, 1))):
+        s.fiscal_year_start = start
+    assert fiscal_year_changes([q1, rev, fy, q3]) == ["q3", "fy"]
+    assert fiscal_year_changes([q3, q1]) == []
+    del q3.fiscal_year_start
+    assert fiscal_year_changes([q3, fy, q1]) == []
+
+
+def test_compare_explains_history_and_chart_by_a_fiscal_year_change(tmp_path: Path, capsys) -> None:
+    new = _export(tmp_path)
+    old = json.loads(json.dumps(new))
+    new["99990"]["columns_without_raw"] = []
+    new["99990"]["fiscal_year_change"] = ["99990q3", "99990fy"]
+    old["99990"]["chart"] = old["99990"]["chart"][:1]
+    old["99990"]["history"] = new["70610"]["history"]
+    assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 0
+    out = capsys.readouterr().out
+    assert "changed code=99990 category=fiscal_year_change parts=history,chart" in out, out
+    assert "fiscal_year_change=1 codes=99990" in out, out
+    new["99990"]["fiscal_year_change"] = []
+    assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 1

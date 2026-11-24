@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Iterable, Mapping
 
 from ..models import DIVIDEND_ITEM, FORECAST_ITEMS, WITHDRAWABLE_ITEMS
-from .analytics import ORDER, is_actual, is_quarter_flash_revision
+from .analytics import ORDER, is_actual, is_quarter_flash_revision, shift_year
 from .withdrawals import Withdrawn, withdrawn_items
 
 REPORT = "report"
@@ -68,6 +68,19 @@ def statement_order(s) -> tuple:
     return (s.disclosed_date, s.disclosed_time or "", s.disclosure_no)
 
 
+def year_start(s) -> date | None:
+    start = getattr(s, "fiscal_year_start", None)
+    if start is not None or s.fiscal_year_end is None:
+        return start
+    return shift_year(s.fiscal_year_end, -1) + timedelta(days=1)
+
+
+def report_key(s) -> tuple[date, int] | None:
+    n = ORDER.get(s.type_of_period or "")
+    start = year_start(s)
+    return (start, n) if n and start is not None else None
+
+
 def parse_raw(s) -> dict:
     try:
         raw = json.loads(s.raw_json) if s.raw_json else {}
@@ -116,9 +129,8 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
         if is_actual(s):
             full_year = (s.type_of_document or "").startswith("FY")
             found[DIVIDEND_ITEM] = num(raw, NEXT_DIVIDEND_KEY if full_year else CURRENT_DIVIDEND_KEY)
-            n = ORDER.get(s.type_of_period or "")
-            key = (s.fiscal_year_end, n)
-            if n and s.fiscal_year_end is not None and (latest is None or key >= latest):
+            key = report_key(s)
+            if key is not None and (latest is None or key >= latest):
                 latest, role = key, REPORT
                 shares = report_shares(raw)
                 found.update(_report_values(next_forecast(raw) if full_year else current_forecast(s), shares))
