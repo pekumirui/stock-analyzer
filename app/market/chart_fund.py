@@ -36,11 +36,11 @@ def _shares(raw: dict) -> float | None:
     return issued - (treasury or 0) if issued else None
 
 
-def _forecast_eps(raw: dict, eps_key: str, profit_key: str) -> float | None:
+def _forecast_eps(raw: dict, eps_key: str, profit_key: str, shares: float | None) -> float | None:
     eps = _num(raw, eps_key)
     if eps is not None:
         return eps
-    profit, shares = _num(raw, profit_key), _shares(raw)
+    profit = _num(raw, profit_key)
     return round(profit / shares, 2) if profit is not None and shares else None
 
 
@@ -107,7 +107,7 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
     order = sorted(stmts, key=lambda s: (s.disclosed_date, s.disclosed_time or "", s.disclosure_no))
     hist: list[Statement] = []
     latest: tuple[date, int] | None = None
-    eps = op_q = op_ttm = None
+    eps = op_q = op_ttm = report_shares = None
     out: dict[str, list] = {"t": [], "eps": [], "op_q": [], "op_ttm": []}
     for s in order:
         hist.append(s)
@@ -124,14 +124,16 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
                 continue
             latest = key
             fy = (s.type_of_document or "").startswith("FY")
-            eps = _forecast_eps(raw, "NxFEPS", "NxFNp") if fy else _forecast_eps(raw, "FEPS", "FNP")
+            report_shares = _shares(raw)
+            eps = (_forecast_eps(raw, "NxFEPS", "NxFNp", report_shares) if fy
+                   else _forecast_eps(raw, "FEPS", "FNP", report_shares))
             q = single_from(hist, s, tol)
             op_q = q["operating_profit"] if q else None
             op_ttm = _ttm_op(hist, s, tol)
         else:
             if _num(raw, "FEPS") is None and _num(raw, "FNP") is None:
                 continue
-            eps = _forecast_eps(raw, "FEPS", "FNP")
+            eps = _forecast_eps(raw, "FEPS", "FNP", report_shares)
         start = _starts(s.disclosed_date, s.disclosed_time, days).isoformat()
         if out["t"] and start < out["t"][-1]:
             start = out["t"][-1]  # 引け後の開示の翌営業日より前に、休日付けの開示が来たとき
