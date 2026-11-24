@@ -110,7 +110,7 @@ jobs:
 
       # --dataflow=check: テスト中の SQL から作った読み書き表と docs/DATA_FLOW.md が合わなければ落とす
       - name: Test
-        run: python -m pytest tests -q --dataflow=check
+        run: python -m pytest tests -q -n auto --dist loadfile --dataflow=check
 
   lint:
     name: Lint
