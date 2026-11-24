@@ -20,7 +20,7 @@ REQUIRED = (
     ROOT / "jobs" / "market" / "run_batch.py",
     ROOT / "jobs" / "market" / "check_demo.py",
     ROOT / "tools" / "market" / "check_api.py",
-    ROOT / "tools" / "monthly" / "read_xls.py",
+    ROOT / "app" / "monthly" / "read_xls.py",
     ROOT / "tests" / "conftest.py",
     ROOT / "mcp" / "log_mcp.py",
 )

@@ -401,7 +401,10 @@ class MonthlyElement(Base):
     year = Column(Integer, primary_key=True)
     element = Column(String(50), primary_key=True, comment="登録時の正規名")
     sort_order = Column(Integer, nullable=False, comment="登録順")
-    unit = Column(String(16), nullable=False, default="number", server_default="number", comment="number | yoy_index")
+    unit = Column(
+        _one_of("number", "yoy_index", length=16), nullable=False,
+        default="number", server_default="number", comment="number | yoy_index",
+    )
 
 
 class MonthlyElementSource(Base):
