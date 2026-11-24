@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -117,10 +117,7 @@ jobs:
       - name: Test
         env:
           DATAFLOW_DUMP: ${{ runner.temp }}/dataflow-${{ matrix.shard }}.json
-        run: python -m pytest tests -q -n auto --dist loadfile --shard=${{ matrix.shard }}/${{ strategy.job-total }} --dataflow=dump --store-durations
-
-      - name: Durations
-        run: echo "::notice title=durations-${{ matrix.shard }}::$(python -c 'import json;print(json.dumps(json.load(open("tests/durations.json")),separators=(",",":")))')"
+        run: python -m pytest tests -q -n auto --dist loadfile --shard=${{ matrix.shard }}/${{ strategy.job-total }} --dataflow=dump
 
       - uses: actions/upload-artifact@v4
         with:

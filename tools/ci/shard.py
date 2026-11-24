@@ -51,22 +51,30 @@ def _file_of(nodeid: str) -> str:
     return nodeid.split("::", 1)[0]
 
 
+_owner: dict[str, int] = {}
+_mine = [0]
+
+
 def pytest_configure(config):
     _store[0] = bool(config.getoption("--store-durations")) and not hasattr(config, "workerinput")
-
-
-def pytest_collection_modifyitems(config, items):
     spec = config.getoption("--shard")
     if not spec:
         return
     index, total = parse_shard(spec)
     durations = json.loads(DURATIONS.read_text(encoding="utf-8")) if DURATIONS.exists() else {}
-    owner = assign({_file_of(item.nodeid) for item in items}, durations, total)
-    keep = [item for item in items if owner[_file_of(item.nodeid)] == index]
-    drop = [item for item in items if owner[_file_of(item.nodeid)] != index]
-    if drop:
-        config.hook.pytest_deselected(items=drop)
-        items[:] = keep
+    files = {p.relative_to(ROOT).as_posix() for p in (ROOT / "tests").rglob("test_*.py")}
+    _owner.update(assign(files, durations, total))
+    _mine[0] = index
+
+
+def pytest_ignore_collect(collection_path, config):
+    if not _mine[0] or not collection_path.name.startswith("test_") or collection_path.suffix != ".py":
+        return None
+    try:
+        rel = collection_path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return None
+    return True if _owner.get(rel, 1) != _mine[0] else None
 
 
 def pytest_runtest_logreport(report):
