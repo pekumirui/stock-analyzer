@@ -1,7 +1,7 @@
-"""pytest の共通設定。テストは 1 プロセスで走るので、DB はファイルごとに空から始める。
+"""pytest の共通設定。DB はプロセス（xdist のワーカー）ごとに 1 つで、ファイルごとに空から始める。
 
 各テストファイルは読み込み時に DATABASE_URL を setdefault する。pytest ではここで先に
-一時 DB へ向けるので、全ファイルが同じパスを使い、ファイルが変わるたびに消して作り直す。
+一時 DB へ向けるので、同じプロセスのファイルは同じパスを使い、ファイルが変わるたびに消して作り直す。
 `python tests/<file>.py` で直接走らせたときは、各ファイルが自分の一時 DB を使う。
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 # `--dataflow=write|check` で docs/DATA_FLOW.md を作る・突き合わせる。付けなければ何もしない
-pytest_plugins = ["tools.dataflow.plugin"]
+pytest_plugins = ["tools.dataflow.plugin", "tools.ci.shard"]
 
 DB_PATH = Path(tempfile.mkdtemp(prefix="stock-analyzer-pytest-")) / "stock.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{DB_PATH}"

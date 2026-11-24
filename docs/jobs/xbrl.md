@@ -26,7 +26,7 @@
 
 - `data/xbrl` に蓄積している TDnet XBRL ZIP をパースし、数値および短文の fact を欠損なく生データ層へ保存する。
 - 企業横断で比較できる標準勘定科目へ正規化し、正規化層（`xbrl_financials`）を構築する。
-- 既存の `statements`（短信サマリ）を置き換えず、BS・PL・CF 本表や注記まで含む財務分析の基盤にする。
+- 速報の正本は `statements` のままにし、短信 XBRL からは同じ `disclosure_no` の行を足すか、値がある数値列だけを上書きする。J-Quants の行をまとめて消すことと、突合で削除することはしない（「statements との関係」）。BS・PL・CF 本表や注記は `xbrl_financials` 側の基盤にする。
 
 #### スコープ内
 
@@ -154,7 +154,7 @@ stocks.code   例: 7203 → 72030、262A → 262A0
 
 `Arelle` は 1 ファイルあたり数秒を要するが、`xbrlp`（取得元は `https://gist.github.com/kawasin73/346ed6a24382a2b238e1ff0d10f3f40c` の `__init__.py`・`file_loader.py`・`parser.py`）は Python 標準ライブラリだけで iXBRL の fact・ラベル・表示リンク・計算リンクを約 20 倍高速に読み取れる。依存を増やさない方針にも合致するため、外部 git submodule は使わず `app/xbrlp/` にコピーしてリビジョンを固定する。KAB-60 でネットワークダウンロードを廃止し同梱ディレクトリだけを読むようにした `app/xbrlp/file_loader.py` 以外は本体を改変しない。
 
-関連モジュールの配置は以下のとおりである。
+主な配置は次のとおりである。`app/xbrl/` にはこの木に無い `codes.py`・`gross_profit.py`・`jobs.py`・`store.py`・`shareholders.py`・`pdf_matches.py`・`revisions.py` と、パッケージ `pdf/`（`__init__.py`・`_layout.py`・`_tanshin.py`）もある。
 
 ```
 app/xbrlp/                    # vendored パーサ本体
@@ -584,6 +584,7 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 - 実績は `normalize` の当期実績（連結優先）、期首は累計実績の期首、年度末は同一期首の通期予想期末（無ければ期首から 1 年）とする。本決算以外の `fy_*`・`f2_*` には当期の通期・中間予想を入れ、本決算では空にして来期予想を `raw_json` の `NxF*`・`NxF*2Q`・`NxtFYEn`（無ければ年度末の 1 年後）に入れる。業績予想修正は中間予想があり配当予想が無ければ `type_of_period='2Q'`、それ以外は `'FY'` とする（2026 年 8 月以降の `237` 件中 `217` 件で J-Quants と一致）。
 - J-Quants の `raw_json` が無い間は `F*`・`NxF*`・配当 `Div*` `FDiv*` `NxFDiv*`（単体 context を参照）・`BPS`・`EqAR`・`ROE` と `"Source": "xbrl"` を作り、`type_of_document` も J-Quants 形式（`2QFinancialStatements_Consolidated_IFRS`・`EarnForecastRevision` など）にする。
 - 単体のみの個別業績予想修正は `raw_json` の `FNC*` に入れて `fy_*`・`f2_*` を空にするが、直近の決算短信が単体の会社に限り `fy_*`・`f2_*` にも入れる。REIT（題名に `REIT`）と実績の無い「決算速報値のお知らせ」（KAB-222）は生成せず、J-Quants 行との突合は `tools/xbrl/xbrl_statements_check.py --db ... --since ...` で行う。
+- 予想の取り下げ（KAB-551）: 業績予想・配当予想の修正と、`doc_type='other'` の書類（取り下げのお知らせ・連結決算への移行に伴う公表など）について、項目ごとに修正前（`value_kind='forecast_previous'`）の行があり修正後（`'forecast'`）の行が無ければ取り下げとして `statements.withdrawn_forecasts` に入れる。値が nil の項目は `xbrl_financials` に行ができないので、修正後が未定なら修正後の行が無くなる。行の有無は `range_side` を問わない（点からレンジに変えた修正は取り下げではない）。業績は通期（`target_period='FY'`）の売上高・営業利益・経常利益・純利益・EPS、配当は年間（`'annual'`、単体の context）を見て、年間の修正前があり修正後が無いことに加えて期末（`'year_end'`）の修正後も無いときだけ印を付ける。株式分割に伴う配当予想の修正は、分割の前後を単純に足せないので年間の修正後が「－」で行が無く、期末の修正後（分割後の金額）だけがあるため、取り下げではない。業績は連結の行があれば連結（修正前の行も含めて判定）、無ければ個別を見る。連結の会社が個別の予想だけを取り下げた場合（上の `FNC*` に分ける場合と同じ条件）は印を付けない。直近の決算短信が単体の会社で修正後の連結の予想が無い「連結決算への移行」は、単体の予想の取り下げとして印を付ける。`doc_type='other'` の書類からは行を作らず、同じ開示番号の `statements` 行（J-Quants）が既にあるときだけ印を付ける。判定は `app/xbrl/statements.py` の `withdrawn_forecasts`。
 
 ### 財務3表
 
@@ -608,7 +609,7 @@ PDF は名前空間（`pdf-bs`・`pdf-pl`・`pdf-cf`）で分け、XBRL は `pre
 
 行キーは標準要素が `local_name`、会社独自要素が `ext:<local_name>`、未対応の PDF 行が `pdf:<local_name>` である。
 
-同じ期末に PDF（最新開示と同一基準で最大行数の 7 割以上ある最新開示）と XBRL（有報 ＞ 短信 XBRL の新しい方）が揃う回で、表ごとに非ゼロ絶対値の一致（丸め粒度差は許容）による LCS（同長なら土台・語幹・正規化名と要素ラベルの一致数が多い方）を取る。LCS で付かない行も、その表で値が 1 回・XBRL 全体で 1 要素・粒度の `100` 倍以上なら表をまたいで付けるが、PL・CF の行をその表外の時点要素に付けること（`8179` の CF 期首残高→流動負債合計の誤対応防止、`CashAndCashEquivalents*` は例外）と、PL の行を CF 目印要素に付けること（`9206` の事業費明細書→CF 減価償却費の誤対応防止）と、BS の行をその表外の期間要素に付けること（`7443` の 2024/3 の PDF の繰延税金資産→PL の法人税等調整額 `IncomeTaxesDeferred` の誤対応防止。付くとその要素が BS の流動資産の頭に出る。`2437` の 2025/5 の PDF の1年内返済予定の長期借入金→CF の `RepaymentOfLongTermLoansPayableFinCF` も同じ）は禁止する。符号反転があれば向きも記憶し、値で付いた行は（区分, 土台）でも記憶する（ここでの区分は並びで直後に来る合計要素から決める：BS は大区分・区分合計、CF は営業・投資・財務合計、日本基準 PL は `GrossProfit`・`OperatingIncome`・`NonOperatingIncome`・`NonOperatingExpenses`・`ExtraordinaryIncome`・`ExtraordinaryLoss`）。
+同じ期末に PDF（最新開示と同一基準で最大行数の 7 割以上ある最新開示）と XBRL（有報 ＞ 短信 XBRL の新しい方）が揃う回で、表ごとに非ゼロ絶対値の一致（丸め粒度差は許容）による LCS（同長なら土台・語幹・正規化名と要素ラベルの一致数が多い方）を取る。LCS で付かない行も、その表で値が 1 回・XBRL 全体で 1 要素・粒度の `100` 倍以上なら表をまたいで付けるが、PL・CF の行をその表外の時点要素に付けること（`8179` の CF 期首残高→流動負債合計の誤対応防止、`CashAndCashEquivalents*` は例外）と、PL の行を CF 目印要素に付けること（`9206` の事業費明細書→CF 減価償却費の誤対応防止）と、BS の行を、表示リンクのある書類でその BS の表示リンクに無い要素（注記の fact。`4463` の 2023/12 の PDF の流動負債の「その他」→収益認識注記の `NotesReceivableTrade` が値でたまたま一致し、追加要素として毎年の有報の BS に足されていた。KAB-549）や、その表外の期間要素に付けること（`7443` の 2024/3 の PDF の繰延税金資産→PL の法人税等調整額 `IncomeTaxesDeferred` の誤対応防止。付くとその要素が BS の流動資産の頭に出る。`2437` の 2025/5 の PDF の1年内返済予定の長期借入金→CF の `RepaymentOfLongTermLoansPayableFinCF` も同じ）は禁止する。値で付いて XBRL の表の外にあった要素（追加要素）は、ほかの期の XBRL の列にもその表の要素として足すが、表示リンクのある書類の BS には、その表示リンクに無い要素は足さない（`5233` 個別の 2020/3 の有報に、注記の `ProvisionForLossOnBusinessOfSubsidiariesAndAffiliatesNCL` が足されていた。KAB-549）。符号反転があれば向きも記憶し、値で付いた行は（区分, 土台）でも記憶する（ここでの区分は並びで直後に来る合計要素から決める：BS は大区分・区分合計、CF は営業・投資・財務合計、日本基準 PL は `GrossProfit`・`OperatingIncome`・`NonOperatingIncome`・`NonOperatingExpenses`・`ExtraordinaryIncome`・`ExtraordinaryLoss`）。
 
 #### PDF 行名の土台と 2 回目の印字
 
@@ -645,7 +646,7 @@ PDF が主となる列（基準変更会社は同一基準の学習結果と XBR
 
 #### 同じ期末に複数の出どころがある場合の統合と行の並び
 
-表ごとに `有報` ＞ `短信 XBRL` ＞ `短信 PDF`（同一出どころは提出が新しい方）を主とし、短信 PDF は最新開示と同一基準で最大行数の 7 割以上ある最新開示を土台にして、後続の一部訂正 PDF で土台行の値置換（「その他」・`#n` 付きを除く）と要素対応済み追加行の補完を行う。主に無い要素は下位の出どころ（PDF は対応済み行のみ）で補う。PDF が主の列で要素の付かなかった BS の行は、同じ土台の名前が区分を変えて 2 つ以上あれば、PDF の `#n` でなく（区分, 区分の中の何番目）で全期そろえた名前にする（`_key_by_section`。区分は付いた区分の合計の行から決め、`MARKER_ORDER` の区分の順に土台、`#2`、`#3` …。`1771` などで流動資産の貸倒引当金が無くなった期に、投資その他の資産の貸倒引当金が `#n` の振り直しで流動資産の行の名前になっていた。KAB-546）。行順は最新期を土台に古い期の行を差し込み、分断された同一見出し塊は最多行数の塊へ集約する（`gather_heads`）。表示名が同じで要素が違う見出しは、1つの書類に両方あるときは別の見出しのままにする（PLの「（内訳）」。当期純利益の帰属と包括利益の帰属）。どの書類にも両方無いときは同じ見出しに集約する（KAB-494。77410 の費用、87050 の営業収益、77440 の利益に対する調整項目、43160 と 87690 のその他の包括利益累計額）。
+表ごとに `有報` ＞ `短信 XBRL` ＞ `短信 PDF`（同一出どころは提出が新しい方）を主とし、短信 PDF は最新開示と同一基準で最大行数の 7 割以上ある最新開示を土台にして、後続の一部訂正 PDF で土台行の値置換（「その他」・`#n` 付きを除く）と要素対応済み追加行の補完を行う。主に無い要素は下位の出どころ（PDF は対応済み行のみ）で補う。ただし BS は、主が表示リンクの BS の区分を持つ XBRL なら、その区分に載っていない要素を補わない（主はその科目を別の行に含めて印字している。`2962` の有報の 受取手形及び売掛金 に、短信 XBRL の 受取手形・売掛金 が足されて資産の行の和が資産合計を超えていた。KAB-547）。PDF が主の列で要素の付かなかった BS の行は、同じ土台の名前が区分を変えて 2 つ以上あれば、PDF の `#n` でなく（区分, 区分の中の何番目）で全期そろえた名前にする（`_key_by_section`。区分は付いた区分の合計の行から決め、`MARKER_ORDER` の区分の順に土台、`#2`、`#3` …。`1771` などで流動資産の貸倒引当金が無くなった期に、投資その他の資産の貸倒引当金が `#n` の振り直しで流動資産の行の名前になっていた。KAB-546）。行順は最新期を土台に古い期の行を差し込み、分断された同一見出し塊は最多行数の塊へ集約する（`gather_heads`）。表示名が同じで要素が違う見出しは、1つの書類に両方あるときは別の見出しのままにする（PLの「（内訳）」。当期純利益の帰属と包括利益の帰属）。どの書類にも両方無いときは同じ見出しに集約する（KAB-494。77410 の費用、87050 の営業収益、77440 の利益に対する調整項目、43160 と 87690 のその他の包括利益累計額）。
 
 #### 会計基準で表を分ける
 
@@ -655,7 +656,7 @@ PDF が主となる列（基準変更会社は同一基準の学習結果と XBR
 
 行の区分と見出しは表示リンクから決める。
 
-- 深さがある書類（`_tree_heads`）は `Abstract` 祖先の表示名をそのまま見出しに出し、金額要素配下の子は `indent` で字下げする。例外として、(1) 見出しの合計要素より後ろの子付き見出しは出さず（`6094`・`4052`）、(2) 子なし見出しは後続の兄弟要素を合計まで配下にし、(3) `Subtotal*` の子は字下げせず、(4) 新株予約権・非支配株主持分や CF の換算差額・増減額・期首期末残高・`*CCE`（`OUTSIDE_SECTIONS`）は株主資本や営業・投資・財務の見出し外へ出す。(5) 金額のある区分の合計の要素（`投資その他の資産` など、`<要素>Abstract` が見出しの要素）の子として字下げした行は、表のほかの行が同じ道筋の下にその見出し（`<要素>Abstract`）を宣言していれば、その見出しの下に 1 段浅く置く（`Part.under`。`8306` 個別の四半期の BS は 投資その他の資産 の金額の下に内訳を並べ、有報は見出しの下に並べる。有報に無い「その他」だけが合計の下に字下げされていた。KAB-546）。
+- 深さがある書類（`_tree_heads`）は `Abstract` 祖先の表示名をそのまま見出しに出し、金額要素配下の子は `indent` で字下げする。例外として、(1) 見出しの合計要素より後ろの子付き見出しは出さず（`6094`・`4052`。ただし大区分・区分の見出し［`HEAD_GROUPS`・`HEAD_SECTIONS`］は出さないのではなく、合計の済んだ親の見出しの外に出して親と並べる。`6981` は `資本の部` を `負債の部` の中の負債合計の後ろに、`3372`・`3050` 個別は `評価・換算差額等` を `株主資本` の中の株主資本合計の後ろに、`2930` 個別は `固定負債` を `流動負債` の中の流動負債合計の後ろに置き、資本・評価換算差額等・固定負債の行が親の見出しの下に出ていた。KAB-549）、(2) 子なし見出しは後続の兄弟要素を合計まで配下にし、(3) `Subtotal*` の子は字下げせず、(4) 新株予約権・非支配株主持分や CF の換算差額・増減額・期首期末残高・`*CCE`（`OUTSIDE_SECTIONS`）は株主資本や営業・投資・財務の見出し外へ出す。(5) 金額のある区分の合計の要素（`投資その他の資産` など、`<要素>Abstract` が見出しの要素）の子として字下げした行は、表のほかの行が同じ道筋の下にその見出し（`<要素>Abstract`）を宣言していれば、その見出しの下に 1 段浅く置く（`Part.under`。`8306` 個別の四半期の BS は 投資その他の資産 の金額の下に内訳を並べ、有報は見出しの下に並べる。有報に無い「その他」だけが合計の下に字下げされていた。KAB-546）。
 - 行統合判定用の「大区分・区分」（`_flat_parts`、KAB-481）は深さを見ず並びから決める（BS 大区分は `AssetsAbstract`・`LiabilitiesAbstract`・`NetAssetsAbstract` と IFRS 版、BS 区分は `CurrentAssetsAbstract`・`NoncurrentAssetsAbstract`・`PropertyPlantAndEquipmentAbstract`・`IntangibleAssetsAbstract`・`InvestmentsAndOtherAssetsAbstract`［`InvestmentsAndOtherAssetsGross` を含む］・`DeferredAssetsAbstract`・`CurrentLiabilitiesAbstract`・`NoncurrentLiabilitiesAbstract`・`ReservesUnderTheSpecialLawsAbstract1`・`ShareholdersEquityAbstract`・`ValuationAndTranslationAdjustmentsAbstract` と IFRS 版 `CurrentAssetsIFRSAbstract`・`NonCurrentAssetsIFRSAbstract`・`CurrentLiabilitiesIFRSAbstract`→`TotalCurrentLiabilitiesIFRS`・`NonCurrentLiabilitiesIFRSAbstract`→`NonCurrentLabilitiesIFRS`・`EquityAttributableToOwnersOfParentIFRSAbstract`、CF は営業・投資・財務の 3 区分、日本基準 PL は売上原価・販管費・営業外収益費用・特別利益損失の 6 区分。流動・固定資産負債と営業・投資 CF は `OPEN_AFTER_TOTAL` で後ろに見出しがある間は合計で閉じず、見出しなし 1 行合計は `LONE_SECTIONS` でその区分にする）。各行は値がある最新書類の区分・見出しを使い、深さの無い古い書類のみの行は同じ区分の合計行から宣言見出しを借りる。
 
 #### タグが替わって割れた行をまとめる

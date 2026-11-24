@@ -27,7 +27,7 @@ if str(ROOT) not in sys.path:
 
 import pdfplumber
 
-from tools.monthly.text_mask import mask
+from app.monthly.text_mask import mask
 
 RE_ISSUER_DIR = re.compile(r"^[0-9][0-9A-Z]{3}$")
 RE_ISSUER_IN_NAME = re.compile(r"_([0-9][0-9A-Z]{3})_")

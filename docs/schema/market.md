@@ -115,7 +115,7 @@ erDiagram
 
 見出しの下の文と「説明」の列は、モデルの `comment`（DB には出ない）。型の列は DDL の型で、括弧の中はモデルの型。
 
-`JstDateTime`: 日本時間をタイムゾーンなしで持つ。
+`ItemSet`: 決まった項目名の集合をカンマ区切りの文字列で持つ。知らない項目名は書き込みで弾く。 `JstDateTime`: 日本時間をタイムゾーンなしで持つ。
 
 ### briefing_documents
 
@@ -459,6 +459,7 @@ ECB 対EUR 日次レート。EUR 自身は持たない
 | `is_revision` | BOOLEAN | 可 |  |  | `False` | 予想修正開示フラグ |
 | `raw_json` | TEXT | 可 |  |  |  | 元データ全項目 |
 | `source` | VARCHAR(16) | 可 |  | `jquants` / `xbrl` |  | NULL は J-Quants |
+| `withdrawn_forecasts` | VARCHAR(80)（`ItemSet`） | 可 |  | `net_sales` / `operating_profit` / `ordinary_profit` / `profit` / `eps` / `div_annual` |  | この開示で取り下げた（未定にした）予想。業績は通期、div_annual は年間配当。短信 XBRL で修正前の行だけある項目から付ける。NULL は印なし |
 
 | 索引・一意 | 列 | 一意 |
 |---|---|---|

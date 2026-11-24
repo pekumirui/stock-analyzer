@@ -164,8 +164,7 @@
   {"kind": "buy", "edinet_code": "E09096", "holder_name": "ブラックロック・ジャパン株式会社",
    "code": "18020", "issuer_name": "株式会社大林組", "market": "プライム", "sector33": "建設業",
    "obligation_date": "2026-10-22", "file_date": "2026-10-28",
-   "holding_ratio": 0.0202, "holding_ratio_prev": 0.0195, "shares_held": 14008800,
-   "news_id": "lS100ABCD"}
+   "holding_ratio": 0.0202, "holding_ratio_prev": 0.0195, "shares_held": 14008800}
 ]}
 ```
 
@@ -182,7 +181,7 @@
     {"code": "18020", "name": "大林組", "market": "プライム", "sector33": "建設業",
      "shares_held": 14008800, "holding_ratio": 0.0202, "holding_ratio_prev": 0.0195,
      "obligation_date": "2026-10-22", "file_date": "2026-10-28", "purpose": "純投資",
-     "news_id": "lS100ABCD", "price": 1850.0, "price_date": "2026-10-28",
+     "price": 1850.0, "price_date": "2026-10-28",
      "market_value": 25916280000.0, "avg_cost": 1914.0, "unrealized": -896563200.0,
      "history": [{"date": "2026-03-02", "shares": 12000000, "ratio": 0.018,
                   "file_date": "2026-03-08"}]}

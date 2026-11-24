@@ -229,7 +229,7 @@ def test_yoy_matches_full_element_scan() -> None:
     rows = [
         (2024, "全店 売上高(前年比)", "yoy_index", 2, 3, 110.0),
         (2025, "EC 全店 売上高(前年比)", "yoy_index", 1, 12, 150.0),
-        (2025, "既存 売上高(前年比)", "yoy_pct", 1, 8, 101.5),
+        (2025, "既存 売上高(前年比)", "yoy_index", 1, 8, 101.5),
         (2025, "全店 売上高", "number", 1, 12, 999999.0),
         (2025, "店舗数", "number", 2, 12, 40.0),
     ]
@@ -276,6 +276,39 @@ def test_yoy_matches_full_element_scan() -> None:
         _fail(f"existing {listed['existing_store_yoy']!r} != full {full!r}")
     if listed["all_store_yoy"] != 110.0 or listed["existing_store_yoy"] != 101.5:
         _fail(f"older company-wide must win: {listed!r}")
+
+
+def test_list_yoy_ignores_a_unit_outside_the_stored_pair() -> None:
+    init_db()
+    code = "31780"
+    _exec(
+        "INSERT INTO stocks (code, name) VALUES (:c, '無視する単位')",
+        {"c": code},
+    )
+    _exec("INSERT INTO monthly_tables (code, year) VALUES (:c, 2025)", {"c": code})
+    _exec(
+        "INSERT INTO monthly_elements (code, year, element, sort_order, unit) "
+        "VALUES (:c, 2025, '全店 売上高(前年比)', 1, 'yoy_index')",
+        {"c": code},
+    )
+    _exec(
+        "INSERT INTO monthly_values (code, year, element, month, value) "
+        "VALUES (:c, 2025, '全店 売上高(前年比)', 3, 110.0)",
+        {"c": code},
+    )
+    _exec(
+        "INSERT INTO monthly_elements (code, year, element, sort_order, unit) "
+        "VALUES (:c, 2025, '既存 売上高(前年比)', 2, 'yoy_pct')",
+        {"c": code},
+    )
+    _exec(
+        "INSERT INTO monthly_values (code, year, element, month, value) "
+        "VALUES (:c, 2025, '既存 売上高(前年比)', 8, 101.5)",
+        {"c": code},
+    )
+    row = _by_code()[code]
+    if row["all_store_yoy"] != 110.0 or row["existing_store_yoy"] is not None:
+        _fail(f"stored yoy_pct must stay out of the list: {row!r}")
 
 
 def test_ensure_restores_triggers_after_they_are_dropped() -> None:

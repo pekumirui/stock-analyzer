@@ -49,9 +49,9 @@ _modules: dict[str, str] = {}  # 絶対パス → モジュール名（app/ と 
 def pytest_addoption(parser):
     parser.addoption(
         "--dataflow",
-        choices=("write", "check"),
+        choices=("write", "check", "dump"),
         default=None,
-        help="テスト中の SQL から docs/DATA_FLOW.md と docs/dataflow/ を書く（write）か、今のファイルと突き合わせる（check）",
+        help="テスト中の SQL から docs/DATA_FLOW.md と docs/dataflow/ を書く（write）か、今のファイルと突き合わせる（check）。dump は拾った読み書きを DATAFLOW_DUMP に書くだけで、分けたジョブの分を `python -m tools.dataflow.merge` がまとめて突き合わせる",
     )
 
 
@@ -142,6 +142,25 @@ def _union(keys: set[Key]) -> dict[str, set[str]]:
     return dict(out)
 
 
+def _dump_seen() -> dict[str, dict[str, str]]:
+    return {f"{m}:{q}": {t: "".join(sorted(rw)) for t, rw in v.items()} for (m, q), v in _seen.items()}
+
+
+def _merge_seen(dumped: dict[str, dict[str, str]]) -> None:
+    for key, tables_rw in dumped.items():
+        mod, qual = key.split(":", 1)
+        seen = _seen[(mod, qual)]
+        for t, rw in tables_rw.items():
+            seen[t].update(rw)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    dumped = getattr(node, "workeroutput", {}).get("dataflow")
+    if dumped:
+        _merge_seen(dumped)
+
+
 def collect():
     from app.models import Base
 
@@ -181,21 +200,10 @@ def collect():
     )
 
 
-@pytest.hookimpl(trylast=True)
-def pytest_sessionfinish(session, exitstatus):
-    mode = session.config.getoption("--dataflow")
-    if not mode:
-        return
-    event.remove(Engine, "before_cursor_execute", _before_cursor_execute)
-    tw = session.config.get_terminal_writer()
-    what = f"docs/DATA_FLOW.md と {PAGE_DIR}/"
-    if exitstatus != 0:
-        tw.line(f"dataflow: テストが通っていないので {what} を{'書かない' if mode == 'write' else '突き合わせない'}", red=True)
-        return
-    if os.environ.get("DATAFLOW_DUMP"):
-        Path(os.environ["DATAFLOW_DUMP"]).write_text(json.dumps(
-            {f"{m}:{q}": {t: "".join(sorted(rw)) for t, rw in v.items()} for (m, q), v in _seen.items()},
-            ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+WHAT = f"docs/DATA_FLOW.md と {PAGE_DIR}/"
+
+
+def finish(mode: str, line) -> bool:
     files = render(*collect())
     # 作らなくなったファイル（機能が消えたページなど）も差分に数える
     stale = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / PAGE_DIR).glob("*") if p.is_file())
@@ -207,14 +215,14 @@ def pytest_sessionfinish(session, exitstatus):
             path.write_text(text, encoding="utf-8")
         for rel in stale:
             (ROOT / rel).unlink()
-        tw.line(f"dataflow: {what} を書いた", green=True)
+        line(f"dataflow: {WHAT} を書いた", green=True)
         from tools.jobs.render import write as write_jobs
         from tools.schema.render import write as write_schema
         from tools.screen.render import write as write_screens
 
         for rel in [*write_jobs(), *write_screens(), *write_schema()]:
-            tw.line(f"dataflow: {rel} を書いた", green=True)
-        return
+            line(f"dataflow: {rel} を書いた", green=True)
+        return True
     bad = False
     for rel, text in files.items():
         path = ROOT / rel
@@ -222,14 +230,39 @@ def pytest_sessionfinish(session, exitstatus):
         if current == text:
             continue
         bad = True
-        tw.line(f"dataflow: {rel} が実装と合わない", red=True)
-        for line in difflib.unified_diff(current.splitlines(), text.splitlines(), rel, "(テストから作った版)", lineterm=""):
-            tw.line(line)
+        line(f"dataflow: {rel} が実装と合わない", red=True)
+        for diff in difflib.unified_diff(current.splitlines(), text.splitlines(), rel, "(テストから作った版)", lineterm=""):
+            line(diff)
     for rel in stale:
         bad = True
-        tw.line(f"dataflow: {rel} はもう作らないファイル", red=True)
+        line(f"dataflow: {rel} はもう作らないファイル", red=True)
     if not bad:
-        tw.line(f"dataflow: {what} は最新", green=True)
+        line(f"dataflow: {WHAT} は最新", green=True)
+        return True
+    line("dataflow: `python -m pytest tests --dataflow=write` で作り直す", red=True)
+    return False
+
+
+def write_dump(path: Path) -> None:
+    path.write_text(json.dumps(_dump_seen(), ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session, exitstatus):
+    mode = session.config.getoption("--dataflow")
+    if not mode:
         return
-    tw.line("dataflow: `python -m pytest tests --dataflow=write` で作り直す", red=True)
-    session.exitstatus = pytest.ExitCode.TESTS_FAILED
+    event.remove(Engine, "before_cursor_execute", _before_cursor_execute)
+    if hasattr(session.config, "workerinput"):
+        session.config.workeroutput["dataflow"] = _dump_seen()
+        return
+    tw = session.config.get_terminal_writer()
+    if exitstatus != 0:
+        tw.line(f"dataflow: テストが通っていないので {WHAT} を{'書かない' if mode == 'write' else '突き合わせない'}", red=True)
+        return
+    if os.environ.get("DATAFLOW_DUMP"):
+        write_dump(Path(os.environ["DATAFLOW_DUMP"]))
+    if mode == "dump":
+        return
+    if not finish(mode, tw.line):
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED

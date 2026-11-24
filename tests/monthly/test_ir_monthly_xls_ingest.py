@@ -26,7 +26,7 @@ from jobs.monthly.ir_monthly_xls_ingest import (
     scale_occupancy,
     spec_for,
 )
-from tools.monthly.read_xls import read_sheet_builtin
+from app.monthly.read_xls import read_sheet_builtin
 
 FIXTURE = ROOT / "tests" / "monthly" / "testdata" / "1878_history_1.xls"
 FIXTURE_7606 = ROOT / "tests" / "monthly" / "testdata" / "7606_sokuho2027.xlsx"
