@@ -1,0 +1,31 @@
+{
+  "_meta": {"field": "statements.withdrawn_forecasts と同じ意味（その開示で取り下げた予想）", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps", "div_annual"], "source": "短信 XBRL が無い過去の開示。原本で取り下げ・未定を確かめたものだけ載せる"},
+  "withdrawals": [
+    {"disclosure_no": "20211129443229", "code": "78210", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2021-11-30 の開示の PDF で確認。決算期変更で通期を取り下げ・未定。上期と配当は変更なし"},
+    {"disclosure_no": "20220311504350", "code": "81650", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2022-03-11 の開示の PDF で確認。通期 未定。配当は変更なし"},
+    {"disclosure_no": "20220812519965", "code": "37820", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2022-08-12 の開示の PDF で確認。通期 未定（連結・個別）"},
+    {"disclosure_no": "20221028552157", "code": "33260", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2022-10-31 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20230627511561", "code": "39100", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2023-06-29 の開示の PDF で確認。上期・通期とも 未定"},
+    {"disclosure_no": "20230922557177", "code": "73540", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps", "div_annual"], "evidence": "2023-09-22 の開示の PDF で確認。通期 未定。期末配当・年間配当も 未定"},
+    {"disclosure_no": "20231012565992", "code": "39290", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2023-10-16 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20231026572356", "code": "24020", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2023-10-26 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20231219505388", "code": "26670", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2023-12-19 の開示の PDF で確認。通期 取り下げ"},
+    {"disclosure_no": "20240301546955", "code": "76760", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-03-01 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20240327560261", "code": "41690", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-03-27 の開示の PDF で確認。通期 未定（前回は売上だけ）"},
+    {"disclosure_no": "20240328562190", "code": "35560", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-03-28 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20240723553392", "code": "67070", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-07-24 の開示の PDF で確認。連結業績予想を取り下げ（本文。表は未確認）"},
+    {"disclosure_no": "20240902579849", "code": "29340", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-09-02 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20241028504108", "code": "57290", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-11-01 の開示の PDF で確認。通期 未定（連結・個別）"},
+    {"disclosure_no": "20241112520104", "code": "80720", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-11-13 の開示の PDF で確認。上期は修正、通期は取り下げ"},
+    {"disclosure_no": "20241114522760", "code": "93260", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-11-14 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20241129531797", "code": "48130", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2024-11-29 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20251023577865", "code": "65940", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps", "div_annual"], "evidence": "2025-10-23 の開示の PDF で確認。上期・通期とも取り下げ。期末配当・年間配当も未定"},
+    {"disclosure_no": "20260130543700", "code": "48130", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2026-01-30 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20260202545181", "code": "33150", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2026-02-06 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20260330592434", "code": "37720", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2026-03-31 の開示の PDF で確認。通期 未定。期末配当は維持"},
+    {"disclosure_no": "20260427512220", "code": "38560", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2026-04-27 の開示の PDF で確認。通期 未定"},
+    {"disclosure_no": "20260526547742", "code": "192A0", "items": ["div_annual"], "evidence": "2026-05-26 の開示の PDF で確認。業績は数字で修正。期末配当・年間配当が 未定"},
+    {"disclosure_no": "20220128574457", "code": "43840", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2022-02-01 の開示の PDF で確認。連結移行。個別予想に代えて連結のレンジ予想"},
+    {"disclosure_no": "20230427554690", "code": "95520", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "2023-04-28 の開示の PDF で確認。連結移行。個別 6,700 に代えて連結 8,000（J-Quants は空）"}
+  ]
+}

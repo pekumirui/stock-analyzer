@@ -19,6 +19,7 @@ from app.db import SessionLocal, init_db
 from app.db import upsert
 from app.main import app
 from app.market.analytics import forecast_revision, quarter_summary
+from app.market.withdrawals import no_withdrawals
 from app.models import Statement, Stock
 
 CODE = "72030"
@@ -136,6 +137,75 @@ def test_other_fiscal_year_is_ignored() -> None:
     prev_year = _stmt("p1", "1Q", date(2024, 8, 1), fy_op=20, fy_end=date(2025, 3, 31))
     q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
     assert forecast_revision([prev_year], q1) is None
+
+
+def _marked(s: Statement, *items: str) -> Statement:
+    s.withdrawn_forecasts = items
+    return s
+
+
+def test_no_badge_after_the_operating_profit_forecast_is_withdrawn() -> None:
+    q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
+    wd = _marked(_stmt("wd", "FY", date(2025, 9, 1), fy_op=None, is_revision=True, doc=REV_DOC),
+                 "net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+    q2 = _stmt("q2", "2Q", date(2025, 11, 1), fy_op=48)
+    assert forecast_revision([q1], q2) == {"direction": "up", "pct": 20.0}
+    assert forecast_revision([q1, wd], q2) is None
+    back = _stmt("back", "FY", date(2025, 10, 1), fy_op=44, is_revision=True, doc=REV_DOC)
+    assert forecast_revision([q1, wd, back], q2) == {"direction": "up", "pct": 9.1}
+
+
+def test_withdrawal_of_other_items_keeps_the_badge() -> None:
+    q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
+    wd = _marked(_stmt("wd", "FY", date(2025, 9, 1), fy_op=None, is_revision=True, doc=REV_DOC), "profit", "eps")
+    q2 = _stmt("q2", "2Q", date(2025, 11, 1), fy_op=48)
+    assert forecast_revision([q1, wd], q2) == {"direction": "up", "pct": 20.0}
+
+
+def test_marks_can_be_turned_off() -> None:
+    q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
+    wd = _marked(_stmt("wd", "FY", date(2025, 9, 1), fy_op=None, is_revision=True, doc=REV_DOC), "operating_profit")
+    q2 = _stmt("q2", "2Q", date(2025, 11, 1), fy_op=48)
+    assert forecast_revision([q1, wd], q2, withdrawn=no_withdrawals) == {"direction": "up", "pct": 20.0}
+
+
+def test_same_day_withdrawal_notice_is_not_previous() -> None:
+    q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
+    wd = _marked(_stmt("wd", "FY", date(2025, 11, 1), fy_op=None, is_revision=True, doc=REV_DOC), "operating_profit")
+    q2 = _stmt("q2", "2Q", date(2025, 11, 1), fy_op=48)
+    assert forecast_revision([q1, wd], q2) == {"direction": "up", "pct": 20.0}
+
+
+def test_no_badge_after_an_undecided_report() -> None:
+    q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
+    undecided = _stmt("q2", "2Q", date(2025, 11, 1), fy_op=None)
+    q3 = _stmt("q3", "3Q", date(2026, 2, 1), fy_op=48)
+    assert forecast_revision([q1, undecided], q3) is None
+    silent_revision = _stmt("rev", "FY", date(2025, 11, 1), fy_op=None, is_revision=True, doc=REV_DOC)
+    assert forecast_revision([q1, silent_revision], q3) == {"direction": "up", "pct": 20.0}
+
+
+def test_list_api_drops_the_badge_after_a_marked_revision() -> None:
+    init_db()
+    db = SessionLocal()
+    code = "72040"
+    try:
+        upsert(db, Stock, [{"code": code, "name": "取り下げ", "product_category": "011"}])
+        rows = []
+        for s in (
+            _stmt("w1", "1Q", date(2025, 8, 4), fy_op=40),
+            _marked(_stmt("w2", "FY", date(2025, 9, 4), fy_op=None, is_revision=True, doc=REV_DOC),
+                    "operating_profit"),
+            _stmt("w3", "2Q", date(2025, 11, 4), fy_op=48),
+        ):
+            row = {c.key: getattr(s, c.key) for c in Statement.__table__.columns
+                   if getattr(s, c.key) is not None or c.key == "is_revision"}
+            rows.append({**row, "code": code})
+        upsert(db, Statement, rows)
+    finally:
+        db.close()
+    body = TestClient(app).get("/api/earnings", params={"date": "2025-11-04", "today": "2026-05-02"}).json()
+    assert [(r["disclosure_no"], r["forecast_revision"]) for r in body["actuals"]] == [("w3", None)]
 
 
 def test_quarter_summary_exposes_forecast_revision() -> None:

@@ -505,6 +505,7 @@ function renderProg(el, rows, d){
 
 const REV_BADGE = {forecast_initial:["期初","qb-init","期初予想"], forecast:["予想","qb-init","取得できる最初の予想"],
                    forecast_revised:["修正","qb-mod","予想修正"],
+                   forecast_withdrawn:["取下","qb-wd","予想の取り下げ（未定）"],
                    actual_fy:["実績","qb-act","通期実績"]};
 function revG(c){
   if(!c || c.state==="na") return "–";

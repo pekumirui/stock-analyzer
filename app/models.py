@@ -17,6 +17,7 @@ from sqlalchemy import (
     literal_column,
 )
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.types import TypeDecorator
 
 Base = declarative_base()
 
@@ -35,6 +36,32 @@ def _one_of(*values: str | dict[str, str], length: int | None = None) -> Enum:
     out = Enum(*names, native_enum=False, validate_strings=True, create_constraint=False, length=length)
     out.meanings = meanings
     return out
+
+
+class ItemSet(TypeDecorator):
+    impl = String
+    cache_ok = True
+
+    def __init__(self, *items: str, length: int | None = None):
+        super().__init__(length=length)
+        self.items = items
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        given = set(value.split(",") if isinstance(value, str) else value) - {""}
+        unknown = given - set(self.items)
+        if unknown:
+            raise ValueError(f"unknown items {sorted(unknown)}; allowed {list(self.items)}")
+        return ",".join(i for i in self.items if i in given) or None
+
+    def process_result_value(self, value, dialect):
+        return tuple(value.split(",")) if value else None
+
+
+FORECAST_ITEMS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+DIVIDEND_ITEM = "div_annual"
+WITHDRAWABLE_ITEMS = (*FORECAST_ITEMS, DIVIDEND_ITEM)
 
 
 class Stock(Base):
@@ -260,6 +287,11 @@ class Statement(Base):
     is_revision = Column(Boolean, default=False, comment="予想修正開示フラグ")
     raw_json = Column(Text, comment="元データ全項目")
     source = Column(_one_of("jquants", "xbrl", length=16), comment="NULL は J-Quants")
+    withdrawn_forecasts = Column(
+        ItemSet(*WITHDRAWABLE_ITEMS, length=80),
+        comment="この開示で取り下げた（未定にした）予想。業績は通期、div_annual は年間配当。"
+                "短信 XBRL で修正前の行だけある項目から付ける。NULL は印なし",
+    )
     __table_args__ = (
         Index(
             "ix_statements_earnings_cover",

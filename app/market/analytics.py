@@ -14,6 +14,7 @@ from ..models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Sto
 from ..db import WRITE_CHUNK_SIZE, upsert
 from .ingest import _f
 from .price_limit import at_limit
+from .withdrawals import Withdrawn, withdrawn_items
 from ..xbrl.gross_profit import attach_gross_profit
 
 
@@ -526,10 +527,12 @@ def is_quarter_flash_revision(s) -> bool:
             and getattr(s, "type_of_period", None) in QUARTER_FLASH_PERIODS)
 
 
-def statement_history(db: Session, code: str, upto: date, days: int) -> list[Statement]:
-    """指定日から遡った開示履歴。raw_json は使わないので defer する。EPS は upto の株数にそろえる。"""
+def statement_history(db: Session, code: str, upto: date, days: int,
+                      with_raw_json: bool = False) -> list[Statement]:
+    """指定日から遡った開示履歴。raw_json は with_raw_json のときだけ読む。EPS は upto の株数にそろえる。"""
     since = upto - timedelta(days=days)
-    hist = (db.query(Statement).options(defer(Statement.raw_json))
+    query = db.query(Statement) if with_raw_json else db.query(Statement).options(defer(Statement.raw_json))
+    hist = (query
             .filter(Statement.code == code,
                     Statement.disclosed_date <= upto,
                     Statement.disclosed_date >= since)
@@ -542,36 +545,33 @@ def _disc_key(s: Statement) -> tuple:
     return (s.disclosed_date, s.disclosure_no or "")
 
 
-def forecast_revision(hist: list[Statement], stmt: Statement) -> dict | None:
-    """同一事業年度の直前の通期営業利益予想と比べた {direction, pct}。無ければ None。
+def forecast_revision(hist: list[Statement], stmt: Statement,
+                      withdrawn: Withdrawn = withdrawn_items) -> dict | None:
+    """同一事業年度の直前の時点の通期営業利益予想と比べた {direction, pct}。無ければ None。
 
-    向きの列は無い。読むのは保存済みの `statements.fy_operating_profit`。
-    `is_revision` / `type_of_document` は修正開示の種別だけで向きが無い。
-    売上・経常・純利益は見ない（項目が混ざっても営利に従う）。閾値は
-    EARNINGS_PARAMS["revision_noise_th"]（±0.1%）。赤字予想は |直前| を分母にし、
-    損失縮小を up にする。同日の予想修正のみの開示は直前に使わない
-    （短信と EarnForecastRevision が同日だと新しい値同士で消えるため）。
+    直前の時点の予想は、同じ年度の開示を古い順に畳んだ営業利益予想。予想修正の空欄は触れていない、
+    決算短信の空欄は未定、取り下げの印（withdrawn）がある開示は予想なしにする。
+    1Q・3Q 型の業績予想修正と、同日の予想修正のみの開示は畳まない。閾値は
+    EARNINGS_PARAMS["revision_noise_th"]（±0.1%）。赤字予想は |直前| を分母にし、損失縮小を up にする。
     """
     cur = stmt.fy_operating_profit
     if cur is None or stmt.fiscal_year_end is None or is_quarter_flash_revision(stmt):
         return None
     key = _disc_key(stmt)
-    prev_fc = None
-    for s in hist:
-        if s.fiscal_year_end != stmt.fiscal_year_end or s.fy_operating_profit is None:
-            continue
-        if is_quarter_flash_revision(s):
-            continue
-        sk = _disc_key(s)
-        if sk >= key:
+    prev = None
+    for s in sorted(hist, key=_disc_key):
+        if _disc_key(s) >= key:
+            break
+        if s.fiscal_year_end != stmt.fiscal_year_end or is_quarter_flash_revision(s):
             continue
         if s.disclosed_date == stmt.disclosed_date and getattr(s, "is_revision", False):
             continue
-        if prev_fc is None or sk > _disc_key(prev_fc):
-            prev_fc = s
-    if prev_fc is None:
-        return None
-    prev = prev_fc.fy_operating_profit
+        if "operating_profit" in withdrawn(s):
+            prev = None
+        elif s.fy_operating_profit is not None:
+            prev = s.fy_operating_profit
+        elif is_actual(s):
+            prev = None
     if not prev:
         return None
     diff = (cur - prev) / abs(prev)
@@ -757,16 +757,20 @@ _NEXT_FC_KEYS = {"net_sales": "NxFSales", "operating_profit": "NxFOP",
                  "ordinary_profit": "NxFOdP", "profit": "NxFNp", "eps": "NxFEPS"}
 
 
+def next_year_end(raw: dict, fiscal_year_end: date | None) -> date | None:
+    try:
+        return date.fromisoformat(raw.get("NxtFYEn") or "")
+    except ValueError:
+        return shift_year(fiscal_year_end, 1) if fiscal_year_end else None
+
+
 def next_year_forecast(stmt: Statement) -> tuple[date | None, dict, dict]:
     """本決算の raw_json から (来期の年度末, 来期中間予想, 来期通期予想)。"""
     try:
         raw = json.loads(stmt.raw_json or "{}")
     except ValueError:
         raw = {}
-    try:
-        fy_end = date.fromisoformat(raw.get("NxtFYEn") or "")
-    except ValueError:
-        fy_end = shift_year(stmt.fiscal_year_end, 1) if stmt.fiscal_year_end else None
+    fy_end = next_year_end(raw, stmt.fiscal_year_end)
     scale = getattr(stmt, "fc_eps_scale", 1.0)
     half = _scale_eps({k: _f(raw.get(v + "2Q")) for k, v in _NEXT_FC_KEYS.items()}, scale)
     full = _scale_eps({k: _f(raw.get(v)) for k, v in _NEXT_FC_KEYS.items()}, scale)

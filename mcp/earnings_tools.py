@@ -406,7 +406,8 @@ def tool_earnings_detail(args: dict[str, Any], get_json: GetJson, code5: str) ->
         ("金額は百万円、EPS は円。増減% は累計が前年同期比、3か月が前年同期の 3か月比、修正履歴が前の行からの修正率。"
         "種類: actual=過去の同じ四半期, actual_current=この開示, forecast_h=中間予想, forecast_fy=通期予想, "
         "actual_fy_prev=前期通期, single=Q単独, forecast_initial=期初予想, forecast=予想（期初が取れない年度の最初）, "
-        "forecast_revised=修正, actual_fy=通期実績。"),
+        "forecast_revised=修正, forecast_withdrawn=予想の取り下げ（取り下げた項目は空、増減は出さない）, "
+        "actual_fy=通期実績。"),
     ]
     if note:
         parts.append("注: " + " / ".join(note))

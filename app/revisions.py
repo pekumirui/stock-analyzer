@@ -13,6 +13,8 @@ from .market.analytics import (FORECAST_KEYS, PL_KEYS, SIGNED, calendar_label, g
 
 FORECAST = "forecast"
 ACTUAL = "actual"
+WITHDRAWN = "withdrawn"
+WITHDRAWN_ROW = "forecast_withdrawn"
 # 前期末からこの日数までに出た予想を期初予想とみなす (本決算の発表は期末から 45〜90 日)
 INITIAL_WITHIN_DAYS = 100
 
@@ -62,19 +64,24 @@ def _year_rows(points: list[RevisionPoint]) -> list[dict]:
                  key=key, default=None)
     fy_end = actual.fy_end if actual else max(p.fy_end for p in points)
     rows, last = [], None
-    for p in sorted((p for p in points if p.kind == FORECAST and _has_values(p.values)), key=key):
+    shown = [p for p in points if p.kind == WITHDRAWN or (p.kind == FORECAST and _has_values(p.values))]
+    for p in sorted(shown, key=key):
         if actual is not None and key(p) >= key(actual):
             break
-        if last is None:
+        if p.kind == WITHDRAWN:
+            rows.append(_row(fy_end, WITHDRAWN_ROW, p, None))
+        elif last is None:
             initial = p.disclosed <= shift_year(fy_end, -1) + timedelta(days=INITIAL_WITHIN_DAYS)
             rows.append(_row(fy_end, "forecast_initial" if initial else FORECAST, p, None))
+        elif not _has_values(last):
+            rows.append(_row(fy_end, FORECAST, p, None))
         elif _changed(p.values, last):
             rows.append(_row(fy_end, "forecast_revised", p, last))
         else:
             continue
         last = p.values
     if actual is not None:
-        rows.append(_row(fy_end, "actual_fy", actual, last))
+        rows.append(_row(fy_end, "actual_fy", actual, last if last and _has_values(last) else None))
     return rows
 
 
