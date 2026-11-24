@@ -4432,6 +4432,13 @@
      "nullable": true,
      "default": null,
      "comment": "NULL は J-Quants\n値: jquants / xbrl"
+    },
+    {
+     "name": "withdrawn_forecasts",
+     "type": "VARCHAR(80)",
+     "nullable": true,
+     "default": null,
+     "comment": "この開示で取り下げた（未定にした）予想。業績は通期、div_annual は年間配当。短信 XBRL で修正前の行だけある項目から付ける。NULL は印なし\nItemSet: 決まった項目名の集合をカンマ区切りの文字列で持つ。知らない項目名は書き込みで弾く\n値: net_sales / operating_profit / ordinary_profit / profit / eps / div_annual"
     }
    ],
    "indexes": [

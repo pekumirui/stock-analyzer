@@ -130,6 +130,7 @@ flowchart LR
   n11 --> n18
   n12 --> n23
   n13 --> n11
+  n14 --> n1
   n14 --> n2
   n14 --> n5
   n15 --> n1
@@ -178,7 +179,7 @@ flowchart LR
 | `tools/golden` | `app` |
 | `tools/jobs` | `tools/dataflow` |
 | `tools/lint` |  |
-| `tools/market` | `app`, `app/market`, `app/xbrl` |
+| `tools/market` | `app`, `app/api`, `app/market`, `app/xbrl` |
 | `tools/monthly` | `app`, `app/api`, `app/monthly`, `app/xbrl`, `jobs`, `jobs/monthly` |
 | `tools/ops` |  |
 | `tools/overview` | `tools/dataflow`, `tools/jobs` |
