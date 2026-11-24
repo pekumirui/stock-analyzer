@@ -117,7 +117,10 @@ jobs:
       - name: Test
         env:
           DATAFLOW_DUMP: ${{ runner.temp }}/dataflow-${{ matrix.shard }}.json
-        run: python -m pytest tests -q -n auto --dist loadfile --shard=${{ matrix.shard }}/${{ strategy.job-total }} --dataflow=dump
+        run: python -m pytest tests -q -n auto --dist loadfile --shard=${{ matrix.shard }}/${{ strategy.job-total }} --dataflow=dump --store-durations
+
+      - name: Durations
+        run: echo "::notice title=durations-${{ matrix.shard }}::$(python -c 'import json;print(json.dumps(json.load(open("tests/durations.json")),separators=(",",":")))')"
 
       - uses: actions/upload-artifact@v4
         with:
