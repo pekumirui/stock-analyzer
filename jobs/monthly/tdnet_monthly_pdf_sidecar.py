@@ -10,7 +10,8 @@
    同じ行を読んで sidecar を書く。重なる月は DB の値と突き合わせる
 
 指紋が違う・DB の行を全部は再現できない・重なる月が食い違う PDF は書かない（人が入れる）。
-理由は `manual` の行に出す。PDF は `data/monthly` を読むだけ。DB は sqlite の mode=ro。ネットワークには出ない。
+同じ開示月の PDF がもう一枚あり、最新の方にまだ DB へ入っていない行があるときも書かない。
+理由は `manual` の行に出す（未投入の行は `手動投入が必要`）。PDF は `data/monthly` を読むだけ。DB は sqlite の mode=ro。ネットワークには出ない。
 
   python jobs/monthly/tdnet_monthly_pdf_sidecar.py
   python jobs/monthly/tdnet_monthly_pdf_sidecar.py --only 428A --dry-run
@@ -53,8 +54,9 @@ from jobs._r2common import (
     with_mount_retry,
 )
 from jobs.monthly.ir_monthly_r2 import atomic_write
-from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code
-from tools.monthly.text_mask import mask
+from app.monthly.text_mask import mask
+from app.xbrl.codes import jq_lookup_code
+from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code
 
 SIDECAR_SUFFIX = ".pdf-ingest.json"
 PDFTOTEXT_TIMEOUT = 60
@@ -634,8 +636,18 @@ def _series_cells(grid: Grid, series: Series, as_of: date) -> dict[tuple[int, in
     return {years[si]: v for si, v in series.cells.items() if v is not None and si in years}
 
 
-def learn(grids: Sequence[Grid], as_of: date, db: DbIssuer, *, source: str = "") -> Template:
-    """前回の PDF のどの行が DB のどの element か。開示月に値のある element を全部再現できたときだけ返す。"""
+def learn(
+    grids: Sequence[Grid],
+    as_of: date,
+    db: DbIssuer,
+    *,
+    source: str = "",
+    covered_only: bool = False,
+) -> Template:
+    """前回の PDF のどの行が DB のどの element か。開示月に値のある element を全部再現できたときだけ返す。
+
+    covered_only のときは、その PDF に無い element を除き、再現できた行だけ返す。
+    """
     anchor = expected_month(as_of)
     targets = sorted(e for e, cells in db.values.items() if anchor in cells)
     if not targets:
@@ -670,7 +682,7 @@ def learn(grids: Sequence[Grid], as_of: date, db: DbIssuer, *, source: str = "")
             shift=shift,
             alts=tuple(places[1:]),
         ))
-    if missing:
+    if missing and not (covered_only and rules):
         raise NoTemplate("再現できない行: " + ", ".join(missing))
     used = _used(rules)
     return Template(
@@ -852,6 +864,123 @@ class Plan:
     payload: dict[str, Any] | None = None
 
 
+def _manual_occupied(code: str, latest: Path, anchor: tuple[int, int], why: str) -> Plan:
+    label = f"{anchor[0]}-{anchor[1]:02d}"
+    return Plan(code, "manual", f"{label} は他の行が投入済み。手動投入が必要: {why}", latest)
+
+
+def _unique_anchor(db: DbIssuer, anchor: tuple[int, int], value: float, element: str) -> bool:
+    owners = [
+        name
+        for name, values in db.values.items()
+        if anchor in values and close(values[anchor], value)
+    ]
+    return owners == [element]
+
+
+def _series_stored(cells: Mapping[tuple[int, int], float], db: DbIssuer, anchor: tuple[int, int]) -> bool:
+    others = [ym for ym in cells if ym != anchor]
+    for element, values in db.values.items():
+        if anchor not in values:
+            continue
+        for shift in (0.0, 100.0):
+            if not close(cells[anchor] + shift, values[anchor]):
+                continue
+            if not others:
+                if _unique_anchor(db, anchor, cells[anchor] + shift, element):
+                    return True
+                continue
+            overlapped = [ym for ym in others if ym in values]
+            if overlapped and all(close(cells[ym] + shift, values[ym]) for ym in overlapped):
+                return True
+    return False
+
+
+def _unstored_labels(grids: Sequence[Grid], as_of: date, db: DbIssuer) -> list[str]:
+    anchor = expected_month(as_of)
+    labels: list[str] = []
+    for grid in grids:
+        for series in grid.series:
+            cells = _series_cells(grid, series, as_of)
+            if anchor not in cells or _series_stored(cells, db, anchor):
+                continue
+            labels.append(series.label or "(無名)")
+    return labels
+
+
+def _teach_occupied(
+    code: str,
+    teacher: Path,
+    teacher_date: date,
+    new_grids: Sequence[Grid],
+    latest_date: date,
+    latest: Path,
+    anchor: tuple[int, int],
+    db: DbIssuer,
+    read_lines: Callable[[Path], list[Line]],
+) -> Plan | None:
+    try:
+        template = learn(
+            parse_grids(read_lines(teacher)),
+            teacher_date,
+            db,
+            source=teacher.name,
+            covered_only=True,
+        )
+        extracted = apply(template, new_grids, latest_date)
+    except FormatChanged as exc:
+        if str(exc).startswith("新しい行"):
+            return _manual_occupied(code, latest, anchor, str(exc))
+        return None
+    except NoTemplate:
+        return None
+    missing = [
+        row.rule.element
+        for row in extracted
+        if anchor not in db.values.get(row.rule.element, {})
+    ]
+    if missing:
+        return _manual_occupied(code, latest, anchor, ", ".join(missing))
+    try:
+        verify(extracted, db, anchor)
+    except FormatChanged as exc:
+        return _manual_occupied(code, latest, anchor, str(exc))
+    unstored = _unstored_labels(new_grids, latest_date, db)
+    if unstored:
+        return _manual_occupied(code, latest, anchor, ", ".join(unstored))
+    return Plan(code, "current", f"{anchor[0]}-{anchor[1]:02d} 投入済み", latest)
+
+
+def _plan_occupied_month(
+    code: str,
+    pdfs: Sequence[tuple[date, Path]],
+    latest_date: date,
+    latest: Path,
+    anchor: tuple[int, int],
+    db: DbIssuer,
+    read_lines: Callable[[Path], list[Line]],
+) -> Plan:
+    new_grids = parse_grids(read_lines(latest))
+    tried = 0
+    have = db.months()
+    for disclosed, pdf in reversed(pdfs[:-1]):
+        source_month = expected_month(disclosed)
+        if source_month == anchor or source_month not in have:
+            continue
+        tried += 1
+        plan = _teach_occupied(
+            code, pdf, disclosed, new_grids, latest_date, latest, anchor, db, read_lines,
+        )
+        if plan is not None:
+            return plan
+        if tried >= MAX_SOURCES:
+            break
+    missing = _unstored_labels(new_grids, latest_date, db)
+    if missing:
+        return _manual_occupied(code, latest, anchor, ", ".join(missing))
+    return Plan(code, "current", f"{anchor[0]}-{anchor[1]:02d} 投入済み", latest)
+
+
 def plan_code(
     code: str,
     code_dir: Path,
@@ -867,6 +996,9 @@ def plan_code(
     have = db.months()
     if not have:
         return Plan(code, "skip", "DB に値が無い（初回は人が入れる）", latest)
+    same_month = sum(1 for disclosed, _pdf in pdfs if expected_month(disclosed) == anchor)
+    if anchor in have and same_month >= 2:
+        return _plan_occupied_month(code, pdfs, latest_date, latest, anchor, db, read_lines)
     if max(ym_index(ym) for ym in have) >= ym_index(anchor):
         return Plan(code, "current", f"{anchor[0]}-{anchor[1]:02d} 投入済み", latest)
     new_grids = parse_grids(read_lines(latest))

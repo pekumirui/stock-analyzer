@@ -141,6 +141,8 @@ def test_search_and_holder_page(c) -> None:
     assert codes[0] == "22220" and codes[-1] == "18020"
     oak = next(x for x in p["holdings"] if x["code"] == "18020")
     assert oak["holding_ratio"] == 0.0202 and oak["shares_held"] == 14_008_800
+    assert "news_id" not in oak
+    assert all("news_id" not in item for item in p["activity"])
     assert oak["market_value"] == 1850.0 * 14_008_800
     assert abs(oak["avg_cost"] - 26_815_314_000 / 14_008_800) < 1e-6
     split = next(x for x in p["holdings"] if x["code"] == "22220")
@@ -155,6 +157,7 @@ def test_activity_by_file_date_and_search(c) -> None:
     day = c.get("/api/holders/activity?file_date=2026-10-28").json()
     assert day["file_date"] == "2026-10-28" and day["q"] == "" and day["has_more"] is False
     assert day["items"] and all(x["file_date"] == "2026-10-28" for x in day["items"])
+    assert all("news_id" not in x for x in day["items"])
     kinds = {(x["edinet_code"], x["code"], x["kind"]) for x in day["items"]}
     assert ("E09096", "18020", "buy") in kinds or ("E09096", "18020", "new") in kinds
     assert all(x["edinet_code"] != "E11111" for x in day["items"])
@@ -201,7 +204,7 @@ def test_stock_holders_and_treasury(c) -> None:
     assert names[0] == "インテグラル・グループ株式会社"
     br = next(x for x in d["large_holders"] if x["filer_edinet_code"] == "E09096")
     assert br["holding_ratio"] == 0.0202
-    assert br["news_id"] == "lS100BBBB"
+    assert "news_id" not in br
     assert br["purpose"] == "純投資（顧客資産）"
     t = d["treasury"]
     assert t["report_month"] == "2026-09"

@@ -538,6 +538,7 @@
   #earn-tbl .pin0 .qb + .qb { margin-left:3px; }
   .qb-init { color:#1d4ed8; }
   .qb-mod { color:#c2410c; }
+  .qb-wd { color:var(--warn); font-weight:600; }
   .qb-act { color:var(--text); font-weight:600; }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
   #en-news tr.go { cursor:pointer; }

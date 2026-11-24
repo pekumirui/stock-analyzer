@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from app.xbrl.codes import jq_lookup_code
 from jobs.monthly.tdnet_monthly_r2 import (
     INCLUDE_EXTRA,
     already_have,
@@ -19,7 +20,6 @@ from jobs.monthly.tdnet_monthly_r2 import (
     display_code,
     download_skip_reason,
     is_monthly_title,
-    jq_lookup_code,
     load_stock_product_map,
     has_list_keyword,
     should_skip_infra_fund,
@@ -79,6 +79,44 @@ def test_jq_lookup_code() -> None:
         got = jq_lookup_code(raw)
         if got != expect:
             _fail(f"jq_lookup_code({raw!r}) → {got!r} != {expect!r}")
+
+
+def test_jq_lookup_code_differs_from_display_code_suffix() -> None:
+    rows = (
+        ("", "00000", ""),
+        ("   ", "00000", ""),
+        (None, "00000", ""),
+        ("7203", "72030", "72030"),
+        (" 7203 ", "72030", "72030"),
+        ("72030", "72030", "72030"),
+        ("92790", "92790", "92790"),
+        ("25935", "25930", "25930"),
+        ("262A", "262A0", "262A0"),
+        ("262A0", "262A0", "262A0"),
+        ("386A0", "386A0", "386A0"),
+        ("12", "120", "120"),
+        ("0000", "00000", "00000"),
+        ("ABCDE", "ABCD0", "ABCDE0"),
+        ("262a0", "262a0", "262a00"),
+        ("72-30", "72-30", "72-300"),
+    )
+    changed = []
+    for raw, old, new in rows:
+        former = display_code(raw) + "0"
+        got = jq_lookup_code(raw)
+        if former != old or got != new:
+            _fail(f"{raw!r}: display_code+0 {former!r} (want {old!r}), jq_lookup_code {got!r} (want {new!r})")
+        if former != got:
+            changed.append((raw, former, got))
+    if changed != [
+        ("", "00000", ""),
+        ("   ", "00000", ""),
+        (None, "00000", ""),
+        ("ABCDE", "ABCD0", "ABCDE0"),
+        ("262a0", "262a0", "262a00"),
+        ("72-30", "72-30", "72-300"),
+    ]:
+        _fail(f"inputs where jq_lookup_code differs from display_code+0: {changed!r}")
 
 
 def test_should_skip_infra_fund() -> None:
