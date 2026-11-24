@@ -176,6 +176,7 @@ flowchart LR
 | `mcp` | `app`, `app/xbrl` |
 | `tools` |  |
 | `tools/briefing` | `app`, `app/market`, `jobs`, `jobs/market`, `jobs/monthly`, `jobs/ops` |
+| `tools/ci` |  |
 | `tools/dataflow` | `app`, `tools/jobs`, `tools/schema`, `tools/screen` |
 | `tools/edinet` | `app`, `vendor` |
 | `tools/golden` | `app` |
