@@ -106,43 +106,45 @@ flowchart LR
   n10["tools/briefing"]:::own
   n11["tools/dataflow"]:::own
   n12["tools/edinet"]:::own
-  n13["tools/jobs"]:::own
-  n14["tools/market"]:::own
-  n15["tools/monthly"]:::own
-  n16["tools/overview"]:::own
-  n17["tools/schema"]:::own
-  n18["tools/screen"]:::own
-  n19["tools/supply"]:::own
-  n20["tools/tdnet_pdf"]:::own
-  n21["tools/wiki"]:::own
-  n22["tools/xbrl"]:::own
-  n23["vendor"]:::ext
+  n13["tools/formal"]:::own
+  n14["tools/jobs"]:::own
+  n15["tools/market"]:::own
+  n16["tools/monthly"]:::own
+  n17["tools/overview"]:::own
+  n18["tools/schema"]:::own
+  n19["tools/screen"]:::own
+  n20["tools/supply"]:::own
+  n21["tools/tdnet_pdf"]:::own
+  n22["tools/wiki"]:::own
+  n23["tools/xbrl"]:::own
+  n24["vendor"]:::ext
   n0 --> n2
-  n7 --> n15
+  n7 --> n16
   n9 --> n5
   n10 --> n2
   n10 --> n6
   n10 --> n7
   n10 --> n8
-  n11 --> n13
-  n11 --> n17
+  n11 --> n14
   n11 --> n18
-  n12 --> n23
-  n13 --> n11
-  n14 --> n2
-  n14 --> n5
-  n15 --> n1
-  n15 --> n3
-  n15 --> n7
-  n16 --> n11
-  n16 --> n13
+  n11 --> n19
+  n12 --> n24
+  n13 --> n2
+  n14 --> n11
+  n15 --> n2
+  n15 --> n5
+  n16 --> n1
+  n16 --> n3
+  n16 --> n7
   n17 --> n11
+  n17 --> n14
   n18 --> n11
-  n19 --> n4
-  n20 --> n5
-  n21 --> n17
-  n22 --> n5
-  n22 --> n23
+  n19 --> n11
+  n20 --> n4
+  n21 --> n5
+  n22 --> n18
+  n23 --> n5
+  n23 --> n24
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
@@ -173,6 +175,7 @@ flowchart LR
 | `tools/briefing` | `app`, `app/market`, `jobs`, `jobs/market`, `jobs/monthly`, `jobs/ops` |
 | `tools/dataflow` | `app`, `tools/jobs`, `tools/schema`, `tools/screen` |
 | `tools/edinet` | `app`, `vendor` |
+| `tools/formal` | `app`, `app/market` |
 | `tools/golden` | `app` |
 | `tools/jobs` | `tools/dataflow` |
 | `tools/lint` |  |
