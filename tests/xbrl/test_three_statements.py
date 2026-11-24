@@ -10,6 +10,7 @@ from sqlalchemy import text
 
 from app.db import SessionLocal
 from app.xbrl import three_statements as fst
+from tools.xbrl.heading_order import adjacent_same_headings, diff_dumps, emitted_heading_names, uchiwake_count
 
 M = 1_000_000
 CODE = "12340"
@@ -43,6 +44,12 @@ LABELS = {
     "ComprehensiveIncomeAttributableToNonControllingInterests": "非支配株主に係る包括利益",
     "NotesAndAccountsReceivableTrade": "売掛金", "AccountsReceivableTrade": "売掛金", "GuaranteeDeposits": "差入保証金",
     "GoodwillIFRS": "のれん",
+    "ImpairmentLossesPL": "減損損失", "FinanceCosts": "金融費用", "ShareOnly": "持分法による投資損失",
+    "TotalExpenses": "費用合計", "OtherAdj": "その他調整", "AdjNew": "利益に対する調整項目合計",
+    "SaleOfShares": "子会社株式売却損益",
+    "ValuationDifferenceOnAvailableForSaleSecurities": "その他有価証券評価差額金",
+    "ValuationAndTranslationAdjustments": "その他の包括利益累計額合計",
+    "AociOldTotal": "その他の包括利益累計額",
 }
 
 
@@ -538,9 +545,139 @@ def _moved(s: Seeder) -> None:
     ])
 
 
+SPLIT_HEAD = "49410"
+AOCI_HEAD = "49430"
+TAIL_HEAD = "49440"
+BREAKDOWN = "49420"
+OLD_EXPENSES = """
+ext:ExpenseOldAbstract=費用
+  ImpairmentLossesPL
+  ext:ShareOnly
+  ext:TotalExpenses
+"""
+NEW_EXPENSES = """
+ext:ExpenseNewAbstract=費用
+  ImpairmentLossesPL
+  FinanceCosts
+  ext:TotalExpenses
+"""
+OLD_AOCI = """
+NetAssetsAbstract=純資産の部
+  ext:AociOldAbstract=その他の包括利益累計額
+    ValuationDifferenceOnAvailableForSaleSecurities
+    ext:AociOldTotal
+"""
+NEW_AOCI = """
+NetAssetsAbstract=純資産の部
+  ValuationAndTranslationAdjustmentsAbstract=その他の包括利益累計額
+    ValuationDifferenceOnAvailableForSaleSecurities
+    ValuationAndTranslationAdjustments
+"""
+OLD_ADJ = """
+ext:AdjOldAbstract=利益に対する調整項目
+  DepreciationAndAmortizationOpeCF
+  ext:AdjNew
+  ext:SaleOfShares
+"""
+NEW_ADJ = """
+ext:AdjNewAbstract=利益に対する調整項目
+  DepreciationAndAmortizationOpeCF
+  ext:OtherAdj
+  ext:AdjNew
+"""
+BOTH_BREAKDOWNS = """
+ProfitLoss
+ext:ProfitBreakAbstract=（内訳）
+  ProfitLossAttributableToOwnersOfParent
+  ProfitLossAttributableToNonControllingInterests
+ComprehensiveIncome
+ext:CiBreakAbstract=（内訳）
+  ComprehensiveIncomeAttributableToOwnersOfTheParent
+  ComprehensiveIncomeAttributableToNonControllingInterests
+"""
+
+
+def _same_name_headings(s: Seeder) -> None:
+    s.stock(SPLIT_HEAD, "費用の要素が期で分かれる")
+    s.filing(901, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=SPLIT_HEAD)
+    s.facts(901, "2025-03-31", [
+        x("ImpairmentLossesPL", "d", 10), x("ShareOnly", "d", 3, "x"), x("TotalExpenses", "d", 13, "x"),
+    ], start="2024-04-01")
+    s.roles(901, [("rol_StatementOfIncome", "PL", True, False, _tree_items(OLD_EXPENSES))])
+    s.filing(902, "edinet", "FY", "2026-03-31", "2026-06-20 15:00:00", code=SPLIT_HEAD)
+    s.facts(902, "2026-03-31", [
+        x("ImpairmentLossesPL", "d", 11), x("FinanceCosts", "d", 4), x("TotalExpenses", "d", 15, "x"),
+    ], start="2025-04-01")
+    s.roles(902, [("rol_StatementOfIncome", "PL", True, False, _tree_items(NEW_EXPENSES))])
+    s.stock(AOCI_HEAD, "包括利益累計額の要素が1期だけ違う")
+    s.filing(921, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=AOCI_HEAD)
+    s.facts(921, "2025-03-31", [
+        x("ValuationDifferenceOnAvailableForSaleSecurities", "i", 5), x("AociOldTotal", "i", 5, "x"),
+    ])
+    s.roles(921, [("rol_BalanceSheet", "BS", True, False, _tree_items(OLD_AOCI))])
+    s.filing(922, "edinet", "FY", "2026-03-31", "2026-06-20 15:00:00", code=AOCI_HEAD)
+    s.facts(922, "2026-03-31", [
+        x("ValuationDifferenceOnAvailableForSaleSecurities", "i", 7), x("ValuationAndTranslationAdjustments", "i", 7),
+    ])
+    s.roles(922, [("rol_BalanceSheet", "BS", True, False, _tree_items(NEW_AOCI))])
+    s.stock(TAIL_HEAD, "調整項目の要素が期で分かれる")
+    s.filing(931, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=TAIL_HEAD)
+    s.facts(931, "2025-03-31", [
+        x("DepreciationAndAmortizationOpeCF", "d", 8), x("AdjNew", "d", 8, "x"), x("SaleOfShares", "d", 2, "x"),
+    ], start="2024-04-01")
+    s.roles(931, [("rol_CashFlows", "CF", True, False, _tree_items(OLD_ADJ))])
+    s.filing(932, "edinet", "FY", "2026-03-31", "2026-06-20 15:00:00", code=TAIL_HEAD)
+    s.facts(932, "2026-03-31", [
+        x("DepreciationAndAmortizationOpeCF", "d", 9), x("OtherAdj", "d", 1, "x"), x("AdjNew", "d", 10, "x"),
+    ], start="2025-04-01")
+    s.roles(932, [("rol_CashFlows", "CF", True, False, _tree_items(NEW_ADJ))])
+    s.stock(BREAKDOWN, "内訳が2つ")
+    s.filing(911, "edinet", "FY", "2026-03-31", "2026-06-20 15:00:00", code=BREAKDOWN)
+    s.facts(911, "2026-03-31", [
+        x("ProfitLoss", "d", 100), x("ProfitLossAttributableToOwnersOfParent", "d", 80),
+        x("ProfitLossAttributableToNonControllingInterests", "d", 20), x("ComprehensiveIncome", "d", 110),
+        x("ComprehensiveIncomeAttributableToOwnersOfTheParent", "d", 90),
+        x("ComprehensiveIncomeAttributableToNonControllingInterests", "d", 20),
+    ], start="2025-04-01")
+    s.roles(911, [("rol_StatementOfIncome", "PL", True, False, _tree_items(BOTH_BREAKDOWNS))])
+
+
+PRINTED = "71170"
+PRINTED_SPLIT = [
+    "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "NotesReceivableTrade", "AccountsReceivableTrade",
+    "CurrentAssets", "NoncurrentAssetsAbstract", "Goodwill", "NoncurrentAssets", "Assets",
+]
+PRINTED_JOINED = [
+    "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "NotesAndAccountsReceivableTrade",
+    "CurrentAssets", "NoncurrentAssetsAbstract", "Goodwill", "NoncurrentAssets", "Assets",
+]
+
+
+def _printed(s: Seeder) -> None:
+    s.stock(PRINTED, "有報は受取手形と売掛金を 1 行、短信は 2 行")
+    s.filing(781, "edinet", "FY", "2025-06-30", "2025-09-26 15:00:00", code=PRINTED)
+    s.facts(781, "2025-06-30", [
+        x("CashAndDeposits", "i", 20), x("NotesReceivableTrade", "i", 1), x("AccountsReceivableTrade", "i", 9),
+        x("CurrentAssets", "i", 30), x("Goodwill", "i", 4), x("NoncurrentAssets", "i", 4), x("Assets", "i", 34),
+    ])
+    s.roles(781, [("rol_ConsolidatedBalanceSheet", "BS", True, False, PRINTED_SPLIT)])
+    s.filing(782, "edinet", "FY", "2026-06-30", "2026-09-25 15:00:00", code=PRINTED)
+    s.facts(782, "2026-06-30", [
+        x("CashAndDeposits", "i", 21), x("NotesAndAccountsReceivableTrade", "i", 8), x("CurrentAssets", "i", 29),
+        x("NoncurrentAssets", "i", 3), x("Assets", "i", 32),
+    ])
+    s.roles(782, [("rol_ConsolidatedBalanceSheet", "BS", True, False, PRINTED_JOINED)])
+    s.filing(783, "tdnet", "FY", "2026-06-30", "2026-08-08 15:00:00", code=PRINTED)
+    s.facts(783, "2026-06-30", [
+        x("CashAndDeposits", "i", 21), x("NotesReceivableTrade", "i", 1), x("AccountsReceivableTrade", "i", 7),
+        x("CurrentAssets", "i", 29), x("Goodwill", "i", 3), x("NoncurrentAssets", "i", 3), x("Assets", "i", 32),
+    ])
+    s.roles(783, [("rol_ConsolidatedBalanceSheetTDnet", "BS", True, False, PRINTED_SPLIT)])
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed(lambda s: (_presentation(s), _split(s), _declared(s), _moved(s)))
+    seed(lambda s: (_presentation(s), _split(s), _declared(s), _moved(s), _same_name_headings(s), _printed(s)))
 
 
 def table(code: str = CODE, statement: str = "BS", periods: int = fst.DEFAULT_PERIODS,
@@ -750,6 +887,19 @@ def test_priority_and_supplement_keep_cell_source() -> None:
     assert t["periods"][-1]["source"] == "edinet"
     assert source(t, "OtherIA", "25.06") == "tdnet_pdf"
     assert value(t, "Land", "25.06") is None
+
+
+def test_bs_is_not_supplemented_with_rows_the_primary_filing_does_not_print() -> None:
+    t = table(PRINTED)
+    assert labels(t) == ["25.06", "26.06"]
+    assert value(t, "NotesAndAccountsReceivableTrade", "26.06") == 8 * M
+    assert value(t, "NotesReceivableTrade", "26.06") is None
+    assert value(t, "NotesReceivableTrade", "25.06") == 1 * M
+    current = [r for r in t["rows"] if r["key"] in ("CashAndDeposits", "NotesReceivableTrade",
+                                                    "AccountsReceivableTrade", "NotesAndAccountsReceivableTrade")]
+    assert sum(r["cells"][1]["value"] for r in current if r["cells"][1]) == value(t, "CurrentAssets", "26.06")
+    assert value(t, "Goodwill", "26.06") == 3 * M
+    assert source(t, "Goodwill", "26.06") == "tdnet"
 
 
 def test_sign_follows_xbrl_and_pl_is_cumulative() -> None:
@@ -1465,7 +1615,7 @@ NetAssetsAbstract=純資産の部
     assert got["Land"] == got["OtherNetPPE"] == got["PropertyPlantAndEquipment"] == (("資産の部", "固定資産", "有形固定資産"), 0)
     assert got["Software"] == got["NoncurrentAssets"] == (("資産の部", "固定資産"), 0)
     assert got["Goodwill"] == (("資産の部", "固定資産", "無形固定資産"), 0)
-    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == (("純資産の部", "株主資本", "評価・換算差額等"), 0)
+    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == (("純資産の部", "評価・換算差額等"), 0)
     assert got["SubscriptionRightsToShares"] == (("純資産の部", "その他"), 0)
     assert got["NonControllingInterests"] == got["NetAssets"] == (("純資産の部",), 0)
     pl = shown("""
@@ -1490,6 +1640,50 @@ NetCashProvidedByUsedInFinancingActivitiesAbstract=財務活動によるキャ�
 """, "CF")
     assert cf["EffectOfExchangeRateChangeOnCashAndCashEquivalents"] == ((), 0)
     assert cf["IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE"] == ((), 0)
+
+
+def test_section_headings_after_the_parent_total_leave_the_closed_parent() -> None:
+    ifrs = shown("""
+LiabilitiesIFRSAbstract=負債の部
+  CurrentLiabilitiesIFRSAbstract=流動負債
+    BorrowingsCLIFRS
+    TotalCurrentLiabilitiesIFRS
+  LiabilitiesIFRS
+  EquityIFRSAbstract=資本の部
+    ShareCapitalIFRS
+    EquityAttributableToOwnersOfParentIFRS
+    NonControllingInterestsIFRS
+    EquityIFRS
+  LiabilitiesAndEquityIFRS
+""")
+    assert ifrs["BorrowingsCLIFRS"] == (("負債の部", "流動負債"), 0)
+    assert ifrs["LiabilitiesIFRS"] == (("負債の部",), 0)
+    assert ifrs["ShareCapitalIFRS"] == ifrs["EquityIFRS"] == ifrs["NonControllingInterestsIFRS"] == (("資本の部",), 0)
+    assert ifrs["LiabilitiesAndEquityIFRS"] == ((), 0)
+    jp = shown("""
+LiabilitiesAbstract=負債の部
+  CurrentLiabilitiesAbstract=流動負債
+    OtherCL
+    CurrentLiabilities
+    NoncurrentLiabilitiesAbstract=固定負債
+    ProvisionForLossOnBusinessOfSubsidiariesAndAffiliatesNCL
+    NoncurrentLiabilities
+  Liabilities
+NetAssetsAbstract=純資産の部
+  ShareholdersEquityAbstract=株主資本
+    CapitalStock
+    ShareholdersEquity
+    ValuationAndTranslationAdjustmentsAbstract=評価・換算差額等
+      ValuationDifferenceOnAvailableForSaleSecurities
+      ValuationAndTranslationAdjustments
+  NetAssets
+""")
+    assert jp["ProvisionForLossOnBusinessOfSubsidiariesAndAffiliatesNCL"] == jp["NoncurrentLiabilities"] == (
+        ("負債の部", "固定負債"), 0)
+    assert jp["Liabilities"] == (("負債の部",), 0)
+    assert jp["ValuationDifferenceOnAvailableForSaleSecurities"] == jp["ValuationAndTranslationAdjustments"] == (
+        ("純資産の部", "評価・換算差額等"), 0)
+    assert jp["NetAssets"] == (("純資産の部",), 0)
 
 
 def test_heads_only_when_every_item_has_a_depth() -> None:
@@ -1784,6 +1978,38 @@ def test_bs_rows_do_not_take_income_statement_items() -> None:
     learned = fst.learn_pair(pdf, x)
     assert {k: v.key for k, v in learned.maps["BS"].items()} == {"流動負債合計": "CurrentLiabilities"}
     assert learned.extras["BS"] == {}
+
+
+def _declared_bs(facts: list[fst.Fact]) -> dict[str, dict[str, fst.Part]]:
+    return {"BS": {f.key: fst.Part("Liabilities", "CurrentLiabilities", False) for f in facts}}
+
+
+def test_bs_rows_do_not_take_facts_outside_the_declared_balance_sheet() -> None:
+    bs = [xbrl_fact(1, "AccountsPayableOther", 1453, instant=True), xbrl_fact(2, "OtherCL", 1708, instant=True),
+          xbrl_fact(3, "CurrentLiabilities", 3161, instant=True)]
+    note = xbrl_fact(4, "NotesReceivableTrade", 1462, instant=True)
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2023, 12, 31),
+                   submitted="2024-03-28", standard="JPGAAP")
+    x.by_statement = {"BS": bs}
+    x.seq = [*bs, note]
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="FY", period_end=date(2023, 12, 31),
+                     submitted="2024-02-09", standard="JPGAAP")
+    pdf.by_statement = {"BS": [bs_fact("未払金", 1453), bs_fact("その他", 1462), bs_fact("流動負債合計", 3161)]}
+    assert fst.learn_pair(pdf, x).extras["BS"] == {"NotesReceivableTrade": "AccountsPayableOther"}
+    x.parts = _declared_bs(bs)
+    learned = fst.learn_pair(pdf, x)
+    assert learned.extras["BS"] == {}
+    assert "その他" not in learned.maps["BS"]
+    later = fst.Filing(id=3, doc_id="X2", source="edinet", period_type="FY", period_end=date(2024, 12, 31),
+                       submitted="2025-03-28", standard="JPGAAP")
+    later.by_statement = {"BS": list(bs)}
+    later.seq = [*bs, note]
+    old = fst.Learned(period_end=date(2023, 12, 31), cls="FY", standard="JPGAAP",
+                      extras={"BS": {"NotesReceivableTrade": "AccountsPayableOther"}})
+    assert [f.key for f in fst._with_extras(later, "BS", [old])] == [
+        "AccountsPayableOther", "NotesReceivableTrade", "OtherCL", "CurrentLiabilities"]
+    later.parts = _declared_bs(bs)
+    assert [f.key for f in fst._with_extras(later, "BS", [old])] == ["AccountsPayableOther", "OtherCL", "CurrentLiabilities"]
 
 
 def test_pl_rows_do_not_take_cash_flow_items() -> None:
@@ -2805,3 +3031,98 @@ def test_pdf_rows_of_the_same_name_keep_their_section_when_one_drops_out(monkeyp
     assert cells[invest] == [-2 * M, -3 * M]
     assert keys.index(current) < keys.index("CurrentAssets") < keys.index(invest) < keys.index("InvestmentsAndOtherAssets")
     assert {r["label"] for r in got["rows"] if r["key"] in allowance} == {"貸倒引当金"}
+
+
+def cell_values(t: dict, key: str) -> list[float | None]:
+    return [None if cell is None else cell["value"] for cell in rows(t)[key]["cells"]]
+
+
+def test_same_name_headings_from_different_elements_print_once() -> None:
+    pl = table(SPLIT_HEAD, "PL")
+    assert [r["key"] for r in pl["rows"]] == [
+        "ImpairmentLossesPL", "ext:ShareOnly", "FinanceCosts", "ext:TotalExpenses",
+    ]
+    assert emitted_heading_names(pl["rows"]).count("費用") == 1
+    assert adjacent_same_headings(pl["rows"]) == []
+    assert rows(pl)["ext:ShareOnly"]["heads"][0]["key"] == rows(pl)["FinanceCosts"]["heads"][0]["key"]
+    assert cell_values(pl, "ImpairmentLossesPL") == [10 * M, 11 * M]
+    assert cell_values(pl, "ext:ShareOnly") == [3 * M, None]
+    assert cell_values(pl, "FinanceCosts") == [None, 4 * M]
+    assert cell_values(pl, "ext:TotalExpenses") == [13 * M, 15 * M]
+    bs = table(AOCI_HEAD, "BS")
+    keys = [r["key"] for r in bs["rows"]]
+    assert keys.index("ext:AociOldTotal") < keys.index("ValuationAndTranslationAdjustments")
+    assert emitted_heading_names(bs["rows"]).count("その他の包括利益累計額") == 1
+    assert adjacent_same_headings(bs["rows"]) == []
+    assert cell_values(bs, "ValuationDifferenceOnAvailableForSaleSecurities") == [5 * M, 7 * M]
+    assert cell_values(bs, "ext:AociOldTotal") == [5 * M, None]
+    assert cell_values(bs, "ValuationAndTranslationAdjustments") == [None, 7 * M]
+
+
+def test_a_later_fragment_of_the_same_heading_stays_before_the_total() -> None:
+    cf = table(TAIL_HEAD, "CF")
+    keys = [r["key"] for r in cf["rows"]]
+    assert keys.index("ext:SaleOfShares") < keys.index("ext:AdjNew")
+    assert emitted_heading_names(cf["rows"]).count("利益に対する調整項目") == 1
+    assert adjacent_same_headings(cf["rows"]) == []
+    assert rows(cf)["ext:SaleOfShares"]["heads"][0]["key"] == rows(cf)["ext:AdjNew"]["heads"][0]["key"]
+    assert cell_values(cf, "DepreciationAndAmortizationOpeCF") == [8 * M, 9 * M]
+    assert cell_values(cf, "ext:SaleOfShares") == [2 * M, None]
+    assert cell_values(cf, "ext:OtherAdj") == [None, 1 * M]
+    assert cell_values(cf, "ext:AdjNew") == [8 * M, 10 * M]
+
+
+def test_two_breakdown_headings_in_one_filing_stay_apart() -> None:
+    pl = table(BREAKDOWN, "PL")
+    keys = [r["key"] for r in pl["rows"]]
+    assert keys == [
+        "ProfitLoss", "ProfitLossAttributableToOwnersOfParent", "ProfitLossAttributableToNonControllingInterests",
+        "ComprehensiveIncome", "ComprehensiveIncomeAttributableToOwnersOfTheParent",
+        "ComprehensiveIncomeAttributableToNonControllingInterests",
+    ]
+    assert emitted_heading_names(pl["rows"]).count("（内訳）") == 2
+    assert adjacent_same_headings(pl["rows"]) == []
+    profit = rows(pl)["ProfitLossAttributableToOwnersOfParent"]["heads"][0]["key"]
+    comprehensive = rows(pl)["ComprehensiveIncomeAttributableToOwnersOfTheParent"]["heads"][0]["key"]
+    assert profit != comprehensive
+    assert cell_values(pl, "ProfitLossAttributableToOwnersOfParent") == [80 * M]
+    assert cell_values(pl, "ComprehensiveIncomeAttributableToOwnersOfTheParent") == [90 * M]
+
+
+def test_aliased_heads_keep_the_section_total_at_the_end() -> None:
+    rows = [
+        ("Dep", (("new", "調整"),)), ("Other", (("new", "調整"),)), ("Total", (("new", "調整"),)),
+        ("Sale", (("old", "調整"),)),
+    ]
+    keys = [key for key, _ in rows]
+    paths = [path for _, path in rows]
+    got = [keys[i] for i in fst.gather_heads(keys, paths, {"Total": "調整合計"}, {("old", "調整"): "new"})]
+    assert got == ["Dep", "Other", "Sale", "Total"]
+    assert [keys[i] for i in fst.gather_heads(keys, paths, {"Total": "調整合計"})] == ["Dep", "Other", "Total", "Sale"]
+
+
+def test_heading_order_diff_counts_changed_values_and_merged_breakdowns() -> None:
+    breakdown = [
+        {"key": "Profit", "label": "親", "heads": [["a", "（内訳）"]], "merged": [], "cells": [1.0]},
+        {"key": "Gap", "label": "包括", "heads": [], "merged": [], "cells": [2.0]},
+        {"key": "CI", "label": "親包括", "heads": [["b", "（内訳）"]], "merged": [], "cells": [3.0]},
+    ]
+    base = {"code": "49420", "basis": "consolidated", "statement": "PL", "which": 0, "rows": breakdown}
+    same = diff_dumps([base], [base])
+    assert same["codes"] == same["codes_all"] == 1
+    assert same["failed"] == same["bad_values"] == same["bad_rows"] == same["bad_uchiwake"] == same["dup"] == 0
+    changed = {**base, "rows": [{**breakdown[0], "cells": [9.0]}, *breakdown[1:]]}
+    assert diff_dumps([base], [changed])["bad_values"] == 1
+    merged = {**base, "rows": [breakdown[0], {**breakdown[2], "heads": [["a", "（内訳）"]]}, breakdown[1]]}
+    assert uchiwake_count(merged["rows"]) == 1
+    assert diff_dumps([base], [merged])["bad_uchiwake"] == 1
+    dup = {**base, "rows": [
+        {"key": "A", "label": "減損", "heads": [["new", "費用"]], "merged": [], "cells": [10.0]},
+        {"key": "B", "label": "持分", "heads": [["old", "費用"]], "merged": [], "cells": [3.0]},
+    ]}
+    assert diff_dumps([dup], [dup])["dup"] == 1
+    assert adjacent_same_headings(breakdown) == []
+    failed = diff_dumps(
+        [{"code": "1", "error": "x"}], [{"code": "1", "basis": "consolidated", "statement": "PL", "which": 0, "rows": []}],
+    )
+    assert failed["failed"] == 1
