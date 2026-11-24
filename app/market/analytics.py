@@ -518,6 +518,14 @@ def is_actual(s: Statement) -> bool:
     return "FinancialStatements" in (s.type_of_document or "")
 
 
+QUARTER_FLASH_PERIODS = ("1Q", "3Q")
+
+
+def is_quarter_flash_revision(s) -> bool:
+    return (getattr(s, "type_of_document", None) == "EarnForecastRevision"
+            and getattr(s, "type_of_period", None) in QUARTER_FLASH_PERIODS)
+
+
 def statement_history(db: Session, code: str, upto: date, days: int) -> list[Statement]:
     """指定日から遡った開示履歴。raw_json は使わないので defer する。EPS は upto の株数にそろえる。"""
     since = upto - timedelta(days=days)
@@ -545,12 +553,14 @@ def forecast_revision(hist: list[Statement], stmt: Statement) -> dict | None:
     （短信と EarnForecastRevision が同日だと新しい値同士で消えるため）。
     """
     cur = stmt.fy_operating_profit
-    if cur is None or stmt.fiscal_year_end is None:
+    if cur is None or stmt.fiscal_year_end is None or is_quarter_flash_revision(stmt):
         return None
     key = _disc_key(stmt)
     prev_fc = None
     for s in hist:
         if s.fiscal_year_end != stmt.fiscal_year_end or s.fy_operating_profit is None:
+            continue
+        if is_quarter_flash_revision(s):
             continue
         sk = _disc_key(s)
         if sk >= key:

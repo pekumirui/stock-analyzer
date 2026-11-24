@@ -107,6 +107,24 @@ def test_same_day_revision_doc_is_not_previous() -> None:
     assert forecast_revision([q1, rev], fs) == {"direction": "down", "pct": -49.5}
 
 
+def test_quarter_flash_revision_is_not_previous() -> None:
+    fy27 = date(2027, 3, 31)
+    fy = _stmt("fy", "FY", date(2026, 5, 12), fy_sales=23_000, fy_op=1_800, fy_end=fy27)
+    flash = _stmt("flash", "1Q", date(2026, 7, 30), fy_sales=5_949, fy_op=650, is_revision=True,
+                  doc=REV_DOC, fy_end=fy27)
+    q1 = _stmt("q1", "1Q", date(2026, 8, 10), fy_sales=23_000, fy_op=1_800, fy_end=fy27)
+    assert forecast_revision([fy, flash], q1) is None
+    assert forecast_revision([fy], flash) is None
+
+
+def test_half_year_revision_is_previous() -> None:
+    q1 = _stmt("q1", "1Q", date(2025, 8, 1), fy_op=40)
+    rev = _stmt("rev", "2Q", date(2025, 10, 20), fy_op=48, is_revision=True, doc=REV_DOC)
+    q2 = _stmt("q2", "2Q", date(2025, 11, 1), fy_op=48)
+    assert forecast_revision([q1], rev) == {"direction": "up", "pct": 20.0}
+    assert forecast_revision([q1, rev], q2) is None
+
+
 def test_kept_forecast_after_prior_revision_is_not_marked() -> None:
     q1 = _stmt("q1", "1Q", date(2025, 10, 14), fy_op=93)
     q2 = _stmt("q2", "2Q", date(2026, 1, 13), fy_op=47)
