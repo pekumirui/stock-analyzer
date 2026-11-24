@@ -34,6 +34,7 @@ from jobs._r2common import (
     yyyymmdd_from_pubdate,
 )
 from app.share_paths import share_path
+from app.xbrl.codes import jq_lookup_code
 
 DEFAULT_DEST = str(share_path("monthly"))
 PDF_BASE = tdnet_list.TDNET_BASE
@@ -140,11 +141,6 @@ def display_code(company_code: str) -> str:
     if len(code) >= 5:
         return code[:4]
     return code or "0000"
-
-
-def jq_lookup_code(company_code: str) -> str:
-    """stocks 照合専用。display_code に末尾 0 を付けて J-Quants 5桁にする。"""
-    return display_code(company_code) + "0"
 
 
 def should_skip_infra_fund(

@@ -298,8 +298,14 @@
   "comment": 1,
   "docstring": 1
  },
+ "app/monthly/read_xls.py": {
+  "docstring": 2
+ },
  "app/monthly/store.py": {
   "docstring": 6
+ },
+ "app/monthly/text_mask.py": {
+  "docstring": 1
  },
  "app/monthly/tree.py": {
   "comment": 8,
@@ -732,7 +738,7 @@
  },
  "jobs/monthly/tdnet_monthly_r2.py": {
   "comment": 4,
-  "docstring": 9
+  "docstring": 8
  },
  "jobs/ops/backup_data.py": {
   "comment": 4,
@@ -1420,15 +1426,9 @@
   "comment": 2,
   "docstring": 5
  },
- "tools/monthly/read_xls.py": {
-  "docstring": 2
- },
  "tools/monthly/tdnet_monthly_pending.py": {
   "comment": 2,
   "docstring": 4
- },
- "tools/monthly/text_mask.py": {
-  "docstring": 1
  },
  "tools/ops/notify_cicd_failure.py": {
   "comment": 1,
