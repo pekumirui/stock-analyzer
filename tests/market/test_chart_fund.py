@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from datetime import date, timedelta
 
+from tests.market.jquants_columns import fy_columns
 from app.market.chart_fund import fund_steps
 from app.models import Statement
 
@@ -17,7 +18,7 @@ def _st(no: str, day: str, time: str, period: str, fy_end: date, op: float | Non
                      type_of_period=period, fiscal_year_end=fy_end,
                      type_of_document=doc or f"{kind}FinancialStatements_Consolidated_JP",
                      operating_profit=op, is_revision=doc is not None and "Revision" in doc,
-                     raw_json=json.dumps({k: str(v) for k, v in raw.items()}))
+                     raw_json=json.dumps({k: str(v) for k, v in raw.items()}), **fy_columns(raw))
 
 
 def _days(start: str, end: str) -> list[date]:
@@ -92,3 +93,65 @@ def test_eps_from_forecast_profit_when_eps_is_blank() -> None:
         _st("7", "2025-02-14", "15:00:00", "FY", FY25, doc="EarnForecastRevision", FNP=4800, FEPS=""),
     ]
     assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [15, 15, 20, 20, 30, None]
+
+
+def test_quarter_flash_revision_is_not_a_full_year_forecast() -> None:
+    fy27 = date(2027, 3, 31)
+    days = _days("2026-05-01", "2026-09-30")
+    stmts = [
+        _st("1", "2026-05-12", "15:30:00", "FY", FY26, 1000, NxFEPS=46.85),
+        _st("2", "2026-07-30", "15:30:00", "1Q", fy27, doc="EarnForecastRevision",
+            FSales=5_949_000_000, FNP=439_000_000, FEPS=9.88),
+        _st("3", "2026-08-10", "15:30:00", "1Q", fy27, 300, FSales=28_000_000_000, FEPS=46.85),
+    ]
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 46.85), ("2026-08-11", 46.85)]
+
+    no_forecast = [
+        _st("1", "2026-05-12", "15:30:00", "FY", FY26, 1000),
+        _st("2", "2026-07-30", "15:30:00", "1Q", fy27, doc="EarnForecastRevision", FEPS=93.03),
+    ]
+    assert fund_steps(no_forecast, days, [1.0] * len(days))["eps"] == [None]
+
+
+def test_report_of_the_shortened_year_switches_to_the_next_year_forecast() -> None:
+    feb26, feb27 = date(2026, 2, 28), date(2027, 2, 28)
+    days = _days("2026-02-01", "2026-08-31")
+    stmts = [
+        _st("1", "2026-02-16", "15:00:00", "3Q", FY26, 300, FEPS=30),
+        _st("2", "2026-04-17", "15:00:00", "FY", feb26, 380, NxFEPS=40),
+        _st("3", "2026-07-15", "15:00:00", "1Q", feb27, 120, FEPS=41),
+    ]
+    for s, start in zip(stmts, (date(2025, 4, 1), date(2025, 4, 1), date(2026, 3, 1))):
+        s.fiscal_year_start = start
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-02-16", 30), ("2026-04-17", 40), ("2026-07-15", 41)]
+
+
+def test_half_year_revision_is_still_a_full_year_forecast() -> None:
+    days = _days("2025-05-01", "2025-12-31")
+    stmts = [
+        _st("1", "2025-05-12", "15:30:00", "FY", FY25, 1000, NxFEPS=46.85),
+        _st("2", "2025-10-30", "15:30:00", "2Q", FY26, doc="EarnForecastRevision", FEPS=50.1),
+    ]
+    assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [46.85, 50.1]
+
+
+def test_withdrawn_forecast_has_no_eps_until_the_next_report() -> None:
+    fy27 = date(2027, 3, 31)
+    days = _days("2026-05-01", "2026-11-30")
+    withdrawn = _st("2", "2026-08-14", "15:30:00", "FY", fy27, doc="EarnForecastRevision")
+    withdrawn.withdrawn_forecasts = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+    stmts = [
+        _st("1", "2026-05-12", "15:30:00", "FY", FY26, 1000, NxFEPS=71.2),
+        withdrawn,
+        _st("3", "2026-09-01", "15:30:00", "FY", fy27, doc="EarnForecastRevision", FSales2Q=500),
+        _st("4", "2026-11-10", "15:30:00", "2Q", fy27, 400, FEPS=55),
+        _st("5", "2026-11-20", "15:30:00", "FY", fy27, doc="EarnForecastRevision", FEPS=60),
+    ]
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 71.2), ("2026-08-17", None), ("2026-11-11", 55),
+                                           ("2026-11-23", 60)]
+    withdrawn.withdrawn_forecasts = None
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 71.2), ("2026-11-11", 55), ("2026-11-23", 60)]

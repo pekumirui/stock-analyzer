@@ -36,7 +36,7 @@ from jobs._r2common import MountDisconnected, check_r2_mount
 from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base
 from jobs.monthly.ir_monthly_r2 import DEFAULT_DEST
 from jobs.monthly.tdnet_monthly_r2 import display_code
-from tools.monthly.read_xls import read_sheet, read_xlsx_sheet, xlsx_sheet_names
+from app.monthly.read_xls import read_sheet, read_xlsx_sheet, xlsx_sheet_names
 
 CODE = "1878"
 DEFAULT_FROM_YEAR = 2024

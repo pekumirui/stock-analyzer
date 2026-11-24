@@ -17,7 +17,9 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..holders import stock_holders as holders_payload
 from ..market.chart_fund import adjust_per_share, fund_steps
-from ..models import DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
+from ..market.forecasts import Withdrawn, forecast_points, latest_forecast
+from ..market.withdrawals import withdrawn_items
+from ..models import DIVIDEND_ITEM, DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
 from ..xbrl.three_statements import DEFAULT_PERIODS, MAX_PERIODS, financial_table
 from .monthly._common import ApiError, _parse_code
@@ -126,6 +128,12 @@ def _per_share_now(value: float | None, disclosed: date | None, days: list[date]
     return adjust_per_share(value, disclosed, days, factors, None)
 
 
+def _dividend_forecast(stmts: list[Statement], days: list[date], factors: list[float],
+                       withdrawn: Withdrawn = withdrawn_items) -> float | None:
+    div = latest_forecast(forecast_points(stmts, withdrawn), DIVIDEND_ITEM)
+    return _per_share_now(div.value, div.disclosed_date, days, factors)
+
+
 def _ratio(a: float | None, b: float | None) -> float | None:
     return a / b if a is not None and b else None
 
@@ -190,9 +198,10 @@ def stock_overview(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\
     close = quote["close"] if quote else None
     px = db.query(DailyPrice.date, DailyPrice.adj_factor).filter(DailyPrice.code == code5).order_by(DailyPrice.date).all()
     days, factors = [r[0] for r in px], [r[1] for r in px]
-    steps = fund_steps([s for s, _ in stmts], days, factors)["eps"]
+    rows = [s for s, _ in stmts]
+    steps = fund_steps(rows, days, factors)["eps"]
     eps = steps[-1] if steps else None
-    div = _per_share_now(*_forecast(stmts, "DivAnn"), days, factors)
+    div = _dividend_forecast(rows, days, factors)
     bps = _per_share_now(*_latest_with_date(stmts, "BPS"), days, factors)
     metrics = {
         "per": _ratio(close, eps) if eps and eps > 0 else None,
