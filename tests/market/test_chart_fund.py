@@ -120,3 +120,23 @@ def test_half_year_revision_is_still_a_full_year_forecast() -> None:
         _st("2", "2025-10-30", "15:30:00", "2Q", FY26, doc="EarnForecastRevision", FEPS=50.1),
     ]
     assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [46.85, 50.1]
+
+
+def test_withdrawn_forecast_has_no_eps_until_the_next_report() -> None:
+    fy27 = date(2027, 3, 31)
+    days = _days("2026-05-01", "2026-11-30")
+    withdrawn = _st("2", "2026-08-14", "15:30:00", "FY", fy27, doc="EarnForecastRevision")
+    withdrawn.withdrawn_forecasts = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+    stmts = [
+        _st("1", "2026-05-12", "15:30:00", "FY", FY26, 1000, NxFEPS=71.2),
+        withdrawn,
+        _st("3", "2026-09-01", "15:30:00", "FY", fy27, doc="EarnForecastRevision", FSales2Q=500),
+        _st("4", "2026-11-10", "15:30:00", "2Q", fy27, 400, FEPS=55),
+        _st("5", "2026-11-20", "15:30:00", "FY", fy27, doc="EarnForecastRevision", FEPS=60),
+    ]
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 71.2), ("2026-08-17", None), ("2026-11-11", 55),
+                                           ("2026-11-23", 60)]
+    withdrawn.withdrawn_forecasts = None
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 71.2), ("2026-11-11", 55), ("2026-11-23", 60)]

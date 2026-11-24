@@ -50,6 +50,23 @@
 
 提出者側の誤りであることを確認した開示は、`config/market/statement_period_fixes.json` に `disclosure_number`・`code`・正しい 4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）、または `"drop": true` を登録する。既に DB に入っている行を直すときは `python -m tools.market.fix_statement_periods --apply` を手で実行し、対象銘柄の `statements` と `earnings_events` を更新する。なお `raw_json` が XBRL 由来のままの行（`xbrl-raw`）は変更せず、補正後の主キーが既存行と衝突する場合は上書きせずに `conflict` としてスキップする。
 
+### 予想の取り下げの印
+
+`statements.withdrawn_forecasts` には、その開示で取り下げた（未定にした）予想の項目を入れる（KAB-551）。項目は通期の業績 `net_sales`・`operating_profit`・`ordinary_profit`・`profit`・`eps` と年間配当 `div_annual` で、カンマ区切りで持つ。値の集合はアプリ側で縛り（`app/models.py` の `ItemSet`）、知らない項目名は書き込み時に弾く。印の無い開示は `NULL` である。
+
+J-Quants の決算サマリーの空欄は「この開示では触れていない」と「取り下げ・未定」を見分けられないので、J-Quants からは印を付けない。J-Quants の取込（`upsert_statements`）はこの列を書かないので、J-Quants の行と XBRL の行のどちらが先に届いても、付けた印は消えない。
+
+印の出どころは次の 2 つで、読む側は `app/market/withdrawals.py` の `withdrawn_items` で両方を合わせて「この開示で取り下げた項目」を得る。
+
+| 出どころ | 付け方 |
+|---|---|
+| 短信 XBRL（列） | `jobs/xbrl/xbrl_statements.py` が、修正前の予想の行があり修正後の予想の行が無い項目を印にする（判定は [XBRL の設計](xbrl.md)「短信 XBRL から `statements` 行を作る規則」）。業績予想・配当予想の修正の書類は作った行に付け、どちらにも分類されない書類（`doc_type='other'`。「業績予想の取り下げに関するお知らせ」「連結決算への移行に伴う連結業績予想の公表に関するお知らせ」など）は行を作らず、同じ開示番号の行が既にあるときだけ付ける |
+| 一覧（`config/market/forecast_withdrawals.json`） | XBRL が無い過去の開示は、原本で取り下げを確かめた開示番号ごとに `{"disclosure_no": "…", "code": "…", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "…"}` を `withdrawals` に書く。DB には書かない。開示番号の重複・空の `items`・知らない項目名は読み込み時に `ValueError` で止める |
+
+予想を開示ごとに畳む共通の層（`app/market/forecasts.py`）は、印のある項目をその開示から未定にし、次の決算短信（または値を出し直した予想修正）で戻す。今は株価チャートの予想 EPS と銘柄の概要の年間配当予想が使う。
+
+列を足す前に入った XBRL 由来の行と取り下げのお知らせには印が無い。`jobs/migrate.py`（デプロイの `deploy/update.sh` が呼ぶ）で列を足したあと、`python jobs/xbrl/xbrl_statements.py --since <最初の TDnet XBRL の提出日>` を流すと、その日以降の解析済みの書類から行を作り直して印を付ける（`statements` の数値は XBRL の値で上書きし直す）。印を付ける前後の画面の違いは `python tools/market/compare_withdrawals.py <stock.db>` で比べる（DB は読み取り専用で開き、列が無い・空の DB では `xbrl_financials` から同じ判定で印を作る）。
+
 ### 再実行・バックフィル・取り直し
 
 日次バッチの再実行と一括取り直しオプションの挙動は次のとおりである。
