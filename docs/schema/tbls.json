@@ -3913,7 +3913,7 @@
      "type": "VARCHAR(16)",
      "nullable": false,
      "default": "number",
-     "comment": "number | yoy_index"
+     "comment": "number | yoy_index\n値: number / yoy_index"
     }
    ],
    "indexes": [],
