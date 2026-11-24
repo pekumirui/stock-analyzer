@@ -54,6 +54,28 @@ def test_bad_declared_refs_are_reported():
     ]
 
 
+def test_monthly_element_unit_accepts_only_number_and_yoy_index():
+    from sqlalchemy.dialects import sqlite
+
+    from app.models import MonthlyElement
+
+    assert list(MonthlyElement.unit.type.enums) == ["number", "yoy_index"]
+    assert MonthlyElement.unit.type.compile(dialect=sqlite.dialect()) == "VARCHAR(16)"
+    init_db()
+    base = {"code": "72030", "year": 2026, "element": "売上高", "sort_order": 1}
+    with SessionLocal() as db:
+        db.add(MonthlyElement(**base, unit="number"))
+        db.add(MonthlyElement(**{**base, "element": "売上高(前年比)", "sort_order": 2}, unit="yoy_index"))
+        db.flush()
+        db.rollback()
+        with pytest.raises(StatementError, match="yoy_pct"):
+            db.add(MonthlyElement(**base, unit="yoy_pct"))
+            db.flush()
+        db.rollback()
+        with pytest.raises(StatementError, match="yoy_pct"):
+            db.execute(select(MonthlyElement).where(MonthlyElement.unit == "yoy_pct")).all()
+
+
 def test_upsert_and_filter_fail_on_an_unlisted_value():
     init_db()
     row = {"fetched_at": datetime.fromisoformat("2026-01-05T17:30:00"), "ranking": "night_up", "code": "72030",

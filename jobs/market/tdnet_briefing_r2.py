@@ -47,9 +47,9 @@ from jobs._r2common import (
     http_get as _http_get,
 )
 from jobs import _tdnet as tdnet_list
+from app.xbrl.codes import jq_lookup_code
 from jobs.monthly.tdnet_monthly_r2 import (
     dest_path,
-    jq_lookup_code,
     tdnet_pdf_id,
 )
 from app.share_paths import share_path
