@@ -9,7 +9,8 @@ from app.db import SessionLocal, init_db
 from app.market.ingest import upsert_statements
 from app.models import Statement, XbrlFiling, XbrlFinancial, XbrlStdItem
 from app.xbrl.mappings import apply_mappings
-from app.xbrl.statements import SOURCE_JQUANTS, SOURCE_XBRL, statement_row, sync_statements
+from app.xbrl.statements import (SOURCE_JQUANTS, SOURCE_XBRL, statement_row, sync_statements,
+                                 withdrawn_forecasts)
 
 FY_START = date(2026, 4, 1)
 FY_END = date(2027, 3, 31)
@@ -142,18 +143,20 @@ def test_no_actuals_no_row() -> None:
     assert statement_row(_filing("other", None), _q2_rows()) is None
 
 
-def _seed_filing(db, doc_id: str, rows) -> XbrlFiling:
+def _seed_filing(db, doc_id: str, rows, doc_type: str = "quarterly",
+                 title: str = "2027年3月期 第2四半期決算短信〔IFRS〕（連結）") -> XbrlFiling:
     std = {s.code: s.id for s in db.query(XbrlStdItem).all()}
-    f = XbrlFiling(code="72030", source="tdnet", doc_id=doc_id, doc_type="quarterly", period_type="Q2",
+    f = XbrlFiling(code="72030", source="tdnet", doc_id=doc_id, doc_type=doc_type, period_type="Q2",
                    fiscal_year_end=H1_END, submitted_at=datetime(2026, 11, 5, 13, 55),
-                   title="2027年3月期 第2四半期決算短信〔IFRS〕（連結）", accounting_standard="IFRS",
+                   title=title, accounting_standard="IFRS",
                    is_amendment=False, raw_path="x.zip", parse_status="parsed", created_at=datetime(2026, 11, 5))
     db.add(f)
     db.flush()
     for r in rows:
         db.add(XbrlFinancial(code="72030", filing_id=f.id, std_item_id=std[r.code], is_consolidated=bool(r.is_consolidated),
                              period_type="Q2", period_start=r.period_start, period_end=r.period_end, value=r.value,
-                             unit="JPY", value_kind=r.value_kind, range_side="point", target_period=r.target_period,
+                             unit="JPY", value_kind=r.value_kind, range_side=getattr(r, "range_side", "point"),
+                             target_period=r.target_period,
                              generated_at=datetime(2026, 11, 5)))
     db.commit()
     return f
@@ -257,3 +260,121 @@ def test_check_tool_compares_with_jquants(capsys) -> None:
     assert "paired=1" in out, out
     assert "net_sales ok=1 diff=0" in out and "fy_eps ok=1 diff=0" in out, out
     assert "ordinary_profit ok=0 diff=1" in out, out
+
+
+PL_CODES = ("net_sales", "operating_income", "ordinary_income", "net_income", "eps_basic")
+EVERY = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+
+
+def _fc(code, kind, value=1.0, target="FY", consolidated=1, side="point"):
+    r = _r(code, kind, target, FY_START, FY_END, value, consolidated)
+    r.range_side = side
+    return r
+
+
+def test_withdrawal_notice_marks_items_with_only_previous_forecast() -> None:
+    marks = [_fc(c, "forecast_previous") for c in PL_CODES]
+    marks += [_fc("dps", "forecast_previous", 25, "annual", 0), _fc("dps", "forecast_previous", 25, "year_end", 0)]
+    points = [_fc("dps", "forecast", 0, "Q2", 0)]
+    assert withdrawn_forecasts(points, marks, standalone_company=False) == (*EVERY, "div_annual")
+
+
+def test_dividend_only_revision_marks_nothing() -> None:
+    marks = [_fc("dps", kind, 73, "annual", 0) for kind in ("forecast_previous", "forecast")]
+    assert withdrawn_forecasts(marks, marks, standalone_company=False) == ()
+
+
+def test_point_to_range_is_not_a_withdrawal() -> None:
+    marks = [_fc(c, kind, side=side) for c in PL_CODES for kind in ("forecast_previous", "forecast")
+             for side in ("lower", "upper")]
+    assert withdrawn_forecasts([], marks, standalone_company=False) == ()
+    half = [m for m in marks if not (m.value_kind == "forecast" and m.code == "net_income")]
+    assert withdrawn_forecasts([], half, standalone_company=False) == ("profit",)
+
+
+def test_move_to_consolidated_withdraws_the_standalone_forecast() -> None:
+    marks = [_fc(c, "forecast_previous", consolidated=0) for c in PL_CODES if c != "operating_income"]
+    assert withdrawn_forecasts([], marks, standalone_company=True) == (
+        "net_sales", "ordinary_profit", "profit", "eps")
+
+
+def test_consolidated_company_dropping_only_individual_forecast_is_not_marked() -> None:
+    marks = [_fc(c, "forecast_previous", consolidated=0) for c in PL_CODES]
+    assert withdrawn_forecasts([], marks, standalone_company=False) == ()
+    both = marks + [_fc(c, kind) for c in PL_CODES for kind in ("forecast_previous", "forecast")]
+    points = [_fc(c, "forecast") for c in PL_CODES]
+    assert withdrawn_forecasts(points, both, standalone_company=False) == ()
+
+
+def _jq_revision(no: str) -> dict:
+    row = _jq_row(no)
+    row.update(type_of_period="FY", type_of_document="EarnForecastRevision", is_revision=True)
+    return row
+
+
+def test_notice_marks_the_jquants_row_and_jquants_keeps_it() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        apply_mappings(db)
+        upsert_statements(db, [_jq_revision("20261105000001")])
+        marks = [_fc(c, "forecast_previous") for c in PL_CODES]
+        _seed_filing(db, "091220261105000001", marks, doc_type="other", title="連結業績予想の取り下げに関するお知らせ")
+        _seed_filing(db, "091220261105000002", marks, doc_type="other", title="連結業績予想の取り下げに関するお知らせ")
+        upsert_statements(db, [_jq_revision("20261105000005")])
+        _seed_filing(db, "091220261105000005", marks, doc_type="forecast_revision",
+                     title="通期連結業績予想の修正（未定）に関するお知らせ")
+        stats = sync_statements(db, date(2026, 11, 1))
+        assert stats["marked"] == 2 and stats["inserted"] == 0, stats
+        db.expire_all()
+        assert db.get(Statement, "20261105000001").withdrawn_forecasts == EVERY
+        assert db.get(Statement, "20261105000005").withdrawn_forecasts == EVERY
+        assert db.get(Statement, "20261105000002") is None
+        upsert_statements(db, [_jq_revision("20261105000001")])
+        db.expire_all()
+        s = db.get(Statement, "20261105000001")
+        assert s.withdrawn_forecasts == EVERY and s.source == SOURCE_JQUANTS
+    finally:
+        db.close()
+
+
+def test_revision_row_carries_marks_whichever_arrives_first() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        apply_mappings(db)
+        rows = [_fc("net_sales", "forecast_previous", 100), _fc("net_sales", "forecast", 90),
+                _fc("net_income", "forecast_previous", 10)]
+        upsert_statements(db, [_jq_revision("20261105000003")])
+        _seed_filing(db, "091220261105000003", rows, doc_type="forecast_revision", title="業績予想の修正に関するお知らせ")
+        _seed_filing(db, "091220261105000004", rows, doc_type="forecast_revision", title="業績予想の修正に関するお知らせ")
+        sync_statements(db, date(2026, 11, 1))
+        db.expire_all()
+        assert db.get(Statement, "20261105000004").source == SOURCE_XBRL
+        upsert_statements(db, [_jq_revision("20261105000003"), _jq_revision("20261105000004")])
+        db.expire_all()
+        for no in ("20261105000003", "20261105000004"):
+            s = db.get(Statement, no)
+            assert s.withdrawn_forecasts == ("profit",) and s.fy_net_sales == 90, (no, s.withdrawn_forecasts)
+        sync_statements(db, date(2026, 11, 1))
+        db.expire_all()
+        assert db.get(Statement, "20261105000004").withdrawn_forecasts == ("profit",)
+    finally:
+        db.close()
+
+
+def test_unknown_item_is_rejected_on_write() -> None:
+    import pytest
+    from sqlalchemy.exc import StatementError
+
+    init_db()
+    db = SessionLocal()
+    try:
+        row = _jq_revision("20261105000009")
+        upsert_statements(db, [row])
+        db.get(Statement, "20261105000009").withdrawn_forecasts = ("eps", "dividend")
+        with pytest.raises(StatementError, match="dividend"):
+            db.commit()
+        db.rollback()
+    finally:
+        db.close()

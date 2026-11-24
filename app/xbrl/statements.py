@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models import Statement, XbrlFiling, XbrlFinancial, XbrlStdItem
+from app.models import DIVIDEND_ITEM, WITHDRAWABLE_ITEMS, Statement, XbrlFiling, XbrlFinancial, XbrlStdItem
 
 SOURCE_XBRL = "xbrl"
 SOURCE_JQUANTS = "jquants"
@@ -21,6 +21,8 @@ RAW_MARKER = "Source"
 
 FINANCIAL_DOC_TYPES = {"annual": None, "quarterly": None, "semiannual": None}
 REVISION_DOC_TYPES = {"forecast_revision": "EarnForecastRevision", "dividend_revision": "DividendForecastRevision"}
+NOTICE_DOC_TYPE = "other"
+MARK_DOC_TYPES = (*REVISION_DOC_TYPES, NOTICE_DOC_TYPE)
 PERIOD_TYPES = {"Q1": "1Q", "Q2": "2Q", "Q3": "3Q", "FY": "FY"}
 STANDARD_SUFFIX = {"IFRS": "IFRS", "USGAAP": "US"}
 
@@ -36,6 +38,9 @@ RAW_NEXT_PL = {**RAW_PL, "net_income": "Np"}
 RAW_DIV = {"Q1": "Div1Q", "Q2": "Div2Q", "Q3": "Div3Q", "year_end": "DivFY", "annual": "DivAnn"}
 RAW_RATIOS = {"bps": "BPS", "equity_ratio": "EqAR", "roe": "ROE"}
 ITEM_CODES = (*PL, "dps", *RAW_RATIOS)
+WITHDRAWABLE_CODES = {**PL, "dps": DIVIDEND_ITEM}
+WITHDRAWABLE_TARGETS = {"dps": "annual"}
+BEFORE, AFTER = "forecast_previous", "forecast"
 NUMERIC_COLUMNS = (
     "net_sales", "operating_profit", "ordinary_profit", "profit", "eps",
     "f2_net_sales", "f2_operating_profit", "f2_ordinary_profit", "f2_profit", "f2_eps",
@@ -215,6 +220,24 @@ def _revision_row(filing: XbrlFiling, facts: _Facts, standalone_company: bool) -
     return row
 
 
+def _dropped(rows) -> set[str]:
+    before = {r.code for r in rows if r.value_kind == BEFORE}
+    after = {r.code for r in rows if r.value_kind == AFTER}
+    return {WITHDRAWABLE_CODES[c] for c in before - after}
+
+
+def withdrawn_forecasts(points, marks, *, standalone_company: bool) -> tuple[str, ...]:
+    rows = [r for r in marks if r.code in WITHDRAWABLE_CODES
+            and r.target_period == WITHDRAWABLE_TARGETS.get(r.code, "FY")]
+    pl = [r for r in rows if r.code in PL]
+    consolidated = _Facts(points).consolidated or any(r.is_consolidated for r in pl)
+    individual = not consolidated and not standalone_company
+    out = _dropped([r for r in rows if r.code == "dps"])
+    if not individual:
+        out |= _dropped([r for r in pl if bool(r.is_consolidated) == consolidated])
+    return tuple(i for i in WITHDRAWABLE_ITEMS if i in out)
+
+
 def statement_row(filing: XbrlFiling, rows, *, standalone_company: bool = False) -> dict | None:
     """1 書類から statements の 1 行（dict）。作れなければ None。
 
@@ -279,8 +302,20 @@ def merge_into(db: Session, row: dict) -> str:
             setattr(existing, col, row[col])
     if not existing.raw_json or is_xbrl_raw(existing.raw_json):
         existing.raw_json = row["raw_json"]
+    if "withdrawn_forecasts" in row:
+        existing.withdrawn_forecasts = row["withdrawn_forecasts"]
     existing.source = SOURCE_XBRL
     return "updated"
+
+
+def mark_withdrawn(db: Session, disclosure_no: str, items: tuple[str, ...] | None) -> bool:
+    if not items:
+        return False
+    existing = db.get(Statement, disclosure_no)
+    if existing is None:
+        return False
+    existing.withdrawn_forecasts = items
+    return True
 
 
 def filings_since(db: Session, since: date) -> list[XbrlFiling]:
@@ -311,6 +346,44 @@ def _facts_by_filing(db: Session, ids: list[int]) -> dict[int, list]:
     return out
 
 
+def notice_filings_since(db: Session, since: date | None) -> list[XbrlFiling]:
+    q = db.query(XbrlFiling).filter(XbrlFiling.source == "tdnet", XbrlFiling.parse_status == "parsed",
+                                    XbrlFiling.doc_type == NOTICE_DOC_TYPE)
+    if since is not None:
+        q = q.filter(XbrlFiling.submitted_at >= datetime.combine(since, datetime.min.time()))
+    return q.order_by(XbrlFiling.submitted_at, XbrlFiling.id).all()
+
+
+def _mark_facts_by_filing(db: Session, ids: list[int]) -> dict[int, list]:
+    out: dict[int, list] = defaultdict(list)
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        for r in (db.query(XbrlFinancial.filing_id, XbrlStdItem.code, XbrlFinancial.value_kind,
+                           XbrlFinancial.target_period, XbrlFinancial.is_consolidated)
+                  .join(XbrlStdItem, XbrlStdItem.id == XbrlFinancial.std_item_id)
+                  .filter(XbrlFinancial.filing_id.in_(chunk),
+                          XbrlStdItem.code.in_(tuple(WITHDRAWABLE_CODES)),
+                          XbrlFinancial.value_kind.in_((BEFORE, AFTER)),
+                          XbrlFinancial.target_period.in_(("FY", "annual")))
+                  .order_by(XbrlFinancial.filing_id, XbrlFinancial.id)):
+            out[r.filing_id].append(r)
+    return {k: v for k, v in out.items() if any(r.value_kind == BEFORE for r in v)}
+
+
+def withdrawals_by_filing(db: Session, filings: list[XbrlFiling]) -> dict[int, tuple[str, ...]]:
+    marks = _mark_facts_by_filing(db, [f.id for f in filings if f.doc_type in MARK_DOC_TYPES])
+    points = _facts_by_filing(db, list(marks))
+    out: dict[int, tuple[str, ...]] = {}
+    for f in filings:
+        if f.id not in marks:
+            continue
+        standalone = is_standalone_company(db, f.code, f.submitted_at.date())
+        items = withdrawn_forecasts(points.get(f.id, []), marks[f.id], standalone_company=standalone)
+        if items:
+            out[f.id] = items
+    return out
+
+
 def is_standalone_company(db: Session, code: str, before: date) -> bool:
     """その日までの直近の決算短信が単体か。決算短信が無ければ False（連結として扱う）。"""
     doc = (db.query(Statement.type_of_document)
@@ -323,15 +396,22 @@ def is_standalone_company(db: Session, code: str, before: date) -> bool:
 
 def sync_statements(db: Session, since: date) -> dict[str, int]:
     filings = filings_since(db, since)
+    notices = notice_filings_since(db, since)
     facts = _facts_by_filing(db, [f.id for f in filings])
-    stats = {"filings": len(filings), "inserted": 0, "updated": 0, "skipped": 0}
+    withdrawn = withdrawals_by_filing(db, [*filings, *notices])
+    stats = {"filings": len(filings), "inserted": 0, "updated": 0, "skipped": 0, "marked": 0}
     for filing in filings:
-        standalone = (filing.doc_type in REVISION_DOC_TYPES
-                      and is_standalone_company(db, filing.code, filing.submitted_at.date()))
+        revision = filing.doc_type in REVISION_DOC_TYPES
+        standalone = revision and is_standalone_company(db, filing.code, filing.submitted_at.date())
         row = statement_row(filing, facts.get(filing.id, []), standalone_company=standalone)
         if row is None:
-            stats["skipped"] += 1
+            marked = mark_withdrawn(db, disclosure_no_of(filing.doc_id), withdrawn.get(filing.id))
+            stats["marked" if marked else "skipped"] += 1
             continue
+        if revision:
+            row["withdrawn_forecasts"] = withdrawn.get(filing.id)
         stats[merge_into(db, row)] += 1
+    for filing in notices:
+        stats["marked"] += mark_withdrawn(db, disclosure_no_of(filing.doc_id), withdrawn.get(filing.id))
     db.commit()
     return stats

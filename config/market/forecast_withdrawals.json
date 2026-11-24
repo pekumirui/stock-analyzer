@@ -1,0 +1,4 @@
+{
+  "_meta": {"field": "statements.withdrawn_forecasts と同じ意味（その開示で取り下げた予想）", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps", "div_annual"], "source": "短信 XBRL が無い過去の開示。原本で取り下げ・未定を確かめたものだけ載せる"},
+  "withdrawals": []
+}

@@ -134,7 +134,7 @@ def _pubs_stmt(db):
 def test_cover_index_columns_match_queries() -> None:
     idx = next(i for i in Statement.__table__.indexes if i.name == COVER)
     got = [c.name for c in idx.columns]
-    want = {c.name for c in Statement.__table__.columns if c.name not in ("raw_json", "source")}
+    want = {c.name for c in Statement.__table__.columns if c.name not in ("raw_json", "source", "withdrawn_forecasts")}
     assert set(got) == want
     assert got[:3] == ["code", "disclosed_date", "disclosure_no"]
     assert "raw_json" not in got

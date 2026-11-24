@@ -82,7 +82,7 @@ def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
 
 
 _LIST_HISTORY_COLUMNS = tuple(
-    c for c in Statement.__table__.columns if c.key not in ("raw_json", "source"))
+    c for c in Statement.__table__.columns if c.key not in ("raw_json", "source", "withdrawn_forecasts"))
 
 
 def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
