@@ -197,6 +197,11 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4733/ja/announcement/announcement_6.js"
     },
     {
+      "code": "4901",
+      "name": "富士フイルムホールディングス",
+      "index_url": "https://ir.fujifilm.com/ja/investors/ir-materials/earnings-presentations.html"
+    },
+    {
       "code": "4920",
       "name": "日本色材工業研究所",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4920/ja/announcement/announcement_3.js"
@@ -210,6 +215,11 @@
       "code": "505A",
       "name": "ギークリー",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/505A/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "5108",
+      "name": "ブリヂストン",
+      "index_url": "https://www.bridgestone.co.jp/ir/library/result/"
     },
     {
       "code": "5480",
@@ -268,6 +278,11 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6619/ja/announcement/announcement_1.js"
     },
     {
+      "code": "6701",
+      "name": "日本電気",
+      "index_url": "https://group.nec/global/ja/about/ir/events/er"
+    },
+    {
       "code": "6728",
       "name": "アルバック",
       "index_url": "https://ir.ulvac.co.jp/ja/ir/library/result.html"
@@ -281,6 +296,11 @@
       "code": "6752",
       "name": "パナソニック ホールディングス",
       "index_url": "https://holdings.panasonic/jp/corporate/investors/release.html"
+    },
+    {
+      "code": "6762",
+      "name": "ＴＤＫ",
+      "index_url": "https://www.tdk.com/ja/ir/ir_library/financial/index.html"
     },
     {
       "code": "6810",
@@ -320,12 +340,19 @@
     {
       "code": "7240",
       "name": "ＮＯＫ",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7240/ja/announcement/announcement_10.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7240/ja/announcement/announcement_10.js",
+      "link_re": "^決算補足情報$"
     },
     {
       "code": "7267",
       "name": "本田技研工業",
       "index_url": "https://global.honda/jp/investors/library/financialresult.html"
+    },
+    {
+      "code": "7269",
+      "name": "スズキ",
+      "index_url": "https://www.suzuki.co.jp/ir/library/financialaffairs/",
+      "link_re": "決算説明会$"
     },
     {
       "code": "7282",
@@ -363,6 +390,11 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7716/ja/announcement/announcement_2.js"
     },
     {
+      "code": "7751",
+      "name": "キヤノン",
+      "index_url": "https://global.canon/ja/ir/library/results.html"
+    },
+    {
       "code": "7776",
       "name": "セルシード",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7776/ja/announcement/announcement_1.js"
@@ -381,6 +413,11 @@
       "code": "7826",
       "name": "フルヤ金属",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7826/ja/announcement/announcement_6.js"
+    },
+    {
+      "code": "7832",
+      "name": "バンダイナムコホールディングス",
+      "index_url": "https://www.bandainamco.co.jp/ir/library/financialstatements.html"
     },
     {
       "code": "7867",
@@ -414,6 +451,15 @@
       "link_re": "IR資料|^質疑応答$"
     },
     {
+      "code": "8015",
+      "name": "豊田通商",
+      "index_url": [
+        "https://www.toyota-tsusho.com/ir/earnings-presentations/2026.html",
+        "https://www.toyota-tsusho.com/ir/earnings-presentations/2025.html"
+      ],
+      "link_re": "IR資料"
+    },
+    {
       "code": "8031",
       "name": "三井物産",
       "index_url": "https://www.mitsui.com/jp/ja/ir/library/meeting/index.html"
@@ -444,6 +490,21 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8111/ja/announcement/announcement_3.js"
     },
     {
+      "code": "8306",
+      "name": "三菱ＵＦＪフィナンシャル・グループ",
+      "index_url": "https://www.mufg.jp/ir/presentation/index.html"
+    },
+    {
+      "code": "8308",
+      "name": "りそなホールディングス",
+      "index_url": "https://www.resona-gr.co.jp/holdings/investors/ir/presentation/"
+    },
+    {
+      "code": "8309",
+      "name": "三井住友トラストグループ",
+      "index_url": "https://www.smtg.jp/investors/report/fs"
+    },
+    {
       "code": "8424",
       "name": "芙蓉総合リース",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8424/ja/announcement/announcement_1.js"
@@ -454,9 +515,19 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8585/ja/announcement/announcement_1.js"
     },
     {
+      "code": "8591",
+      "name": "オリックス",
+      "index_url": "https://www.orix.co.jp/grp/company/ir/settlement/"
+    },
+    {
       "code": "8595",
       "name": "ＪＡＦＣＯ",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8595/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "8630",
+      "name": "ＳＯＭＰＯホールディングス",
+      "index_url": "https://www.sompo-hd.com/ir/data/session/"
     },
     {
       "code": "8766",
