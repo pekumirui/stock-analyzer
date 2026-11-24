@@ -26,7 +26,7 @@
 
 - `data/xbrl` に蓄積している TDnet XBRL ZIP をパースし、数値および短文の fact を欠損なく生データ層へ保存する。
 - 企業横断で比較できる標準勘定科目へ正規化し、正規化層（`xbrl_financials`）を構築する。
-- 既存の `statements`（短信サマリ）を置き換えず、BS・PL・CF 本表や注記まで含む財務分析の基盤にする。
+- 速報の正本は `statements` のままにし、短信 XBRL からは同じ `disclosure_no` の行を足すか、値がある数値列だけを上書きする。J-Quants の行をまとめて消すことと、突合で削除することはしない（「statements との関係」）。BS・PL・CF 本表や注記は `xbrl_financials` 側の基盤にする。
 
 #### スコープ内
 
@@ -154,7 +154,7 @@ stocks.code   例: 7203 → 72030、262A → 262A0
 
 `Arelle` は 1 ファイルあたり数秒を要するが、`xbrlp`（取得元は `https://gist.github.com/kawasin73/346ed6a24382a2b238e1ff0d10f3f40c` の `__init__.py`・`file_loader.py`・`parser.py`）は Python 標準ライブラリだけで iXBRL の fact・ラベル・表示リンク・計算リンクを約 20 倍高速に読み取れる。依存を増やさない方針にも合致するため、外部 git submodule は使わず `app/xbrlp/` にコピーしてリビジョンを固定する。KAB-60 でネットワークダウンロードを廃止し同梱ディレクトリだけを読むようにした `app/xbrlp/file_loader.py` 以外は本体を改変しない。
 
-関連モジュールの配置は以下のとおりである。
+主な配置は次のとおりである。`app/xbrl/` にはこの木に無い `codes.py`・`gross_profit.py`・`jobs.py`・`store.py`・`shareholders.py`・`pdf_matches.py`・`revisions.py` と、パッケージ `pdf/`（`__init__.py`・`_layout.py`・`_tanshin.py`）もある。
 
 ```
 app/xbrlp/                    # vendored パーサ本体
