@@ -36,11 +36,11 @@ def _shares(raw: dict) -> float | None:
     return issued - (treasury or 0) if issued else None
 
 
-def _forecast_eps(raw: dict, eps_key: str, profit_key: str, shares: float | None) -> float | None:
+def _forecast_eps(raw: dict, eps_key: str, profit_key: str) -> float | None:
     eps = _num(raw, eps_key)
     if eps is not None:
         return eps
-    profit = _num(raw, profit_key)
+    profit, shares = _num(raw, profit_key), _shares(raw)
     return round(profit / shares, 2) if profit is not None and shares else None
 
 
@@ -107,7 +107,7 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
     order = sorted(stmts, key=lambda s: (s.disclosed_date, s.disclosed_time or "", s.disclosure_no))
     hist: list[Statement] = []
     latest: tuple[date, int] | None = None
-    eps = op_q = op_ttm = shares = None
+    eps = op_q = op_ttm = None
     out: dict[str, list] = {"t": [], "eps": [], "op_q": [], "op_ttm": []}
     for s in order:
         hist.append(s)
@@ -115,7 +115,6 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
             raw = json.loads(s.raw_json) if s.raw_json else {}
         except ValueError:
             raw = {}
-        shares = _shares(raw) or shares
         if is_actual(s):
             n = ORDER.get(s.type_of_period or "")
             if not n or s.fiscal_year_end is None:
@@ -125,16 +124,14 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
                 continue
             latest = key
             fy = (s.type_of_document or "").startswith("FY")
-            eps = (_forecast_eps(raw, "NxFEPS", "NxFNp", shares) if fy
-                   else _forecast_eps(raw, "FEPS", "FNP", shares))
+            eps = _forecast_eps(raw, "NxFEPS", "NxFNp") if fy else _forecast_eps(raw, "FEPS", "FNP")
             q = single_from(hist, s, tol)
             op_q = q["operating_profit"] if q else None
             op_ttm = _ttm_op(hist, s, tol)
         else:
-            v = _forecast_eps(raw, "FEPS", "FNP", shares)
-            if v is None:
+            if _num(raw, "FEPS") is None and _num(raw, "FNP") is None:
                 continue
-            eps = v
+            eps = _forecast_eps(raw, "FEPS", "FNP")
         start = _starts(s.disclosed_date, s.disclosed_time, days).isoformat()
         if out["t"] and start < out["t"][-1]:
             start = out["t"][-1]  # 引け後の開示の翌営業日より前に、休日付けの開示が来たとき

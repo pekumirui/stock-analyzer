@@ -89,4 +89,4 @@ def test_eps_from_forecast_profit_when_eps_is_blank() -> None:
         _st("4", "2024-10-31", "15:00:00", "2Q", FY25, 220, ShOutFY=130, TrShFY=10, FNP=2400, FEPS=""),
         _st("5", "2025-01-31", "15:00:00", "3Q", FY25, 330, NP=900, EPS=7.5, FNP="", FEPS=""),
     ]
-    assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [15, 15, 20, 20, None]
+    assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [15, 15, None, 20, None]
