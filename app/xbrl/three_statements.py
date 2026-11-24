@@ -850,6 +850,10 @@ def _tree_heads(
         while path and (path[-1]["depth"] >= depth or (head and path[-1]["depth"] == depth - 0.5)):
             path.pop()
         up = path[-1] if path else None
+        if head and (name in sections or (statement == "BS" and name in HEAD_GROUPS)):
+            while up is not None and up["kind"] == "head" and up["closed"]:
+                path.pop()
+                up = path[-1] if path else None
         if head:
             hidden = kids and up is not None and up["kind"] == "head" and up["closed"]
             path.append({
@@ -1180,7 +1184,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
             cands = [c for c in _near(pool, f.value, tol) if c.id not in used]
             if len(cands) != 1 or len({c.key for c in _near(pool, f.value, tol)}) != 1:
                 continue
-            if not _foreign(statement, cands[0], in_rule):
+            if not _foreign(statement, cands[0], in_rule) and not _undeclared(xbrl, statement, cands[0].key):
                 hit[i] = cands[0]
                 used.add(cands[0].id)
         twice: set[str] = set()
@@ -1217,6 +1221,11 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         learned.order[statement] = order
         learned.extras[statement] = extras
     return learned
+
+
+def _undeclared(filing: Filing, statement: str, key: str) -> bool:
+    declared = filing.parts.get(statement) if statement == "BS" else None
+    return bool(declared) and key not in declared
 
 
 def _foreign(statement: str, fact: Fact, own: set[str]) -> bool:
@@ -2152,7 +2161,7 @@ def _with_extras(filing: Filing, statement: str, learned: Sequence[Learned]) -> 
     by_key = {f.key: f for f in filing.seq}
     for item in _ranked(learned, filing.period_end, filing.cls):
         for key, prev in item.extras.get(statement, {}).items():
-            if key in present or key not in by_key:
+            if key in present or key not in by_key or _undeclared(filing, statement, key):
                 continue
             keys = [f.key for f in facts]
             at = keys.index(prev) + 1 if prev in keys else 0

@@ -1511,7 +1511,7 @@ NetAssetsAbstract=純資産の部
     assert got["Land"] == got["OtherNetPPE"] == got["PropertyPlantAndEquipment"] == (("資産の部", "固定資産", "有形固定資産"), 0)
     assert got["Software"] == got["NoncurrentAssets"] == (("資産の部", "固定資産"), 0)
     assert got["Goodwill"] == (("資産の部", "固定資産", "無形固定資産"), 0)
-    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == (("純資産の部", "株主資本", "評価・換算差額等"), 0)
+    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == (("純資産の部", "評価・換算差額等"), 0)
     assert got["SubscriptionRightsToShares"] == (("純資産の部", "その他"), 0)
     assert got["NonControllingInterests"] == got["NetAssets"] == (("純資産の部",), 0)
     pl = shown("""
@@ -1536,6 +1536,50 @@ NetCashProvidedByUsedInFinancingActivitiesAbstract=財務活動によるキャ�
 """, "CF")
     assert cf["EffectOfExchangeRateChangeOnCashAndCashEquivalents"] == ((), 0)
     assert cf["IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE"] == ((), 0)
+
+
+def test_section_headings_after_the_parent_total_leave_the_closed_parent() -> None:
+    ifrs = shown("""
+LiabilitiesIFRSAbstract=負債の部
+  CurrentLiabilitiesIFRSAbstract=流動負債
+    BorrowingsCLIFRS
+    TotalCurrentLiabilitiesIFRS
+  LiabilitiesIFRS
+  EquityIFRSAbstract=資本の部
+    ShareCapitalIFRS
+    EquityAttributableToOwnersOfParentIFRS
+    NonControllingInterestsIFRS
+    EquityIFRS
+  LiabilitiesAndEquityIFRS
+""")
+    assert ifrs["BorrowingsCLIFRS"] == (("負債の部", "流動負債"), 0)
+    assert ifrs["LiabilitiesIFRS"] == (("負債の部",), 0)
+    assert ifrs["ShareCapitalIFRS"] == ifrs["EquityIFRS"] == ifrs["NonControllingInterestsIFRS"] == (("資本の部",), 0)
+    assert ifrs["LiabilitiesAndEquityIFRS"] == ((), 0)
+    jp = shown("""
+LiabilitiesAbstract=負債の部
+  CurrentLiabilitiesAbstract=流動負債
+    OtherCL
+    CurrentLiabilities
+    NoncurrentLiabilitiesAbstract=固定負債
+    ProvisionForLossOnBusinessOfSubsidiariesAndAffiliatesNCL
+    NoncurrentLiabilities
+  Liabilities
+NetAssetsAbstract=純資産の部
+  ShareholdersEquityAbstract=株主資本
+    CapitalStock
+    ShareholdersEquity
+    ValuationAndTranslationAdjustmentsAbstract=評価・換算差額等
+      ValuationDifferenceOnAvailableForSaleSecurities
+      ValuationAndTranslationAdjustments
+  NetAssets
+""")
+    assert jp["ProvisionForLossOnBusinessOfSubsidiariesAndAffiliatesNCL"] == jp["NoncurrentLiabilities"] == (
+        ("負債の部", "固定負債"), 0)
+    assert jp["Liabilities"] == (("負債の部",), 0)
+    assert jp["ValuationDifferenceOnAvailableForSaleSecurities"] == jp["ValuationAndTranslationAdjustments"] == (
+        ("純資産の部", "評価・換算差額等"), 0)
+    assert jp["NetAssets"] == (("純資産の部",), 0)
 
 
 def test_heads_only_when_every_item_has_a_depth() -> None:
@@ -1830,6 +1874,38 @@ def test_bs_rows_do_not_take_income_statement_items() -> None:
     learned = fst.learn_pair(pdf, x)
     assert {k: v.key for k, v in learned.maps["BS"].items()} == {"流動負債合計": "CurrentLiabilities"}
     assert learned.extras["BS"] == {}
+
+
+def _declared_bs(facts: list[fst.Fact]) -> dict[str, dict[str, fst.Part]]:
+    return {"BS": {f.key: fst.Part("Liabilities", "CurrentLiabilities", False) for f in facts}}
+
+
+def test_bs_rows_do_not_take_facts_outside_the_declared_balance_sheet() -> None:
+    bs = [xbrl_fact(1, "AccountsPayableOther", 1453, instant=True), xbrl_fact(2, "OtherCL", 1708, instant=True),
+          xbrl_fact(3, "CurrentLiabilities", 3161, instant=True)]
+    note = xbrl_fact(4, "NotesReceivableTrade", 1462, instant=True)
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2023, 12, 31),
+                   submitted="2024-03-28", standard="JPGAAP")
+    x.by_statement = {"BS": bs}
+    x.seq = [*bs, note]
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="FY", period_end=date(2023, 12, 31),
+                     submitted="2024-02-09", standard="JPGAAP")
+    pdf.by_statement = {"BS": [bs_fact("未払金", 1453), bs_fact("その他", 1462), bs_fact("流動負債合計", 3161)]}
+    assert fst.learn_pair(pdf, x).extras["BS"] == {"NotesReceivableTrade": "AccountsPayableOther"}
+    x.parts = _declared_bs(bs)
+    learned = fst.learn_pair(pdf, x)
+    assert learned.extras["BS"] == {}
+    assert "その他" not in learned.maps["BS"]
+    later = fst.Filing(id=3, doc_id="X2", source="edinet", period_type="FY", period_end=date(2024, 12, 31),
+                       submitted="2025-03-28", standard="JPGAAP")
+    later.by_statement = {"BS": list(bs)}
+    later.seq = [*bs, note]
+    old = fst.Learned(period_end=date(2023, 12, 31), cls="FY", standard="JPGAAP",
+                      extras={"BS": {"NotesReceivableTrade": "AccountsPayableOther"}})
+    assert [f.key for f in fst._with_extras(later, "BS", [old])] == [
+        "AccountsPayableOther", "NotesReceivableTrade", "OtherCL", "CurrentLiabilities"]
+    later.parts = _declared_bs(bs)
+    assert [f.key for f in fst._with_extras(later, "BS", [old])] == ["AccountsPayableOther", "OtherCL", "CurrentLiabilities"]
 
 
 def test_pl_rows_do_not_take_cash_flow_items() -> None:
