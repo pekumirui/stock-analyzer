@@ -113,6 +113,21 @@ def test_first_forecast_after_start_is_not_initial() -> None:
         _fail(kinds)
 
 
+def test_quarter_flash_revision_is_not_a_forecast_point() -> None:
+    fy27 = date(2027, 3, 31)
+    init27 = _pl(23_000, 1_800, 1_800, 1_100, 46.85)
+    hist = [
+        _stmt("pfy", "FY", FY26, date(2026, 5, 12), actual=ACT26, nx={"fy_end": fy27, **init27}),
+        _stmt("flash", "1Q", fy27, date(2026, 7, 30), fy=_pl(5_949, 650, 660, 439, 9.88),
+              doc="EarnForecastRevision"),
+        _stmt("c1q", "1Q", fy27, date(2026, 8, 10), actual=_pl(5_949, 650, 660, 439, 9.88), fy=init27),
+    ]
+    rows = revision_rows(statement_points(hist), 4)
+    got = [(r["range"], r["kind"], r["values"]["net_sales"]) for r in rows]
+    if got != [("26.3", "actual_fy", ACT26["net_sales"]), ("27.3", "forecast_initial", 23_000 * M)]:
+        _fail(f"quarter flash rows {got}")
+
+
 def _seed_xbrl(db) -> None:
     items = {}
     for code in ("net_sales", "operating_income", "ordinary_income", "net_income", "eps_basic"):
@@ -208,6 +223,7 @@ def main() -> None:
     test_rows_from_statements()
     test_unchanged_forecast_is_not_a_revision()
     test_first_forecast_after_start_is_not_initial()
+    test_quarter_flash_revision_is_not_a_forecast_point()
     test_rows_from_xbrl()
     test_detail_api_sources()
     print("ok: revisions")

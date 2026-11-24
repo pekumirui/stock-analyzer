@@ -12,7 +12,8 @@ from math import log
 
 from ..config import EARNINGS_PARAMS as EP
 from ..models import Statement
-from .analytics import ORDER, find_statement, is_actual, is_after_close, shift_year, single_from
+from .analytics import (ORDER, find_statement, is_actual, is_after_close, is_quarter_flash_revision,
+                        shift_year, single_from)
 
 
 def _num(raw: dict, key: str) -> float | None:
@@ -131,6 +132,8 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
             op_q = q["operating_profit"] if q else None
             op_ttm = _ttm_op(hist, s, tol)
         else:
+            if is_quarter_flash_revision(s):
+                continue
             if _num(raw, "FEPS") is None and _num(raw, "FNP") is None:
                 continue
             eps = _forecast_eps(raw, "FEPS", "FNP", report_shares)

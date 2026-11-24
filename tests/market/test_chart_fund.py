@@ -92,3 +92,31 @@ def test_eps_from_forecast_profit_when_eps_is_blank() -> None:
         _st("7", "2025-02-14", "15:00:00", "FY", FY25, doc="EarnForecastRevision", FNP=4800, FEPS=""),
     ]
     assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [15, 15, 20, 20, 30, None]
+
+
+def test_quarter_flash_revision_is_not_a_full_year_forecast() -> None:
+    fy27 = date(2027, 3, 31)
+    days = _days("2026-05-01", "2026-09-30")
+    stmts = [
+        _st("1", "2026-05-12", "15:30:00", "FY", FY26, 1000, NxFEPS=46.85),
+        _st("2", "2026-07-30", "15:30:00", "1Q", fy27, doc="EarnForecastRevision",
+            FSales=5_949_000_000, FNP=439_000_000, FEPS=9.88),
+        _st("3", "2026-08-10", "15:30:00", "1Q", fy27, 300, FSales=28_000_000_000, FEPS=46.85),
+    ]
+    f = fund_steps(stmts, days, [1.0] * len(days))
+    assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 46.85), ("2026-08-11", 46.85)]
+
+    no_forecast = [
+        _st("1", "2026-05-12", "15:30:00", "FY", FY26, 1000),
+        _st("2", "2026-07-30", "15:30:00", "1Q", fy27, doc="EarnForecastRevision", FEPS=93.03),
+    ]
+    assert fund_steps(no_forecast, days, [1.0] * len(days))["eps"] == [None]
+
+
+def test_half_year_revision_is_still_a_full_year_forecast() -> None:
+    days = _days("2025-05-01", "2025-12-31")
+    stmts = [
+        _st("1", "2025-05-12", "15:30:00", "FY", FY25, 1000, NxFEPS=46.85),
+        _st("2", "2025-10-30", "15:30:00", "2Q", FY26, doc="EarnForecastRevision", FEPS=50.1),
+    ]
+    assert fund_steps(stmts, days, [1.0] * len(days))["eps"] == [46.85, 50.1]

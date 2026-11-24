@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from ..config import EARNINGS_PARAMS as EP
 from ..models import Statement
 from ..revisions import ACTUAL, FORECAST, RevisionPoint
-from .analytics import (FORECAST_KEYS, forecast_values, is_actual, metrics, next_year_forecast,
-                        statement_history)
+from .analytics import (FORECAST_KEYS, forecast_values, is_actual, is_quarter_flash_revision, metrics,
+                        next_year_forecast, statement_history)
 
 
 def statement_points(hist: list[Statement]) -> list[RevisionPoint]:
@@ -20,7 +20,7 @@ def statement_points(hist: list[Statement]) -> list[RevisionPoint]:
         order = (s.disclosure_no or "",)
         fc = forecast_values(s, "fy_")
         fy = {k: fc[k] for k in FORECAST_KEYS}
-        if s.fiscal_year_end and any(v is not None for v in fy.values()):
+        if s.fiscal_year_end and not is_quarter_flash_revision(s) and any(v is not None for v in fy.values()):
             points.append(RevisionPoint(s.fiscal_year_end, FORECAST, s.disclosed_date, fy, order))
         if s.type_of_period in ("FY", "4Q") and is_actual(s) and s.fiscal_year_end:
             points.append(RevisionPoint(s.fiscal_year_end, ACTUAL, s.disclosed_date, metrics(s), order))

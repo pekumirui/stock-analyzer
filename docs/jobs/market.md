@@ -85,7 +85,7 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 |---|---|---|
 | 実績値（`Sales`・`OP`・`OdP`・`NP`・`EPS`） | 1Q・2Q・3Q・FY のすべてが期首からの累計値（YTD）で格納される | 前四半期の累計値を差し引いて Q 単独値を算出する |
 | 予想値（`FSales`・`FOP`・`FOdP`・`FNP`・`FEPS`・`NxF*`） | 各開示時点の最新予想値だけが入り、修正前の前回予想値は同じ行に入らない | 同一 `fiscal_year_end` の直前の開示行と突き合わせて修正方向と変化率を算出する |
-| 予想修正の単独開示（`DocType = *ForecastRevision*`） | 実績列がすべて `NULL` になり、予想列だけに値が入る | 決算速報一覧からは外し、予想修正の履歴比較には含める |
+| 予想修正の単独開示（`DocType = *ForecastRevision*`） | 実績列がすべて `NULL` になり、予想列だけに値が入る。`EarnForecastRevision` で `CurPerType` が `1Q`・`3Q` の開示は四半期の速報値で、末尾なしの `FSales`・`FOP`・`FOdP`・`FNP`・`FEPS` に通期予想ではなくその四半期の累計値が入り、そのまま `fy_*` と `raw_json` に残る | 決算速報一覧からは外し、予想修正の履歴比較には含める。`1Q`・`3Q` 型の `EarnForecastRevision` は読む側（`app/market/analytics.py` の `is_quarter_flash_revision`）で通期予想として使わない（株価チャートの予想 EPS・修正履歴・予想修正の判定。KAB-553） |
 | 訂正開示（数値データ訂正・一部訂正など） | 元の行は消えず、同じ `(code, type_of_period, period_end)` に新しい `disclosure_number` の行が追加される | PL 4 項目の変化有無で「重複」と「数値訂正」を切り分ける |
 | 会計基準の変更 | 同じ期の数値が新しい会計基準の `DocType` で再開示されることがある | 原則として会計基準ごとに系列を分け、重複期間で連続性が確認できるときだけ前基準の四半期を引き継ぐ |
 
@@ -123,7 +123,7 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 
 ### 予想修正の検知
 
-指定した基準日 `as_of_date` までの通期業績予想の修正（`forecast_revision`）は、`DocType` を問わず（単独の `ForecastRevision` を含む）対象 `fiscal_year_end` の予想値を持つ開示を時系列に並べて判定する。
+指定した基準日 `as_of_date` までの通期業績予想の修正（`forecast_revision`）は、`DocType` を問わず（単独の `ForecastRevision` を含む）対象 `fiscal_year_end` の予想値を持つ開示を時系列に並べて判定する。`1Q`・`3Q` 型の `EarnForecastRevision` は予想列が四半期の累計値なので、比較元にも判定の対象にもしない（KAB-553）。
 
 見る予想列の優先順位は、`forecast_eps` → `forecast_operating_profit` → `forecast_ordinary_profit` → `forecast_profit` → `forecast_net_sales` とし、本決算（`FY`）で当期予想が空のときは同じ優先順で来期予想（`next_year_forecast_*`）を見る。最新の開示で最初に非 `NULL` だった指標を選び、同じ指標が非 `NULL` だった直前の開示と比較する。J-Quants 側に比較元や修正行が欠けているときは、適時開示 XBRL の業績予想ファクト（`app/xbrl/revisions.py`）で補完する。
 
