@@ -20,21 +20,13 @@ from tools.market.compare_withdrawals import column_marks, load_statements, mark
 
 ALL_YEARS = 1000
 EVERY_DAY = date(1900, 1, 1)
-RAW_ITEMS = ("FSales", "FOP", "FOdP", "FNP", "FEPS")
+FORECAST_COLUMNS = ("fy_net_sales", "fy_operating_profit", "fy_ordinary_profit", "fy_profit", "fy_eps")
 FLASH = ("1Q", "3Q")
-CATEGORIES = ("marked", "partial_revision", "after_undecided_report", "old_period_report", "other")
+CATEGORIES = ("marked", "partial_revision", "after_undecided_report", "old_period_report", "same_day_order", "other")
 
 
-def _raw(s) -> dict:
-    try:
-        raw = json.loads(s.raw_json or "{}")
-    except ValueError:
-        return {}
-    return raw if isinstance(raw, dict) else {}
-
-
-def _given(raw: dict) -> set[str]:
-    return {k for k in RAW_ITEMS if raw.get(k) not in (None, "")}
+def _given(s) -> set[str]:
+    return {c for c in FORECAST_COLUMNS if getattr(s, c, None) is not None}
 
 
 def _is_flash(s) -> bool:
@@ -49,12 +41,12 @@ def partial_revisions(stmts) -> list[str]:
     reported: set[str] = set()
     for s in stmts:
         if is_actual(s):
-            reported |= _given(_raw(s))
+            reported |= _given(s)
     out = []
     for s in stmts:
         if is_actual(s) or _is_flash(s):
             continue
-        given = _given(_raw(s))
+        given = _given(s)
         if given and reported - given:
             out.append(s.disclosure_no)
     return out
@@ -71,6 +63,18 @@ def old_period_reports(stmts) -> list[str]:
             out.append(s.disclosure_no)
         else:
             latest = key
+    return out
+
+
+def same_day_out_of_order(stmts) -> list[str]:
+    by_day: dict[date, list] = {}
+    for s in stmts:
+        by_day.setdefault(s.disclosed_date, []).append(s)
+    out = []
+    for day_stmts in by_day.values():
+        by_no = sorted(day_stmts, key=lambda s: s.disclosure_no or "")
+        if by_no != sorted(by_no, key=lambda s: s.disclosed_time or ""):
+            out += [s.disclosure_no for s in by_no]
     return out
 
 
@@ -125,7 +129,8 @@ def export(db, out_path: Path) -> int:
                                                if "operating_profit" in withdrawn_items(s)],
                    "partial_revision": partial_revisions(stmts),
                    "after_undecided_report": after_undecided_report(stmts),
-                   "old_period_report": old_period_reports(stmts)}
+                   "old_period_report": old_period_reports(stmts),
+                   "same_day_order": same_day_out_of_order(stmts)}
             f.write(json.dumps(row, ensure_ascii=False, default=str, sort_keys=True) + "\n")
             db.expire_all()
     print(f"codes={len(codes)} marks_source={source} marked_disclosures={len(marks)} out={out_path}")
@@ -159,6 +164,8 @@ def classify(old: dict, new: dict) -> tuple[str, list[tuple[str, str, str]]]:
         return "partial_revision", lines
     if new["old_period_report"]:
         return "old_period_report", lines
+    if new.get("same_day_order"):
+        return "same_day_order", lines
     return "other", lines
 
 

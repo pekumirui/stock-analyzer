@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from datetime import date, timedelta
 
+from tests.market.jquants_columns import fy_columns
 from app.market.chart_fund import fund_steps
 from app.models import Statement
 
@@ -17,7 +18,7 @@ def _st(no: str, day: str, time: str, period: str, fy_end: date, op: float | Non
                      type_of_period=period, fiscal_year_end=fy_end,
                      type_of_document=doc or f"{kind}FinancialStatements_Consolidated_JP",
                      operating_profit=op, is_revision=doc is not None and "Revision" in doc,
-                     raw_json=json.dumps({k: str(v) for k, v in raw.items()}))
+                     raw_json=json.dumps({k: str(v) for k, v in raw.items()}), **fy_columns(raw))
 
 
 def _days(start: str, end: str) -> list[date]:

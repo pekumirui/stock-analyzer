@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -20,6 +21,8 @@ from app.xbrl.statements import (REVISION_DOC_TYPES, disclosure_no_of, filings_s
 from tools.market.compare_quarter_flash import diff_count, readonly_session
 
 COLUMN = "withdrawn_forecasts"
+RAW_CURRENT = {"fy_net_sales": "FSales", "fy_operating_profit": "FOP", "fy_ordinary_profit": "FOdP",
+               "fy_profit": "FNP", "fy_eps": "FEPS"}
 EVERY_FILING = date(1900, 1, 1)
 
 
@@ -55,6 +58,21 @@ def load_statements(db: Session, cols, code: str, marks: dict[str, tuple[str, ..
     return out
 
 
+def columns_without_raw(stmts) -> list[str]:
+    out = []
+    for s in stmts:
+        if "FinancialStatements" in (s.type_of_document or ""):
+            continue
+        try:
+            raw = json.loads(s.raw_json or "{}")
+        except ValueError:
+            raw = {}
+        raw = raw if isinstance(raw, dict) else {}
+        if any(getattr(s, col) is not None and raw.get(key) in (None, "") for col, key in RAW_CURRENT.items()):
+            out.append(s.disclosure_no)
+    return out
+
+
 def compute(stmts, days, factors, withdrawn) -> tuple[list[tuple], float | None]:
     f = fund_steps(stmts, days, factors, withdrawn)
     return list(zip(f["t"], f["eps"])), _dividend_forecast(stmts, days, factors, withdrawn)
@@ -70,6 +88,7 @@ def compare(db: Session, show: bool) -> int:
           f"marked_disclosures={len(marks)}")
     codes = [c for (c,) in db.query(Statement.code).distinct().order_by(Statement.code)]
     marked: dict[str, list] = {}
+    unread: dict[str, list[str]] = {}
     changed: dict[str, dict[str, int]] = {}
     for code in codes:
         stmts = load_statements(db, cols, code, marks)
@@ -77,6 +96,9 @@ def compare(db: Session, show: bool) -> int:
             items = withdrawn_items(s)
             if items:
                 marked.setdefault(code, []).append((s.disclosure_no, s.disclosed_date, items))
+        found = columns_without_raw(stmts)
+        if found:
+            unread[code] = found
         px = (db.query(DailyPrice.date, DailyPrice.adj_factor)
               .filter(DailyPrice.code == code).order_by(DailyPrice.date).all())
         days, factors = [d for d, _ in px], [f for _, f in px]
@@ -97,12 +119,20 @@ def compare(db: Session, show: bool) -> int:
         for no, day, items in rows:
             print(f"marked code={code} disclosure_no={no} disclosed={day} "
                   f"items={','.join(i for i in WITHDRAWABLE_ITEMS if i in items)}")
+    for code, nos in sorted(unread.items()):
+        print(f"columns_without_raw code={code} disclosure_no={','.join(nos)}")
     eps_total = sum(c["eps"] for c in changed.values())
     div_total = sum(c["dividend"] for c in changed.values())
     print(f"codes={len(codes)} changed_codes={len(changed)} eps_steps={eps_total} dividend_codes={div_total}")
-    outside = sorted(set(changed) - set(marked))
+    in_marked = sorted(set(changed) & set(marked))
+    in_columns = sorted(set(changed) - set(marked) & set(unread))
+    outside = sorted(set(changed) - set(marked) - set(unread))
     print(f"changed_codes_within_marked_codes={not outside} changed={len(changed)} marked={len(marked)} "
           f"outside={len(outside)}")
+    print(f"changed_marked={len(in_marked)} changed_columns_without_raw={len(in_columns)} "
+          f"columns_without_raw_codes={len(unread)} changed_other={len(outside)}")
+    for code in in_columns:
+        print(f"columns_without_raw_changed code={code}")
     for code in outside:
         print(f"outside code={code}")
     return 1 if outside else 0

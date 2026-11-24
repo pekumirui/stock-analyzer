@@ -7,6 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from app.api.stock import _dividend_forecast
+from tests.market.jquants_columns import fy_columns
 from app.market.chart_fund import fund_steps
 from app.market.withdrawals import no_withdrawals
 from app.models import Statement
@@ -27,7 +28,7 @@ def build(rows: list[dict]) -> list[Statement]:
         kw = {k: r.get(k) for k in FIELDS}
         for k in ("disclosed_date", "fiscal_year_end"):
             kw[k] = date.fromisoformat(kw[k]) if kw[k] else None
-        out.append(Statement(code="99990", raw_json=json.dumps(r["raw"]), **kw))
+        out.append(Statement(code="99990", raw_json=json.dumps(r["raw"]), **kw, **fy_columns(r["raw"])))
     return out
 
 

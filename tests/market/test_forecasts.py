@@ -4,6 +4,7 @@ import json
 from datetime import date
 from types import SimpleNamespace
 
+from tests.market.jquants_columns import fy_columns
 from app.market.forecasts import IGNORED, REPORT, REVISION, forecast_points, latest_forecast
 from app.market.withdrawals import no_withdrawals
 from app.models import Statement
@@ -18,7 +19,7 @@ def _st(no: str, day: str, period: str, fy_end: date, doc: str | None = None, wi
                            disclosed_time="15:30:00", type_of_period=period, fiscal_year_end=fy_end,
                            type_of_document=doc or f"{kind}FinancialStatements_Consolidated_JP",
                            withdrawn_forecasts=withdrawn,
-                           raw_json=json.dumps({k: str(v) for k, v in raw.items()}))
+                           raw_json=json.dumps({k: str(v) for k, v in raw.items()}), **fy_columns(raw))
 
 
 def _rev(no: str, day: str, period: str = "FY", fy_end: date = FY27, withdrawn=None, **raw):
@@ -161,3 +162,13 @@ def test_orm_rows_and_column_marks() -> None:
                        type_of_period="FY", type_of_document="FYFinancialStatements_Consolidated_JP",
                        fiscal_year_end=FY26, raw_json=json.dumps({"NxFEPS": "7"}))
     assert [p.values["eps"].value for p in forecast_points([s, report])] == [7, None]
+
+
+def test_current_forecast_is_read_from_the_columns_when_raw_json_was_replaced() -> None:
+    report = _st("1", "2026-05-12", "FY", FY26, NxFSales=1000, NxFOP=100, NxFOdP=110, NxFNp=70, NxFEPS=7,
+                 AvgSh=10)
+    xbrl_row = _rev("2", "2026-10-16", FSales="", FOP="", FNP="")
+    xbrl_row.fy_net_sales, xbrl_row.fy_operating_profit, xbrl_row.fy_profit = 900.0, -15.0, -50.0
+    assert _last([report, xbrl_row], withdrawn=no_withdrawals) == {
+        "net_sales": 900, "operating_profit": -15, "ordinary_profit": 110, "profit": -50, "eps": -5.0,
+        "div_annual": None}

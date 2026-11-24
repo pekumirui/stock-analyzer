@@ -5,6 +5,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+from tests.market.jquants_columns import fy_columns
 from app.db import SessionLocal
 from app.models import DailyPrice, EarningsDatePub, Statement, Stock
 
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _st(no: str, day: str, doc: str, **raw) -> Statement:
     return Statement(disclosure_no=no, code="99990", disclosed_date=date.fromisoformat(day),
-                     disclosed_time="15:30:00", type_of_document=doc, raw_json=json.dumps(raw))
+                     disclosed_time="15:30:00", type_of_document=doc, raw_json=json.dumps(raw), **fy_columns(raw))
 
 
 def _seed() -> None:

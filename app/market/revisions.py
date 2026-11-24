@@ -14,7 +14,8 @@ from ..config import EARNINGS_PARAMS as EP
 from ..models import FORECAST_ITEMS, Statement
 from ..revisions import ACTUAL, FORECAST, WITHDRAWN, RevisionPoint
 from .analytics import FORECAST_KEYS, _scale_eps, is_actual, metrics, next_year_end, statement_history
-from .forecasts import CURRENT_KEYS, IGNORED, NEXT_KEYS, REPORT, ForecastPoint, Sourced, forecast_points, num
+from .forecasts import (IGNORED, REPORT, ForecastPoint, Sourced, current_forecast, forecast_points,
+                        next_forecast)
 from .withdrawals import Withdrawn, withdrawn_items
 
 ANNUAL_REPORT_PERIODS = ("FY", "4Q")
@@ -30,7 +31,8 @@ def forecast_year(p: ForecastPoint) -> date | None:
 
 
 def stated_eps(p: ForecastPoint, withdrawn: frozenset[str]) -> Sourced:
-    value = None if "eps" in withdrawn else num(p.raw, (NEXT_KEYS if _is_next_year(p) else CURRENT_KEYS)["eps"])
+    stated = next_forecast(p.raw) if _is_next_year(p) else current_forecast(p.statement)
+    value = None if "eps" in withdrawn else stated["eps"]
     return Sourced(value, p.values["eps"].disclosure_no, p.values["eps"].disclosed_date)
 
 

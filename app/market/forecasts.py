@@ -76,23 +76,31 @@ def parse_raw(s) -> dict:
     return raw if isinstance(raw, dict) else {}
 
 
-def _report_values(raw: dict, keys: dict[str, str], shares: float | None) -> dict[str, float | None]:
-    out = {item: num(raw, keys[item]) for item in FORECAST_ITEMS if item != "eps"}
-    out["eps"] = eps_or_from_profit(num(raw, keys["eps"]), out["profit"], shares)
+CURRENT_COLUMN_PREFIX = "fy_"
+
+
+def current_forecast(s) -> dict[str, float | None]:
+    out = {}
+    for item in FORECAST_ITEMS:
+        v = getattr(s, CURRENT_COLUMN_PREFIX + item, None)
+        out[item] = None if v is None else float(v)
     return out
 
 
-def _revision_values(raw: dict, shares: float | None) -> dict[str, float | None]:
-    out = {}
-    for item in FORECAST_ITEMS:
-        if item == "eps":
-            continue
-        v = num(raw, CURRENT_KEYS[item])
-        if v is not None:
-            out[item] = v
-    eps, profit = num(raw, CURRENT_KEYS["eps"]), num(raw, CURRENT_KEYS["profit"])
-    if eps is not None or profit is not None:
-        out["eps"] = eps_or_from_profit(eps, profit, shares)
+def next_forecast(raw: dict) -> dict[str, float | None]:
+    return {item: num(raw, NEXT_KEYS[item]) for item in FORECAST_ITEMS}
+
+
+def _report_values(given: dict[str, float | None], shares: float | None) -> dict[str, float | None]:
+    out = dict(given)
+    out["eps"] = eps_or_from_profit(given["eps"], given["profit"], shares)
+    return out
+
+
+def _revision_values(given: dict[str, float | None], shares: float | None) -> dict[str, float | None]:
+    out = {item: v for item, v in given.items() if item != "eps" and v is not None}
+    if given["eps"] is not None or given["profit"] is not None:
+        out["eps"] = eps_or_from_profit(given["eps"], given["profit"], shares)
     return out
 
 
@@ -113,14 +121,14 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
             if n and s.fiscal_year_end is not None and (latest is None or key >= latest):
                 latest, role = key, REPORT
                 shares = report_shares(raw)
-                found.update(_report_values(raw, NEXT_KEYS if full_year else CURRENT_KEYS, shares))
+                found.update(_report_values(next_forecast(raw) if full_year else current_forecast(s), shares))
         else:
             dividend = num(raw, CURRENT_DIVIDEND_KEY)
             if dividend is not None:
                 found[DIVIDEND_ITEM] = dividend
             if not is_quarter_flash_revision(s):
                 role = REVISION
-                found.update(_revision_values(raw, shares))
+                found.update(_revision_values(current_forecast(s), shares))
         for item in withdrawn(s):
             if item == DIVIDEND_ITEM or role != IGNORED:
                 found[item] = None

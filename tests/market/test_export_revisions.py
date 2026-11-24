@@ -5,10 +5,11 @@ from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
 
+from tests.market.jquants_columns import fy_columns
 from tests.market.test_compare_withdrawals import _seed
 from tools.market.compare_quarter_flash import readonly_session
 from tools.market.export_revisions import (after_undecided_report, compare, export, old_period_reports,
-                                           partial_revisions)
+                                           partial_revisions, same_day_out_of_order)
 
 
 def _export(tmp_path: Path) -> dict[str, dict]:
@@ -66,8 +67,8 @@ def test_compare_explains_badges_after_an_undecided_report(tmp_path: Path, capsy
 
 def _s(no, day, period, doc, fy_op=None, fy_end=date(2026, 3, 31), **raw):
     return SimpleNamespace(disclosure_no=no, disclosed_date=day, disclosed_time="15:30:00", type_of_period=period,
-                           type_of_document=doc, fiscal_year_end=fy_end, fy_operating_profit=fy_op,
-                           is_revision="Revision" in doc, raw_json=json.dumps(raw))
+                           type_of_document=doc, is_revision="Revision" in doc, raw_json=json.dumps(raw),
+                           **{**fy_columns(raw), "fy_operating_profit": fy_op, "fiscal_year_end": fy_end})
 
 
 def test_forms_that_may_change() -> None:
@@ -83,3 +84,14 @@ def test_forms_that_may_change() -> None:
     assert partial_revisions(stmts) == ["r1"]
     assert after_undecided_report(stmts) == ["q3"]
     assert old_period_reports(stmts) == ["q1b"]
+
+
+def test_same_day_disclosures_whose_time_and_number_disagree() -> None:
+    day = date(2021, 11, 11)
+    q2 = _s("20211111431991", day, "2Q", "2QFinancialStatements_Consolidated_JP")
+    q2.disclosed_time = "12:30:00"
+    q3 = _s("20211110431031", day, "3Q", "3QFinancialStatements_Consolidated_JP")
+    rev = _s("20211110431055", day, "FY", "EarnForecastRevision")
+    other = _s("20211112000001", date(2021, 11, 12), "1Q", "1QFinancialStatements_Consolidated_JP")
+    assert same_day_out_of_order([q2, q3, rev, other]) == ["20211110431031", "20211110431055", "20211111431991"]
+    assert same_day_out_of_order([q3, rev, other]) == []

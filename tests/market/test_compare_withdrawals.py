@@ -47,6 +47,9 @@ def _seed(path: Path) -> None:
             db.add(_statement(f"{code}0512", code, date(2026, 5, 12), "FYFinancialStatements_Consolidated_JP", "FY",
                               FY26, NxFEPS=71.2, NxFDivAnn=25))
         db.add(_statement("20260806513051", "70610", date(2026, 8, 14), "EarnForecastRevision", "FY", FY27))
+        xbrl_row = _statement("20261013550006", "99990", date(2026, 10, 16), "EarnForecastRevision", "FY", FY27)
+        xbrl_row.fy_eps, xbrl_row.source = 41.43, "xbrl"
+        db.add(xbrl_row)
         _notice(db, "70610", "20260806513051", "連結業績予想の取り下げに関するお知らせ")
         db.commit()
     with engine.begin() as conn:
@@ -69,3 +72,5 @@ def test_compare_marks_from_xbrl_when_the_column_is_missing(tmp_path: Path, caps
             "items=net_sales,operating_profit,ordinary_profit,profit,eps,div_annual") in out, out
     assert "codes=2 changed_codes=1 eps_steps=2 dividend_codes=1" in out, out
     assert "changed_codes_within_marked_codes=True changed=1 marked=1 outside=0" in out, out
+    assert "columns_without_raw code=99990 disclosure_no=20261013550006" in out, out
+    assert "changed_marked=1 changed_columns_without_raw=0 columns_without_raw_codes=1 changed_other=0" in out, out
