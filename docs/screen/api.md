@@ -28,10 +28,10 @@ FastAPI が公開する REST エンドポイントの応答構造・エラー規
 | フィールド | 規則 |
 |---|---|
 | `kind` / `ready` | 過去日は `actual`、未来日は `scheduled`、当日で開示済みと未発表の両方があるときは `mixed` を返す。`today` 省略時はサーバー当日を使う。発表予定台帳が取得窓を埋める前の未来日には `ready: false` を付ける |
-| `actuals` | 決算短信本体のみを 1 開示 1 行で返す（予想修正のみの開示と、損益が初回と同一の再提出は除外し、損益が変わった再提出には `restated: true` を付ける）。金額（`single`・`cumulative`）は円単位で、売上総利益は `xbrl_financials` から補う。通期営業利益予想が同一事業年度の直前開示から `±0.1%` 以上動いたときは `forecast_revision: {direction: "up" \| "down", pct}` を付ける |
+| `actuals` | 決算短信本体のみを 1 開示 1 行で返す（予想修正のみの開示と、損益が初回と同一の再提出は除外し、損益が変わった再提出には `restated: true` を付ける）。金額（`single`・`cumulative`）は円単位で、売上総利益は `xbrl_financials` から補う。`forecast_revision` は、その短信の通期営業利益予想が同一事業年度の直前の時点の予想（開示を古い順に畳んだ値。決算短信の空欄は未定、営業利益の取り下げの印の後は予想なし、`1Q`・`3Q` 型の業績予想修正と同日の予想修正のみの開示は使わない）から `±0.1%` 以上動いたとき `{direction: "up" \| "down", pct}`、それ以外（直前の予想が無い・`0`、今回の予想が空を含む）は `null` |
 | `scheduled` | 未発表銘柄を 1 銘柄 1 行 `{code, name, sector33, pts, periods: [{fq, fye, label}], latest}` で返す。`latest` は直近の実績開示（無ければ `null`） |
 | `pts` | `actuals`・`scheduled` ともに、そのセッション日の最終 PTS スナップショットにあれば `{price, chg_pct, base_close, as_of}`、無ければ `null` を付ける |
-| `revisions`（`detail`） | 選択した開示日までの通期予想の推移（`kind` は `forecast_initial`・`forecast`・`forecast_revised`・`actual_fy`、前回と同値は `state: "flat"`）。既定のデータ源は `jquants`（`?rev_source=jquants\|xbrl` で切替可） |
+| `revisions`（`detail`） | 選択した開示日までの通期予想の推移（`kind` は `forecast_initial`・`forecast`・`forecast_revised`・`forecast_withdrawn`・`actual_fy`、前回と同値は `state: "flat"`）。各行の `values` はその時点で畳んだ予想で、予想修正で出し直していない項目は前の値のまま。`forecast_withdrawn` は予想の取り下げの行で、取り下げた項目の `values` は `null`、`growth` は `null`。損益をすべて取り下げた後に予想が戻った行は `forecast`（`growth` は `null`）。既定のデータ源は `jquants`（`?rev_source=jquants\|xbrl` で切替可。`xbrl` は取り下げの印を見ないので `forecast_withdrawn` は出ない） |
 | `notes.half_forecast`（`detail`） | 1Q と本決算（来期予想）における中間予想の状態を `given`・`fy_only`・`none`・`unknown` で返す。2Q・3Q では `null` を返す |
 
 ## 株価・銘柄詳細・大量保有

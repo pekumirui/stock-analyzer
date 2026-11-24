@@ -13,7 +13,7 @@ from ...monthly.tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years,
     tree_payload,
 )
-from ...monthly.ingest import _YOY_UNITS, monthly_element_label
+from ...monthly.ingest import monthly_element_label
 from . import _common
 from ._common import (
     _DEFAULT_INDUSTRY, _element_unit, _get_table, _latest_yoy_by_kind, _new_flags, _parse_code,
@@ -111,7 +111,7 @@ def _build_tables(db: Session, only_code: str | None) -> list[dict]:
                 MonthlyElement.code, MonthlyElement.year, MonthlyElement.element,
                 MonthlyElement.unit, MonthlyElement.sort_order)
                 .where(MonthlyElement.code.in_(codes),
-                       MonthlyElement.unit.in_(tuple(_YOY_UNITS)))):
+                       MonthlyElement.unit == "yoy_index")):
             elems_by[e.code].append(e)
         # 値は行ごとの最新月しか順位に効かないのでそれだけ引く。
         elem = MonthlyElement
@@ -121,7 +121,7 @@ def _build_tables(db: Session, only_code: str | None) -> list[dict]:
                                  elem.year == MonthlyValue.year,
                                  elem.element == MonthlyValue.element))
                 .where(MonthlyValue.code.in_(codes),
-                       elem.unit.in_(tuple(_YOY_UNITS)))
+                       elem.unit == "yoy_index")
                 .group_by(MonthlyValue.code, MonthlyValue.year, MonthlyValue.element)
                 .subquery())
         for v in db.execute(select(

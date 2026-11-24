@@ -72,9 +72,11 @@ flowchart LR
   n6 --> n4
   n6 --> n12
   n7 --> n1
+  n7 --> n4
   n7 --> n8
   n7 --> n9
   n8 --> n2
+  n8 --> n4
   n10 --> n3
   n11 --> n0
   n11 --> n4
@@ -118,7 +120,6 @@ flowchart LR
   n22["tools/xbrl"]:::own
   n23["vendor"]:::ext
   n0 --> n2
-  n7 --> n15
   n9 --> n5
   n10 --> n2
   n10 --> n6
@@ -129,10 +130,12 @@ flowchart LR
   n11 --> n18
   n12 --> n23
   n13 --> n11
+  n14 --> n1
   n14 --> n2
   n14 --> n5
   n15 --> n1
   n15 --> n3
+  n15 --> n5
   n15 --> n7
   n16 --> n11
   n16 --> n13
@@ -163,8 +166,8 @@ flowchart LR
 | `app/xbrl` | `app`, `app/edinet`, `vendor` |
 | `jobs` | `app`, `app/market`, `app/monthly` |
 | `jobs/edinet` | `app`, `app/edinet`, `app/xbrl`, `vendor` |
-| `jobs/market` | `app`, `app/market`, `jobs`, `jobs/monthly`, `jobs/ops` |
-| `jobs/monthly` | `app`, `app/monthly`, `jobs`, `tools/monthly` |
+| `jobs/market` | `app`, `app/market`, `app/xbrl`, `jobs`, `jobs/monthly`, `jobs/ops` |
+| `jobs/monthly` | `app`, `app/monthly`, `app/xbrl`, `jobs` |
 | `jobs/ops` | `app`, `jobs` |
 | `jobs/supply` | `app`, `app/supply`, `jobs` |
 | `jobs/xbrl` | `app`, `app/edinet`, `app/xbrl`, `jobs`, `vendor` |
@@ -176,8 +179,8 @@ flowchart LR
 | `tools/golden` | `app` |
 | `tools/jobs` | `tools/dataflow` |
 | `tools/lint` |  |
-| `tools/market` | `app`, `app/market`, `app/xbrl` |
-| `tools/monthly` | `app`, `app/api`, `app/monthly`, `jobs`, `jobs/monthly` |
+| `tools/market` | `app`, `app/api`, `app/market`, `app/xbrl` |
+| `tools/monthly` | `app`, `app/api`, `app/monthly`, `app/xbrl`, `jobs`, `jobs/monthly` |
 | `tools/ops` |  |
 | `tools/overview` | `tools/dataflow`, `tools/jobs` |
 | `tools/schema` | `app`, `tools/dataflow` |

@@ -143,10 +143,10 @@ def _capture(fn: Any) -> tuple[Any, str]:
 def test_shared_mask_calendar_identity() -> None:
     from app.monthly.calendar import anchor_year, column_years
     from app.monthly.ingest import _anchor_year
-    from tools.monthly.text_mask import mask as shared_mask
+    from app.monthly.text_mask import mask as shared_mask
 
     if sc.mask is not shared_mask:
-        _fail("sidecar.mask must be tools.monthly.text_mask.mask")
+        _fail("sidecar.mask must be app.monthly.text_mask.mask")
     if sc.column_years is not column_years:
         _fail("sidecar.column_years must be app.monthly.calendar.column_years")
     if _anchor_year is not anchor_year:
@@ -505,6 +505,65 @@ def _read_layout(path: Path) -> list[sc.Line]:
     return sc.lines_from_layout(path.read_text(encoding="utf-8"))
 
 
+def _mini_table(rows: list[tuple[str, list[str]]]) -> str:
+    lines = ["月次", "", _row("", ["8月", "9月", "10月"])]
+    for label, vals in rows:
+        lines.append(_row(label, vals))
+    return "\n".join(lines) + "\n"
+
+
+def _issuer_dir(tmp: Path, code: str, files: dict[str, str]) -> Path:
+    dest = tmp / "monthly"
+    folder = dest / code
+    folder.mkdir(parents=True)
+    for name, text in files.items():
+        (folder / name).write_text(text, encoding="utf-8")
+    return dest
+
+
+def test_same_month_other_rows_are_manual_not_auto() -> None:
+    revenue_sep = _mini_table([("営業収益", ["100", "110", "-"])])
+    accounts = _mini_table([("営業日数", ["20", "21", "22"])])
+    revenue_oct = _mini_table([("営業収益", ["100", "110", "120"])])
+    files = {
+        "20261006_7177_9月度営業収益.pdf": revenue_sep,
+        "20261105_7177_10月度開示.pdf": accounts,
+        "20261116_7177_10月度営業収益.pdf": revenue_oct,
+    }
+    base = [
+        ("71770", 2026, "営業収益", 8, 100.0),
+        ("71770", 2026, "営業収益", 9, 110.0),
+        ("71770", 2026, "営業日数", 8, 20.0),
+        ("71770", 2026, "営業日数", 9, 21.0),
+        ("71770", 2026, "営業日数", 10, 22.0),
+    ]
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        dest = _issuer_dir(tmp, "7177", files)
+        missing = _seed_db(tmp / "missing.db", base)
+        rc, out = _capture(lambda: sc.run(dest, missing, only=["7177"], read_lines=_read_layout))
+        if rc != 0 or "manual 7177" not in out or "手動投入が必要" not in out or "営業収益" not in out:
+            _fail(f"unfilled revenue row must be manual: {out}")
+        if "current 7177" in out or list(dest.glob(f"**/*{sc.SIDECAR_SUFFIX}")):
+            _fail(f"must not auto-write a sidecar: {out}")
+        stored = _seed_db(tmp / "stored.db", base + [("71770", 2026, "営業収益", 10, 120.0)])
+        rc, out = _capture(lambda: sc.run(dest, stored, only=["7177"], read_lines=_read_layout))
+        if rc != 0 or "current 7177" not in out or "manual 7177" in out:
+            _fail(f"filled revenue row must stay current: {out}")
+        if list(dest.glob(f"**/*{sc.SIDECAR_SUFFIX}")):
+            _fail("current must not write a sidecar")
+        only_oct = {
+            "20261105_7177_10月度開示.pdf": accounts,
+            "20261116_7177_10月度営業収益.pdf": revenue_oct,
+        }
+        bare = _issuer_dir(tmp / "bare", "7177", only_oct)
+        rc, out = _capture(lambda: sc.run(bare, missing, only=["7177"], read_lines=_read_layout))
+        if rc != 0 or "manual 7177" not in out or "手動投入が必要" not in out:
+            _fail(f"without an older teacher the new row must still be manual: {out}")
+        if list(bare.glob(f"**/*{sc.SIDECAR_SUFFIX}")):
+            _fail("fallback must not write a sidecar")
+
+
 def test_run_writes_once() -> None:
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
@@ -631,6 +690,7 @@ def main_tests() -> None:
     test_learn_needs_every_element()
     test_duplicate_months_use_column_keys()
     test_ambiguous_rows_must_agree()
+    test_same_month_other_rows_are_manual_not_auto()
     test_run_writes_once()
     test_run_reports_manual()
     test_run_reports_same_skeleton_new_block()
