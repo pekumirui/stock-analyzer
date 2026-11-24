@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 # `--dataflow=write|check` で docs/DATA_FLOW.md を作る・突き合わせる。付けなければ何もしない
-pytest_plugins = ["tools.dataflow.plugin"]
+pytest_plugins = ["tools.dataflow.plugin", "tools.ci.shard"]
 
 DB_PATH = Path(tempfile.mkdtemp(prefix="stock-analyzer-pytest-")) / "stock.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{DB_PATH}"
