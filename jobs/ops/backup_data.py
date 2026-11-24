@@ -6,7 +6,9 @@
 
 data/xbrl（TDnet の ZIP は約 1 か月で消える）と data/monthly を
 onedrive:stock-analyzer-backups/data/{xbrl,monthly} へ rclone copy し、
-rclone check --one-way で確かめる。sync は使わない（VPS で消すと
+rclone check --one-way で確かめる。一覧取得の失敗だけ最大 3 回やり直す。
+成功は check の exit 0 だけ（0 differences found では成功にしない）。
+sync は使わない（VPS で消すと
 OneDrive からも消える）。VPS 側も消さない。
 data/edinet（EDINET の ZIP。KAB-281）だけは rclone move で、送って確かめたものから
 VPS 側を消す。1 回の量は --max-duration で区切り、打ち切りは失敗にしない
@@ -19,7 +21,8 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
-from collections.abc import Mapping, Sequence
+import time
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -49,6 +52,15 @@ MOVE_MIN_AGE = "10m"
 RCLONE_MOVE_MAX_DURATION = "50m"
 RCLONE_LIMIT_TRANSFER_EXIT = 8
 RCLONE_LIMIT_DURATION_EXIT = 10
+CHECK_LIST_ATTEMPTS = 3
+CHECK_LIST_RETRY_SLEEP_S = 30.0
+_LIST_ERROR_MARKERS = (
+    "couldn't list files",
+    "error reading destination directory:",
+    "error reading destination root directory:",
+    "error reading source directory:",
+    "error reading source root directory:",
+)
 
 
 def remote_kind(kind: str) -> str:
@@ -73,7 +85,18 @@ def move_limit_reason(result: CmdResult) -> str | None:
     return None
 
 
-def copy_dir(local: Path, kind: str, settings: OffsiteSettings, run: RcloneRunFn) -> None:
+def rclone_list_error(result: CmdResult) -> bool:
+    blob = f"{result.stdout}\n{result.stderr}".lower()
+    return any(marker in blob for marker in _LIST_ERROR_MARKERS)
+
+
+def copy_dir(
+    local: Path,
+    kind: str,
+    settings: OffsiteSettings,
+    run: RcloneRunFn,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
     if not local.is_dir():
         raise BackupError(f"missing {local}")
     dest = settings.dest(remote_kind(kind))
@@ -83,11 +106,22 @@ def copy_dir(local: Path, kind: str, settings: OffsiteSettings, run: RcloneRunFn
         raise BackupError(
             f"rclone copy {kind} exit={copied.returncode} {clip_cmd_output(copied.stderr)}"
         )
-    checked = run(["check", str(local), dest, "--one-way", *flags], RCLONE_CHECK_TIMEOUT_S)
-    if checked.returncode != 0:
-        raise BackupError(
-            f"rclone check {kind} exit={checked.returncode} {clip_cmd_output(checked.stderr)}"
+    argv = ["check", str(local), dest, "--one-way", *flags]
+    for attempt in range(1, CHECK_LIST_ATTEMPTS + 1):
+        checked = run(argv, RCLONE_CHECK_TIMEOUT_S)
+        if checked.returncode == 0:
+            break
+        if attempt == CHECK_LIST_ATTEMPTS or not rclone_list_error(checked):
+            raise BackupError(
+                f"rclone check {kind} exit={checked.returncode} "
+                f"attempts={attempt} {clip_cmd_output(checked.stderr)}"
+            )
+        print(
+            f"check {kind} list-error attempt={attempt}/{CHECK_LIST_ATTEMPTS} "
+            f"exit={checked.returncode} {clip_cmd_output(checked.stderr)}",
+            flush=True,
         )
+        sleep(CHECK_LIST_RETRY_SLEEP_S)
     files = sum(1 for p in local.rglob("*") if p.is_file())
     print(f"offsite ok {kind} files={files} dest={dest}", flush=True)
 
@@ -138,6 +172,7 @@ def run(
     environ: Mapping[str, str] | None = None,
     which: WhichFn = shutil.which,
     rclone: RcloneRunFn | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     settings = offsite_settings_from_env(environ)
     runner = rclone or make_rclone_runner(settings.rclone_bin)
@@ -147,8 +182,11 @@ def run(
         print(f"offsite skipped: {exc}", flush=True)
         return 0
     for kind in kinds:
-        push = move_dir if kind in MOVE_KINDS else copy_dir
-        push(share_path(kind, environ=environ), kind, settings, runner)
+        local = share_path(kind, environ=environ)
+        if kind in MOVE_KINDS:
+            move_dir(local, kind, settings, runner)
+        else:
+            copy_dir(local, kind, settings, runner, sleep=sleep)
     return 0
 
 
