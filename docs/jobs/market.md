@@ -25,6 +25,8 @@
 | `--no-recompute` を指定したとき | 手順 4 を飛ばし、手順 5 の決算発表予定の同期へ進む |
 | 手順 2・3 の新規保存がともに 0 件で、`indicators` の最終日が `daily_prices` の最終日と一致するとき | 前回までの計算が完了済みとみなして手順 4 を飛ばす。前回途中で中断して最終日がずれていれば再計算する |
 
+この順は上の 2 つの表のままにする。分岐は手順 4 を省くかどうかだけで、省く条件は矢印に書くと表より長くなる。
+
 通常の 1 営業日分の実行で発行する J-Quants API リクエストは、`stocks` 1 回・`topix` 1 回・`daily_prices` 1 回・`statements` 1 回・`earnings-calendar` 3 ページ（Light プラン）の計 7 回である。`earnings_date_sync_dates` が空の初回実行時は、手順 5 で過去 `EARNINGS_DATE_LOOKBACK_DAYS`（120 日）分の `PubDate` をさかのぼるため、その日数分のリクエストが別途加わる。
 
 ### 取り込む対象と変換
