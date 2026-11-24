@@ -1,77 +1,20 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-from datetime import date
 from pathlib import Path
-from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.api.stock import _dividend_forecast
 from app.market.chart_fund import fund_steps
 from app.market.withdrawals import no_withdrawals, withdrawn_items
 from app.models import WITHDRAWABLE_ITEMS, DailyPrice, Statement
-from app.xbrl.statements import (REVISION_DOC_TYPES, disclosure_no_of, filings_since, notice_filings_since,
-                                 withdrawals_by_filing)
 from tools.market.compare_quarter_flash import diff_count, readonly_session
-
-COLUMN = "withdrawn_forecasts"
-RAW_CURRENT = {"fy_net_sales": "FSales", "fy_operating_profit": "FOP", "fy_ordinary_profit": "FOdP",
-               "fy_profit": "FNP", "fy_eps": "FEPS"}
-EVERY_FILING = date(1900, 1, 1)
-
-
-def statement_columns(db: Session) -> list:
-    have = {r[1] for r in db.execute(text("PRAGMA table_info(statements)"))}
-    return [c for c in Statement.__table__.columns if c.name in have]
-
-
-def marks_from_xbrl(db: Session) -> dict[str, tuple[str, ...]]:
-    filings = [f for f in filings_since(db, EVERY_FILING) if f.doc_type in REVISION_DOC_TYPES]
-    filings += notice_filings_since(db, None)
-    by_id = withdrawals_by_filing(db, filings)
-    return {disclosure_no_of(f.doc_id): by_id[f.id] for f in filings if f.id in by_id}
-
-
-def column_marks(db: Session, cols) -> dict[str, tuple[str, ...]] | None:
-    if COLUMN not in {c.name for c in cols}:
-        return None
-    col = Statement.__table__.c[COLUMN]
-    rows = db.execute(select(Statement.disclosure_no, col).where(col.isnot(None))).all()
-    return {no: items for no, items in rows if items} or None
-
-
-def load_statements(db: Session, cols, code: str, marks: dict[str, tuple[str, ...]]) -> list[SimpleNamespace]:
-    names = [c.name for c in Statement.__table__.columns]
-    rows = db.execute(select(*cols).where(Statement.code == code)
-                      .order_by(Statement.disclosed_date, Statement.disclosure_no)).mappings().all()
-    out = []
-    for r in rows:
-        s = SimpleNamespace(**{n: r.get(n) for n in names})
-        s.withdrawn_forecasts = marks.get(s.disclosure_no)
-        out.append(s)
-    return out
-
-
-def columns_without_raw(stmts) -> list[str]:
-    out = []
-    for s in stmts:
-        if "FinancialStatements" in (s.type_of_document or ""):
-            continue
-        try:
-            raw = json.loads(s.raw_json or "{}")
-        except ValueError:
-            raw = {}
-        raw = raw if isinstance(raw, dict) else {}
-        if any(getattr(s, col) is not None and raw.get(key) in (None, "") for col, key in RAW_CURRENT.items()):
-            out.append(s.disclosure_no)
-    return out
-
+from tools.market.export_revisions import (MARK_COLUMN, column_marks, columns_without_raw, load_statements,
+                                           marks_from_xbrl, statement_columns)
 
 def compute(stmts, days, factors, withdrawn) -> tuple[list[tuple], float | None]:
     f = fund_steps(stmts, days, factors, withdrawn)
@@ -81,10 +24,10 @@ def compute(stmts, days, factors, withdrawn) -> tuple[list[tuple], float | None]
 def compare(db: Session, show: bool) -> int:
     cols = statement_columns(db)
     marks = column_marks(db, cols)
-    source = COLUMN
+    source = MARK_COLUMN
     if marks is None:
         marks, source = marks_from_xbrl(db), "xbrl_financials"
-    print(f"marks_source={source} column={'yes' if COLUMN in {c.name for c in cols} else 'no'} "
+    print(f"marks_source={source} column={'yes' if MARK_COLUMN in {c.name for c in cols} else 'no'} "
           f"marked_disclosures={len(marks)}")
     codes = [c for (c,) in db.query(Statement.code).distinct().order_by(Statement.code)]
     marked: dict[str, list] = {}

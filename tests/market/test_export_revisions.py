@@ -95,3 +95,25 @@ def test_same_day_disclosures_whose_time_and_number_disagree() -> None:
     other = _s("20211112000001", date(2021, 11, 12), "1Q", "1QFinancialStatements_Consolidated_JP")
     assert same_day_out_of_order([q2, q3, rev, other]) == ["20211110431031", "20211110431055", "20211111431991"]
     assert same_day_out_of_order([q3, rev, other]) == []
+
+
+def test_export_writes_the_chart_steps_of_the_forecast_eps(tmp_path: Path) -> None:
+    rows = _export(tmp_path)
+    assert rows["70610"]["chart"] == [["2026-08-17", None]]
+    assert rows["99990"]["chart"] == [["2026-08-17", 71.2], ["2026-10-17", 41.43]]
+    assert rows["99990"]["columns_without_raw"] == ["20261013550006"]
+
+
+def test_compare_allows_chart_changes_only_for_marks_and_columns_without_raw(tmp_path: Path, capsys) -> None:
+    new = _export(tmp_path)
+    old = json.loads(json.dumps(new))
+    old["99990"]["chart"] = old["99990"]["chart"][:1]
+    old["70610"]["chart"] = [["2026-08-17", 71.2]]
+    assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 0
+    out = capsys.readouterr().out
+    assert "changed code=70610 category=marked parts=chart" in out, out
+    assert "changed code=99990 category=columns_without_raw parts=chart" in out, out
+    assert "chart_codes=2" in out, out
+    new["99990"]["columns_without_raw"] = []
+    assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 1
+    assert "changed code=99990 category=other parts=chart" in capsys.readouterr().out
