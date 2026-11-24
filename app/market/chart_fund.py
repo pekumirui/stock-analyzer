@@ -5,43 +5,15 @@
 """
 from __future__ import annotations
 
-import json
 from bisect import bisect_right
 from datetime import date, timedelta
 from math import log
 
 from ..config import EARNINGS_PARAMS as EP
 from ..models import Statement
-from .analytics import ORDER, find_statement, is_actual, is_after_close, shift_year, single_from
-
-
-def _num(raw: dict, key: str) -> float | None:
-    v = raw.get(key)
-    if v in (None, ""):
-        return None
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return None
-
-
-def _shares(raw: dict) -> float | None:
-    average = _num(raw, "AvgSh")
-    if average and average > 0:
-        return average
-    profit, eps = _num(raw, "NP"), _num(raw, "EPS")
-    if profit and eps and profit / eps > 0:
-        return profit / eps
-    issued, treasury = _num(raw, "ShOutFY"), _num(raw, "TrShFY")
-    return issued - (treasury or 0) if issued else None
-
-
-def _forecast_eps(raw: dict, eps_key: str, profit_key: str, shares: float | None) -> float | None:
-    eps = _num(raw, eps_key)
-    if eps is not None:
-        return eps
-    profit = _num(raw, profit_key)
-    return round(profit / shares, 2) if profit is not None and shares else None
+from .analytics import ORDER, find_statement, is_after_close, shift_year, single_from
+from .forecasts import REPORT, REVISION, Withdrawn, forecast_points
+from .withdrawals import withdrawn_items
 
 
 def _ttm_op(hist: list[Statement], s: Statement, tol: int) -> float | None:
@@ -95,7 +67,8 @@ def adjust_per_share(eps: float | None, d: date, days: list[date], factors: list
     return round(cands[0], 2)
 
 
-def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -> dict:
+def fund_steps(stmts: list[Statement], days: list[date], factors: list[float],
+               withdrawn: Withdrawn = withdrawn_items) -> dict:
     """{t, eps, op_q, op_ttm}。t は使い始める日（昇順・重複なし）、値は次の点まで続く。
 
     stmts は 1 銘柄の開示（順不同）、days / factors は日足の日付と adj_factor（昇順）。
@@ -104,41 +77,24 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
     for s in stmts:
         if not hasattr(s, "gross_profit"):
             s.gross_profit = None  # find_statement は売上総利益も見る（決算速報は XBRL から付ける）。ここでは使わない
-    order = sorted(stmts, key=lambda s: (s.disclosed_date, s.disclosed_time or "", s.disclosure_no))
     hist: list[Statement] = []
-    latest: tuple[date, int] | None = None
-    eps = op_q = op_ttm = report_shares = None
+    op_q = op_ttm = None
     out: dict[str, list] = {"t": [], "eps": [], "op_q": [], "op_ttm": []}
-    for s in order:
+    for p in forecast_points(stmts, withdrawn):
+        s = p.statement
         hist.append(s)
-        try:
-            raw = json.loads(s.raw_json) if s.raw_json else {}
-        except ValueError:
-            raw = {}
-        if is_actual(s):
-            n = ORDER.get(s.type_of_period or "")
-            if not n or s.fiscal_year_end is None:
-                continue
-            key = (s.fiscal_year_end, n)
-            if latest is not None and key < latest:
-                continue
-            latest = key
-            fy = (s.type_of_document or "").startswith("FY")
-            report_shares = _shares(raw)
-            eps = (_forecast_eps(raw, "NxFEPS", "NxFNp", report_shares) if fy
-                   else _forecast_eps(raw, "FEPS", "FNP", report_shares))
+        if p.role == REPORT:
             q = single_from(hist, s, tol)
             op_q = q["operating_profit"] if q else None
             op_ttm = _ttm_op(hist, s, tol)
-        else:
-            if _num(raw, "FEPS") is None and _num(raw, "FNP") is None:
-                continue
-            eps = _forecast_eps(raw, "FEPS", "FNP", report_shares)
+        elif p.role != REVISION or "eps" not in p.touched:
+            continue
+        eps = p.values["eps"]
         start = _starts(s.disclosed_date, s.disclosed_time, days).isoformat()
         if out["t"] and start < out["t"][-1]:
             start = out["t"][-1]  # 引け後の開示の翌営業日より前に、休日付けの開示が来たとき
         prev_eps = next((x for x in reversed(out["eps"]) if x is not None), None)
-        adj_eps = adjust_per_share(eps, s.disclosed_date, days, factors, prev_eps)
+        adj_eps = adjust_per_share(eps.value, eps.disclosed_date, days, factors, prev_eps)
         row = (adj_eps, op_q, op_ttm)
         if out["t"] and out["t"][-1] == start:
             for k, v in zip(("eps", "op_q", "op_ttm"), row):
@@ -150,4 +106,3 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
         for k, v in zip(("eps", "op_q", "op_ttm"), row):
             out[k].append(v)
     return out
-

@@ -82,7 +82,7 @@ def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
 
 
 _LIST_HISTORY_COLUMNS = tuple(
-    c for c in Statement.__table__.columns if c.key not in ("raw_json", "source"))
+    c for c in Statement.__table__.columns if c.key not in ("raw_json", "source", "withdrawn_forecasts"))
 
 
 def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
@@ -101,6 +101,19 @@ def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
     for code, hist in hist_by_code.items():
         align_eps(hist, splits.get(code, []), day)
     return hist_by_code
+
+
+def revision_marks_query(disclosure_nos):
+    return (select(Statement.disclosure_no, Statement.withdrawn_forecasts)
+            .where(Statement.disclosure_no.in_(disclosure_nos), Statement.withdrawn_forecasts.isnot(None)))
+
+
+def attach_revision_marks(db: Session, hist_by_code: dict[str, list]) -> None:
+    revisions = {s.disclosure_no: s for hist in hist_by_code.values() for s in hist if not is_actual(s)}
+    if not revisions:
+        return
+    for no, items in db.execute(revision_marks_query(list(revisions))):
+        revisions[no].withdrawn_forecasts = items
 
 
 _LATEST_KEYS = (
@@ -180,6 +193,7 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
     codes = select(Statement.code).where(
         Statement.disclosed_date == day, _ACTUAL_DOC, _not_excluded_product(Statement.code))
     hist_by_code = prefetch_list_history(db, codes, day)
+    attach_revision_marks(db, hist_by_code)
     names = dict(db.query(Stock.code, Stock.name).filter(Stock.code.in_(codes)).all())
 
     out = []

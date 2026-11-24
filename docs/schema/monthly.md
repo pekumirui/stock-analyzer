@@ -85,7 +85,7 @@ erDiagram
 | `year` | INTEGER |  | PK / → `monthly_tables.(code, year)`（制約なし） |  |  |  |
 | `element` | VARCHAR(50) |  | PK |  |  | 登録時の正規名 |
 | `sort_order` | INTEGER |  |  |  |  | 登録順 |
-| `unit` | VARCHAR(16) |  |  |  | `number`（DB） | number \| yoy_index |
+| `unit` | VARCHAR(16) |  |  | `number` / `yoy_index` | `number`（DB） | number \| yoy_index |
 
 ### monthly_issuers
 

@@ -65,6 +65,7 @@ def _host_disk_does_not_stop(monkeypatch: pytest.MonkeyPatch) -> None:
         return real(*args, **kwargs)
 
     monkeypatch.setattr(mod, "run", run)
+    monkeypatch.setattr(mod, "SLEEP_SEC", 0)
 
 
 @pytest.fixture(autouse=True)

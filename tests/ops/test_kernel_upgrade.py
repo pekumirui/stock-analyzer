@@ -604,6 +604,7 @@ def _prepare_update(tmp_path: Path, *, health_ok: bool) -> tuple[dict[str, str],
         "if [[ \"$out\" == *http_code* ]]; then printf '%s' \"$code\"; fi\n"
         "exit 0\n",
     )
+    _write_exe(bin_dir / "sleep", "#!/usr/bin/env bash\nexit 0\n")
     (app / "jobs").mkdir(parents=True)
     (app / "deploy").mkdir()
     (app / "requirements.txt").write_text("# test\n", encoding="utf-8")

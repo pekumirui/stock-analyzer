@@ -26,7 +26,7 @@
 
 - `data/xbrl` に蓄積している TDnet XBRL ZIP をパースし、数値および短文の fact を欠損なく生データ層へ保存する。
 - 企業横断で比較できる標準勘定科目へ正規化し、正規化層（`xbrl_financials`）を構築する。
-- 既存の `statements`（短信サマリ）を置き換えず、BS・PL・CF 本表や注記まで含む財務分析の基盤にする。
+- 速報の正本は `statements` のままにし、短信 XBRL からは同じ `disclosure_no` の行を足すか、値がある数値列だけを上書きする。J-Quants の行をまとめて消すことと、突合で削除することはしない（「statements との関係」）。BS・PL・CF 本表や注記は `xbrl_financials` 側の基盤にする。
 
 #### スコープ内
 
@@ -154,7 +154,7 @@ stocks.code   例: 7203 → 72030、262A → 262A0
 
 `Arelle` は 1 ファイルあたり数秒を要するが、`xbrlp`（取得元は `https://gist.github.com/kawasin73/346ed6a24382a2b238e1ff0d10f3f40c` の `__init__.py`・`file_loader.py`・`parser.py`）は Python 標準ライブラリだけで iXBRL の fact・ラベル・表示リンク・計算リンクを約 20 倍高速に読み取れる。依存を増やさない方針にも合致するため、外部 git submodule は使わず `app/xbrlp/` にコピーしてリビジョンを固定する。KAB-60 でネットワークダウンロードを廃止し同梱ディレクトリだけを読むようにした `app/xbrlp/file_loader.py` 以外は本体を改変しない。
 
-関連モジュールの配置は以下のとおりである。
+主な配置は次のとおりである。`app/xbrl/` にはこの木に無い `codes.py`・`gross_profit.py`・`jobs.py`・`store.py`・`shareholders.py`・`pdf_matches.py`・`revisions.py` と、パッケージ `pdf/`（`__init__.py`・`_layout.py`・`_tanshin.py`）もある。
 
 ```
 app/xbrlp/                    # vendored パーサ本体
@@ -584,6 +584,7 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 - 実績は `normalize` の当期実績（連結優先）、期首は累計実績の期首、年度末は同一期首の通期予想期末（無ければ期首から 1 年）とする。本決算以外の `fy_*`・`f2_*` には当期の通期・中間予想を入れ、本決算では空にして来期予想を `raw_json` の `NxF*`・`NxF*2Q`・`NxtFYEn`（無ければ年度末の 1 年後）に入れる。業績予想修正は中間予想があり配当予想が無ければ `type_of_period='2Q'`、それ以外は `'FY'` とする（2026 年 8 月以降の `237` 件中 `217` 件で J-Quants と一致）。
 - J-Quants の `raw_json` が無い間は `F*`・`NxF*`・配当 `Div*` `FDiv*` `NxFDiv*`（単体 context を参照）・`BPS`・`EqAR`・`ROE` と `"Source": "xbrl"` を作り、`type_of_document` も J-Quants 形式（`2QFinancialStatements_Consolidated_IFRS`・`EarnForecastRevision` など）にする。
 - 単体のみの個別業績予想修正は `raw_json` の `FNC*` に入れて `fy_*`・`f2_*` を空にするが、直近の決算短信が単体の会社に限り `fy_*`・`f2_*` にも入れる。REIT（題名に `REIT`）と実績の無い「決算速報値のお知らせ」（KAB-222）は生成せず、J-Quants 行との突合は `tools/xbrl/xbrl_statements_check.py --db ... --since ...` で行う。
+- 予想の取り下げ（KAB-551）: 業績予想・配当予想の修正と、`doc_type='other'` の書類（取り下げのお知らせ・連結決算への移行に伴う公表など）について、項目ごとに修正前（`value_kind='forecast_previous'`）の行があり修正後（`'forecast'`）の行が無ければ取り下げとして `statements.withdrawn_forecasts` に入れる。値が nil の項目は `xbrl_financials` に行ができないので、修正後が未定なら修正後の行が無くなる。行の有無は `range_side` を問わない（点からレンジに変えた修正は取り下げではない）。業績は通期（`target_period='FY'`）の売上高・営業利益・経常利益・純利益・EPS、配当は年間（`'annual'`、単体の context）を見て、年間の修正前があり修正後が無いことに加えて期末（`'year_end'`）の修正後も無いときだけ印を付ける。株式分割に伴う配当予想の修正は、分割の前後を単純に足せないので年間の修正後が「－」で行が無く、期末の修正後（分割後の金額）だけがあるため、取り下げではない。業績は連結の行があれば連結（修正前の行も含めて判定）、無ければ個別を見る。連結の会社が個別の予想だけを取り下げた場合（上の `FNC*` に分ける場合と同じ条件）は印を付けない。直近の決算短信が単体の会社で修正後の連結の予想が無い「連結決算への移行」は、単体の予想の取り下げとして印を付ける。`doc_type='other'` の書類からは行を作らず、同じ開示番号の `statements` 行（J-Quants）が既にあるときだけ印を付ける。判定は `app/xbrl/statements.py` の `withdrawn_forecasts`。
 
 ### 財務3表
 

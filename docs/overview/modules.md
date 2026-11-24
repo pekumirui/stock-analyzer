@@ -72,9 +72,11 @@ flowchart LR
   n6 --> n4
   n6 --> n12
   n7 --> n1
+  n7 --> n4
   n7 --> n8
   n7 --> n9
   n8 --> n2
+  n8 --> n4
   n10 --> n3
   n11 --> n0
   n11 --> n4
@@ -106,9 +108,9 @@ flowchart LR
   n10["tools/briefing"]:::own
   n11["tools/dataflow"]:::own
   n12["tools/edinet"]:::own
-  n13["tools/formal"]:::own
-  n14["tools/jobs"]:::own
-  n15["tools/market"]:::own
+  n13["tools/jobs"]:::own
+  n14["tools/market"]:::own
+  n15["tools/mcp"]:::own
   n16["tools/monthly"]:::own
   n17["tools/overview"]:::own
   n18["tools/schema"]:::own
@@ -119,25 +121,26 @@ flowchart LR
   n23["tools/xbrl"]:::own
   n24["vendor"]:::ext
   n0 --> n2
-  n7 --> n16
   n9 --> n5
   n10 --> n2
   n10 --> n6
   n10 --> n7
   n10 --> n8
-  n11 --> n14
+  n11 --> n13
   n11 --> n18
   n11 --> n19
   n12 --> n24
-  n13 --> n2
-  n14 --> n11
-  n15 --> n2
-  n15 --> n5
+  n13 --> n11
+  n13 --> n15
+  n14 --> n1
+  n14 --> n2
+  n14 --> n5
   n16 --> n1
   n16 --> n3
+  n16 --> n5
   n16 --> n7
   n17 --> n11
-  n17 --> n14
+  n17 --> n13
   n18 --> n11
   n19 --> n11
   n20 --> n4
@@ -165,22 +168,23 @@ flowchart LR
 | `app/xbrl` | `app`, `app/edinet`, `vendor` |
 | `jobs` | `app`, `app/market`, `app/monthly` |
 | `jobs/edinet` | `app`, `app/edinet`, `app/xbrl`, `vendor` |
-| `jobs/market` | `app`, `app/market`, `jobs`, `jobs/monthly`, `jobs/ops` |
-| `jobs/monthly` | `app`, `app/monthly`, `jobs`, `tools/monthly` |
+| `jobs/market` | `app`, `app/market`, `app/xbrl`, `jobs`, `jobs/monthly`, `jobs/ops` |
+| `jobs/monthly` | `app`, `app/monthly`, `app/xbrl`, `jobs` |
 | `jobs/ops` | `app`, `jobs` |
 | `jobs/supply` | `app`, `app/supply`, `jobs` |
 | `jobs/xbrl` | `app`, `app/edinet`, `app/xbrl`, `jobs`, `vendor` |
 | `mcp` | `app`, `app/xbrl` |
 | `tools` |  |
 | `tools/briefing` | `app`, `app/market`, `jobs`, `jobs/market`, `jobs/monthly`, `jobs/ops` |
+| `tools/ci` |  |
 | `tools/dataflow` | `app`, `tools/jobs`, `tools/schema`, `tools/screen` |
 | `tools/edinet` | `app`, `vendor` |
-| `tools/formal` | `app`, `app/market` |
 | `tools/golden` | `app` |
-| `tools/jobs` | `tools/dataflow` |
+| `tools/jobs` | `tools/dataflow`, `tools/mcp` |
 | `tools/lint` |  |
-| `tools/market` | `app`, `app/market`, `app/xbrl` |
-| `tools/monthly` | `app`, `app/api`, `app/monthly`, `jobs`, `jobs/monthly` |
+| `tools/market` | `app`, `app/api`, `app/market`, `app/xbrl` |
+| `tools/mcp` |  |
+| `tools/monthly` | `app`, `app/api`, `app/monthly`, `app/xbrl`, `jobs`, `jobs/monthly` |
 | `tools/ops` |  |
 | `tools/overview` | `tools/dataflow`, `tools/jobs` |
 | `tools/schema` | `app`, `tools/dataflow` |
