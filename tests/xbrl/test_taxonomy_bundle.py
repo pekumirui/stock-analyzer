@@ -548,6 +548,71 @@ def test_pre2016_gaap_and_jpsps_editions_parse_offline(tmp: Path) -> None:
             _fail(f"jpsps {date} expected ファンドの名称, got {jlab}")
 
 
+NEGATED_ROLE_URL = "http://www.xbrl.org/lrr/role/negated-2009-12-16.xsd"
+
+
+def test_negated_role_schema_parses_offline(tmp: Path) -> None:
+    _require_bundled(NEGATED_ROLE_URL, JPIGP_2018_COR, JPIGP_2018_LAB)
+    company_xsd = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            targetNamespace="http://example.jp/S100AJZW">
+  <xsd:import namespace="{JPIGP_2018_NS}" schemaLocation="{JPIGP_2018_COR}"/>
+  <xsd:import namespace="http://www.xbrl.org/2009/role/negated" schemaLocation="{NEGATED_ROLE_URL}"/>
+  <link:linkbaseRef xlink:type="simple" xlink:href="{JPIGP_2018_LAB}"
+                    xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>
+</xsd:schema>
+"""
+    hidden = (
+        '<ix:nonFraction name="jpigp_cor:RevenueIFRS" contextRef="CurrentYearDuration"'
+        ' unitRef="JPY" scale="6" decimals="-6">300</ix:nonFraction>'
+    )
+    period = (
+        "<xbrli:startDate>2016-04-01</xbrli:startDate><xbrli:endDate>2017-03-31</xbrli:endDate>"
+    )
+    ixbrl = f"""<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+      xmlns:xbrli="http://www.xbrl.org/2003/instance"
+      xmlns:link="http://www.xbrl.org/2003/linkbase"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xmlns:jpigp_cor="{JPIGP_2018_NS}"
+      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+<head>
+  <ix:header>
+    <link:schemaRef xlink:type="simple" xlink:href="company.xsd"/>
+    <ix:hidden>
+      {hidden}
+    </ix:hidden>
+    <ix:resources>
+      <xbrli:context id="CurrentYearDuration">
+        <xbrli:entity><xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00949</xbrli:identifier></xbrli:entity>
+        <xbrli:period>{period}</xbrli:period>
+      </xbrli:context>
+      <xbrli:unit id="JPY"><xbrli:measure>iso4217:JPY</xbrli:measure></xbrli:unit>
+    </ix:resources>
+  </ix:header>
+</head>
+<body></body>
+</html>
+"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("XBRL/PublicDoc/S100AJZW.htm", ixbrl)
+        zf.writestr("XBRL/PublicDoc/company.xsd", company_xsd)
+    zips = tmp / "zips"
+    zips.mkdir(parents=True)
+    (zips / "S100AJZW.zip").write_bytes(buf.getvalue())
+    rc, out = _run_check(zips, BUNDLE)
+    if rc != 0 or "missing=0" not in out or NEGATED_ROLE_URL in out:
+        _fail(f"negated role must already be in the bundle: {rc} {out}")
+    pkg = _parse_offline(zips / "S100AJZW.zip", tmp / "unpacked")
+    names = {(f.namespace_key, f.local_name) for f in pkg.facts}
+    if ("jpigp_cor", "RevenueIFRS") not in names:
+        _fail(f"expected RevenueIFRS fact, got {names}")
+
+
 def test_sync_skips_unused_files(tmp: Path) -> None:
     zips = _write_filing(tmp)
     src = tmp / "cache"
@@ -585,6 +650,7 @@ def main() -> None:
         test_check_fails_when_needed_label_missing(root / "need-lab")
         test_sync_skips_unused_files(root / "sync")
         test_jpigp_2018_in_bundle_parses_offline(root / "jpigp-2018")
+        test_negated_role_schema_parses_offline(root / "negated-role")
         test_s100m0fi_2015_taxonomy_parses_offline(root / "s100m0fi")
         test_pre2016_gaap_and_jpsps_editions_parse_offline(root / "pre2016")
     print("ok: taxonomy bundle")
