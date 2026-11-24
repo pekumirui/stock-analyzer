@@ -37,7 +37,7 @@
 | `daily_prices` | `stocks` に存在する銘柄コードだけを残し、`adj_close` が `0`・空・負の行（売買停止日など）を除外する。生値（`open`・`high`・`low`・`close`・`volume`）と J-Quants の分割調整済み値（`adj_*`）の両方に加え、`turnover`・`adj_factor`（`AdjFactor`）・`upper_limit`（`UL`）・`lower_limit`（`LL`）を保存する |
 | `statements` | `stocks` に存在する銘柄コードだけを残し、API 応答の JSON 全文を `raw_json` にそのまま保存する。`config/market/statement_period_fixes.json` で `"drop": true` が付いた開示（同日の訂正開示で置き換えられた壊れた元開示など、`KAB-449`）は取り込まず、日付補正が登録された開示は 4 つの日付列を補正して UPSERT する |
 
-短信 XBRL から先に作られた行（`source='xbrl'`）と同じ `(code, disclosed_date, disclosure_number)` が後から J-Quants で届いたときは、`raw_json` の更新と `NULL` だった数値列の補完だけを行い、XBRL 側で確定した 4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）は上書きしない。詳細は [XBRL の設計](xbrl.md)「statements との関係」を参照する。
+短信 XBRL から先に作られた行（`source='xbrl'`）は、後から同じ `disclosure_no` の J-Quants 行が届いたとき（`app/market/ingest.py` の `upsert_statements`）、`code` や開示日では引かず、`raw_json` の差し替えと `NULL` だった数値列（`app/xbrl/statements.py` の `NUMERIC_COLUMNS`）の補完だけを行う。4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）はこの関数では書かない。詳細は [XBRL の設計](xbrl.md)「statements との関係」を参照する。
 
 ### 期の誤りの候補の検知と補正
 
@@ -75,7 +75,7 @@
 
 ## 決算の数字の扱い
 
-決算サマリーの集計・単独四半期値の算出・予想修正の判定は `app/market/analytics.py` と `app/xbrl/revisions.py`、速報 API は `app/api/earnings.py` が担う。
+決算サマリーの集計と単独四半期値は `app/market/analytics.py`、速報一覧の予想修正バッジは同ファイルの `forecast_revision`、複数指標の修正履歴は `app/revisions.py`（J-Quants 側は `app/market/revisions.py` の `jquants_points`、XBRL 側は `app/xbrl/revisions.py` の `xbrl_points`）、速報 API は `app/api/earnings.py` が担う。
 
 ### J-Quants 決算データの癖
 
@@ -84,16 +84,16 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 | 項目 | J-Quants V2 の仕様 | アプリ側の扱い |
 |---|---|---|
 | 実績値（`Sales`・`OP`・`OdP`・`NP`・`EPS`） | 1Q・2Q・3Q・FY のすべてが期首からの累計値（YTD）で格納される | 前四半期の累計値を差し引いて Q 単独値を算出する |
-| 予想値（`FSales`・`FOP`・`FOdP`・`FNP`・`FEPS`・`NxF*`） | 各開示時点の最新予想値だけが入り、修正前の前回予想値は同じ行に入らない | 同一 `fiscal_year_end` の直前の開示行と突き合わせて修正方向と変化率を算出する |
+| 予想値（`FSales`・`FOP`・`FOdP`・`FNP`・`FEPS`・`NxF*`） | 各開示時点の最新予想値だけが入り、修正前の前回予想値は同じ行に入らない | 速報一覧のバッジは同一 `fiscal_year_end` の直前開示の `fy_operating_profit` だけを比べる。複数指標の履歴は別（下の「予想修正の検知」） |
 | 予想修正の単独開示（`DocType = *ForecastRevision*`） | 実績列がすべて `NULL` になり、予想列だけに値が入る | 決算速報一覧からは外し、予想修正の履歴比較には含める |
-| 訂正開示（数値データ訂正・一部訂正など） | 元の行は消えず、同じ `(code, type_of_period, period_end)` に新しい `disclosure_number` の行が追加される | PL 4 項目の変化有無で「重複」と「数値訂正」を切り分ける |
+| 訂正開示（数値データ訂正・一部訂正など） | 元の行は消えず、同じ `(code, type_of_period, fiscal_year_end)` に新しい `disclosure_no` の行が追加される | PL 4 項目の変化有無で「重複」と「数値訂正」を切り分ける |
 | 会計基準の変更 | 同じ期の数値が新しい会計基準の `DocType` で再開示されることがある | 原則として会計基準ごとに系列を分け、重複期間で連続性が確認できるときだけ前基準の四半期を引き継ぐ |
 
 ### 速報一覧に出す開示
 
 決算速報の一覧（`GET /api/earnings`）と月間カレンダーは、`type_of_document` に `FinancialStatements` を含み、かつ REIT（商品区分 `013` 内国 REIT・`022` 外国 REIT、`EARNINGS_EXCLUDE_PRODUCT_CATEGORIES`）を除いた開示を母集団とする。
 
-同一の `(code, type_of_period, period_end)` に対して過去の `FinancialStatements` 行（`disclosed_date` が前日以前、または同日で `disclosure_number` が小さい行）があるときは、主要 PL 4 項目（`net_sales`・`operating_profit`・`ordinary_profit`・`profit`）を比較して採否を決める。
+同一の `(code, type_of_period, fiscal_year_end)` に対して過去の `FinancialStatements` 行（`disclosed_date` が前日以前、または同日で `disclosure_no` が小さい行）があるときは、主要 PL 4 項目（`net_sales`・`operating_profit`・`ordinary_profit`・`profit`。`PL_KEYS`。EPS は入れない）を比較して採否を決める。判定は `app/market/analytics.py` の `disclosure_state`、一覧とカレンダーの SQL は `app/api/earnings.py` の `_not_duplicate` である。
 
 | 開示のパターン | 速報一覧・カレンダーでの扱い |
 |---|---|
@@ -123,17 +123,15 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 
 ### 予想修正の検知
 
-指定した基準日 `as_of_date` までの通期業績予想の修正（`forecast_revision`）は、`DocType` を問わず（単独の `ForecastRevision` を含む）対象 `fiscal_year_end` の予想値を持つ開示を時系列に並べて判定する。
-
-見る予想列の優先順位は、`forecast_eps` → `forecast_operating_profit` → `forecast_ordinary_profit` → `forecast_profit` → `forecast_net_sales` とし、本決算（`FY`）で当期予想が空のときは同じ優先順で来期予想（`next_year_forecast_*`）を見る。最新の開示で最初に非 `NULL` だった指標を選び、同じ指標が非 `NULL` だった直前の開示と比較する。J-Quants 側に比較元や修正行が欠けているときは、適時開示 XBRL の業績予想ファクト（`app/xbrl/revisions.py`）で補完する。
+速報一覧のバッジ（`forecast_revision`）は `app/market/analytics.py` の `forecast_revision` が返す。`DocType` は見ず、同じ `fiscal_year_end` で、この開示より前（`(disclosed_date, disclosure_no)` が小さい）の行の `fy_operating_profit` だけを比べる。同日の予想修正だけの開示（`is_revision`）は直前に使わない。売上・経常・純利益・EPS・来期予想はバッジでは見ない。
 
 | 比較結果 | 判定値 |
 |---|---|
-| 今回値 > 前回値 | `direction = "up"`（上方修正） |
-| 今回値 < 前回値 | `direction = "down"`（下方修正） |
-| 今回値 == 前回値、または比較できる前回開示が無い | `None`（修正なし・据え置き・初出） |
+| `(今回 - 直前) / abs(直前)` の絶対値が `EARNINGS_PARAMS["revision_noise_th"]`（`0.001`）以上で、今回の方が大きい | `{"direction": "up", "pct": ...}`（百分率、小数第 1 位） |
+| 同じ式で今回の方が小さい | `{"direction": "down", "pct": ...}` |
+| 差が閾値未満、直前が無い、今回か直前が空、直前が `0`、`fiscal_year_end` が空 | `None`（`direction` は残さない） |
 
-変化率は `(after - before) / abs(before) * 100` で算出し、`before == 0` のときは変化率だけ `None` にして `direction` は残す。
+複数指標の修正履歴はバッジとは別である。`app/revisions.py` の `revision_rows` が、`jquants_points`（当期の `fy_*` と、本決算の来期予想 `next_year_forecast`）と `xbrl_points` を期初予想・数値が変わった修正・実績の行に並べる。損益（`PL_KEYS`）のどれかが変わった開示だけを修正行にする。直前が `0` 以下の増減は `growth_cell` が `pct` を空にし、状態（黒転・赤転・赤字継続）だけを返す。
 
 なお DB や内部辞書にある似た名前の項目は用途が異なるため、一覧の予想修正バッジにはこの `forecast_revision` を使う。
 
@@ -227,16 +225,15 @@ TDnet には決算説明資料を出さず自社の Web サイトにのみ掲載
 
 #### 会社の HTML ページからの抽出
 
-通常の HTML ページ（`parse_ir_page`）では `<a href="...">` を走査し、アンカー文字列から括弧内のファイル容量表記・`(PDF形式)`・「新しいウィンドウで開きます」などの注記と末尾の `PDF` を除去して表題を作る。リンク文字列が `PDF` だけだった場合は、直前の `</a>` または見出し（`h1`〜`h6`）からリンク直前までの文字列が `MAX_LABEL`（60 文字）以内であればそれを表題に採用する。
+通常の HTML ページ（`jobs/market/homepage_briefing.py` の `parse_deck_links`）では `<a href="...">` を走査し、アンカー文字列から括弧内のファイル容量表記・`(PDF形式)`・「新しいウィンドウで開きます」などの注記と末尾の `PDF` を除去して表題を作る。リンク文字列が `PDF` だけだった場合は、直前の文字列が `MAX_LABEL`（60 文字）以内であればそれを表題に採用する。
 
 リンクの採否は次の条件で決める。
 
 | 条件 | 扱い |
 |---|---|
-| スキームが `http`・`https` でない、またはパス末尾が `.pdf` でない | 除外する |
-| リンク先ホストが `stocks.homepage_url` の登録可能ドメイン外であり、`ir_url` のホストでも IR 配信基盤（`eir-parts.net`・`xj-storage.jp`・`pronexus.co.jp`・`magicalir.net`・`sharedresearch.jp`・`ullet.com`・`net-ir.ne.jp`）でもない | 外部サイトへのリンクとみなして除外する |
+| スキームが `http`・`https` でない、またはパス末尾が `.pdf` でない | 除外する。ホストが自社サイトか配信基盤かでは落とさない |
 | 表題に英文版の語（`英文`・`英語`・`English`、`is_english_version`）を含む（`KAB-434`） | 除外する（日本語版の表題と英文版のリンクが別の `<a>` に分かれているページでも英文版を拾わない） |
-| `is_material_title` を通らない（`link_re` 指定時は `link_re` にも合わない） | 除外する |
+| `is_material_title` を通らない（引数は `決算 ` を前置した表題。`link_re` 指定時は `link_re` にも合わない） | 除外する |
 
 公開日 `pubdate` は、(1) リンク文字列内の日付 → (2) リンク前後の文脈（前 200 文字・後ろ 80 文字）の日付 → (3) ダウンロードした PDF のメタデータ（`ModDate` → `CreationDate`） → (4) URL パス内の日付（`20YY-MM-DD` または `20YYMMDD`） → (5) ジョブ実行日の順で最初に取れた値を採用する。(1)〜(4) で取れた日付がジョブ実行日より未来だった場合は実行日に丸める。
 
@@ -369,47 +366,49 @@ Yahoo Finance が返す過去数日分の 1 分足は取得時点の分割比率
 
 ### ホームページ URL
 
-対象ジョブは [`market/homepages`](gen/market.md#markethomepages)（`jobs/market/homepages.py`）である。上場企業の公式 Web サイト URL を `stocks.homepage_url`、採用した経路を `stocks.homepage_source` に保存する。
+対象ジョブは [`market/homepages`](gen/market.md#markethomepages)（`jobs/market/homepages.py`、規則は `app/market/homepages.py`）である。選んだ 1 本を `homepages`（`url`・`host`・`source`・`origin`）に保存する。`stocks` の列には書かない。
 
-#### 優先順位と手動補正
+#### どれを残すか
 
-情報源の優先順位は `manual > xbrl_url > tanshin_html` である。
+`manual` の行は `sync_homepages` が上書きしない。自動の 2 経路は新しい方を採る（`Candidate.sort_key` は日時、次に経路の順位、次に URL 文字列）。日時が同じときだけ `xbrl_url`（順位 80）が `tanshin_html`（順位 40）に勝つ。
 
-| `homepage_source` | 情報源と規則 |
+| `source` | 情報源と規則 |
 |---|---|
-| `manual` | `config/market/stock_homepages.json` の `overrides` に記載した手動設定。自動抽出の誤りを抑止したい銘柄には `"url": null` を書くと、`homepage_url = NULL`・`homepage_source = 'manual'` で固定され、自動経路で上書きされなくなる |
-| `xbrl_url` | TDnet の決算短信 XBRL（`xbrl_filings` の `source='tdnet'`、新しい順に最大 5 件）の `tse-ed-t:URL`・`URL`・`CompanyUrl` ファクト |
-| `tanshin_html` | `xbrl_url` が無い銘柄（主に半期ごとの PDF のみで開示する投資法人・インフラファンドなど）について、`tdnet_pdf_documents`（新しい順に最大 10 件）の変換済み HTML 先頭 `COVER_SLICE_CHARS`（12,000 文字）から抽出した URL |
+| `manual` | `jobs/market/homepages.py` の `--set` または `--set-file`（`entries` の `code` と `url`）が `set_manual` を呼ぶ。`normalize_url` を通らない文字列は `ValueError` になり、`url` を空にして固定する書き方は無い |
+| `xbrl_url` | `_load_xbrl_urls`。銘柄ごとに最新 1 件の fact。名前空間 `tse-ed-t` または `tse-re-t`、ローカル名 `URL`。`CompanyUrl` は見ない。`source='tdnet'` では絞らない |
+| `tanshin_html` | `_load_tanshin`。`status='ok'` かつ `html_gz` があり、表題に `決算短信` か `FinancialStatements` があるか、同じ `disclosure_no` の `statements.type_of_document` に `FinancialStatements` がある行を新しい順に、URL が取れるまで見る。件数の上限は無い。表題に `訂正` がある行と、`bytes` が `SHORT_HTML_BYTES`（5,000）未満の行は飛ばす |
+
+新しいコードに書類が無く、`PREDECESSOR_CODES` に旧コードがある 3 銘柄（`641A0`・`642A0`・`590A0`）だけ、旧コードの候補をコピーする。
 
 #### URL の正規化と除外
 
-両方の自動経路とも `clean_url` で文字列を正規化・検査する。
+自動経路と手動設定は `normalize_url` を通す。PDF 演算子やフォント名を剥がす処理は無い。短信 HTML はその前に `(cid:N)` を `N + 29` の ASCII に戻す。
 
-1. PDF テキスト抽出由来のゴミ（ヌル文字、PDF 演算子の `Tj`・`Tf`・`Td`・`Tm`・`ET`、フォント名の `MSGothic` など、URL 直後に連結した日本語文字列）を剥がす。
-2. スキーム無しの文字列は、`www.`・`ir.`・`corp.` で始まるか `.co.jp`・`.ne.jp`・`.or.jp`・`.jp` で終わる場合だけ `https://` を補う。明示された `http://` は勝手に `https://` へ書き換えない。
-3. ホストの TLD が ICANN の有効 TLD（および RFC 2606 の予約 TLD）に無いものは捨てる。
-4. 外部サイト・SNS・配信基盤のホスト（`w3.org`・`tdnet.info`・`edinet-fsa.go.jp`・`jpx.co.jp`・`sec.gov`・`twitter.com`・`x.com`・`facebook.com`・`youtube.com`・`linkedin.com`・`instagram.com`・`prtimes.jp`・`line.me`・`irbank.net`）は完全一致またはサブドメイン一致で除外する。ただし日本取引所グループ自身（`86970`）の `jpx.co.jp` だけは許可する。
-5. パスに `/wp-content/` を含む URL や、末尾が文書・動画・アーカイブの拡張子（`.pdf`・`.xlsx`・`.zip`・`.mp4` など）で終わる URL は除外する。
+1. 空白を除き、全角のコロン・スラッシュ・ピリオドを半角にし、末尾の句読点を落とす。先頭が `http://` や `https://` の繰り返しなら内側の 1 つを残す。書かれた `http://` は `https://` に変えない。
+2. スキームが無く、文字列全体がドメイン（パスが付いてもよい）なら `https://` を補う。`www.` で始まることや `.jp` で終わることは条件にしない。
+3. ホストの末尾ラベルが ICANN の TLD にも RFC 2606 の予約（`example`・`invalid`・`localhost`・`test`）にも無いものは捨てる。スキーム無しで足した URL の末尾が文書拡張子（`pdf`・`xlsx` など）のときも捨てる。
+4. `w3.org`・`tdnet.info`・`edinet-fsa.go.jp`・`jpx.co.jp`・`sec.gov`・`twitter.com`・`x.com`・`facebook.com`・`youtube.com`・`linkedin.com`・`instagram.com`・`prtimes.jp`・`line.me`・`irbank.net` は完全一致かサブドメイン一致で捨てる。`86970` だけ `jpx.co.jp` を残す。
+5. パスに `/wp-content/` があるもの、パスかクエリが文書・動画・アーカイブの拡張子（`.pdf`・`.xlsx`・`.zip`・`.mp4` など）で終わるものは捨てる。
 
-#### 短信 HTML からの抽出条件
+#### 短信 HTML からの抽出
 
-`tanshin_html` 経路では、`tdnet_pdf_documents` のうち `status='ok'` かつ `html_gz IS NOT NULL` であり、変換後 HTML のバイト数（`bytes`）が定数 `SHORT_HTML_BYTES` 以上の行だけを見る。表題に訂正・予想修正・説明資料・配当・月次・お知らせ・「分配金の予想」を含む書類は表紙形式が異なるため飛ばす。
+`pick_homepage_url` はタグを剥がした全文を見る。先頭何文字かで切らない。`ホームページ`・`ＨＰ`・`URL`・`ＵＲＬ` の直後 400 文字（`_LABEL_WINDOW`）から、スキーム無しのドメインも含めて最初に通った URL を採る。ラベルが無いときは全文の `http`・`https` の最初の 1 本を採る（このときはスキーム無しを拾わない）。同一ホストかどうかでは捨てない。
 
-先頭テキストから `URL`・`ホームページ`・`ＨＰ`・`ＵＲＬ` のラベルを探し、ラベル直後 400 文字の窓から最初に通った URL を採る。ラベル窓で見つからなかった場合は表紙テキスト全体を探し、残った URL がすべて同一ホストを指しているときだけ先頭の URL を採用する（複数ホストが混在していれば誤抽出を避けて捨てる）。
-
-`sync_homepages` は実行のたびに `homepage_source = 'manual'` 以外の対象銘柄を再評価して更新する。未知の `--code` を指定したときは終了コード `2` で終了する。
+`sync_homepages` は `source='manual'` 以外を実行のたびに選び直す。`--refresh` は受け取るが関数は読まない（挙動は同じ）。`--code` が普通株の 4 桁・5 桁にならないときは `ordinary_code` が `ValueError` を上げ、終了コード `2` にはしない。
 
 ### 短信表紙の説明資料
 
-対象ジョブは [`market/tanshin_covers`](gen/market.md#markettanshin_covers)（`jobs/market/tanshin_covers.py`）である。決算短信の 1 ページ目にある「決算補足説明資料作成の有無」と「決算説明会開催の有無」の 2 項目を読み取り、銘柄ごとの最新 1 件を `tanshin_covers` に保存する。
+対象ジョブは [`market/tanshin_covers`](gen/market.md#markettanshin_covers)（`jobs/market/tanshin_covers.py`、規則は `app/market/tanshin_cover.py`）である。決算短信の「決算補足説明資料作成の有無」と「決算説明会開催の有無」を読み、その短信の行を `tanshin_covers` に書く。別の日の行は消さない。同じ日の別書類だけ `_drop_same_day` が消す。
 
-対象は内国株券（`011`）とインフラファンド（`013`・`022` のうち銘柄名に `インフラ` を含むもの）であり、REIT や ETF は対象外にする。各銘柄について、`xbrl_filings`（`source='tdnet'` かつ `is_amendment=False` で `part='summary'` のサマリー HTML を持つもの）と `tdnet_pdf_documents`（`status='ok'` かつ `html_gz IS NOT NULL`）のそれぞれ直近 40 件から、訂正・予想修正・配当修正・説明資料・質疑応答・月次・お知らせを除いた最新の決算短信を 1 件ずつ選ぶ。
+対象は `is_cover_target`。商品区分 `011`（内国株券）と `021`（外国株券）は対象にする。`013`（REIT）は銘柄名に `ファンド` も `インフラ` も無いときだけ対象にする。`014` と `023`（ETF・ETN）は対象外。それ以外の空でない区分（`022` を含む）は対象外。区分が空のときは社名と題名に `ファンド`・`投資信託`・`ETF`・`ETN` が無いときだけ対象にする。
 
-2 つの候補のどちらを採用するかは次の規則で決める。
+各銘柄について、`xbrl_filings`（`source='tdnet'`、新しい順に 40 件）と `tdnet_pdf_documents`（`status='ok'` かつ `html_gz` があり、新しい順に 40 件）から、題名が `決算短信` を含み、`訂正` と「の修正について」「の一部修正」を含まない最初の 1 件を選ぶ（`is_cover_tanshin_title`）。XBRL 側は加えて `is_amendment` でなく、`part='summary'` の HTML があること。予想修正・配当・月次だけの題名は `決算短信` を含まないので、ここで落ちる。
 
-| 2 候補の開示日の関係 | 採用する候補 |
+2 つの候補のどちらを書くかは `_pick` が決める。
+
+| 開示日の関係 | 採用する候補 |
 |---|---|
-| 開示日（日付）が異なる | フラグが読めたかどうかにかかわらず、新しい開示日の候補を採用する（最新の短信で項目が消えた銘柄に前四半期の古いフラグが居残るのを防ぐ） |
-| 開示日が同じ | 2 項目のうち少なくとも片方が `True`・`False` に確定した候補を優先し、両方確定（または両方未確定）なら時刻が新しい方を採用する。同じ日の別候補が既に `tanshin_covers` にあれば削除する |
+| 日付が異なる | フラグが読めたかどうかにかかわらず、新しい日の候補 |
+| 日付が同じ | 時刻が新しい順に見て、有無が片方でも読めた最初の候補。どちらも読めなければ時刻が新しい方 |
 
-表紙 HTML の先頭 `MAX_COVER_CHARS`（8,000 文字）を平文化し、各項目の直後にある `有` を `True`、`無` を `False`、空欄・`未定`・非定型文言を `None` に変換する。あわせて直後に続く括弧書き（80 文字以内）が単位注記（`百万円`・`千円`・`切捨て` など）ではなく対象者や開催形態の注記（`向け`・`投資家`・`アナリスト`・`機関`・`証券`・`電話会議`・`動画`・`配信` のいずれかを含む）であるときだけ、`material_note`・`briefing_note` に保存する。
+PDF の変換 HTML（先頭 8,000 文字に `svg` があり `ix:nonnumeric` が無い。`_is_pdf_html`）は 1 ページ目の行だけを読む。それ以外は見える文字を全部読む。`parse_cover_text` は「決算補足説明資料作成の有無」「決算説明会開催の有無」（先頭に中間・四半期が付いてもよい）の直後の `有` を `True`、`無` を `False` にする。`有・無` の併記は読まない。パターンに当たらなければ `None` であり、`未定` を特別に見る処理は無い。直後の括弧（80 文字以内）は、単位注記（`百万円`・`千円`・`切捨て` など）でなく、対象者や開催形態（`向け`・`投資家`・`アナリスト`・`機関`・`証券`・`電話会議`・`動画`・`配信`）を含むときだけ `material_note`・`briefing_note` に残す。
