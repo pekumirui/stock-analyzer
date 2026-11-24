@@ -467,14 +467,17 @@ def _table(
         consolidated = bases.pop()
     keys = _row_keys(columns, statement)
     parts = _shown(keys, row_parts(run, keys), statement, labels)
-    order = gather_heads(keys, [tuple((h["key"], h["name"]) for h in heads) for heads, _ in parts], labels)
+    alias = _heading_alias(run, parts)
+    order = gather_heads(
+        keys, [tuple((h["key"], h["name"]) for h in heads) for heads, _ in parts], labels, alias,
+    )
     rows = [
         {
             "key": keys[i],
             "label": labels.get(keys[i], keys[i]),
             "unit": _unit_kind(units, keys[i]),
             "unmatched_pdf": keys[i].startswith("pdf:"),
-            "heads": parts[i][0],
+            "heads": _apply_heading_alias(parts[i][0], alias),
             "indent": parts[i][1],
             "merged_keys": merged.get(keys[i], []),
             "cells": [
@@ -2374,7 +2377,89 @@ def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | Non
     return out
 
 
-def gather_heads(keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[str, str]) -> list[int]:
+def _heading_alias(
+    columns: Sequence[Column], shown: Sequence[tuple[list[dict[str, str]], int]],
+) -> dict[tuple[str, str], str]:
+    by_name: dict[str, set[str]] = defaultdict(set)
+    together: dict[str, list[set[str]]] = defaultdict(list)
+    for column in columns:
+        grouped: dict[str, set[str]] = defaultdict(set)
+        for part in column.parts.values():
+            if not part.heads:
+                continue
+            for key, name in part.heads:
+                if not name:
+                    continue
+                grouped[name].add(key)
+                by_name[name].add(key)
+        for name, group in grouped.items():
+            if len(group) > 1:
+                together[name].append(group)
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+    for heads, _indent in shown:
+        for head in heads:
+            counts[(head["key"], head["name"])] += 1
+    alias: dict[tuple[str, str], str] = {}
+    for name, keys in by_name.items():
+        root = {key: key for key in keys}
+
+        def find(key: str, root: dict[str, str] = root) -> str:
+            while root[key] != key:
+                root[key] = root[root[key]]
+                key = root[key]
+            return key
+
+        def union(left: str, right: str, root: dict[str, str] = root) -> None:
+            left, right = find(left), find(right)
+            if left != right:
+                root[right] = left
+
+        for group in together.get(name, ()):
+            first = next(iter(group))
+            for key in group:
+                union(first, key)
+        alone = [
+            members[0] for members in _components_of(keys, find).values() if len(members) == 1
+        ]
+        if len(alone) < 2:
+            continue
+        canon = min(alone, key=lambda key: (-counts[(key, name)], key))
+        for key in alone:
+            if key != canon:
+                alias[(key, name)] = canon
+    return alias
+
+
+def _components_of(keys: set[str], find) -> dict[str, list[str]]:
+    components: dict[str, list[str]] = defaultdict(list)
+    for key in keys:
+        components[find(key)].append(key)
+    return components
+
+
+def _apply_heading_alias(
+    heads: list[dict[str, str]], alias: Mapping[tuple[str, str], str],
+) -> list[dict[str, str]]:
+    if not alias or not any((head["key"], head["name"]) in alias for head in heads):
+        return heads
+    return [
+        {**head, "key": alias[(head["key"], head["name"])]} if (head["key"], head["name"]) in alias else head
+        for head in heads
+    ]
+
+
+def gather_heads(
+    keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[str, str],
+    alias: Mapping[tuple, str] | None = None,
+) -> list[int]:
+    renamed = alias or {}
+
+    def canon(head: tuple | None) -> tuple | None:
+        if head is None:
+            return None
+        key = renamed.get(head, head[0])
+        return head if key == head[0] else (key, head[1])
+
     def total(i: int, head: tuple, depth: int) -> bool:
         if len(paths[i]) != depth + 1:
             return False
@@ -2390,19 +2475,21 @@ def gather_heads(keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[st
                 segments.append((head, [i]))
         found: dict[tuple, list[int]] = defaultdict(list)
         for n, (head, _) in enumerate(segments):
-            if head is not None:
-                found[head].append(n)
-        for head, at in found.items():
+            grouped = canon(head)
+            if grouped is not None:
+                found[grouped].append(n)
+        for at in found.values():
             if len(at) < 2:
                 continue
             keep = max(at, key=lambda n: (len(segments[n][1]), -n))
             body = segments[keep][1]
+            keep_head = segments[keep][0]
             before = [i for n in at if n < keep for i in segments[n][1]]
             after = [i for n in at if n > keep for i in segments[n][1]]
-            tail = [body[-1]] if after and total(body[-1], head, depth) else []
+            tail = [body[-1]] if after and keep_head is not None and total(body[-1], keep_head, depth) else []
             merged = before + body[: len(body) - len(tail)] + after + tail
             for n in at:
-                segments[n] = (head, merged if n == keep else [])
+                segments[n] = (segments[n][0], merged if n == keep else [])
         out: list[int] = []
         for head, members in segments:
             out.extend(members if head is None else gather(members, depth + 1))
