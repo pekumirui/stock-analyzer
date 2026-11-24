@@ -168,7 +168,13 @@ def _shell(src: str) -> dict[str, int]:
     return {"comment": comments}
 
 
-COUNTERS = {".py": _python, ".js": _javascript, ".css": _css, ".sh": _shell}
+def _tla(src: str) -> dict[str, int]:
+    blocks = re.findall(r"\(\*.*?\*\)", src, re.S)
+    rest = re.sub(r"\(\*.*?\*\)", "", src, flags=re.S)
+    return {"comment": len(blocks) + len(re.findall(r"\\\*", rest))}
+
+
+COUNTERS = {".py": _python, ".js": _javascript, ".css": _css, ".sh": _shell, ".tla": _tla, ".cfg": _tla}
 
 
 def count(path: str, src: str) -> dict[str, int]:

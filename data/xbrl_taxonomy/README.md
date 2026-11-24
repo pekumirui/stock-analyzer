@@ -33,6 +33,12 @@ jppfs は import する `jppfs_pe_2012.xsd` も）。金融庁の公表物と公
 | jpigp | なし（初版は 2018-03-31。2014 / 2015 / 2016-02-29 は公開ホストに無い） | 追加なし |
 | jpdei / common | 2013-08-31 | 同梱済み |
 
+KAB-457 で XBRL International の否定ラベル role（`www.xbrl.org/lrr/role/negated-2009-12-16.xsd`）を足した。
+参天製薬（45360）の S100AJZW（2017-06-23 有報）と S1009MMA（2017-02-10 四半期報告書）が、このファイルが同梱に無く
+`taxonomy not in bundle` のまま `failed` になっている。この xsd が import するのは同梱済みの
+`xbrl-linkbase-2003-12-31.xsd` だけである。本番の failed を読み直すのはデプロイ後に
+`deploy/cron-run.sh jobs/edinet/edinet_xbrl.py --retry-failed`（このリポジトリの変更だけでは DB は動かない）。
+
 2014-03-31 の jpcrp / jppfs はホストに無い。2015-04-30 の更新は臨時報告書で、有報の jpcrp は 2015-03-31 のまま。
 2016-02-29 の jpsps もホストに無い。表示変換方式（2013年版以前）はインライン XBRL ではないので対象外。
 
