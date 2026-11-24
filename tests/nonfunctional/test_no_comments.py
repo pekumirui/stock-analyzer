@@ -50,6 +50,12 @@ def test_css_counts_block_comments():
     assert _count("a.css", "a { color: red; } /* one */\n/* two\n   lines */\nb { content: '#'; }\n") == {"comment": 2}
 
 
+def test_tla_counts_line_and_block_comments_but_not_operators():
+    src = "---- MODULE M ----\nA == x \\in S /\\ y \\/ z \\* one\n(* two\n   lines *)\n====\n"
+    assert _count("a.tla", src) == {"comment": 2}
+    assert _count("a.cfg", "INVARIANT Inv\n\\* three\n") == {"comment": 1}
+
+
 def test_shell_skips_shebang_directives_quotes_and_heredocs():
     src = '''\
         #!/usr/bin/env bash
