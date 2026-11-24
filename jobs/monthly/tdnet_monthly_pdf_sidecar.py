@@ -53,8 +53,9 @@ from jobs._r2common import (
     with_mount_retry,
 )
 from jobs.monthly.ir_monthly_r2 import atomic_write
-from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code
-from tools.monthly.text_mask import mask
+from app.monthly.text_mask import mask
+from app.xbrl.codes import jq_lookup_code
+from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code
 
 SIDECAR_SUFFIX = ".pdf-ingest.json"
 PDFTOTEXT_TIMEOUT = 60

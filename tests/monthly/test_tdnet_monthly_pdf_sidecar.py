@@ -143,10 +143,10 @@ def _capture(fn: Any) -> tuple[Any, str]:
 def test_shared_mask_calendar_identity() -> None:
     from app.monthly.calendar import anchor_year, column_years
     from app.monthly.ingest import _anchor_year
-    from tools.monthly.text_mask import mask as shared_mask
+    from app.monthly.text_mask import mask as shared_mask
 
     if sc.mask is not shared_mask:
-        _fail("sidecar.mask must be tools.monthly.text_mask.mask")
+        _fail("sidecar.mask must be app.monthly.text_mask.mask")
     if sc.column_years is not column_years:
         _fail("sidecar.column_years must be app.monthly.calendar.column_years")
     if _anchor_year is not anchor_year:
