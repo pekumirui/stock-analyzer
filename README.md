@@ -138,7 +138,7 @@ cd /home/stock/stock-analyzer
 
 ランナー: Lint は GitHub ホスト（`ubuntu-latest`）、Release と Deploy VPS は self-hosted（Azure VM）。Test は GitHub ホスト（`ubuntu-latest`）で、GitHub の Variable `CI_TEST_RUNNER` にラベルを入れるとそのランナーで走る。公開リポジトリなので、フォークからの PR のコードが動く Test を self-hosted に戻さない。
 
-1. **PR.** `python -m pytest tests --dataflow=check`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`。`--dataflow=check` はテスト中の SQL から作った読み書き表と `docs/DATA_FLOW.md`・`docs/dataflow/` を突き合わせる。合わなければ `--dataflow=write` で作り直してコミット）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
+1. **PR.** `python -m pytest tests -n auto --dist loadfile --dataflow=check`（ファイル単位で並列。`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`。`--dataflow=check` はテスト中の SQL から作った読み書き表と `docs/DATA_FLOW.md`・`docs/dataflow/` を突き合わせる。合わなければ `--dataflow=write` で作り直してコミット）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない

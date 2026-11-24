@@ -142,6 +142,25 @@ def _union(keys: set[Key]) -> dict[str, set[str]]:
     return dict(out)
 
 
+def _dump_seen() -> dict[str, dict[str, str]]:
+    return {f"{m}:{q}": {t: "".join(sorted(rw)) for t, rw in v.items()} for (m, q), v in _seen.items()}
+
+
+def _merge_seen(dumped: dict[str, dict[str, str]]) -> None:
+    for key, tables_rw in dumped.items():
+        mod, qual = key.split(":", 1)
+        seen = _seen[(mod, qual)]
+        for t, rw in tables_rw.items():
+            seen[t].update(rw)
+
+
+@pytest.hookimpl(optionalhook=True)
+def pytest_testnodedown(node, error):
+    dumped = getattr(node, "workeroutput", {}).get("dataflow")
+    if dumped:
+        _merge_seen(dumped)
+
+
 def collect():
     from app.models import Base
 
@@ -187,15 +206,17 @@ def pytest_sessionfinish(session, exitstatus):
     if not mode:
         return
     event.remove(Engine, "before_cursor_execute", _before_cursor_execute)
+    if hasattr(session.config, "workerinput"):
+        session.config.workeroutput["dataflow"] = _dump_seen()
+        return
     tw = session.config.get_terminal_writer()
     what = f"docs/DATA_FLOW.md と {PAGE_DIR}/"
     if exitstatus != 0:
         tw.line(f"dataflow: テストが通っていないので {what} を{'書かない' if mode == 'write' else '突き合わせない'}", red=True)
         return
     if os.environ.get("DATAFLOW_DUMP"):
-        Path(os.environ["DATAFLOW_DUMP"]).write_text(json.dumps(
-            {f"{m}:{q}": {t: "".join(sorted(rw)) for t, rw in v.items()} for (m, q), v in _seen.items()},
-            ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
+        Path(os.environ["DATAFLOW_DUMP"]).write_text(
+            json.dumps(_dump_seen(), ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
     files = render(*collect())
     # 作らなくなったファイル（機能が消えたページなど）も差分に数える
     stale = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / PAGE_DIR).glob("*") if p.is_file())
