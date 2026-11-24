@@ -14,7 +14,7 @@ from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
 from app.config import EARNINGS_PARAMS as EP
-from app.market.analytics import ORDER, align_eps, forecast_revision, is_actual, split_factors
+from app.market.analytics import ORDER, align_eps, forecast_revision, is_actual, shift_year, split_factors
 from app.market.chart_fund import fund_steps
 from app.market.revisions import statement_points
 from app.models import DailyPrice, Statement
@@ -153,14 +153,38 @@ def old_period_reports(stmts) -> list[str]:
     return out
 
 
+def _start_and_end_keys(s) -> tuple[tuple, tuple] | None:
+    n = ORDER.get(s.type_of_period or "")
+    if not is_actual(s) or not n or s.fiscal_year_end is None:
+        return None
+    start = getattr(s, "fiscal_year_start", None)
+    if start is None:
+        start = shift_year(s.fiscal_year_end, -1) + timedelta(days=1)
+    return (start, n), (s.fiscal_year_end, n)
+
+
+def keys_disagree(stmts) -> list[str]:
+    latest, out = None, []
+    for s in sorted(stmts, key=_order):
+        keys = _start_and_end_keys(s)
+        if keys is None:
+            continue
+        if latest is not None and (keys[0] < latest[0]) != (keys[1] < latest[1]):
+            out.append(s.disclosure_no)
+        latest = keys if latest is None else (max(keys[0], latest[0]), max(keys[1], latest[1]))
+    return out
+
+
 def fiscal_year_changes(stmts) -> list[str]:
     ends: dict[date, set[date]] = {}
     for s in stmts:
         start = getattr(s, "fiscal_year_start", None)
         if is_actual(s) and start is not None and s.fiscal_year_end is not None:
             ends.setdefault(start, set()).add(s.fiscal_year_end)
+    disagree = set(keys_disagree(stmts))
     return [s.disclosure_no for s in sorted(stmts, key=_order)
-            if is_actual(s) and len(ends.get(getattr(s, "fiscal_year_start", None), ())) > 1]
+            if is_actual(s) and (len(ends.get(getattr(s, "fiscal_year_start", None), ())) > 1
+                                 or s.disclosure_no in disagree)]
 
 
 def same_day_out_of_order(stmts) -> list[str]:

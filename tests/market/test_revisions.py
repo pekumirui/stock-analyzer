@@ -307,6 +307,17 @@ def test_report_of_the_shortened_year_brings_the_initial_forecast() -> None:
     assert ("2026-02-28", "actual_fy") in [(r["fiscal_year_end"], r["kind"]) for r in rows]
 
 
+def test_report_after_a_correction_with_a_wrong_year_start_brings_the_initial_forecast() -> None:
+    c3q = _stmt("c3q", "3Q", FY26, date(2026, 2, 14), actual=_pl(80_000, 30_000, 30_000, 20_000, 90.0), fy=REV26)
+    fix = _stmt("fix", "3Q", FY26, date(2026, 2, 22), actual=_pl(80_000, 30_000, 30_000, 20_000, 90.0), fy=REV26)
+    cfy = _stmt("cfy", "FY", FY26, date(2026, 5, 15), actual=ACT26, nx={"fy_end": FY27, **INIT27})
+    for s, start in ((c3q, date(2025, 4, 1)), (fix, date(2025, 10, 2)), (cfy, date(2025, 4, 1))):
+        s.fiscal_year_start = start
+    rows = revision_rows(statement_points([c3q, fix, cfy]), 4)
+    assert [(r["kind"], r["disclosed_date"]) for r in rows if r["fiscal_year_end"] == "2027-03-31"] == [
+        ("forecast_initial", "2026-05-15")]
+
+
 def test_eps_of_a_revision_without_eps_is_empty_not_divided() -> None:
     no_eps = {k: v for k, v in REV26.items() if k != "eps"}
     hist = [*_statements()[:2], _q("rev", "FY", date(2025, 10, 1), fy=no_eps, doc="EarnForecastRevision")]

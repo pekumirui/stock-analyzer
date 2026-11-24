@@ -75,10 +75,22 @@ def year_start(s) -> date | None:
     return shift_year(s.fiscal_year_end, -1) + timedelta(days=1)
 
 
-def report_key(s) -> tuple[date, int] | None:
+ReportKeys = tuple[tuple[date, int], tuple[date, int]]
+
+
+def report_keys(s) -> ReportKeys | None:
     n = ORDER.get(s.type_of_period or "")
-    start = year_start(s)
-    return (start, n) if n and start is not None else None
+    if not n or s.fiscal_year_end is None:
+        return None
+    return (year_start(s), n), (s.fiscal_year_end, n)
+
+
+def is_older_report(keys: ReportKeys, latest: ReportKeys | None) -> bool:
+    return latest is not None and keys[0] < latest[0] and keys[1] < latest[1]
+
+
+def newest_keys(keys: ReportKeys, latest: ReportKeys | None) -> ReportKeys:
+    return keys if latest is None else (max(keys[0], latest[0]), max(keys[1], latest[1]))
 
 
 def parse_raw(s) -> dict:
@@ -119,7 +131,7 @@ def _revision_values(given: dict[str, float | None], shares: float | None) -> di
 
 def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> list[ForecastPoint]:
     state = {item: Sourced() for item in WITHDRAWABLE_ITEMS}
-    latest: tuple[date, int] | None = None
+    latest: ReportKeys | None = None
     shares: float | None = None
     out: list[ForecastPoint] = []
     for s in sorted(stmts, key=statement_order):
@@ -129,9 +141,9 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
         if is_actual(s):
             full_year = (s.type_of_document or "").startswith("FY")
             found[DIVIDEND_ITEM] = num(raw, NEXT_DIVIDEND_KEY if full_year else CURRENT_DIVIDEND_KEY)
-            key = report_key(s)
-            if key is not None and (latest is None or key >= latest):
-                latest, role = key, REPORT
+            keys = report_keys(s)
+            if keys is not None and not is_older_report(keys, latest):
+                latest, role = newest_keys(keys, latest), REPORT
                 shares = report_shares(raw)
                 found.update(_report_values(next_forecast(raw) if full_year else current_forecast(s), shares))
         else:

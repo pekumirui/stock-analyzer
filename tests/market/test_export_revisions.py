@@ -129,7 +129,7 @@ def test_reports_of_one_year_start_with_two_year_ends() -> None:
     assert fiscal_year_changes([q1, rev, fy, q3]) == ["q3", "fy"]
     assert fiscal_year_changes([q3, q1]) == []
     del q3.fiscal_year_start
-    assert fiscal_year_changes([q3, fy, q1]) == []
+    assert fiscal_year_changes([q3, fy, q1]) == ["fy"]
 
 
 def test_compare_explains_history_and_chart_by_a_fiscal_year_change(tmp_path: Path, capsys) -> None:
@@ -145,3 +145,27 @@ def test_compare_explains_history_and_chart_by_a_fiscal_year_change(tmp_path: Pa
     assert "fiscal_year_change=1 codes=99990" in out, out
     new["99990"]["fiscal_year_change"] = []
     assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 1
+
+
+def test_reports_whose_year_start_and_year_end_disagree_on_which_is_newer() -> None:
+    mar24 = date(2024, 3, 31)
+    q3 = _s("q3", date(2024, 2, 14), "3Q", "3QFinancialStatements_Consolidated_JP", fy_end=mar24)
+    fix = _s("fix", date(2024, 2, 22), "3Q", "3QFinancialStatements_Consolidated_JP", fy_end=mar24)
+    fy = _s("fy", date(2024, 5, 15), "FY", "FYFinancialStatements_Consolidated_JP", fy_end=mar24)
+    for s, start in ((q3, date(2023, 4, 1)), (fix, date(2023, 10, 2)), (fy, date(2023, 4, 1))):
+        s.fiscal_year_start = start
+    assert fiscal_year_changes([q3, fix, fy]) == ["fy"]
+
+    aug25 = date(2025, 8, 31)
+    q1 = _s("q1", date(2025, 8, 8), "1Q", "1QFinancialStatements_Consolidated_JP", fy_end=aug25)
+    wrong = _s("wrong", date(2025, 10, 14), "FY", "FYFinancialStatements_Consolidated_JP", fy_end=aug25)
+    again = _s("again", date(2025, 12, 1), "FY", "FYFinancialStatements_Consolidated_JP", fy_end=aug25)
+    for s, start in ((q1, date(2025, 4, 1)), (wrong, date(2024, 9, 1)), (again, date(2025, 4, 1))):
+        s.fiscal_year_start = start
+    assert fiscal_year_changes([q1, wrong, again]) == ["wrong"]
+
+    q2 = _s("q2", date(2026, 11, 11), "2Q", "2QFinancialStatements_Consolidated_JP", fy_end=date(2027, 3, 31))
+    q1b = _s("q1b", date(2026, 11, 12), "1Q", "1QFinancialStatements_Consolidated_JP", fy_end=date(2027, 3, 31))
+    for s in (q2, q1b):
+        s.fiscal_year_start = date(2026, 4, 1)
+    assert fiscal_year_changes([q2, q1b]) == []

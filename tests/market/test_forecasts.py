@@ -103,6 +103,41 @@ def test_old_year_report_filed_again_or_late_is_ignored() -> None:
     assert _values(forecast_points(late)[-1])["eps"] == 20
 
 
+def test_report_after_a_correction_with_a_wrong_year_start_is_used() -> None:
+    mar24 = date(2024, 3, 31)
+    stmts = [
+        _from("2023-04-01", _st("1", "2024-02-14", "3Q", mar24, FEPS=250)),
+        _from("2023-10-02", _st("2", "2024-02-22", "3Q", mar24, FEPS=250)),
+        _from("2023-04-01", _st("3", "2024-05-15", "FY", mar24, NxFEPS=284.31)),
+        _from("2024-04-01", _st("4", "2024-08-09", "1Q", date(2025, 3, 31), FEPS=290)),
+    ]
+    points = forecast_points(stmts)
+    assert [p.role for p in points] == [REPORT, REPORT, REPORT, REPORT]
+    assert _values(points[2])["eps"] == 284.31
+
+
+def test_report_with_a_wrong_year_start_after_a_fiscal_year_change_is_used() -> None:
+    aug25 = date(2025, 8, 31)
+    stmts = [
+        _from("2025-04-01", _st("1", "2025-08-08", "1Q", aug25, FEPS=10)),
+        _from("2024-09-01", _st("2", "2025-10-14", "FY", aug25, NxFEPS=20)),
+        _from("2025-04-01", _st("3", "2025-12-01", "FY", aug25, NxFEPS=21)),
+    ]
+    points = forecast_points(stmts)
+    assert [p.role for p in points] == [REPORT, REPORT, REPORT]
+    assert points[1].values["eps"].disclosure_no == "2" and _values(points[1])["eps"] == 20
+
+
+def test_correction_of_an_earlier_quarter_of_the_same_year_is_ignored() -> None:
+    mar27 = date(2027, 3, 31)
+    stmts = [
+        _from("2026-04-01", _st("1", "2026-08-12", "1Q", mar27, FEPS=10)),
+        _from("2026-04-01", _st("2", "2026-11-11", "2Q", mar27, FEPS=12)),
+        _from("2026-04-01", _st("3", "2026-11-12", "1Q", mar27, FEPS=1)),
+    ]
+    assert [p.role for p in forecast_points(stmts)] == [REPORT, REPORT, IGNORED]
+
+
 def test_without_the_year_start_the_year_end_decides() -> None:
     stmts = [
         _st("1", "2026-02-16", "3Q", FY26, FEPS=30),
