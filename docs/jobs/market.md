@@ -8,24 +8,59 @@
 
 ### 実行手順
 
-営業日の引け後に基準日 `as_of` で手順 1〜5 を順に実行する。
+毎日 19:30（`deploy/crontab`）に、`--date` が無ければ今日を `as_of` として日次の手順 1〜5 を実行する。欠いた営業日をここから遡って埋めない。穴埋めは `--backfill` である。
 
 | 順番 | 対象 | 期間・単位 | 主な処理 |
 |---|---|---|---|
-| 1 | `stocks`・`topix` | 全件 | 銘柄マスタと TOPIX 日足を API から取り直して UPSERT する |
-| 2 | `daily_prices` | `MAX(daily_prices.date)` の翌日から `as_of` までの営業日 | 取引カレンダーの営業日ごとに日足を取得する。直近の取得日に `adj_factor` が `1.0` 以外の銘柄があり、それより前の日足が DB にあるときは、その銘柄の過去の調整済み株価を再計算する |
-| 3 | `statements` | J-Quants 由来の `MAX(statements.disclosed_date)` の翌日から `as_of` までの暦日 | 暦日ごとに決算サマリーを取得する。DB が空のときや `source='xbrl'` の行しかないときは `as_of` 当日分だけを取得する |
-| 4 | `indicators`・`earnings_events` | 全銘柄 | 全期間のテクニカル指標を計算し直してから、決算イベント集計を更新する |
-| 5 | `stocks.earnings_date`・`earnings_date_sync_dates` | 現行カレンダーと未同期の過去 `PubDate` | 決算発表予定カレンダーを反映し、未同期の過去営業日の実績発表日で補完する |
+| 1 | `stocks` | `as_of` の銘柄一覧 | `ingest_master` が API から受け取った行を UPSERT する。商品区分では落とさない |
+| 2 | `daily_prices`・`topix` | `as_of` の 1 日 | 日足を UPSERT する。その行の `adj_factor` が `1.0` 以外の銘柄は、過去の調整後株価を `refresh_adjusted` で計算し直す。その後、同じ日の TOPIX を UPSERT する |
+| 3 | `statements` | `as_of` と、それより前で株価がある最後の日 | 両方の決算サマリーを UPSERT し、応答の JSON を `raw_json` に保存する。前営業日は 19:30 より後の開示を拾う取り直し |
+| 4 | `indicators`・`earnings_events` | 指標は既定で直近 400 日（`keep_days`）を残す | `compute_indicators` のあと `compute_earnings_events`。`product_category` が 1 件でも入っていれば内国株券（`011`）だけを指標にする |
+| 5 | `earnings_date_pubs`・`earnings_date_fetches` | 台帳に無い発表日に、今日と昨日を足す | `sync` が `fins_earnings_date` を UPSERT する。`stocks` には発表日の列が無い |
 
-手順 4 を省略する条件は次の 2 つである。
+手順 4 を省略する条件は次の 2 つである。どちらも日次（`run_daily` が件数を返すとき）の話で、`--backfill`・`--refetch-prices`・`--readjust-prices` は件数を置かないので条件 B には入らない。
 
 | 条件 | 挙動 |
 |---|---|
-| `--no-recompute` を指定したとき | 手順 4 を飛ばし、手順 5 の決算発表予定の同期へ進む |
-| 手順 2・3 の新規保存がともに 0 件で、`indicators` の最終日が `daily_prices` の最終日と一致するとき | 前回までの計算が完了済みとみなして手順 4 を飛ばす。前回途中で中断して最終日がずれていれば再計算する |
+| A. `--no-recompute` | 手順 4 を飛ばし、手順 5 へ進む |
+| B. `run_daily` の戻りが 0 で、`indicators_current` が真 | 戻りは当日の株価行数、当日の TOPIX 行数、当日の決算行数、前営業日に増えた決算件数の和。0 になるのは API が空のときで、既存行の上書きも件数に入る。`indicators` の最終日が `daily_prices` の最終日以上、または株価行が無いとき真 |
 
-通常の 1 営業日分の実行で発行する J-Quants API リクエストは、`stocks` 1 回・`topix` 1 回・`daily_prices` 1 回・`statements` 1 回・`earnings-calendar` 3 ページ（Light プラン）の計 7 回である。`earnings_date_sync_dates` が空の初回実行時は、手順 5 で過去 `EARNINGS_DATE_LOOKBACK_DAYS`（120 日）分の `PubDate` をさかのぼるため、その日数分のリクエストが別途加わる。
+この図は手書きで、ソースからは生成しない。下の根拠の関数か、図のテーブルを変える実装をしたら、図も直す。`--backfill`・`--refetch-prices`・`--readjust-prices` は描いていない。
+
+```mermaid
+---
+config:
+  layout: elk
+---
+flowchart TD
+  s1["① 銘柄マスタ<br/>`main` から `ingest_master`<br/>`stocks`"]
+  s2["② as_of の日足と TOPIX<br/>`daily_prices` を UPSERT<br/>`refresh_adjusted` のあと `ingest_topix`<br/>`topix`"]
+  s3["③ as_of と前営業日の決算<br/>`run_daily`<br/>`statements`（raw_json も保存）"]
+  q{"手順④を飛ばす？"}
+  s4["④ 指標と決算後の値動き<br/>`compute_indicators`<br/>`compute_earnings_events`<br/>`indicators` / `earnings_events`"]
+  s5["⑤ 決算発表予定<br/>`sync`<br/>`earnings_date_pubs`<br/>`earnings_date_fetches`"]
+  c1["飛ばす条件（どちらか）<br/>A: --no-recompute<br/>B: `run_daily` の戻りが 0 かつ `indicators_current`<br/>`indicators` の最終日が `daily_prices` の最終日以上"]
+  s1 --> s2 --> s3 --> q
+  q -- "A か B" --> s5
+  q -- "それ以外" --> s4 --> s5
+  c1 -.- q
+  classDef cond fill:#fff6d6,stroke:#c9a400
+  class c1 cond
+```
+
+| 図の名前 | 根拠 |
+|---|---|
+| `main` | `jobs/market/run_batch.py` `main` |
+| `ingest_master` | `app/market/ingest.py` `ingest_master` |
+| `refresh_adjusted` | `app/market/ingest.py` `refresh_adjusted` |
+| `ingest_topix` | `app/market/ingest.py` `ingest_topix` |
+| `run_daily` | `app/market/ingest.py` `run_daily` |
+| `compute_indicators` | `app/market/analytics.py` `compute_indicators` |
+| `compute_earnings_events` | `app/market/analytics.py` `compute_earnings_events` |
+| `indicators_current` | `app/market/analytics.py` `indicators_current` |
+| `sync` | `app/market/earnings_schedule.py` `sync` |
+
+日次の J-Quants は、銘柄マスタ 1 回、`as_of` の日足 1 回、`as_of` の TOPIX 1 回、`as_of` の決算 1 回、前営業日の決算 1 回（その前に株価があるとき）である。手順 5 は対象日の数だけ `fins_earnings_date` を 1 回ずつ叩く。台帳が埋まっていても今日と昨日は叩く。
 
 ### 取り込む対象と変換
 
@@ -33,8 +68,8 @@
 
 | テーブル | 取り込む対象と変換規則 |
 |---|---|
-| `stocks` | 商品区分 `021`（外国株券）と `999`（その他）を除外し、普通株・優先株・ETF・ETN・REIT・インフラファンド・新株予約権を残す。UPSERT 時は既存の `earnings_date` と `edinet_code` を維持する |
-| `daily_prices` | `stocks` に存在する銘柄コードだけを残し、`adj_close` が `0`・空・負の行（売買停止日など）を除外する。生値（`open`・`high`・`low`・`close`・`volume`）と J-Quants の分割調整済み値（`adj_*`）の両方に加え、`turnover`・`adj_factor`（`AdjFactor`）・`upper_limit`（`UL`）・`lower_limit`（`LL`）を保存する |
+| `stocks` | `ingest_master` は API が返した銘柄を商品区分で落とさずに UPSERT する。行に含まれない `edinet_code` は上書きしない |
+| `daily_prices` | `close` と `adj_close` が両方空の行は捨てる。生値（`open`・`high`・`low`・`close`・`volume`）と J-Quants の分割調整済み値（`adj_*`）の両方に加え、`turnover`・`adj_factor`（`AdjFactor`）・`upper_limit`（`UL`）・`lower_limit`（`LL`）を保存する |
 | `statements` | `stocks` に存在する銘柄コードだけを残し、API 応答の JSON 全文を `raw_json` にそのまま保存する。`config/market/statement_period_fixes.json` で `"drop": true` が付いた開示（同日の訂正開示で置き換えられた壊れた元開示など、`KAB-449`）は取り込まず、日付補正が登録された開示は 4 つの日付列を補正して UPSERT する |
 
 短信 XBRL から先に作られた行（`source='xbrl'`）と同じ `(code, disclosed_date, disclosure_number)` が後から J-Quants で届いたときは、`raw_json` の更新と `NULL` だった数値列の補完だけを行い、XBRL 側で確定した 4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）は上書きしない。詳細は [XBRL の設計](xbrl.md)「statements との関係」を参照する。
@@ -73,20 +108,20 @@ J-Quants の決算サマリーの空欄は「この開示では触れていな�
 
 | 実行モード | 対象日の選び方 | 完了・再実行時の挙動 | 中断・異常終了する条件 |
 |---|---|---|---|
-| 日次の通常再実行 | 最終保存日の翌日から `as_of` まで | 全テーブルが UPSERT のため同じ日に何度流しても結果は変わらない | 個別銘柄や個別日の例外はログに残して続行し、手順 5 の通信失敗時のみ非ゼロで終了する |
-| `--backfill [YEARS]` | 過去 `YEARS` 年（既定 `BACKFILL_YEARS=5`）の取引カレンダーのうち、`daily_prices` にまだ日付が無い営業日 | 1 営業日ごとに株価と決算を同一トランザクションで commit し、最後に `indicators`・`earnings_events`・`earnings_date` を更新する | 取引カレンダーが空のとき、または途中で 1 日でも失敗したときはその日を rollback して即座に中断する。再実行すれば残りの営業日から再開する |
-| `--refetch-prices` | `daily_prices` に `upper_limit` と `lower_limit` がともに `NULL` の行が残っている日付だけ | 対象日の日足を API から取り直して `UL`・`LL`（`0` または `1`）を埋め、`indicators`・`earnings_events`・`earnings_date` を更新する | 途中で失敗しても commit 済みの日は `UL`・`LL` が埋まるため、再実行時は残りの日だけを処理する |
-| `--readjust-prices` | API から株価を取り直さず、DB 内の全銘柄の `daily_prices` を対象にする | 生値と `adj_factor` から全期間の `adj_*` を計算し直し、`indicators`・`earnings_events`・`earnings_date` を更新する | `close` が `NULL` または `0` 以下の行はスキップして完走する |
+| 日次の通常再実行 | `as_of` の 1 日。決算は前営業日も取り直す | 同じ日を何度流しても UPSERT である | 手順 5 の通信失敗時は例外を再送出して非ゼロで終わる |
+| `--backfill [YEARS]` | 過去 `YEARS` 年（既定 `BACKFILL_YEARS=5`）の取引カレンダーのうち、`daily_prices` にまだ日付が無い営業日 | 1 営業日ごとに株価と決算を同一トランザクションで commit し、最後に `indicators`・`earnings_events` と発表予定を更新する | 取引カレンダーが空のとき、または途中で 1 日でも失敗したときはその日を rollback して即座に中断する。再実行すれば残りの営業日から再開する |
+| `--refetch-prices` | `daily_prices` に `upper_limit` と `lower_limit` がともに `NULL` の行が残っている日付だけ | 対象日の日足を API から取り直して `UL`・`LL`（`0` または `1`）を埋め、`indicators`・`earnings_events` と発表予定を更新する | 途中で失敗しても commit 済みの日は `UL`・`LL` が埋まるため、再実行時は残りの日だけを処理する。失敗した日数が 1 以上なら終了コード `1` |
+| `--readjust-prices` | API から株価を取り直さず、DB 内の全銘柄の `daily_prices` を対象にする | 生値と `adj_factor` から全期間の `adj_*` を計算し直し、`indicators`・`earnings_events` と発表予定を更新する | `close` が `NULL` の行は調整後を書き直さない。完走する |
 
 分割・併合の調整済み株価（`app/market/adjust.py`）は、将来の権利落ち日の `adj_factor` を過去に遡って累積乗算して算出する。日 $u > d$ に `adj_factor` $f_u$ があるとき、日 $d$ の累積係数は $F_d = \prod_{u > d} f_u$ となり、株価は `raw * F_d`、出来高は `volume / F_d` になる（1→2 分割なら権利落ち日当日の $f_u = 0.5$）。J-Quants が返す日足の `adj_*` は取得日時点の係数でしか調整されていないため、後から分割が発生した銘柄は過去分の再計算が要る。日次バッチは `adj_factor` が `1.0` 以外の日足を取り込んだ時点でその銘柄の過去分を自動で再計算し、過去データの整合を一括で作り直すときだけ `--readjust-prices` を使う。
 
 ### 決算発表予定の同期
 
-手順 5（`app/market/earnings_schedule.py` の `sync`）は、J-Quants の `/fins/earnings_calendar`（向こう約 3 か月分の予定を返すエンドポイント）と過去の `/fins/summary` を組み合わせて `stocks.earnings_date` を最新化する。
+手順 5（`app/market/earnings_schedule.py` の `sync`）は `fins_earnings_date` を `earnings_date_pubs` と `earnings_date_fetches` に書く。`stocks` には発表日の列が無い。
 
-1. `/fins/earnings_calendar` を全ページ取得し、銘柄マスタにあるコードの `stocks.earnings_date` を上書きする。今回のカレンダー応答に載らなかった銘柄のうち、`earnings_date >= as_of`（未来の予定が立ち消えになったもの）は `NULL` に戻し、`earnings_date < as_of`（過去の実績日）はそのまま残す。
-2. カレンダーは四半期決算の予定を返さないことがあるため、`as_of` の前日から過去 `EARNINGS_DATE_LOOKBACK_DAYS`（120 日）分の暦日のうち、台帳 `earnings_date_sync_dates` に未登録の日付を古い順に `/fins/summary?date=YYYY-MM-DD` で取得する。対象は内国株券（`011`）とインフラファンド（商品区分 `013`・`022` のうち銘柄名に `インフラ` を含むもの）の本決算・四半期短信（`FinancialStatements` を含む開示）であり、有効な `DisclosedDate` が既存の `stocks.earnings_date` より新しければ更新し、取得済みの `PubDate` を `earnings_date_sync_dates` に記録する。
-3. いずれかの HTTP 取得が 1 回でも失敗したときは、その日以降の同期台帳を commit せずに例外を送出し、`run_batch.py` を非ゼロで終了させて翌日の再試行に回す。
+1. 対象日は、`as_of` から過去 `EARNINGS_DATE_LOOKBACK_DAYS`（`5 * 365 - 7` 日）までのうち台帳 `earnings_date_fetches` に無い日に、今日と昨日を足す。昨日は台帳にあっても取り直す（`days_to_fetch`）。
+2. 各日を `ingest_pub_date` が UPSERT し、空の応答も台帳に `n=0` で残す。頼んだ日と `pub_date` が違う行は捨てる。
+3. HTTP が失敗した日は書く前に例外が上がる。`run_batch.py` はそれを再送出して非ゼロで終わる。
 
 ---
 
