@@ -38,7 +38,7 @@ _AMOUNT = re.compile(
     rf"|[~～〜]\s*[△▲]?\s*{_NUM}[%％]?"
     rf"|{_YEN_SEN}"
     rf"|{_NUM}[%％]?"
-    rf"|[―－−—-]"
+    rf"|[―－−—─‐-]"
     rf"|未定"
     # レンジの「～」だけ（下限の行と上限の行の間）。
     rf"|[~～〜]"
@@ -46,7 +46,7 @@ _AMOUNT = re.compile(
 _TILDE = "~～〜"
 _TILDE_TOL = 30.0
 _RANGE = re.compile(rf"^({_NUM})\s*[~～〜]\s*({_NUM})$")
-_NIL = {"―", "－", "-", "−", "—", "未定"}
+_NIL = {"―", "－", "-", "−", "—", "─", "‐", "未定"}
 _UNIT_NOTE = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
 # 銘柄コード (7453) を負の金額と取り違えない。カンマ付き (1,234) は金額のまま。
 _TICKER_PAREN = re.compile(r"^\(\s*\d{4}\s*\)$")
@@ -104,6 +104,8 @@ _ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|増減|第[123]四半期|
 _HEADER_ROW_LABEL = re.compile(r"^(前回|今回|増減|前期実績)")
 # 数値の下にずれた行名（松井の配当通知。KAB-237）。上の次の行の見出しにはしない。
 _UNDER_ROW = re.compile(r"^(前回|今回|実績)")
+
+_LABEL_BELOW_RATIO = 1.5
 
 
 def _is_row_role(compact: str) -> bool:
@@ -777,6 +779,20 @@ def grid(lines: list[Line]) -> Grid:
                     parsed[next_num][0].base - line.base
                 ):
                     rows[-1] = GridRow(f"{rows[-1].label}{label_text}", rows[-1].cells)
+                    value_only = False
+                    continue
+            if (
+                rows
+                and not pending
+                and not rows[-1].label.strip()
+                and last_numeric_y is not None
+                and is_hanging_label(index)
+            ):
+                next_num = next((j for j in range(index + 1, len(parsed)) if parsed[j][2]), None)
+                if next_num is not None and abs(line.base - last_numeric_y) * _LABEL_BELOW_RATIO < abs(
+                    parsed[next_num][0].base - line.base
+                ):
+                    rows[-1] = GridRow(label_text, rows[-1].cells)
                     value_only = False
                     continue
             if rows and not pending and not _is_row_role(compact_line) and (

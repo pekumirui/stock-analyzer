@@ -46,12 +46,12 @@ def _year(reiwa: str, raw: str, d: PdfDisclosure | None = None) -> int:
 _DIVIDEND_SLOTS = frozenset({
     "FirstQuarterMember", "SecondQuarterMember", "ThirdQuarterMember", "YearEndMember", "AnnualMember",
 })
-_LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
+_LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|注\d+\.|\(\d+\)|\d+\.)+")
 _HEADING_LEAD = re.compile(r"^(?:[①-⑳]|\(\d+\)|\d+\.)+")
 _HINTS = re.compile(r"\([△▲][^)]*\)")
 _BREAKDOWN_LEAD = re.compile(r"^[（(]内訳[)）]")
 # 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
-_CLASS_HEAD = re.compile(r"の部$")
+_CLASS_HEAD = re.compile(r"の部\)?$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
 _RUNNING_HEAD = re.compile(r"\(\d{4}\).*決算短信")
 _UNIT_ROW = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
@@ -65,6 +65,7 @@ _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _DIV_SLOT_SUFFIX = re.compile(r"(第[123]四半期末|中間期末|期末|(年間)?合計)$")
 _NUMERIC_ITEM = re.compile(r"\d")
 _ONE_YEAR_LEAD = re.compile(r"^1年以?内")
+_TERM_IN_LABEL = re.compile(r"\d+(?:[ヶケかカ箇]月|年)(?:超|以内|以上|内|未満)|第\d+条")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
     r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想|前回予想|今回予想"
@@ -76,12 +77,13 @@ _HEADER_ROLE = re.compile(
 _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ・フロー$")
 # 数値の無い BS の区分見出し。hanging が「資産流動資産現金及び預金」にしない。
 _BS_CLASS = re.compile(
-    r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
+    r"^(資産|負債|純資産|資本|負債及び資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
 )
 _BS_SUBCLASS = re.compile(
-    r"^(有形固定資産|無形固定資産|投資その他の資産|繰延資産|特別法上の準備金|その他の包括利益累計額|評価・換算差額等)$"
+    r"^(有形固定資産|無形固定資産|投資その他の資産|繰延資産|特別法上の準備金|その他の包括利益累計額|評価・換算差額等|親会社の所有者に帰属する持分|資本剰余金|利益剰余金|その他利益剰余金)$"
 )
 _TOTAL_WRAP = re.compile(r"^(合計|小計|計|累計額)")
+_BS_GRAND_TOTAL = re.compile(r"^負債(及び|・)?(純資産|資本)(の部)?(合計|計)$")
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
 # 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
@@ -1260,10 +1262,14 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
             # サマリーの表は表ごとにためる。同じ科目・同じ期に違う値が 2 つ出たら、どの行が正しいか
             # 分からない（期の読み違い）ので、どちらも入れない。
             pending: list[tuple[ParsedFact, str]] = []
+            closed = False
             column_roles = _statement_roles(table, spec, d) if spec.axis is Axis.ITEM_ROWS else None
             per_share_above = False
             for row in table.rows:
                 row_label = _compact(row.label)
+                if closed:
+                    break
+                closed = spec.namespace is NS_BS and bool(_BS_GRAND_TOTAL.fullmatch(label_key(row.label)))
                 per_share_row = column_roles is not None and per_share_above and bool(
                     _PER_SHARE_SIBLING.fullmatch(row_label)
                 )
@@ -1303,7 +1309,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     if spec.name in {"fc_rev", "div_rev"} and "ForecastMember" not in role.members:
                         # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
-                    if _NUMERIC_ITEM.search(_ONE_YEAR_LEAD.sub("", base_local)) and "株" not in base_local:
+                    if _NUMERIC_ITEM.search(_TERM_IN_LABEL.sub("", _ONE_YEAR_LEAD.sub("", base_local))) and "株" not in base_local:
                         continue
                     if unit is UnitKind.PERCENT and "率" not in base_local:
                         continue
