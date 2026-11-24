@@ -11,6 +11,7 @@ from app.api.earnings import (
     _LIST_HISTORY_COLUMNS,
     _not_duplicate,
     _not_excluded_product,
+    revision_marks_query,
 )
 from app.config import EARNINGS_PARAMS as EP
 from app.db import SessionLocal, engine, ensure_indexes, upsert
@@ -183,3 +184,13 @@ def test_explain_query_plan_avoids_table_body() -> None:
 
     # 当日銘柄の抽出は disclosed_date。本体を読むのはこの 1 日分だけ
     assert "ix_statements_disclosed_date" in codes or COVER in codes, codes
+
+
+def test_revision_marks_are_read_by_primary_key() -> None:
+    _seed()
+    db = SessionLocal()
+    try:
+        plan = _explain(db, revision_marks_query(["00000-1", "00010-today"]))
+    finally:
+        db.close()
+    assert plan.startswith("SEARCH statements USING INDEX sqlite_autoindex_statements_1 (disclosure_no=?)"), plan

@@ -3,13 +3,14 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Callable, Mapping
 
 from ..config import FORECAST_WITHDRAWALS_PATH
 from ..models import WITHDRAWABLE_ITEMS
 
 Withdrawals = Mapping[str, frozenset[str]]
 NONE: frozenset[str] = frozenset()
+Withdrawn = Callable[[Any], frozenset[str]]
 
 
 def load_withdrawals(path: Path | None = None) -> dict[str, frozenset[str]]:

@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Iterable, Mapping
 
 from ..models import DIVIDEND_ITEM, FORECAST_ITEMS, WITHDRAWABLE_ITEMS
 from .analytics import ORDER, is_actual, is_quarter_flash_revision
-from .withdrawals import withdrawn_items
+from .withdrawals import Withdrawn, withdrawn_items
 
 REPORT = "report"
 REVISION = "revision"
@@ -19,8 +19,6 @@ NEXT_KEYS = {"net_sales": "NxFSales", "operating_profit": "NxFOP", "ordinary_pro
              "profit": "NxFNp", "eps": "NxFEPS"}
 CURRENT_DIVIDEND_KEY = "FDivAnn"
 NEXT_DIVIDEND_KEY = "NxFDivAnn"
-
-Withdrawn = Callable[[Any], frozenset[str]]
 
 
 @dataclass(frozen=True)

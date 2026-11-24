@@ -48,7 +48,7 @@
 | 通期（`FY` の `FinancialStatements` または `DividendForecastRevision`） | `period_end != fiscal_year_end`、または `period_end - period_start > 400` 日、または `disclosed_date - period_end >= 365` 日のいずれかに該当する |
 | 四半期（`1Q`・`2Q`・`3Q` の `FinancialStatements`） | `disclosed_date - period_end >= 300` 日であり、かつ同一 `(code, type_of_period, period_end)` の過去の短信と `net_sales` が異なる |
 
-提出者側の誤りであることを確認した開示は、`config/market/statement_period_fixes.json` に `disclosure_number`・`code`・正しい 4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）、または `"drop": true` を登録する。既に DB に入っている行を直すときは `python -m tools.market.fix_statement_periods --apply` を手で実行し、対象銘柄の `statements` と `earnings_events` を更新する。なお `raw_json` が XBRL 由来のままの行（`xbrl-raw`）は変更せず、補正後の主キーが既存行と衝突する場合は上書きせずに `conflict` としてスキップする。
+提出者側の誤りであることを確認した開示は、`config/market/statement_period_fixes.json` に `disclosure_number`・`code`・正しい 4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）、または `"drop": true` を登録する。既に DB に入っている行を直すときは `python -m tools.market.fix_statement_periods --write` を手で実行し、対象銘柄の `statements` と `earnings_events` を更新する。なお `raw_json` が XBRL 由来のままの行（`xbrl-raw`）は変更せず、補正後の主キーが既存行と衝突する場合は上書きせずに `conflict` としてスキップする。
 
 ### 予想の取り下げの印
 
@@ -63,7 +63,7 @@ J-Quants の決算サマリーの空欄は「この開示では触れていな�
 | 短信 XBRL（列） | `jobs/xbrl/xbrl_statements.py` が、修正前の予想の行があり修正後の予想の行が無い項目を印にする（年間配当は期末の修正後の行も無いときだけ。株式分割に伴う配当予想の修正は年間の修正後が無く期末の修正後だけがあるので印を付けない。判定は [XBRL の設計](xbrl.md)「短信 XBRL から `statements` 行を作る規則」）。業績予想・配当予想の修正の書類は作った行に付け、どちらにも分類されない書類（`doc_type='other'`。「業績予想の取り下げに関するお知らせ」「連結決算への移行に伴う連結業績予想の公表に関するお知らせ」など）は行を作らず、同じ開示番号の行が既にあるときだけ付ける |
 | 一覧（`config/market/forecast_withdrawals.json`） | XBRL が無い過去の開示は、原本で取り下げを確かめた開示番号ごとに `{"disclosure_no": "…", "code": "…", "items": ["net_sales", "operating_profit", "ordinary_profit", "profit", "eps"], "evidence": "…"}` を `withdrawals` に書く。DB には書かない。開示番号の重複・空の `items`・知らない項目名は読み込み時に `ValueError` で止める |
 
-予想を開示ごとに畳む共通の層（`app/market/forecasts.py`）は、印のある項目をその開示から未定にし、次の決算短信（または値を出し直した予想修正）で戻す。今は株価チャートの予想 EPS と銘柄の概要の年間配当予想が使う。
+予想を開示ごとに畳む共通の層（`app/market/forecasts.py`）は、印のある項目をその開示から未定にし、次の決算短信（または値を出し直した予想修正）で戻す。株価チャートの予想 EPS、銘柄の概要の年間配当予想、決算速報の修正履歴（`app/market/revisions.py`。年度ごとに畳み、印のある開示は `forecast_withdrawn` の行）が使う。一覧の予想修正バッジ（下の「予想修正の検知」）は `raw_json` を読まずに同じ考え方で通期営業利益予想だけを畳み、印は一覧に出る銘柄の予想修正のみの開示（決算短信本体でない行）について開示番号で別に読む。決算短信本体の印は読まないが、決算短信の空欄は未定として扱うので、空欄の予想に付いた印と結果は変わらない。
 
 列を足す前に入った XBRL 由来の行と取り下げのお知らせには印が無い。`jobs/migrate.py`（デプロイの `deploy/update.sh` が呼ぶ）で列を足したあと、`python jobs/xbrl/xbrl_statements.py --since <最初の TDnet XBRL の提出日>` を流すと、その日以降の解析済みの書類から行を作り直して印を付ける（`statements` の数値は XBRL の値で上書きし直す）。印を付ける前後の画面の違いは `python tools/market/compare_withdrawals.py <stock.db>` で比べる（DB は読み取り専用で開き、列が無い・空の DB では `xbrl_financials` から同じ判定で印を作る）。
 
@@ -140,17 +140,26 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 
 ### 予想修正の検知
 
-指定した基準日 `as_of_date` までの通期業績予想の修正（`forecast_revision`）は、`DocType` を問わず（単独の `ForecastRevision` を含む）対象 `fiscal_year_end` の予想値を持つ開示を時系列に並べて判定する。`1Q`・`3Q` 型の `EarnForecastRevision` は予想列が四半期の累計値なので、比較元にも判定の対象にもしない（KAB-553）。
+一覧の予想修正バッジ（`forecast_revision`。`app/market/analytics.py`）は、その決算短信の通期営業利益予想（`statements.fy_operating_profit`）を、同じ `fiscal_year_end` の直前の時点の予想と比べる。売上・経常利益・純利益・EPS と、本決算の来期予想（`raw_json` の `NxF*`）は見ない。XBRL での補完もしない。
 
-見る予想列の優先順位は、`forecast_eps` → `forecast_operating_profit` → `forecast_ordinary_profit` → `forecast_profit` → `forecast_net_sales` とし、本決算（`FY`）で当期予想が空のときは同じ優先順で来期予想（`next_year_forecast_*`）を見る。最新の開示で最初に非 `NULL` だった指標を選び、同じ指標が非 `NULL` だった直前の開示と比較する。J-Quants 側に比較元や修正行が欠けているときは、適時開示 XBRL の業績予想ファクト（`app/xbrl/revisions.py`）で補完する。
+直前の時点の予想は、同じ `fiscal_year_end` の開示を `(disclosed_date, disclosure_no)` の順に畳んで作る（KAB-551）。
+
+| 開示 | 直前の予想の扱い |
+|---|---|
+| 営業利益の取り下げの印がある開示 | 予想なしにする |
+| `fy_operating_profit` に値がある開示（`DocType` を問わない） | その値にする |
+| `fy_operating_profit` が空の決算短信本体 | 未定として予想なしにする |
+| `fy_operating_profit` が空の予想修正のみの開示 | 触れていないので前の値のまま |
+| `1Q`・`3Q` 型の `EarnForecastRevision`（予想列が四半期の累計値。KAB-553） | 畳まない。この開示自身も判定しない |
+| 比べる短信と同じ日の予想修正のみの開示 | 畳まない（同じ日に短信と予想修正を出すと、新しい値どうしで比べて消えるため） |
 
 | 比較結果 | 判定値 |
 |---|---|
-| 今回値 > 前回値 | `direction = "up"`（上方修正） |
-| 今回値 < 前回値 | `direction = "down"`（下方修正） |
-| 今回値 == 前回値、または比較できる前回開示が無い | `None`（修正なし・据え置き・初出） |
+| `(今回 - 直前) / abs(直前)` が `+0.1%` 以上（`EARNINGS_PARAMS["revision_noise_th"]`） | `{direction: "up", pct}`（上方修正） |
+| 同じく `-0.1%` 以下 | `{direction: "down", pct}`（下方修正） |
+| `±0.1%` 未満、今回の予想が空、直前の予想が無い・`0` | `None`（修正なし・据え置き・初出・未定や取り下げの後） |
 
-変化率は `(after - before) / abs(before) * 100` で算出し、`before == 0` のときは変化率だけ `None` にして `direction` は残す。
+`pct` は `(今回 - 直前) / abs(直前) * 100` を小数第 1 位に丸めた値で、赤字予想の縮小は `up` になる。
 
 なお DB や内部辞書にある似た名前の項目は用途が異なるため、一覧の予想修正バッジにはこの `forecast_revision` を使う。
 

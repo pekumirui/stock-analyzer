@@ -15,9 +15,12 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='stoc
 
 from fastapi.testclient import TestClient
 
-from app.db import SessionLocal, init_db
+from sqlalchemy import event
+
+from app.db import SessionLocal, engine, init_db
 from app.main import app
-from app.market.revisions import statement_points
+from app.market.forecasts import CURRENT_KEYS
+from app.market.revisions import jquants_points, statement_points
 from app.models import Statement, Stock, XbrlFiling, XbrlFinancial, XbrlStdItem
 from app.revisions import revision_cell, revision_rows
 from app.xbrl.revisions import xbrl_points
@@ -38,18 +41,20 @@ def _pl(sales, op, odp, np_, eps) -> dict:
 
 def _stmt(no: str, period: str, fy_end: date, disclosed: date, *, actual: dict | None = None,
           fy: dict | None = None, nx: dict | None = None,
-          doc: str = "FinancialStatements_Consolidated_JP") -> Statement:
+          doc: str | None = None) -> Statement:
     s = Statement(disclosure_no=no, code=CODE, disclosed_date=disclosed, disclosed_time="15:00",
-                  type_of_period=period, type_of_document=doc, fiscal_year_end=fy_end)
+                  type_of_period=period, type_of_document=doc or f"{period}FinancialStatements_Consolidated_JP",
+                  fiscal_year_end=fy_end)
     for k, v in (actual or {}).items():
         setattr(s, k, v)
+    raw = {}
     for k, v in (fy or {}).items():
         setattr(s, "fy_" + k, v)
-    raw = {}
+        raw[CURRENT_KEYS[k]] = v
     if nx:
-        raw = {"NxtFYEn": nx.pop("fy_end").isoformat(), "NxFSales": nx["net_sales"],
-               "NxFOP": nx["operating_profit"], "NxFOdP": nx["ordinary_profit"],
-               "NxFNp": nx["profit"], "NxFEPS": nx["eps"]}
+        raw.update({"NxtFYEn": nx.pop("fy_end").isoformat(), "NxFSales": nx["net_sales"],
+                    "NxFOP": nx["operating_profit"], "NxFOdP": nx["ordinary_profit"],
+                    "NxFNp": nx["profit"], "NxFEPS": nx["eps"]})
     s.raw_json = json.dumps(raw)
     return s
 
@@ -215,6 +220,106 @@ def test_detail_api_sources() -> None:
     r = c.get(f"/api/earnings/detail/{CODE}", params={"rev_source": "edinet"})
     if r.status_code != 422:
         _fail(f"unknown source {r.status_code}")
+
+
+def _kinds_values(rows: list[dict], fy: date) -> list[tuple]:
+    return [(r["kind"], r["disclosed_date"], r["values"]["net_sales"], r["values"]["operating_profit"],
+             r["values"]["profit"], r["values"]["eps"], r["growth"] is None)
+            for r in rows if r["fiscal_year_end"] == fy.isoformat()]
+
+
+def _q(no, period, disclosed, fy=None, doc=None, withdrawn=None, **kw) -> Statement:
+    s = _stmt(no, period, FY26, disclosed, fy=fy, doc=doc, **kw)
+    s.withdrawn_forecasts = withdrawn
+    return s
+
+
+def test_partial_revision_keeps_the_items_it_did_not_restate() -> None:
+    hist = [*_statements()[:2],
+            _q("op", "FY", date(2025, 10, 1), fy={"operating_profit": 45_000 * M}, doc="EarnForecastRevision")]
+    rows = revision_rows(statement_points(hist), 4)
+    got = _kinds_values(rows, FY26)
+    assert got[-1] == ("forecast_revised", "2025-10-01", INIT26["net_sales"], 45_000 * M, INIT26["profit"],
+                       INIT26["eps"], False)
+    assert rows[-1]["growth"]["operating_profit"] == {"pct": 7.1, "state": "up"}
+    assert rows[-1]["growth"]["net_sales"] == {"pct": 0.0, "state": "flat"}
+
+
+def test_withdrawal_row_and_the_forecast_after_it() -> None:
+    every = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+    hist = [*_statements()[:2],
+            _q("wd", "FY", date(2025, 10, 1), doc="EarnForecastRevision", withdrawn=every),
+            _q("c2q", "2Q", date(2025, 11, 5), fy=REV26, actual=_pl(50_000, 20_000, 20_000, 14_000, 60.0))]
+    rows = revision_rows(statement_points(hist), 4)
+    assert _kinds_values(rows, FY26) == [
+        ("forecast_initial", "2025-05-10", INIT26["net_sales"], INIT26["operating_profit"], INIT26["profit"],
+         INIT26["eps"], True),
+        ("forecast_withdrawn", "2025-10-01", None, None, None, None, True),
+        ("forecast", "2025-11-05", REV26["net_sales"], REV26["operating_profit"], REV26["profit"], REV26["eps"],
+         True),
+    ]
+
+
+def test_partial_withdrawal_keeps_the_other_items() -> None:
+    hist = [*_statements()[:2],
+            _q("wd", "FY", date(2025, 10, 1), doc="EarnForecastRevision", withdrawn=("profit", "eps"))]
+    rows = revision_rows(statement_points(hist), 4)
+    assert _kinds_values(rows, FY26)[-1] == (
+        "forecast_withdrawn", "2025-10-01", INIT26["net_sales"], INIT26["operating_profit"], None, None, True)
+    assert rows[-1]["values"]["ordinary_profit"] == INIT26["ordinary_profit"]
+
+
+def test_dividend_only_withdrawal_is_not_a_row() -> None:
+    hist = [*_statements()[:2],
+            _q("div", "FY", date(2025, 10, 1), doc="DividendForecastRevision", withdrawn=("div_annual",))]
+    assert [r["kind"] for r in revision_rows(statement_points(hist), 4)] == ["actual_fy", "forecast_initial"]
+
+
+def test_next_year_forecast_of_the_annual_report_goes_to_the_next_year_end() -> None:
+    changed = date(2026, 12, 31)
+    hist = [_stmt("pfy", "FY", FY25, date(2025, 5, 10), actual=_pl(95_000, 40_000, 41_000, 29_000, 135.0),
+                  nx={"fy_end": changed, **INIT26})]
+    rows = revision_rows(statement_points(hist), 4)
+    assert [(r["fiscal_year_end"], r["kind"]) for r in rows] == [
+        ("2025-03-31", "actual_fy"), ("2026-12-31", "forecast_initial")]
+
+
+def test_old_period_report_filed_again_is_not_a_revision() -> None:
+    again = _stmt("c1q-again", "1Q", FY26, date(2025, 11, 20), actual=_pl(25_000, 9_000, 9_100, 6_000, 28.0),
+                  fy=INIT26)
+    hist = [*_statements()[:2], _q("c2q", "2Q", date(2025, 11, 5), fy=REV26), again]
+    assert [r["kind"] for r in revision_rows(statement_points(hist), 4) if r["fiscal_year_end"] == "2026-03-31"] == [
+        "forecast_initial", "forecast_revised"]
+
+
+def test_eps_of_a_revision_without_eps_is_empty_not_divided() -> None:
+    no_eps = {k: v for k, v in REV26.items() if k != "eps"}
+    hist = [*_statements()[:2], _q("rev", "FY", date(2025, 10, 1), fy=no_eps, doc="EarnForecastRevision")]
+    rows = revision_rows(statement_points(hist), 4)
+    assert rows[-1]["values"]["profit"] == REV26["profit"] and rows[-1]["values"]["eps"] is None
+
+
+def test_jquants_points_reads_raw_json_in_the_history_query() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        for s in _statements():
+            db.merge(s)
+        db.commit()
+        db.expunge_all()
+        stmt = db.get(Statement, "cfy")
+        seen: list[str] = []
+        listen = lambda *a: seen.append(a[2])
+        event.listen(engine, "before_cursor_execute", listen)
+        try:
+            points = jquants_points(db, stmt)
+        finally:
+            event.remove(engine, "before_cursor_execute", listen)
+        assert len(revision_rows(points, 4)) == 5
+        assert len(seen) == 2, seen
+        assert "raw_json" in seen[0] and "daily_prices" in seen[1], seen
+    finally:
+        db.close()
 
 
 def main() -> None:

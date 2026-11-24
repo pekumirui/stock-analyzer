@@ -14,14 +14,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.config import EARNINGS_PARAMS as EP
-from app.market import analytics, forecasts, revisions
+from app.market import analytics, forecasts
 from app.market.analytics import forecast_revision, is_quarter_flash_revision
 from app.market.chart_fund import fund_steps
 from app.market.revisions import statement_points
 from app.models import DailyPrice, Statement
 from app.revisions import revision_rows
 
-PREDICATE_USERS = (analytics, forecasts, revisions)
+PREDICATE_USERS = (analytics, forecasts)
 ALL_YEARS = 1000
 
 
