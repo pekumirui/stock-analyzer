@@ -60,9 +60,9 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 
 ## 既知の不具合（2026-11-24、KAB-554 で発見）
 
-1. **古い `zip_set` で PDF を作り直す**（`FindingStaleZipSet.cfg`）: PDF 一括取込が `zip_set` を読む → 毎時の `xbrl_parse` がその開示の ZIP を `parsed` にして PDF の filing を消す → 一括取込がその開示に来て、古い `zip_set` を信じて PDF の filing を作り直す。ZIP と PDF の両方が残る。実コードでも再現した（`sync_pdf_filings` の途中で ZIP の行を commit し `_retire_pdf_filing` を呼ぶと、最後に `('tdnet','parsed')` と `('tdnet_pdf','parsed')` が両方ある）。一括取込は全件で数時間かかり、毎時の cron と重なる
-2. **PDF を消す処理の例外を飲む**（`FindingRetireRaises.cfg`）: ZIP が `parsed` になったあと `_retire_pdf_filing` が `database is locked` などで落ちると、PDF の filing が残る。次に手で一括取込を流すまで両方残る
-3. **ZIP の読み直しが失敗すると何も残らない**（`FindingZipRereadFails.cfg`）: ZIP が `parsed` で PDF は消してある → ZIP を読み直して `failed` になる → PDF を戻す経路が `xbrl_parse` に無い。次に手で一括取込を流すまで、その開示の数字が無い
+1. **古い `zip_set` で PDF を作り直す**（`FindingStaleZipSet.cfg`、KAB-557）: PDF 一括取込が `zip_set` を読む → 毎時の `xbrl_parse` がその開示の ZIP を `parsed` にして PDF の filing を消す → 一括取込がその開示に来て、古い `zip_set` を信じて PDF の filing を作り直す。ZIP と PDF の両方が残る。実コードでも再現した（`sync_pdf_filings` の途中で ZIP の行を commit し `_retire_pdf_filing` を呼ぶと、最後に `('tdnet','parsed')` と `('tdnet_pdf','parsed')` が両方ある）。一括取込は全件で数時間かかり、毎時の cron と重なる
+2. **PDF を消す処理の例外を飲む**（`FindingRetireRaises.cfg`、KAB-557）: ZIP が `parsed` になったあと `_retire_pdf_filing` が `database is locked` などで落ちると、PDF の filing が残る。次に手で一括取込を流すまで両方残る
+3. **ZIP の読み直しが失敗すると何も残らない**（`FindingZipRereadFails.cfg`、KAB-558）: ZIP が `parsed` で PDF は消してある → ZIP を読み直して `failed` になる → PDF を戻す経路が `xbrl_parse` に無い。次に手で一括取込を流すまで、その開示の数字が無い
 
 ## 本物の不具合か、模型の誤りか
 
