@@ -552,7 +552,6 @@ NEGATED_ROLE_URL = "http://www.xbrl.org/lrr/role/negated-2009-12-16.xsd"
 
 
 def test_negated_role_schema_parses_offline(tmp: Path) -> None:
-    """KAB-457: a filing that imports the negated-label role loads it from the bundle, offline."""
     _require_bundled(NEGATED_ROLE_URL, JPIGP_2018_COR, JPIGP_2018_LAB)
     company_xsd = f"""<?xml version="1.0" encoding="UTF-8"?>
 <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
