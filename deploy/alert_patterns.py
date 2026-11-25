@@ -24,6 +24,7 @@ ALERT_PATTERNS: tuple[AlertPattern, ...] = (
         "cron_exit",
         r"^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} fail cron ",
     ),
+    AlertPattern("batch", "prices", r"gap daily_prices "),
     AlertPattern("batch", "summary", r"failed=0*[1-9][0-9]*"),
     AlertPattern("batch", "summary", r"errors=0*[1-9][0-9]*"),
     AlertPattern("batch", "summary", r"stale_new=0*[1-9][0-9]*"),

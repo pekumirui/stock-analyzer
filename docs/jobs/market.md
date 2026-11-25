@@ -62,6 +62,20 @@ flowchart TD
 
 日次の J-Quants は、銘柄マスタ 1 回、`as_of` の日足 1 回、`as_of` の TOPIX 1 回、`as_of` の決算 1 回、前営業日の決算 1 回（その前に株価があるとき）である。手順 5 は対象日の数だけ `fins_earnings_date` を 1 回ずつ叩く。台帳が埋まっていても今日と昨日は叩く。
 
+### 書き込みロック（KAB-583）
+
+平日 19:30 は `run_batch` と `pts_snapshot` が同じ分に始まる。ほかのジョブが書き込みロックを `busy_timeout`（30 秒）より長く持っていると、株価の前の銘柄マスタ UPSERT が `database is locked` で落ち、当日の `daily_prices` が 0 件のまま残る。`run_daily` はそのエラー（`database is busy` も）のとき、セッションを rollback して同じ日を最初からやり直す。待ちは 5 秒から倍々で 60 秒まで、最大 10 回で、各回の中でも `busy_timeout` まで待つ。ロックが解けたあとにマスタと当日の株価を UPSERT する。ロック以外の例外はやり直さない。やり直している間の `run_daily locked` は page しない。
+
+### 当日の株価件数（KAB-584）
+
+日次（`--backfill`・`--refetch-prices`・`--readjust-prices` 以外）が例外で終わったとき、`as_of` が平日で、その日の `daily_prices` 件数が、それより前で株価がある直近最大 5 日の件数の中央値の半分に満たなければ、次の 1 行を出してから例外を再送出する。0 件も含む。
+
+```
+gap daily_prices date=YYYY-MM-DD count=N prior_median=M prior_days=K
+```
+
+この行は `#alerts-batch` に page する。本文にその日の件数と、比べた中央値が入る。`fail cron … exit=1` とは別の行なので、`database is locked` を静観して記録だけにしたものとは別の通知になる。土日、比べる日がまだ無い DB、成功して 0 件（休場で API が空）、件数が中央値の半分以上、では出さない。成功しても 0 件より多く半分に満たないときは同じ行を出して終了コード 1 にする。
+
 ### 取り込む対象と変換
 
 テーブルごとの絞り込みと保存時の変換規則は次のとおりである。
@@ -110,7 +124,7 @@ J-Quants の決算サマリーの空欄は「この開示では触れていな�
 
 | 実行モード | 対象日の選び方 | 完了・再実行時の挙動 | 中断・異常終了する条件 |
 |---|---|---|---|
-| 日次の通常再実行 | `as_of` の 1 日。決算は前営業日も取り直す | 同じ日を何度流しても UPSERT である | 手順 5 の通信失敗時は例外を再送出して非ゼロで終わる |
+| 日次の通常再実行 | `as_of` の 1 日。決算は前営業日も取り直す | 同じ日を何度流しても UPSERT である。`database is locked` は「書き込みロック」のとおりやり直す | 手順 5 の通信失敗、またはロックのやり直しを使い切った失敗は、例外を再送出して非ゼロで終わる。平日で株価件数が直近の半分に満たなければ `gap daily_prices` を出してから終わる。成功しても半分に満たなければ終了コード 1 |
 | `--backfill [YEARS]` | 過去 `YEARS` 年（既定 `BACKFILL_YEARS=5`）の取引カレンダーのうち、`daily_prices` にまだ日付が無い営業日 | 1 営業日ごとに株価と決算を同一トランザクションで commit し、最後に `indicators`・`earnings_events` と発表予定を更新する | 取引カレンダーが空のとき、または途中で 1 日でも失敗したときはその日を rollback して即座に中断する。再実行すれば残りの営業日から再開する |
 | `--refetch-prices` | `daily_prices` に `upper_limit` と `lower_limit` がともに `NULL` の行が残っている日付だけ | 対象日の日足を API から取り直して `UL`・`LL`（`0` または `1`）を埋め、`indicators`・`earnings_events` と発表予定を更新する | 途中で失敗しても commit 済みの日は `UL`・`LL` が埋まるため、再実行時は残りの日だけを処理する。失敗した日数が 1 以上なら終了コード `1` |
 | `--readjust-prices` | API から株価を取り直さず、DB 内の全銘柄の `daily_prices` を対象にする | 生値と `adj_factor` から全期間の `adj_*` を計算し直し、`indicators`・`earnings_events` と発表予定を更新する | `close` が `NULL` の行は調整後を書き直さない。完走する |
