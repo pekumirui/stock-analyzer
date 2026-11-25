@@ -6,10 +6,11 @@ from datetime import date, timedelta
 from typing import Any, Iterable, Mapping
 
 from ..models import DIVIDEND_ITEM, FORECAST_ITEMS, WITHDRAWABLE_ITEMS
-from .analytics import ORDER, is_actual, is_quarter_flash_revision, shift_year
+from .analytics import ORDER, is_actual, is_quarter_flash_revision, report_kind, shift_year
 from .withdrawals import Withdrawn, withdrawn_items
 
 REPORT = "report"
+CORRECTION = "correction"
 REVISION = "revision"
 IGNORED = "ignored"
 
@@ -129,9 +130,14 @@ def _revision_values(given: dict[str, float | None], shares: float | None) -> di
     return out
 
 
+def _changed_from(stated: dict[str, float | None], given: dict[str, float | None]) -> dict[str, float | None]:
+    return {item: v for item, v in given.items() if v is not None and v != stated.get(item)}
+
+
 def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> list[ForecastPoint]:
     state = {item: Sourced() for item in WITHDRAWABLE_ITEMS}
     latest: ReportKeys | None = None
+    stated_by_period: dict[tuple, dict[str, float | None]] = {}
     shares: float | None = None
     out: list[ForecastPoint] = []
     for s in sorted(stmts, key=statement_order):
@@ -140,12 +146,21 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
         role = IGNORED
         if is_actual(s):
             full_year = (s.type_of_document or "").startswith("FY")
-            found[DIVIDEND_ITEM] = num(raw, NEXT_DIVIDEND_KEY if full_year else CURRENT_DIVIDEND_KEY)
+            given = {DIVIDEND_ITEM: num(raw, NEXT_DIVIDEND_KEY if full_year else CURRENT_DIVIDEND_KEY)}
             keys = report_keys(s)
             if keys is not None and not is_older_report(keys, latest):
-                latest, role = newest_keys(keys, latest), REPORT
+                latest = newest_keys(keys, latest)
                 shares = report_shares(raw)
-                found.update(_report_values(next_forecast(raw) if full_year else current_forecast(s), shares))
+                given.update(_report_values(next_forecast(raw) if full_year else current_forecast(s), shares))
+                role = REPORT
+            period = (s.fiscal_year_end, *report_kind(s))
+            stated = stated_by_period.get(period)
+            if stated is None:
+                found.update(given)
+            else:
+                found.update(_changed_from(stated, given))
+                role = CORRECTION if role == REPORT else role
+            stated_by_period[period] = {**(stated or {}), **{k: v for k, v in given.items() if v is not None}}
         else:
             dividend = num(raw, CURRENT_DIVIDEND_KEY)
             if dividend is not None:
