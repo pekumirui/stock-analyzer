@@ -588,7 +588,8 @@ def forecast_revision(hist: list[Statement], stmt: Statement,
             prev = None
         if is_actual(s) and s.fy_operating_profit is not None:
             stated[report_kind(s)] = s.fy_operating_profit
-    if is_actual(stmt) and stated.get(report_kind(stmt)) == cur:
+    if is_actual(stmt) and (stated.get(report_kind(stmt)) == cur
+                            or ORDER.get(stmt.type_of_period or "", 0) < latest_quarter):
         return None
     if not prev:
         return None

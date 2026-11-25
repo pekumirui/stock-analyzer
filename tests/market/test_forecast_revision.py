@@ -280,3 +280,4 @@ def test_correction_of_an_earlier_quarter_after_a_later_report_is_not_previous()
     fix_q2 = _stmt("fix2", "2Q", date(2025, 12, 27), fy_op=15)
     q3 = _stmt("q3", "3Q", date(2026, 1, 31), fy_op=5, doc="3QFinancialStatements_Consolidated_JP")
     assert forecast_revision([q2, rev, fix_q1, fix_q2], q3) == {"direction": "down", "pct": -66.7}
+    assert forecast_revision([q2, rev], fix_q1) is None
