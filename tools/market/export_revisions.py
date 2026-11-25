@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-if __package__ in (None, ""):
+if __package__ in (None, "") and len(Path(__file__).resolve().parents) > 2:
     sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from sqlalchemy import create_engine, select, text
@@ -27,7 +27,7 @@ FORECAST_COLUMNS = ("fy_net_sales", "fy_operating_profit", "fy_ordinary_profit",
 RAW_CURRENT = dict(zip(FORECAST_COLUMNS, ("FSales", "FOP", "FOdP", "FNP", "FEPS")))
 FLASH = ("1Q", "3Q")
 PARTS = ("history", "badges", "chart")
-CATEGORIES = ("marked", "columns_without_raw", "partial_revision", "after_undecided_report", "old_period_report",
+CATEGORIES = ("same_period_report", "marked", "columns_without_raw", "partial_revision", "after_undecided_report", "old_period_report",
               "same_day_order", "fiscal_year_change", "other")
 
 
@@ -218,6 +218,19 @@ def after_undecided_report(stmts) -> list[str]:
     return out
 
 
+def same_period_reports(stmts) -> list[str]:
+    seen: set[tuple] = set()
+    out = []
+    for s in sorted(stmts, key=_order):
+        if not is_actual(s):
+            continue
+        key = (s.fiscal_year_end, s.type_of_period, s.type_of_document)
+        if key in seen:
+            out.append(str(s.disclosed_date))
+        seen.add(key)
+    return out
+
+
 def badges(stmts) -> list[list]:
     window = timedelta(days=EP["list_history_days"])
     out = []
@@ -225,7 +238,7 @@ def badges(stmts) -> list[list]:
         if not is_actual(s):
             continue
         hist = [h for h in stmts if s.disclosed_date - window <= h.disclosed_date <= s.disclosed_date]
-        out.append([s.disclosure_no, forecast_revision(hist, s)])
+        out.append([s.disclosure_no, str(s.disclosed_date), forecast_revision(hist, s)])
     return out
 
 
@@ -256,7 +269,8 @@ def export(db, out_path: Path) -> int:
                    "after_undecided_report": after_undecided_report(stmts),
                    "old_period_report": old_period_reports(stmts),
                    "same_day_order": same_day_out_of_order(stmts),
-                   "fiscal_year_change": fiscal_year_changes(stmts)}
+                   "fiscal_year_change": fiscal_year_changes(stmts),
+                   "same_period_report": same_period_reports(stmts)}
             f.write(json.dumps(row, ensure_ascii=False, default=str, sort_keys=True) + "\n")
             db.expire_all()
     print(f"codes={len(codes)} marks_source={source} marked_disclosures={len(marks)} out={out_path}")
@@ -281,8 +295,16 @@ def changed_lines(old: dict, new: dict) -> list[tuple[str, str, str]]:
     return lines
 
 
+def _line_date(part: str, line: str) -> str:
+    row = json.loads(line)
+    return row["disclosed_date"] if part == "history" else row[1] if part == "badges" else row[0]
+
+
 def classify(new: dict, lines: list[tuple[str, str, str]]) -> str:
     parts = {p for p, _, _ in lines}
+    first_correction = min(new.get("same_period_report") or [""]) or None
+    if first_correction and all(_line_date(p, x) >= first_correction for p, _, x in lines):
+        return "same_period_report"
     if new["marked"]:
         return "marked"
     changed_badges = {json.loads(x)[0] for p, _, x in lines if p == "badges"}

@@ -14,7 +14,7 @@ from ..config import EARNINGS_PARAMS as EP
 from ..models import FORECAST_ITEMS, Statement
 from ..revisions import ACTUAL, FORECAST, WITHDRAWN, RevisionPoint
 from .analytics import FORECAST_KEYS, _scale_eps, is_actual, metrics, next_year_end, statement_history
-from .forecasts import (IGNORED, REPORT, ForecastPoint, Sourced, current_forecast, forecast_points,
+from .forecasts import (CORRECTION, IGNORED, REPORT, ForecastPoint, Sourced, current_forecast, forecast_points,
                         next_forecast)
 from .withdrawals import Withdrawn, withdrawn_items
 
@@ -22,7 +22,7 @@ ANNUAL_REPORT_PERIODS = ("FY", "4Q")
 
 
 def _is_next_year(p: ForecastPoint) -> bool:
-    return p.role == REPORT and (p.statement.type_of_document or "").startswith("FY")
+    return p.role in (REPORT, CORRECTION) and (p.statement.type_of_document or "").startswith("FY")
 
 
 def forecast_year(p: ForecastPoint) -> date | None:

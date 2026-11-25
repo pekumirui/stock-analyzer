@@ -12,7 +12,7 @@ from math import log
 from ..config import EARNINGS_PARAMS as EP
 from ..models import Statement
 from .analytics import ORDER, find_statement, is_after_close, shift_year, single_from
-from .forecasts import REPORT, REVISION, Withdrawn, forecast_points
+from .forecasts import CORRECTION, REPORT, REVISION, Withdrawn, forecast_points
 from .withdrawals import withdrawn_items
 
 
@@ -83,7 +83,7 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float],
     for p in forecast_points(stmts, withdrawn):
         s = p.statement
         hist.append(s)
-        if p.role == REPORT:
+        if p.role in (REPORT, CORRECTION):
             q = single_from(hist, s, tol)
             op_q = q["operating_profit"] if q else None
             op_ttm = _ttm_op(hist, s, tol)

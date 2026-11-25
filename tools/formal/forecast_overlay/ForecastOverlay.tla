@@ -70,7 +70,11 @@ ReadsNonReport(r) == Item = "div" \/ r.kind = "revision"
 CodeStep(st, s, i) ==
     LET r == s[i]
         o == Obs(s, i)
-    IN IF r.kind = "report"
+    IN IF r.kind = "report" /\ r.form # "original"
+       THEN IF Older(Key(r), st.latest)
+            THEN st
+            ELSE [st EXCEPT !.latest = Newest(Key(r), st.latest), !.held = Target(r)]
+       ELSE IF r.kind = "report"
        THEN IF Older(Key(r), st.latest)
             THEN st
             ELSE [val |-> ValueOf(o), latest |-> Newest(Key(r), st.latest), held |-> Target(r)]
