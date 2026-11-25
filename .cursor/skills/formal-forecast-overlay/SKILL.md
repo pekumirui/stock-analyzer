@@ -23,19 +23,19 @@ tools/formal/check.sh forecast_overlay FindingUnmarkedWithdrawal.cfg
 ```
 
 - Java と `tla2tools.jar` は [formal-tdnet-pdf-retire](../formal-tdnet-pdf-retire/SKILL.md) と同じ
-- `MC*.cfg` は開示 4 本までで 1 本 1〜2 分。`Finding*.cfg` は 3 本までで数秒。模型は `tools/formal/forecast_overlay/ForecastOverlay.tla`
+- `MC*.cfg` は開示 4 本までで 1 本 15〜30 分ほど。`Finding*.cfg` は 3 本までで数秒。模型は `tools/formal/forecast_overlay/ForecastOverlay.tla`
 
 今のコードでの正しい結果:
 
 | cfg | 期待 | 意味 |
 |---|---|---|
-| `MCPerf.cfg` | `No error has been found`（195,241 distinct states） | 業績予想（1 項目で代表）の回帰検査。空欄の訂正・予想修正の後の訂正も入れる |
-| `MCDiv.cfg` | `No error has been found`（222,142 distinct states） | 年間配当予想の回帰検査。空欄の訂正・予想修正の後の訂正も入れる |
-| `FindingOlderReportDividend.cfg` | `Matches` 違反 | 既知の不具合 1 |
-| `FindingStaleRevision.cfg` | `Matches` 違反 | 既知の不具合 2 |
+| `MCPerf.cfg` | `No error has been found`（1,208,659 distinct states） | 業績予想（1 項目で代表）の回帰検査。古い期の決算短信・空欄の訂正・予想修正の後の訂正・終わった期の予想修正も入れる |
+| `MCDiv.cfg` | `No error has been found`（2,891,641 distinct states） | 年間配当予想の回帰検査。古い期の決算短信・空欄の訂正・予想修正の後の訂正・終わった期の予想修正も入れる |
+| `FindingOlderReportDividend.cfg` | `No error has been found` | 直した不具合（KAB-565） |
+| `FindingStaleRevision.cfg` | `No error has been found` | 直した不具合（KAB-566） |
 | `FindingBlankCorrection.cfg` | `No error has been found` | 直した不具合（KAB-555） |
 | `FindingCorrectionAfterRevision.cfg` | `No error has been found` | 直した不具合（KAB-567） |
-| `FindingUnmarkedWithdrawal.cfg` | `Matches` 違反 | 既知の限界 3 |
+| `FindingUnmarkedWithdrawal.cfg` | `Matches` 違反 | 既知の限界 1 |
 
 Finding の cfg が通るようになったら、その不具合が直ったということ。直した変更の PR で、その cfg の期待を「違反なし」に書き換え、下の既知の不具合から外す。回帰検査に入れたいなら、`MC*.cfg` の対応する `Allow*` を `TRUE` にする。
 
@@ -54,7 +54,7 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 | `marked` | `withdrawn_items` がその項目を返す |
 | `slot` | `(disclosed_date, disclosed_time)`。同じ `slot` の中の並びはコードでは `disclosure_no` で決まり、本当の順は無い |
 | `Item = "perf"` / `"div"` | `FORECAST_ITEMS` のどれか 1 つ / `DIVIDEND_ITEM` |
-| `CodeFold` | `forecast_points` の 1 項目分。`latest` は `report_keys` の最新、`Older` は `is_older_report` |
+| `CodeFold` | `forecast_points` の 1 項目分。`latest` は `report_keys` の最新、`Older` は `is_older_report`、`held` は最後に使った決算短信の予想の年度（`r.year < held` が `is_stale`） |
 | `SpecState` | あるべき意味。いま会社が出している年度（`target`）について、触れた開示の値を順に当てる。古い期の決算短信、訂正短信、速報値の業績の欄は「触れていない」 |
 
 `Records` は 1 本の開示の取りうる形。`CanAppend` は現実にありうる並びだけに絞る前提で、`Allow*` は不具合を起こす並びを入れるかどうか。
@@ -76,9 +76,9 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 
 ## 既知の不具合（2026-11-24、KAB-559 で発見。どれも本物の `forecast_points` に反例の並びを流して再現した）
 
-1. **古い期の決算短信が配当予想を書き換える**（`FindingOlderReportDividend.cfg`、KAB-565）: 古い期の決算短信は業績の予想に使わないのに、年間配当予想だけはその短信の値（空なら未定）で上書きする。本番で、新しい期の短信の後に来た古い期の短信は 571 件・277 銘柄、うち 457 件が配当予想を持つ。93680 は配当予想が分割前の 60 円になる（正しくは 38 円）
-2. **終わった期の予想修正が来期の予想を書き換える**（`FindingStaleRevision.cfg`、KAB-566）: 本決算の後（または同じ時刻）に前期の予想修正が並ぶと、来期の予想がその値になる。本番で、同じ年度か後の年度の本決算の後に並んだ予想修正は 189 件・134 銘柄、うち 79 件が値を持つ。57410 は予想 EPS が 154.64 から 214.75 になり、次の 1Q 短信まで続く
-3. **印の無い取り下げは前の値のまま**（`FindingUnmarkedWithdrawal.cfg`）: J-Quants の空欄は「触れていない」と「取り下げ」を見分けられないので、印（短信 XBRL か `config/market/forecast_withdrawals.json`）が無い取り下げは拾えない。仕様どおり（`docs/jobs/market.md`「予想の取り下げの印」）で、直すなら印を足す
+古い期の決算短信が配当予想を書き換える不具合（KAB-565）、終わった期の予想修正が来期の予想を書き換える不具合（KAB-566）、訂正短信の空欄が未定になる不具合（KAB-555）、予想修正の後の訂正短信が修正前の予想に戻す不具合（KAB-567）は直した。どれも `MC*.cfg` の `Allow*` で回帰検査に入っている。
+
+1. **印の無い取り下げは前の値のまま**（`FindingUnmarkedWithdrawal.cfg`）: J-Quants の空欄は「触れていない」と「取り下げ」を見分けられないので、印（短信 XBRL か `config/market/forecast_withdrawals.json`）が無い取り下げは拾えない。仕様どおり（`docs/jobs/market.md`「予想の取り下げの印」）で、直すなら印を足す
 
 ## 本物の不具合か、模型の誤りか
 
@@ -96,5 +96,5 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 ## 同期
 
 - 対象: `app/market/forecasts.py`、`app/market/withdrawals.py`、`app/market/analytics.py`（`is_actual`・`is_quarter_flash_revision`・`ORDER`）
-- 最後に模型とコードの一致を確かめたコミット: `c042729`
-- `git log c042729..HEAD -- app/market/forecasts.py app/market/withdrawals.py app/market/analytics.py` に何か出たら、模型を見直してから同期コミットを進める
+- 最後に模型とコードの一致を確かめたコミット: `0d3b915`
+- `git log 0d3b915..HEAD -- app/market/forecasts.py app/market/withdrawals.py app/market/analytics.py` に何か出たら、模型を見直してから同期コミットを進める

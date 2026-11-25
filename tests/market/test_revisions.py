@@ -362,3 +362,15 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def test_revision_of_the_finished_year_after_the_annual_report_stays_in_its_year() -> None:
+    late26 = _pl(111_000, 43_000, 44_000, 32_500, 152.0)
+    late = _stmt("late", "FY", FY26, date(2026, 5, 11), fy=late26, doc="EarnForecastRevision")
+    late.disclosed_time = "15:30"
+    points = statement_points([*_statements(), late])
+    assert [(p.fy_end, p.values["eps"]) for p in points if p.kind == "forecast"][-2:] == [
+        (FY27, INIT27["eps"]), (FY26, late26["eps"])]
+    rows = revision_rows(points, 4)
+    assert [(r["kind"], r["values"]["eps"]) for r in rows if r["fiscal_year_end"] == FY27.isoformat()] == [
+        ("forecast_initial", INIT27["eps"])]

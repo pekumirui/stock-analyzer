@@ -33,7 +33,7 @@ def forecast_year(p: ForecastPoint) -> date | None:
 def stated_eps(p: ForecastPoint, withdrawn: frozenset[str]) -> Sourced:
     stated = next_forecast(p.raw) if _is_next_year(p) else current_forecast(p.statement)
     value = None if "eps" in withdrawn else stated["eps"]
-    return Sourced(value, p.values["eps"].disclosure_no, p.values["eps"].disclosed_date)
+    return Sourced(value, p.stated["eps"].disclosure_no, p.stated["eps"].disclosed_date)
 
 
 def _year_values(state: dict[str, Sourced], by_no: dict) -> dict[str, float | None]:
@@ -61,7 +61,7 @@ def statement_points(hist: list[Statement], withdrawn: Withdrawn = withdrawn_ite
         state = years.setdefault(fy_end, {})
         if p.role == REPORT:
             state.clear()
-        state.update({k: p.values[k] for k in items})
+        state.update({k: p.stated[k] for k in items})
         gone = withdrawn(s) & items
         if "eps" in items:
             state["eps"] = stated_eps(p, gone)
