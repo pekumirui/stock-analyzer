@@ -1,4 +1,4 @@
-"""J-Quants の決算で期の日付が 1 年前になっている開示の補正・取り込まない開示の一覧と、新しい候補の WARNING。
+"""J-Quants の決算で期の日付がずれている開示の補正・取り込まない開示の一覧と、新しい候補の WARNING。
 
 補正・除外するのは config/market/statement_period_fixes.json に載せた開示だけ（規則で自動に直さない）。
 """
@@ -18,6 +18,7 @@ from ..models import Statement
 PERIOD_COLUMNS = ("period_start", "period_end", "fiscal_year_start", "fiscal_year_end")
 LATE_DAYS = 300
 QUARTERS = ("1Q", "2Q", "3Q")
+YEAR_MONTHS = 12
 
 
 VALUE_COLUMNS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
@@ -28,6 +29,7 @@ class StatementFixes:
     periods: dict[str, date]
     dropped: frozenset[str]
     values: dict[str, dict[str, float]]
+    months: dict[str, int]
 
 
 def load_statement_fixes(path: Path | None = None) -> StatementFixes:
@@ -36,6 +38,7 @@ def load_statement_fixes(path: Path | None = None) -> StatementFixes:
     periods: dict[str, date] = {}
     dropped: set[str] = set()
     values: dict[str, dict[str, float]] = {}
+    months: dict[str, int] = {}
     for item in raw.get("fixes") or []:
         no = str(item["disclosure_no"]).strip()
         if no in periods or no in dropped or no in values:
@@ -49,12 +52,21 @@ def load_statement_fixes(path: Path | None = None) -> StatementFixes:
             values[no] = {k: float(v) for k, v in item["values"].items()}
         else:
             periods[no] = date.fromisoformat(item["period_end"])
-    return StatementFixes(periods, frozenset(dropped), values)
+            shift = item.get("months", YEAR_MONTHS)
+            if not isinstance(shift, int) or isinstance(shift, bool) or shift == 0:
+                raise ValueError(f"bad months in period fixes: {no} {shift!r}")
+            if shift != YEAR_MONTHS:
+                months[no] = shift
+    return StatementFixes(periods, frozenset(dropped), values, months)
 
 
 def load_period_fixes(path: Path | None = None) -> dict[str, date]:
     """開示番号 → J-Quants が返す誤った期末（CurPerEn）。drop の開示は含めない。重複は drop も含めて ValueError。"""
     return load_statement_fixes(path).periods
+
+
+def load_period_months(path: Path | None = None) -> dict[str, int]:
+    return load_statement_fixes(path).months
 
 
 def load_dropped_disclosures(path: Path | None = None) -> frozenset[str]:
@@ -68,6 +80,11 @@ def load_value_fixes(path: Path | None = None) -> dict[str, dict[str, float]]:
 @lru_cache(maxsize=1)
 def default_period_fixes() -> dict[str, date]:
     return load_period_fixes()
+
+
+@lru_cache(maxsize=1)
+def default_period_months() -> dict[str, int]:
+    return load_period_months()
 
 
 @lru_cache(maxsize=1)
@@ -85,16 +102,22 @@ def apply_value_fix(row: dict, fixes: dict[str, dict[str, float]] | None = None)
     return {**row, **found} if found else row
 
 
-def next_year(d: date | None) -> date | None:
-    """1 年あと。月末は翌年の同じ月の月末（2/28 → 2/29 も）。"""
+def shift_months(d: date | None, n: int) -> date | None:
     if d is None:
         return None
+    year, month = divmod(d.year * 12 + d.month - 1 + n, 12)
+    month += 1
+    last = calendar.monthrange(year, month)[1]
     month_end = d.day == calendar.monthrange(d.year, d.month)[1]
-    return d.replace(year=d.year + 1, day=calendar.monthrange(d.year + 1, d.month)[1] if month_end else d.day)
+    return date(year, month, last if month_end else min(d.day, last))
 
 
-def apply_period_fix(row: dict, fixes: dict[str, date]) -> dict:
-    """一覧にあり、期末が一覧の値と同じ行だけ 4 列を 1 年進める。期末が違えば WARNING を出して元のまま。"""
+def next_year(d: date | None) -> date | None:
+    return shift_months(d, YEAR_MONTHS)
+
+
+def apply_period_fix(row: dict, fixes: dict[str, date], months: dict[str, int] | None = None) -> dict:
+    """一覧にあり、期末が一覧の値と同じ行だけ 4 列を一覧の月数（既定 12）ずらす。期末が違えば WARNING を出して元のまま。"""
     recorded = fixes.get(row["disclosure_no"])
     if recorded is None:
         return row
@@ -106,7 +129,8 @@ def apply_period_fix(row: dict, fixes: dict[str, date]) -> dict:
             flush=True,
         )
         return row
-    return {**row, **{col: next_year(row[col]) for col in PERIOD_COLUMNS}}
+    shift = (default_period_months() if months is None else months).get(row["disclosure_no"], YEAR_MONTHS)
+    return {**row, **{col: shift_months(row[col], shift) for col in PERIOD_COLUMNS}}
 
 
 @dataclass(frozen=True)

@@ -512,7 +512,7 @@ deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP
 
 ### J-Quants の期の日付が 1 年前の開示を直す（KAB-454）
 
-取込は `config/market/statement_period_fixes.json` の開示だけ期の日付を 1 年進める（`docs/jobs/market.md`「日次バッチ」）。一覧を足したとき・初めて入れたときは、既存の `statements` の行を手で直す（`"drop": true` の開示は行を消す。`--write` の前に引数なしで出力を確かめる）。J-Quants は引き直さず、DB の `raw_json` から取込と同じ関数で行を作り、一覧の開示の期の 4 列だけ書く。ほかの列・ほかの行は触らない。
+取込は `config/market/statement_period_fixes.json` の開示だけ期の日付を 1 年進める（`months` のある開示はその月数ずらす。KAB-579。`docs/jobs/market.md`「日次バッチ」）。一覧を足したとき・初めて入れたときは、既存の `statements` の行を手で直す（`"drop": true` の開示は行を消す。`--write` の前に引数なしで出力を確かめる）。J-Quants は引き直さず、DB の `raw_json` から取込と同じ関数で行を作り、一覧の開示の期の 4 列だけ書く。ほかの列・ほかの行は触らない。
 
 日次の回の `WARNING jquants statements period-candidate`（#alerts-batch）は候補。短信の原本の期の印字（1 ページ目の「2026年9月期 第2四半期決算短信」など）で確かめ、期が 1 年前なら一覧に足す（開示番号・J-Quants が返す `CurPerEn`・根拠）。1 年後の出し直し（訂正）なら何もしない（同じ開示では二度と出ない）。`period-fix-mismatch` は J-Quants が直した印なので、その開示を一覧から外す。
 
