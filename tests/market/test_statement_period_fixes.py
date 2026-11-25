@@ -281,7 +281,7 @@ def test_fix_tool_drop(db, capsys) -> None:
     db.expire_all()
     assert db.get(Statement, DROPPED) is None
     assert db.get(Statement, "20250513546856") is not None
-    assert db.query(TdnetPdfDocument).count() == 0
+    assert db.get(TdnetPdfDocument, DROPPED) is not None
     assert [e.disclosed_date for e in db.query(EarningsEvent)] == [date(2025, 5, 13)]
     assert {p.disclosure_no: p.status for p in plan(db)}[DROPPED] == "missing"
     main(["--write"])

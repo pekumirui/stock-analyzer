@@ -1,8 +1,8 @@
 """config/market/statement_period_fixes.json の開示の期の日付を、DB の raw_json から作り直して直す。
 
 J-Quants は引き直さない。直すのは一覧にある開示の period_start / period_end / fiscal_year_start /
-fiscal_year_end だけ（ほかの列・ほかの行は触らない）。`"drop": true` の開示は statements の行と、その開示の
-tdnet_pdf_documents の行を消し、同じ銘柄・同じ開示日の statements がほかに無くなれば earnings_events の行も消す。
+fiscal_year_end だけ（ほかの列・ほかの行は触らない）。`"drop": true` の開示は statements の行を消し、
+同じ銘柄・同じ開示日の statements がほかに無くなれば earnings_events の行も消す。短信 PDF の本文は残す。
 既定は変わる行・消す行を出すだけ。
 
   python tools/market/fix_statement_periods.py               # 変わる行を出す（書かない）
@@ -32,7 +32,7 @@ from app.market.period_fixes import (
     default_period_fixes,
     period_candidates,
 )
-from app.models import EarningsEvent, Statement, TdnetPdfDocument
+from app.models import EarningsEvent, Statement
 from app.xbrl.statements import is_xbrl_raw
 
 
@@ -88,7 +88,6 @@ def plan(
 def _delete_dropped(db: Session, disclosure_no: str) -> None:
     st = db.get(Statement, disclosure_no)
     code, disclosed = st.code, st.disclosed_date
-    db.query(TdnetPdfDocument).filter(TdnetPdfDocument.disclosure_no == disclosure_no).delete()
     db.delete(st)
     db.flush()
     left = db.query(Statement.disclosure_no).filter(
