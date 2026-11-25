@@ -29,13 +29,13 @@ tools/formal/check.sh forecast_overlay FindingUnmarkedWithdrawal.cfg
 
 | cfg | 期待 | 意味 |
 |---|---|---|
-| `MCPerf.cfg` | `No error has been found`（139,411 distinct states） | 業績予想（1 項目で代表）の回帰検査 |
-| `MCDiv.cfg` | `No error has been found`（149,302 distinct states） | 年間配当予想の回帰検査 |
+| `MCPerf.cfg` | `No error has been found`（195,241 distinct states） | 業績予想（1 項目で代表）の回帰検査。空欄の訂正・予想修正の後の訂正も入れる |
+| `MCDiv.cfg` | `No error has been found`（222,142 distinct states） | 年間配当予想の回帰検査。空欄の訂正・予想修正の後の訂正も入れる |
 | `FindingOlderReportDividend.cfg` | `Matches` 違反 | 既知の不具合 1 |
 | `FindingStaleRevision.cfg` | `Matches` 違反 | 既知の不具合 2 |
-| `FindingBlankCorrection.cfg` | `Matches` 違反 | 既知の不具合 3 |
-| `FindingCorrectionAfterRevision.cfg` | `OrderIndependent` 違反（開示が別の日なら `Matches` 違反） | 既知の不具合 4 |
-| `FindingUnmarkedWithdrawal.cfg` | `Matches` 違反 | 既知の限界 5 |
+| `FindingBlankCorrection.cfg` | `No error has been found` | 直した不具合（KAB-555） |
+| `FindingCorrectionAfterRevision.cfg` | `No error has been found` | 直した不具合（KAB-567） |
+| `FindingUnmarkedWithdrawal.cfg` | `Matches` 違反 | 既知の限界 3 |
 
 Finding の cfg が通るようになったら、その不具合が直ったということ。直した変更の PR で、その cfg の期待を「違反なし」に書き換え、下の既知の不具合から外す。回帰検査に入れたいなら、`MC*.cfg` の対応する `Allow*` を `TRUE` にする。
 
@@ -47,7 +47,7 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 |---|---|
 | `seq` | 1 銘柄の `statements`。並びは本当に出た順 |
 | `kind = "report"` | `is_actual` が真（`type_of_document` に `FinancialStatements`） |
-| `form = "original"` / `"restate"` / `"blank"` | 最初の決算短信 / 同じ期の 2 本目（訂正）で予想の欄に元の短信の値を載せ直したもの / 予想の欄が空のもの |
+| `form = "original"` / `"restate"` / `"blank"` | 最初の決算短信 / 同じ期の 2 本目（訂正）で予想の欄に元の短信の値を載せ直したもの / 予想の欄が空のもの。コードでは同じ `(fiscal_year_end, type_of_period, type_of_document)` の 2 本目（区分 `correction`）で、前の版から変わった項目だけを上書きする。模型の訂正は値を変えないので、`CodeStep` では触れていない |
 | `q = 4` | 本決算。予想は来期（`NxF*`・`NxFDivAnn`）なので `Target` は翌年度 |
 | `kind = "revision"` | `is_actual` が偽で `is_quarter_flash_revision` が偽 |
 | `kind = "flash"` | `is_quarter_flash_revision` が真（1Q・3Q 型の `EarnForecastRevision`）。業績の欄は四半期の累計値 `"vq"` |
@@ -78,9 +78,7 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 
 1. **古い期の決算短信が配当予想を書き換える**（`FindingOlderReportDividend.cfg`、KAB-565）: 古い期の決算短信は業績の予想に使わないのに、年間配当予想だけはその短信の値（空なら未定）で上書きする。本番で、新しい期の短信の後に来た古い期の短信は 571 件・277 銘柄、うち 457 件が配当予想を持つ。93680 は配当予想が分割前の 60 円になる（正しくは 38 円）
 2. **終わった期の予想修正が来期の予想を書き換える**（`FindingStaleRevision.cfg`、KAB-566）: 本決算の後（または同じ時刻）に前期の予想修正が並ぶと、来期の予想がその値になる。本番で、同じ年度か後の年度の本決算の後に並んだ予想修正は 189 件・134 銘柄、うち 79 件が値を持つ。57410 は予想 EPS が 154.64 から 214.75 になり、次の 1Q 短信まで続く
-3. **訂正短信の空欄が未定になる**（`FindingBlankCorrection.cfg`、KAB-555）: 訂正短信で予想の欄が空だと、予想が消える
-4. **予想修正の後の訂正短信が修正前の予想に戻す**（`FindingCorrectionAfterRevision.cfg`、KAB-567）: 訂正短信は元の短信の予想を載せ直すので、間の予想修正が消える。本番で 45 件・44 銘柄、うち 20 件で値が違う。146A0 は 2025-11-27 から本決算までの 2 か月半、予想 EPS が 443.49 でなく 396.09
-5. **印の無い取り下げは前の値のまま**（`FindingUnmarkedWithdrawal.cfg`）: J-Quants の空欄は「触れていない」と「取り下げ」を見分けられないので、印（短信 XBRL か `config/market/forecast_withdrawals.json`）が無い取り下げは拾えない。仕様どおり（`docs/jobs/market.md`「予想の取り下げの印」）で、直すなら印を足す
+3. **印の無い取り下げは前の値のまま**（`FindingUnmarkedWithdrawal.cfg`）: J-Quants の空欄は「触れていない」と「取り下げ」を見分けられないので、印（短信 XBRL か `config/market/forecast_withdrawals.json`）が無い取り下げは拾えない。仕様どおり（`docs/jobs/market.md`「予想の取り下げの印」）で、直すなら印を足す
 
 ## 本物の不具合か、模型の誤りか
 
@@ -98,5 +96,5 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 ## 同期
 
 - 対象: `app/market/forecasts.py`、`app/market/withdrawals.py`、`app/market/analytics.py`（`is_actual`・`is_quarter_flash_revision`・`ORDER`）
-- 最後に模型とコードの一致を確かめたコミット: `fe91b8e`
-- `git log fe91b8e..HEAD -- app/market/forecasts.py app/market/withdrawals.py app/market/analytics.py` に何か出たら、模型を見直してから同期コミットを進める
+- 最後に模型とコードの一致を確かめたコミット: `c042729`
+- `git log c042729..HEAD -- app/market/forecasts.py app/market/withdrawals.py app/market/analytics.py` に何か出たら、模型を見直してから同期コミットを進める
