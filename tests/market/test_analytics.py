@@ -7,6 +7,7 @@ import sys
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -25,6 +26,7 @@ from app.market.analytics import (
     calendar_span,
     compute_earnings_events,
     cumulative_rows,
+    current_statement,
     disclosure_state,
     earnings_detail,
     find_statement,
@@ -554,3 +556,86 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def _blank_correction(of: Statement, no: str, disclosed: date) -> Statement:
+    row = _stmt(no, of.type_of_period, of.fiscal_year_end, disclosed, of.net_sales, doc=of.type_of_document)
+    row.eps = None
+    return row
+
+
+def test_current_row_and_forecast_survive_a_partial_correction() -> None:
+    q2_doc = "2QFinancialStatements_Consolidated_JP"
+    q2 = _stmt("c2q", "2Q", FY26, date(2025, 11, 1), 250, eps=175.13, fy_op=70, doc=q2_doc)
+    fix = _blank_correction(q2, "c2q-fix", date(2025, 11, 14))
+    hist = [*_hist()[:5], q2, fix]
+    if current_statement(hist, q2) is not q2:
+        _fail("report wrapped")
+    rows = cumulative_rows(hist, current_statement(hist, fix), 2, TOL)
+    cur = next(r for r in rows if r["kind"] == "actual_current")
+    fyf = next((r for r in rows if r["kind"] == "forecast_fy"), None)
+    if cur["values"]["eps"] != 175.13 or fyf is None or fyf["values"]["operating_profit"] != 70:
+        _fail(f"partial correction {cur['values']} {fyf}")
+    if fix.eps is not None or fix.fy_operating_profit is not None:
+        _fail("row was written")
+
+
+def test_next_year_forecast_survives_a_blank_annual_correction() -> None:
+    fy = _stmt("cfy", "FY", FY26, date(2026, 5, 1), 600)
+    fy.raw_json = json.dumps({"NxFOP": "90", "NxFSales": "700"})
+    fix = _blank_correction(fy, "cfy-fix", date(2026, 5, 20))
+    fix.eps = fy.eps
+    fix.raw_json = json.dumps({"NxFOP": "", "NxFSales": ""})
+    rows = cumulative_rows([fy, fix], current_statement([fy, fix], fix), 2, TOL)
+    fyf = next((r for r in rows if r["kind"] == "forecast_fy"), None)
+    if fyf is None or fyf["values"]["operating_profit"] != 90 or fyf["values"]["net_sales"] != 700:
+        _fail(f"annual correction {fyf}")
+
+
+def _list_row_of(s: Statement):
+    return SimpleNamespace(**{c.key: getattr(s, c.key) for c in Statement.__table__.columns
+                              if c.key not in ("raw_json", "source", "withdrawn_forecasts")}, gross_profit=None)
+
+
+def test_list_row_of_a_partial_correction_keeps_eps_and_forecast() -> None:
+    q2_doc = "2QFinancialStatements_Consolidated_JP"
+    q2 = _stmt("c2q", "2Q", FY26, date(2025, 11, 1), 250, eps=175.13, fy_op=70, doc=q2_doc)
+    fix = _blank_correction(q2, "c2q-fix", date(2025, 11, 14))
+    hist = [_list_row_of(s) for s in [*_hist()[:5], q2, fix]]
+    got = quarter_summary(None, hist[-1], hist=hist)
+    if got["cumulative"]["eps"] != 175.13 or got["forecast_fy"]["operating_profit"] != 70:
+        _fail(f"list row {got['cumulative']} {got['forecast_fy']}")
+    if got["progress"]["cur"]["operating_profit"] is None:
+        _fail(f"progress {got['progress']}")
+
+
+def test_correction_does_not_show_an_eps_computed_from_profit() -> None:
+    fy = _stmt("cfy", "FY", FY26, date(2026, 5, 1), 600)
+    fy.raw_json = json.dumps({"NxFOP": "90", "NxFNp": "50", "AvgSh": "10"})
+    later = _stmt("cfy2", "FY", FY26, date(2026, 10, 15), 650)
+    later.raw_json = json.dumps({"NxFOP": "95", "NxFNp": "60", "AvgSh": "10"})
+    rows = cumulative_rows([fy, later], current_statement([fy, later], later), 2, TOL)
+    fyf = next(r for r in rows if r["kind"] == "forecast_fy")
+    if fyf["values"]["eps"] is not None or fyf["values"]["operating_profit"] != 95:
+        _fail(f"computed eps {fyf['values']}")
+
+
+def test_detail_opens_the_newest_quarter_when_two_corrections_share_a_day() -> None:
+    init_db()
+    code = "38000"
+    db = SessionLocal()
+    try:
+        upsert(db, Stock, [{"code": code, "name": "同じ日の訂正", "product_category": "011"}])
+        day = date(2026, 11, 12)
+        rows = [("20261112576239", "1Q"), ("20261112576228", "2Q")]
+        upsert(db, Statement, [{"disclosure_no": no, "code": code, "disclosed_date": day, "disclosed_time": "16:15",
+                                "type_of_period": period, "fiscal_year_end": date(2027, 3, 31),
+                                "type_of_document": f"{period}FinancialStatements_Consolidated_JP",
+                                "net_sales": 100.0, "is_revision": False} for no, period in rows])
+    finally:
+        db.close()
+    c = TestClient(app)
+    for params in ({}, {"date": day.isoformat()}):
+        r = c.get(f"/api/earnings/detail/{code}", params=params)
+        if r.status_code != 200 or r.json()["period"] != "2Q":
+            _fail(f"{params} {r.status_code} {r.text[:200]}")

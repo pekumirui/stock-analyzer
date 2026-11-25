@@ -658,6 +658,27 @@ def carried_values(rows) -> tuple[dict, float]:
     return carried, scale
 
 
+def carried_fill(best, same_period) -> dict:
+    carried, scale = carried_values(same_period)
+    filled = {k: v for k, v in carried.items() if v is not None and getattr(best, k, None) is None}
+    if "eps" in filled:
+        filled["eps_scale"] = scale
+    return filled
+
+
+def current_statement(hist: list[Statement], stmt: Statement):
+    from .forecasts import correction_overrides
+
+    upto = disclosure_order(stmt)
+    others = [s for s in hist if s.disclosure_no != stmt.disclosure_no]
+    same_period = [s for s in others if disclosure_order(s) <= upto
+                   and s.fiscal_year_end == stmt.fiscal_year_end and report_kind(s) == report_kind(stmt)]
+    if not same_period:
+        return stmt
+    values = {**carried_fill(stmt, [*same_period, stmt]), **correction_overrides([*others, stmt], stmt)}
+    return CarriedStatement(stmt, values) if values else stmt
+
+
 def find_statement(hist: list[Statement], fy_end: date | None, period: str | None,
                    tol_days: int) -> Statement | None:
     """事業年度末が fy_end に最も近い(±tol_days)同一四半期の開示。
@@ -680,10 +701,7 @@ def find_statement(hist: list[Statement], fy_end: date | None, period: str | Non
     same_period = [s for s in cands
                    if s.fiscal_year_end == best.fiscal_year_end and s.type_of_period == best.type_of_period
                    and s.type_of_document == best.type_of_document]
-    carried, scale = carried_values(same_period)
-    filled = {k: v for k, v in carried.items() if v is not None and getattr(best, k, None) is None}
-    if "eps" in filled:
-        filled["eps_scale"] = scale
+    filled = carried_fill(best, same_period)
     first = min((s for s in cands if s.fiscal_year_end == best.fiscal_year_end and s.type_of_period == best.type_of_period),
                 key=disclosure_order)
     if first is not best:
@@ -990,6 +1008,7 @@ def earnings_detail(db: Session, stmt: Statement) -> dict:
     hist = statement_history(db, stmt.code, stmt.disclosed_date,
                              366 * (EP["cum_history_years"] + 1))
     attach_gross_profit(db, hist if stmt in hist else [*hist, stmt])
+    stmt = current_statement(hist, stmt)
     cum = cumulative_rows(hist, stmt, EP["cum_history_years"], tol)
     qtr = quarterly_rows(hist, stmt, EP["single_history_quarters"], tol)
     return {
@@ -1015,6 +1034,7 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
     if hist is None:
         hist = statement_history(db, stmt.code, stmt.disclosed_date, EP["list_history_days"])
         attach_gross_profit(db, hist if stmt in hist else [*hist, stmt])
+    stmt = current_statement(hist, stmt)
 
     cum = metrics(stmt)
     single = single_from(hist, stmt, tol)

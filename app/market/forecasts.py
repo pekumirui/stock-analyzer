@@ -108,7 +108,7 @@ def newest_keys(keys: ReportKeys, latest: ReportKeys | None) -> ReportKeys:
 
 def parse_raw(s) -> dict:
     try:
-        raw = json.loads(s.raw_json) if s.raw_json else {}
+        raw = json.loads(s.raw_json) if getattr(s, "raw_json", None) else {}
     except ValueError:
         return {}
     return raw if isinstance(raw, dict) else {}
@@ -193,6 +193,38 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
             state.update(sourced)
         out.append(ForecastPoint(s, raw, role, frozenset(found), dict(state), sourced))
     return out
+
+
+def stated_value(s, item: str) -> float | None:
+    if s is None:
+        return None
+    if is_actual(s) and (s.type_of_document or "").startswith("FY"):
+        return num(parse_raw(s), NEXT_KEYS[item])
+    return getattr(s, CURRENT_COLUMN_PREFIX + item, None)
+
+
+def correction_overrides(stmts: Iterable, stmt) -> dict[str, Any]:
+    upto = statement_order(stmt)
+    point = next((p for p in forecast_points([s for s in stmts if statement_order(s) <= upto])
+                  if p.statement is stmt), None)
+    if point is None or point.role != CORRECTION:
+        return {}
+    by_no = {s.disclosure_no: s for s in stmts}
+    own_scale = getattr(stmt, "fc_eps_scale", 1.0) or 1.0
+    values = {}
+    for item in FORECAST_ITEMS:
+        v = point.values[item]
+        source = by_no.get(v.disclosure_no)
+        if v.disclosure_no == stmt.disclosure_no or (v.value is not None and stated_value(source, item) is None):
+            continue
+        if v.value is not None and item == "eps":
+            values[item] = v.value * getattr(source, "fc_eps_scale", 1.0) / own_scale
+        else:
+            values[item] = v.value
+    if not (stmt.type_of_document or "").startswith("FY"):
+        return {CURRENT_COLUMN_PREFIX + item: v for item, v in values.items()}
+    raw = {**point.raw, **{NEXT_KEYS[item]: "" if v is None else str(v) for item, v in values.items()}}
+    return {"raw_json": json.dumps(raw)}
 
 
 def latest_forecast(points: list[ForecastPoint], item: str) -> Sourced:
