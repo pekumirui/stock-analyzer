@@ -111,7 +111,8 @@ def test_drop_config(tmp_path: Path) -> None:
             load_period_fixes(path)
         with pytest.raises(ValueError):
             load_dropped_disclosures(path)
-    assert default_dropped_disclosures() == frozenset({DROPPED})
+    assert DROPPED in default_dropped_disclosures()
+    assert len(default_dropped_disclosures()) == 14
     assert DROPPED not in load_period_fixes()
 
 
@@ -226,7 +227,7 @@ def test_fix_tool(db) -> None:
     db.commit()
     before_other = {c.key: getattr(db.get(Statement, "F1"), c.key) for c in Statement.__table__.columns}
     planned = {p.disclosure_no: p for p in plan(db)}
-    assert len(planned) == 25
+    assert len(planned) == 38
     assert planned["20240508585107"].status == "changed"
     assert "period_end=2023-03-31->2024-03-31" in planned["20240508585107"].line()
     assert planned["20260513530259"].status == "mismatch"
