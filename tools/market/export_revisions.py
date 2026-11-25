@@ -7,7 +7,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
-if __package__ in (None, ""):
+if __package__ in (None, "") and len(Path(__file__).resolve().parents) > 2:
     sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from sqlalchemy import create_engine, select, text
