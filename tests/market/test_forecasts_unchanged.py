@@ -14,7 +14,7 @@ from app.models import Statement
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "tests" / "golden" / "db"
-BEFORE = Path(__file__).resolve().parent / "testdata" / "forecasts_before_kab551.json"
+PINNED = Path(__file__).resolve().parent / "testdata" / "forecasts_pinned.json"
 FIELDS = ("disclosure_no", "disclosed_date", "disclosed_time", "type_of_period", "type_of_document",
           "fiscal_year_end", "net_sales", "operating_profit", "ordinary_profit", "profit", "eps", "is_revision")
 NUMBERS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
@@ -133,8 +133,8 @@ def outputs(stmts: list[Statement], days: list[date], factors: list[float]) -> d
             "dividend": _dividend_forecast(stmts, days, factors, withdrawn=no_withdrawals)}
 
 
-def test_without_marks_matches_the_outputs_before_kab551() -> None:
-    before = json.loads(BEFORE.read_text(encoding="utf-8"))
+def test_without_marks_matches_the_pinned_outputs() -> None:
+    before = json.loads(PINNED.read_text(encoding="utf-8"))
     golden = golden_inputs()
     assert sorted(golden) == sorted(before["golden"])
     for code, (rows, days, factors) in golden.items():

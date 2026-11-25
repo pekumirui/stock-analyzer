@@ -5,7 +5,7 @@ from datetime import date
 from types import SimpleNamespace
 
 from tests.market.jquants_columns import fy_columns
-from app.market.forecasts import IGNORED, REPORT, REVISION, forecast_points, latest_forecast
+from app.market.forecasts import IGNORED, REPORT, REVISION, STALE, Sourced, forecast_points, latest_forecast
 from app.market.withdrawals import no_withdrawals
 from app.models import Statement
 
@@ -259,3 +259,38 @@ def test_current_forecast_is_read_from_the_columns_when_raw_json_was_replaced() 
     assert _last([report, xbrl_row], withdrawn=no_withdrawals) == {
         "net_sales": 900, "operating_profit": -15, "ordinary_profit": 110, "profit": -50, "eps": -5.0,
         "div_annual": None}
+
+
+def test_older_period_report_does_not_touch_the_dividend() -> None:
+    newer = [
+        _st("1", "2026-05-12", "FY", FY26, NxFDivAnn=38),
+        _st("2", "2026-08-05", "1Q", FY27, FDivAnn=38),
+    ]
+    for late in (_st("3", "2026-10-29", "FY", date(2025, 3, 31), NxFDivAnn=60),
+                 _st("3", "2026-10-29", "2Q", FY26, FDivAnn=""),
+                 _st("3", "2026-10-29", "3Q", FY26, withdrawn=("div_annual",))):
+        p = forecast_points([*newer, late])[-1]
+        assert p.role == IGNORED and p.values["div_annual"] == Sourced(38, "2", date(2026, 8, 5))
+
+
+def test_revision_of_the_finished_year_does_not_touch_the_next_year_forecast() -> None:
+    report = _st("1", "2026-05-14", "FY", FY26, NxFSales=1000, NxFEPS=154.64, NxFDivAnn=40)
+    stale = _rev("2", "2026-05-14", fy_end=FY26, FSales=900, FEPS=214.75, FDivAnn=50)
+    for no in ("0", "2"):
+        stale.disclosure_no = no
+        points = forecast_points([report, stale])
+        assert _values(points[-1]) == {"net_sales": 1000, "operating_profit": None, "ordinary_profit": None,
+                                       "profit": None, "eps": 154.64, "div_annual": 40}
+    assert points[-1].role == STALE and points[-1].stated["eps"].value == 214.75
+    withdrawn = _rev("2", "2026-06-01", fy_end=FY26, withdrawn=ALL)
+    assert _last([report, withdrawn])["eps"] == 154.64
+
+
+def test_revision_of_the_current_year_after_a_quarter_is_used() -> None:
+    stmts = [
+        _st("1", "2026-08-05", "1Q", FY27, FEPS=8),
+        _rev("2", "2026-09-01", fy_end=FY26, FEPS=1),
+        _rev("3", "2026-09-02", fy_end=FY27, FEPS=9),
+    ]
+    assert [p.role for p in forecast_points(stmts)] == [REPORT, STALE, REVISION]
+    assert _last(stmts)["eps"] == 9
