@@ -1,6 +1,6 @@
-"""J-Quants の決算で期の日付が 1 年前になっている開示の補正と、新しい候補の WARNING。
+"""J-Quants の決算で期の日付が 1 年前になっている開示の補正・取り込まない開示の一覧と、新しい候補の WARNING。
 
-補正するのは config/market/statement_period_fixes.json に載せた開示だけ（規則で自動に直さない）。
+補正・除外するのは config/market/statement_period_fixes.json に載せた開示だけ（規則で自動に直さない）。
 """
 import calendar
 import json
@@ -20,22 +20,39 @@ LATE_DAYS = 300
 QUARTERS = ("1Q", "2Q", "3Q")
 
 
-def load_period_fixes(path: Path | None = None) -> dict[str, date]:
-    """開示番号 → J-Quants が返す誤った期末（CurPerEn）。重複は ValueError。"""
+def _load_items(path: Path | None) -> tuple[dict[str, date], frozenset[str]]:
     src = STATEMENT_PERIOD_FIXES_PATH if path is None else path
     raw = json.loads(src.read_text(encoding="utf-8"))
-    out: dict[str, date] = {}
+    fixes: dict[str, date] = {}
+    dropped: set[str] = set()
     for item in raw.get("fixes") or []:
         no = str(item["disclosure_no"]).strip()
-        if no in out:
+        if no in fixes or no in dropped:
             raise ValueError(f"duplicate disclosure_no in period fixes: {no}")
-        out[no] = date.fromisoformat(item["period_end"])
-    return out
+        if item.get("drop") is True:
+            dropped.add(no)
+        else:
+            fixes[no] = date.fromisoformat(item["period_end"])
+    return fixes, frozenset(dropped)
+
+
+def load_period_fixes(path: Path | None = None) -> dict[str, date]:
+    """開示番号 → J-Quants が返す誤った期末（CurPerEn）。drop の開示は含めない。重複は drop も含めて ValueError。"""
+    return _load_items(path)[0]
+
+
+def load_dropped_disclosures(path: Path | None = None) -> frozenset[str]:
+    return _load_items(path)[1]
 
 
 @lru_cache(maxsize=1)
 def default_period_fixes() -> dict[str, date]:
     return load_period_fixes()
+
+
+@lru_cache(maxsize=1)
+def default_dropped_disclosures() -> frozenset[str]:
+    return load_dropped_disclosures()
 
 
 def next_year(d: date | None) -> date | None:
