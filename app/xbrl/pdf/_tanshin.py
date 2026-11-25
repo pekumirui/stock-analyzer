@@ -65,6 +65,7 @@ _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _DIV_SLOT_SUFFIX = re.compile(r"(第[123]四半期末|中間期末|期末|(年間)?合計)$")
 _NUMERIC_ITEM = re.compile(r"\d")
 _ONE_YEAR_LEAD = re.compile(r"^1年以?内")
+_TERM_IN_LABEL = re.compile(r"\d+(?:[ヶケかカ箇]月|年)(?:超|以内|以上|内|未満)|第\d+条")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
     r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想|前回予想|今回予想"
@@ -82,6 +83,12 @@ _BS_SUBCLASS = re.compile(
     r"^(有形固定資産|無形固定資産|投資その他の資産|繰延資産|特別法上の準備金|その他の包括利益累計額|評価・換算差額等)$"
 )
 _TOTAL_WRAP = re.compile(r"^(合計|小計|計|累計額)")
+_BS_ONLY_HEAD = re.compile(
+    r"^(負債及び資本|親会社の所有者に帰属する持分|資本剰余金|利益剰余金|その他利益剰余金|\([^()]*の部\))$"
+)
+_BS_DASH = frozenset({"─", "‐"})
+_BS_NOTE_PREFIX = re.compile(r"^注\d+\.")
+_BS_GRAND_TOTAL = re.compile(r"^負債(及び|・)?(純資産|資本)(の部)?(合計|計)$")
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
 # 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
@@ -1016,7 +1023,7 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         body = lines[index + 1:end]
         if spec.name in _STATEMENTS:
             body = _statement_body(body)
-        candidates.append((spec, _table_lines(body), consolidated, text))
+        candidates.append((spec, _table_lines(body, bs=spec.namespace is NS_BS), consolidated, text))
     blocks: list[tuple[SectionSpec, list[Line], bool, str]] = []
     taken: set[str] = set()
     has_income_pl = any(
@@ -1080,8 +1087,18 @@ def _wraps_into_total(rest: list[Line]) -> bool:
     return nxt is not None and bool(_TOTAL_WRAP.match(_compact(nxt.text)))
 
 
-def _table_lines(lines: list[Line]) -> list[Line]:
+def _bs_dash_cells(line: Line) -> Line:
+    if not any(word.text.strip() in _BS_DASH for word in line.words):
+        return line
+    return replace(line, words=tuple(
+        replace(word, text="－") if word.text.strip() in _BS_DASH else word for word in line.words
+    ))
+
+
+def _table_lines(lines: list[Line], *, bs: bool = False) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
+    if bs:
+        lines = [_bs_dash_cells(line) for line in lines]
     kept: list[Line] = []
     for index, line in enumerate(lines):
         compact = _compact(line.text)
@@ -1098,6 +1115,11 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _BS_SUBCLASS.fullmatch(compact) and not split_amounts(line)[1] and not _wraps_into_total(lines[index + 1:]):
             continue
         if _BREAKDOWN.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if (
+            bs and _BS_ONLY_HEAD.fullmatch(compact) and not split_amounts(line)[1]
+            and not _wraps_into_total(lines[index + 1:])
+        ):
             continue
         if _attr_class_heading(line, lines[index + 1:]):
             continue
@@ -1254,16 +1276,20 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                 hint = title_hint
         for chunk in _split_grids(lines):
             try:
-                table = grid(chunk)
+                table = grid(chunk, label_below=spec.namespace is NS_BS)
             except PdfLayoutError:
                 continue
             # サマリーの表は表ごとにためる。同じ科目・同じ期に違う値が 2 つ出たら、どの行が正しいか
             # 分からない（期の読み違い）ので、どちらも入れない。
             pending: list[tuple[ParsedFact, str]] = []
+            closed = False
             column_roles = _statement_roles(table, spec, d) if spec.axis is Axis.ITEM_ROWS else None
             per_share_above = False
             for row in table.rows:
                 row_label = _compact(row.label)
+                if closed:
+                    break
+                closed = spec.namespace is NS_BS and bool(_BS_GRAND_TOTAL.fullmatch(label_key(row.label)))
                 per_share_row = column_roles is not None and per_share_above and bool(
                     _PER_SHARE_SIBLING.fullmatch(row_label)
                 )
@@ -1296,6 +1322,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         # 「１株当たり配当金」は上の 1 列にしか載らないので、ほかの時点列はここで決める。
                         unit = UnitKind.PER_SHARE
                     base_local = label_key(item_text)
+                    if spec.namespace is NS_BS:
+                        base_local = _BS_NOTE_PREFIX.sub("", base_local)
                     if spec.namespace is NS_SUMMARY:
                         base_local = re.sub(r"^(連結|個別)", "", base_local)
                     if not base_local:
@@ -1303,7 +1331,10 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     if spec.name in {"fc_rev", "div_rev"} and "ForecastMember" not in role.members:
                         # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
-                    if _NUMERIC_ITEM.search(_ONE_YEAR_LEAD.sub("", base_local)) and "株" not in base_local:
+                    numeric_base = _ONE_YEAR_LEAD.sub("", base_local)
+                    if spec.namespace is NS_BS:
+                        numeric_base = _TERM_IN_LABEL.sub("", numeric_base)
+                    if _NUMERIC_ITEM.search(numeric_base) and "株" not in base_local:
                         continue
                     if unit is UnitKind.PERCENT and "率" not in base_local:
                         continue

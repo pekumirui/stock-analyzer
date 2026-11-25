@@ -105,6 +105,8 @@ _HEADER_ROW_LABEL = re.compile(r"^(前回|今回|増減|前期実績)")
 # 数値の下にずれた行名（松井の配当通知。KAB-237）。上の次の行の見出しにはしない。
 _UNDER_ROW = re.compile(r"^(前回|今回|実績)")
 
+_LABEL_BELOW_RATIO = 1.5
+
 
 def _is_row_role(compact: str) -> bool:
     """前回/今回/増減額(B-A) は新しい行。CF の「増減額（△は減少）」は前の行の続き。"""
@@ -630,7 +632,7 @@ def _unit_note(lines: list[Line]) -> str | None:
     return None
 
 
-def grid(lines: list[Line]) -> Grid:
+def grid(lines: list[Line], *, label_below: bool = False) -> Grid:
     parsed = [(line, *split_amounts(line)) for line in lines]
     numeric = [index for index, (_, _, amounts) in enumerate(parsed) if amounts]
     if not numeric:
@@ -777,6 +779,21 @@ def grid(lines: list[Line]) -> Grid:
                     parsed[next_num][0].base - line.base
                 ):
                     rows[-1] = GridRow(f"{rows[-1].label}{label_text}", rows[-1].cells)
+                    value_only = False
+                    continue
+            if (
+                label_below
+                and rows
+                and not pending
+                and not rows[-1].label.strip()
+                and last_numeric_y is not None
+                and is_hanging_label(index)
+            ):
+                next_num = next((j for j in range(index + 1, len(parsed)) if parsed[j][2]), None)
+                if next_num is not None and abs(line.base - last_numeric_y) * _LABEL_BELOW_RATIO < abs(
+                    parsed[next_num][0].base - line.base
+                ):
+                    rows[-1] = GridRow(label_text, rows[-1].cells)
                     value_only = False
                     continue
             if rows and not pending and not _is_row_role(compact_line) and (
