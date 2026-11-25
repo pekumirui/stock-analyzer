@@ -492,7 +492,7 @@ python jobs/xbrl/xbrl_parse.py load-mappings
 
 TDnet の ZIP は `2026-08-10` 以降しか手元に無く、TDnet 上でも約 1 か月で消える。それ以前の原文は、IR BANK が保管する TDnet 開示 PDF（`https://api.irbank.net/api/market-files/v1/tdnet/{docID}.pdf`、認証なし、`statements.disclosure_no` ＝ TDnet docID ＝ IR BANK `doc_id` の 14 桁番号、TDnet ZIP 名は `0812`＋14 桁）から SVG ベースの HTML に変換して `tdnet_pdf_documents` に入れる（KAB-164・KAB-169）。
 
-#### 変換の仕組み（`tools/tdnet_pdf/convert.py`）
+#### 変換の仕組み（`app/xbrl/pdf/convert.py`）
 
 PDF から SVG ベース HTML への変換仕様は以下のとおりである。
 
@@ -501,14 +501,14 @@ PDF から SVG ベース HTML への変換仕様は以下のとおりである�
 - ベースライン差が `1pt` 以内の文字を 1 行にまとめ、左から並べて字間が `1.2pt` を超えるか、書式（フォント種別・太字・色）が変わるか、フォントサイズ差が `0.05pt` 以上になれば語を切る。語幅は `textLength`（`lengthAdjust="spacingAndGlyphs"`）で合わせ、フォント名に `gothic`・`sans` 等があれば `sans-serif`（他は `serif`）、太さ `600` 以上または `bold`・`W6`〜`W9` 等があれば太字にする。図形は Form XObject の入れ子（`8` 段まで）の行列を掛け合わせ、白塗り線なしを除き SVG の `<path>` にする。題名は 1 ページ目で `決算短信`・`業績予想`・`お知らせ` 等を含む最初の行とする。
 - 文字の大きさは pdfium のフォントサイズに文字の行列（テキスト行列 × CTM）の縦の拡大率を掛けた値にする（`"svg3"`、KAB-572）。`"svg2"` はフォントサイズだけを使っていたので、`1pt` を行列で `11` 倍する PDF（ニッスイ `20250521559959` など）は字が高さ `1pt` の横線になり、ページを `0.75`〜`0.88` 倍に縮める PDF は字が縦に伸びていた。文字・座標・語幅は変わらず、拡大率が語の途中で変わる行だけ語の切れ目が増える。
 
-#### 取込バッチ（`tools/tdnet_pdf/ingest.py`）
+#### 取込バッチ（`jobs/xbrl/tdnet_pdf_ingest.py`）
 
 取込スクリプトの実行仕様は以下のとおりである。
 
 - `--code`（複数可）または `--all` で指定した `stocks` 登録銘柄の `statements` のうち、`xbrl_documents`（ZIP 名末尾 14 桁）にも `tdnet_pdf_documents` の `'ok'`・`'missing'` にも無い開示を新しい順に処理する（`'failed'` は `--retry-failed` 時のみ対象、VPS で銘柄指定により実行）。
 - `--sleep`（既定 `1` 秒）間隔・上限 `--limit` 件で 1 件ずつ取得・変換・コミットする。IR BANK が `429`・`503` を返せば終了コード `0` で停止し、`/Linearized` の `/L` より短い途中切れ PDF（`79520` の `20260212556420` など）は `'failed'`（`truncated pdf`）にする。最終行は `tdnet_pdf stopped=<done|limit|rate_limited> ok=... missing=... failed=... remaining=...` を出力する（`--dry-run` は件数と先頭 10 件のみ）。
 - IR BANK の PDF は 1 日 `200` 件まで（`x-ratelimit-limit: 200`、超えると `429` と `retry-after` が約 1 日）。
-- `--redo FILE`（開示番号を 1 行 1 つ）は、一覧のうち `converter` が今の版でない回を取り直して上書きする（KAB-572）。取り直しが `404` や失敗でも既存の行は書き換えない。字が横線になった `"svg2"` の回の一覧は `python tools/tdnet_pdf/tiny_text.py --db stock.db`（読むだけ）が出す。語の `textLength` が字数 × 文字の大きさの `3` 倍を超える語が `1%` 以上ある回を出す。縦に伸びた回は HTML からは見分けられないので一覧に入らない。
+- `--redo FILE`（開示番号を 1 行 1 つ）は、一覧のうち `converter` が今の版でない回を取り直して上書きする（KAB-572）。取り直しが `404` や失敗でも既存の行は書き換えない。字が横線になった `"svg2"` の回の一覧は `python tools/tdnet_pdf/tiny_text.py --db stock.db`（読むだけ）が出す。語の `textLength` が字数 × 文字の大きさの `3` 倍を超える語が `1%` 以上ある回を出す。縦に伸びた回は HTML からは見分けられないので一覧に入らない。本番の 7,181 件を `config/xbrl/tdnet_pdf_redo.txt` に置き、cron が毎晩 02:20 に `--limit 190` で取り直す（約 38 日。終わったら cron の行と一覧を消す）。
 
 ### 短信 PDF の数値
 

@@ -6,12 +6,12 @@
 この表に ok / missing で入っている回。1 件ごとに --sleep 秒あける。IR BANK が 429 / 503 を返したら
 上限とみなしてそこで止める（終了コード 0）。1 件ごとに commit するので、途中で止めても続きから再開できる。
 
-  python tools/tdnet_pdf/ingest.py --code 5933 --code 7203
-  python tools/tdnet_pdf/ingest.py --code 5933 --limit 50 --sleep 2
-  python tools/tdnet_pdf/ingest.py --all --limit 1000
-  python tools/tdnet_pdf/ingest.py --code 5933 --dry-run       # 対象の件数と先頭だけ。取りに行かない
-  python tools/tdnet_pdf/ingest.py --code 5933 --retry-failed  # failed も取り直す
-  python tools/tdnet_pdf/ingest.py --redo nos.txt              # 一覧の回を今の変換器で変換し直す（KAB-572）
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --code 7203
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --limit 50 --sleep 2
+  python jobs/xbrl/tdnet_pdf_ingest.py --all --limit 1000
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --dry-run       # 対象の件数と先頭だけ。取りに行かない
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --retry-failed  # failed も取り直す
+  python jobs/xbrl/tdnet_pdf_ingest.py --redo nos.txt              # 一覧の回を今の変換器で変換し直す（KAB-572）
 
 最後に 1 行: tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…
 remaining は実行後に targets() を取り直した件数。failed（この実行で failed にした件数）とは別で、
@@ -39,7 +39,7 @@ from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, run_sqlite_write
 from app.models import Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
+from app.xbrl.pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/tdnet_pdf)"

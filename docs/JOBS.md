@@ -13,7 +13,7 @@
 |---|---|---|
 | [株価・決算](jobs/gen/market.md) | `briefing_offsite`, `homepage_briefing`, `intraday_1m`, `pts_snapshot`, `run_batch`, `tanshin_covers`, `tdnet_briefing_r2` | `briefing_extract`, `check_demo`, `homepages` |
 | [月次](jobs/gen/monthly.md) | `ir_monthly_html_ingest`, `ir_monthly_html_r2`, `ir_monthly_json_ingest`, `ir_monthly_r2`, `ir_monthly_xls_ingest`, `tdnet_monthly_pdf_ingest`, `tdnet_monthly_pdf_sidecar`, `tdnet_monthly_r2` | `monthly_names` |
-| [XBRL・決算書類](jobs/gen/xbrl.md) | `tdnet_xbrl_r2`, `xbrl_normalize`, `xbrl_parse`, `xbrl_statements` | `xbrl_presentation` |
+| [XBRL・決算書類](jobs/gen/xbrl.md) | `tdnet_pdf_ingest`, `tdnet_xbrl_r2`, `xbrl_normalize`, `xbrl_parse`, `xbrl_statements` | `xbrl_presentation` |
 | [EDINET・大量保有](jobs/gen/edinet.md) | `edinet_archive`, `edinet_buybacks`, `edinet_codes`, `edinet_documents`, `edinet_large_holdings`, `edinet_tender_offers`, `edinet_xbrl` | `edinet_shareholders` |
 | [サプライ](jobs/gen/supply.md) | `material_stats` |  |
 | [共通・運用](jobs/gen/common.md) | `fx_rates`, `backup_data`, `backup_db`, `vps_packages_r2` | `golden_db`, `migrate`, `migrate_r2_share`, `rebuild_daily_prices` |
@@ -59,6 +59,7 @@ gantt
   tdnet_monthly_pdf_sidecar :milestone, 21:20, 0m
   tdnet_monthly_pdf_ingest :milestone, 21:30, 0m
   section XBRL・決算書類
+  tdnet_pdf_ingest :milestone, 02:20, 0m
   tdnet_xbrl_r2 毎時 00 分 続き 1/7 :12:00, 23:00
   xbrl_parse 毎時 00 分 続き 2/7 :12:00, 23:00
   xbrl_normalize 毎時 00 分 続き 3/7 :12:00, 23:00
@@ -106,6 +107,7 @@ gantt
 | `monthly/tdnet_monthly_pdf_ingest` | 月次 | 毎日 18:30<br>毎日 21:30 | `--ledger /var/log/app/pdf_ingest_ledger.json` |
 | `monthly/tdnet_monthly_pdf_sidecar` | 月次 | 毎日 18:20<br>毎日 21:20 |  |
 | `monthly/tdnet_monthly_r2` | 月次 | 毎日 18:00<br>毎日 21:00 | `7` |
+| `xbrl/tdnet_pdf_ingest` | XBRL・決算書類 | 毎日 02:20 | `--redo config/xbrl/tdnet_pdf_redo.txt --limit 190` |
 | `xbrl/tdnet_xbrl_r2` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 | `2` |
 | `xbrl/xbrl_normalize` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  |
 | `xbrl/xbrl_parse` | XBRL・決算書類 | 毎日 12〜23 時の毎時 00 分 |  |

@@ -36,6 +36,7 @@
   "jobs/ops/rebuild_daily_prices.py",
   "jobs/ops/vps_packages_r2.py",
   "jobs/supply/material_stats.py",
+  "jobs/xbrl/tdnet_pdf_ingest.py",
   "jobs/xbrl/tdnet_xbrl_r2.py",
   "jobs/xbrl/xbrl_normalize.py",
   "jobs/xbrl/xbrl_parse.py",
@@ -452,6 +453,19 @@
    "rw": {
     "material_monthly": "W",
     "material_trade_country": "W"
+   },
+   "calls": []
+  },
+  {
+   "name": "jobs/xbrl/tdnet_pdf_ingest.py",
+   "kind": "job",
+   "domain": "xbrl",
+   "rw": {
+    "statements": "R",
+    "stocks": "R",
+    "tdnet_pdf_documents": "W",
+    "xbrl_documents": "R",
+    "xbrl_filings": "R"
    },
    "calls": []
   },

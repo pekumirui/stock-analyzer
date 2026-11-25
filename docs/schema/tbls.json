@@ -4815,7 +4815,7 @@
      "type": "VARCHAR(16)",
      "nullable": true,
      "default": null,
-     "comment": "変換器の版（tools/tdnet_pdf/convert.py CONVERTER）"
+     "comment": "変換器の版（app/xbrl/pdf/convert.py CONVERTER）"
     },
     {
      "name": "created_at",

@@ -7,7 +7,7 @@ from app.db import SessionLocal
 from app.models import Statement, Stock, XbrlFiling
 from app.xbrl.pdf import SyncOutcome, sync_pdf_filing
 from tests.xbrl.test_tdnet_pdf_kab212_220 import _cell, _pages, _seed, _stock, _text
-from tools.tdnet_pdf import ingest
+from jobs.xbrl import tdnet_pdf_ingest as ingest
 
 HTML = _pages([_text(40, 40, "連結貸借対照表", 120), _cell(200, 80, "1,000", 40)])
 

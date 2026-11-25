@@ -943,7 +943,7 @@ def test_formula_note_is_not_eps_header() -> None:
         _fail(f"formula glued {facts}")
 
 
-# KAB-216 の残りと KAB-223。座標は実 PDF（tools/tdnet_pdf/convert.py の出力）から写した。
+# KAB-216 の残りと KAB-223。座標は実 PDF（app/xbrl/pdf/convert.py の出力）から写した。
 # #1071 は列見出しの付け直しと上段の見出しのコピーで直そうとして本表を落とした（revert #1082）。
 # 「回帰（#1071 原因 n）」のテストはその 3 つの誤りを繰り返さないためのもの。#1071 の _layout では落ちる。
 

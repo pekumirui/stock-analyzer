@@ -20,15 +20,18 @@ flowchart LR
   n5["monthly/ir_monthly_json_ingest"]:::ext
   n6["monthly/ir_monthly_xls_ingest"]:::ext
   n7["monthly/tdnet_monthly_pdf_ingest"]:::ext
-  n8["xbrl/xbrl_parse"]:::ext
+  n8["xbrl/tdnet_pdf_ingest"]:::ext
+  n9["xbrl/xbrl_parse"]:::ext
   n0 -->|"xbrl_filings"| n3
   n2 -->|"statements"| n4
   n2 -->|"statements"| n5
   n2 -->|"statements"| n6
   n2 -->|"statements"| n7
   n2 -->|"statements"| n8
+  n2 -->|"statements"| n9
   n3 -->|"tanshin_covers"| n1
-  n8 -->|"xbrl_documents<br>xbrl_filings"| n3
+  n8 -->|"tdnet_pdf_documents"| n3
+  n9 -->|"xbrl_documents<br>xbrl_filings"| n3
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```

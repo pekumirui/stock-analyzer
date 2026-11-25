@@ -517,8 +517,8 @@ def _fetch_main(args: argparse.Namespace) -> int:
     sys.path.insert(0, str(ROOT))
     import httpx
 
-    from tools.tdnet_pdf.convert import convert_pdf
-    from tools.tdnet_pdf.ingest import fetch_pdf
+    from app.xbrl.pdf.convert import convert_pdf
+    from jobs.xbrl.tdnet_pdf_ingest import fetch_pdf
 
     out_dir = Path(args.html_dir[0])
     out_dir.mkdir(parents=True, exist_ok=True)

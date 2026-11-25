@@ -1,6 +1,6 @@
 """短信 PDF の HTML（tdnet_pdf_documents）→ xbrl_filings(source='tdnet_pdf') → xbrl_financials（KAB-173）。
 
-cron では動かさない。tools/tdnet_pdf/ingest.py で過去の短信 PDF を入れたあとに手で流す（新しい短信は
+cron では動かさない。jobs/xbrl/tdnet_pdf_ingest.py で過去の短信 PDF を入れたあとに手で流す（新しい短信は
 TDnet の ZIP があり、ingest は PDF を取らない）。取り込み済みの回は飛ばすので何度流してもよい。
 
   python tools/tdnet_pdf/financials.py --limit 100000

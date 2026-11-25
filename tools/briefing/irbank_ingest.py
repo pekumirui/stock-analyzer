@@ -2,7 +2,7 @@
 """IR BANK が保管する過去の決算説明資料 PDF を data/briefing へ一度だけ取る（KAB-330）。
 
 TDnet は約 30 日で開示を消す。毎日の分は jobs/market/tdnet_briefing_r2.py（cron 22:10）が取る。
-このツールは cron に入れない。止め方は tools/tdnet_pdf/ingest.py と同じ。
+このツールは cron に入れない。止め方は jobs/xbrl/tdnet_pdf_ingest.py と同じ。
 
 会社ごとの開示一覧 https://irbank.net/{4桁}/ir を読む。読み終えた社は次回飛ばす（--rescan のときは読み直す）。表題は
 app.market.briefing_title.is_material_title。PDF は

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tools.tdnet_pdf.convert import CONVERTER
+from app.xbrl.pdf.convert import CONVERTER
 
 _TEXT = re.compile(r'font-size="([\d.]+)"[^>]*textLength="([\d.]+)"[^>]*>([^<]*)</text>')
 STRETCH = 3.0

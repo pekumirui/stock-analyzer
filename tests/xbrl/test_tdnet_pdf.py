@@ -9,8 +9,9 @@ import httpx
 
 from app.db import SessionLocal
 from app.models import Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
-from tools.tdnet_pdf import ingest, tiny_text
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
+from jobs.xbrl import tdnet_pdf_ingest as ingest
+from tools.tdnet_pdf import tiny_text
+from app.xbrl.pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 
 def make_pdf(title: str = "Financial Results FY2025", value: str = "1,234") -> bytes:
@@ -352,5 +353,5 @@ def test_cli_does_not_create_tables() -> None:
     """表はデプロイの migrate が作る。ツールは作らず、無ければ落ちる（KAB-165）。"""
     from pathlib import Path
 
-    src = (Path(__file__).resolve().parents[2] / "tools/tdnet_pdf/ingest.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[2] / "jobs/xbrl/tdnet_pdf_ingest.py").read_text(encoding="utf-8")
     assert "init_db" not in src and "create_all" not in src

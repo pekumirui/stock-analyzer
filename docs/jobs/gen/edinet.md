@@ -20,9 +20,10 @@ flowchart LR
   n5["edinet/edinet_tender_offers"]:::own
   n6["edinet/edinet_xbrl"]:::own
   n7["market/tanshin_covers"]:::ext
-  n8["xbrl/xbrl_normalize"]:::ext
-  n9["xbrl/xbrl_parse"]:::ext
-  n10["xbrl/xbrl_statements"]:::ext
+  n8["xbrl/tdnet_pdf_ingest"]:::ext
+  n9["xbrl/xbrl_normalize"]:::ext
+  n10["xbrl/xbrl_parse"]:::ext
+  n11["xbrl/xbrl_statements"]:::ext
   n1 -->|"edinet_buybacks"| n0
   n2 -->|"edinet_documents"| n0
   n2 -->|"edinet_documents<br>edinet_filers"| n1
@@ -30,22 +31,23 @@ flowchart LR
   n2 -->|"edinet_documents<br>edinet_filers"| n4
   n2 -->|"edinet_documents<br>edinet_filers"| n5
   n2 -->|"edinet_documents"| n6
-  n2 -->|"edinet_documents"| n8
+  n2 -->|"edinet_documents"| n9
   n3 -->|"edinet_documents"| n0
   n3 -->|"edinet_documents"| n1
   n3 -->|"edinet_documents"| n4
   n3 -->|"edinet_documents"| n5
   n3 -->|"edinet_documents"| n6
-  n3 -->|"edinet_documents"| n8
+  n3 -->|"edinet_documents"| n9
   n4 -->|"large_holding_reports"| n0
   n5 -->|"edinet_tender_offer_docs"| n0
   n6 -->|"xbrl_filings"| n0
   n6 -->|"xbrl_filings"| n7
-  n6 -->|"xbrl_contexts<br>xbrl_elements<br>ほか 2"| n8
-  n6 -->|"xbrl_filings<br>xbrl_financials"| n10
-  n8 -->|"xbrl_element_mappings<br>xbrl_std_items"| n6
-  n9 -->|"xbrl_filings"| n0
+  n6 -->|"xbrl_filings"| n8
+  n6 -->|"xbrl_contexts<br>xbrl_elements<br>ほか 2"| n9
+  n6 -->|"xbrl_filings<br>xbrl_financials"| n11
   n9 -->|"xbrl_element_mappings<br>xbrl_std_items"| n6
+  n10 -->|"xbrl_filings"| n0
+  n10 -->|"xbrl_element_mappings<br>xbrl_std_items"| n6
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
