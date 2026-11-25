@@ -670,11 +670,12 @@ def current_statement(hist: list[Statement], stmt: Statement):
     from .forecasts import correction_overrides
 
     upto = disclosure_order(stmt)
-    same_period = [s for s in hist if s is not stmt and disclosure_order(s) <= upto
+    others = [s for s in hist if s.disclosure_no != stmt.disclosure_no]
+    same_period = [s for s in others if disclosure_order(s) <= upto
                    and s.fiscal_year_end == stmt.fiscal_year_end and report_kind(s) == report_kind(stmt)]
     if not same_period:
         return stmt
-    values = {**carried_fill(stmt, [*same_period, stmt]), **correction_overrides([*hist, stmt] if stmt not in hist else hist, stmt)}
+    values = {**carried_fill(stmt, [*same_period, stmt]), **correction_overrides([*others, stmt], stmt)}
     return CarriedStatement(stmt, values) if values else stmt
 
 
@@ -1033,6 +1034,7 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
     if hist is None:
         hist = statement_history(db, stmt.code, stmt.disclosed_date, EP["list_history_days"])
         attach_gross_profit(db, hist if stmt in hist else [*hist, stmt])
+    stmt = current_statement(hist, stmt)
 
     cum = metrics(stmt)
     single = single_from(hist, stmt, tol)

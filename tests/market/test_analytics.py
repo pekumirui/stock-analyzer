@@ -7,6 +7,7 @@ import sys
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -589,3 +590,20 @@ def test_next_year_forecast_survives_a_blank_annual_correction() -> None:
     fyf = next((r for r in rows if r["kind"] == "forecast_fy"), None)
     if fyf is None or fyf["values"]["operating_profit"] != 90 or fyf["values"]["net_sales"] != 700:
         _fail(f"annual correction {fyf}")
+
+
+def _list_row_of(s: Statement):
+    return SimpleNamespace(**{c.key: getattr(s, c.key) for c in Statement.__table__.columns
+                              if c.key not in ("raw_json", "source", "withdrawn_forecasts")}, gross_profit=None)
+
+
+def test_list_row_of_a_partial_correction_keeps_eps_and_forecast() -> None:
+    q2_doc = "2QFinancialStatements_Consolidated_JP"
+    q2 = _stmt("c2q", "2Q", FY26, date(2025, 11, 1), 250, eps=175.13, fy_op=70, doc=q2_doc)
+    fix = _blank_correction(q2, "c2q-fix", date(2025, 11, 14))
+    hist = [_list_row_of(s) for s in [*_hist()[:5], q2, fix]]
+    got = quarter_summary(None, hist[-1], hist=hist)
+    if got["cumulative"]["eps"] != 175.13 or got["forecast_fy"]["operating_profit"] != 70:
+        _fail(f"list row {got['cumulative']} {got['forecast_fy']}")
+    if got["progress"]["cur"]["operating_profit"] is None:
+        _fail(f"progress {got['progress']}")

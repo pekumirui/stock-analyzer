@@ -108,7 +108,7 @@ def newest_keys(keys: ReportKeys, latest: ReportKeys | None) -> ReportKeys:
 
 def parse_raw(s) -> dict:
     try:
-        raw = json.loads(s.raw_json) if s.raw_json else {}
+        raw = json.loads(s.raw_json) if getattr(s, "raw_json", None) else {}
     except ValueError:
         return {}
     return raw if isinstance(raw, dict) else {}
