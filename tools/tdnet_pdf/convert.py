@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import ctypes
 import html
+import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,7 +23,7 @@ from pathlib import Path
 import pypdfium2 as pdfium
 from pypdfium2 import raw
 
-CONVERTER = "svg2"
+CONVERTER = "svg3"
 
 
 def utf8_safe(s: str) -> str:
@@ -82,6 +83,15 @@ def _rgb(r: int, g: int, b: int) -> str:
     return f"rgb({r},{g},{b})"
 
 
+def _font_size(tp, i: int, fm) -> float:
+    size = raw.FPDFText_GetFontSize(tp, i)
+    if raw.FPDFText_GetMatrix(tp, i, fm):
+        scale = math.hypot(fm.c, fm.d)
+        if scale > 0:
+            return size * scale
+    return size
+
+
 def _chars(page, height: float) -> list[_Char]:
     textpage = page.get_textpage()
     tp = textpage.raw
@@ -91,6 +101,7 @@ def _chars(page, height: float) -> list[_Char]:
         r, g, b, a = (ctypes.c_uint() for _ in range(4))
         buf = ctypes.create_string_buffer(256)
         flags = ctypes.c_int()
+        fm = raw.FS_MATRIX()
         styles: dict[int, _Style] = {}
         out: list[_Char] = []
         n_chars = raw.FPDFText_CountChars(tp)
@@ -125,7 +136,7 @@ def _chars(page, height: float) -> list[_Char]:
                 )
             raw.FPDFText_GetCharOrigin(tp, i, ox, oy)
             raw.FPDFText_GetLooseCharBox(tp, i, box)
-            out.append(_Char(chr(u), box.left, box.right, height - oy.value, raw.FPDFText_GetFontSize(tp, i), st))
+            out.append(_Char(chr(u), box.left, box.right, height - oy.value, _font_size(tp, i, fm), st))
         return out
     finally:
         textpage.close()
