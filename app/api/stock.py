@@ -22,6 +22,7 @@ from ..market.withdrawals import withdrawn_items
 from ..models import DIVIDEND_ITEM, DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
 from ..xbrl.three_statements import DEFAULT_PERIODS, MAX_PERIODS, financial_table
+from .earnings import NEWEST_IN_A_DAY
 from .monthly._common import ApiError, _parse_code
 
 router = APIRouter()
@@ -69,8 +70,7 @@ def _statements_newest_first(db: Session, code5: str) -> list[tuple[Statement, d
     rows = (
         db.query(Statement)
         .filter(Statement.code == code5)
-        .order_by(Statement.disclosed_date.desc(), Statement.disclosed_time.desc(),
-                  Statement.disclosure_no.desc())
+        .order_by(Statement.disclosed_date.desc(), *NEWEST_IN_A_DAY)
         .all()
     )
     out = []
