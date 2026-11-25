@@ -564,6 +564,7 @@ def forecast_revision(hist: list[Statement], stmt: Statement,
     key = _disc_key(stmt)
     prev = None
     stated: dict[tuple, float] = {}
+    latest_quarter = 0
     for s in sorted(hist, key=_disc_key):
         if _disc_key(s) >= key:
             break
@@ -571,6 +572,11 @@ def forecast_revision(hist: list[Statement], stmt: Statement,
             continue
         if s.disclosed_date == stmt.disclosed_date and getattr(s, "is_revision", False):
             continue
+        if is_actual(s):
+            quarter = ORDER.get(s.type_of_period or "", 0)
+            if quarter < latest_quarter:
+                continue
+            latest_quarter = quarter
         if "operating_profit" in withdrawn(s):
             prev = None
         elif is_actual(s) and report_kind(s) in stated:
