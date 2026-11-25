@@ -38,6 +38,7 @@ flowchart LR
   n2 --> n7
   n3 --> n6
   n6 --> n2
+  n6 --> n3
   n6 --> n7
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
@@ -167,7 +168,7 @@ flowchart LR
 | `app/market` | `app`, `app/xbrl` |
 | `app/monthly` | `app` |
 | `app/supply` | `app` |
-| `app/xbrl` | `app`, `app/edinet`, `vendor` |
+| `app/xbrl` | `app`, `app/edinet`, `app/market`, `vendor` |
 | `jobs` | `app`, `app/market`, `app/monthly` |
 | `jobs/edinet` | `app`, `app/edinet`, `app/xbrl`, `vendor` |
 | `jobs/market` | `app`, `app/market`, `app/xbrl`, `jobs`, `jobs/monthly`, `jobs/ops` |

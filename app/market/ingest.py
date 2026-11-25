@@ -12,7 +12,12 @@ from sqlalchemy.orm import Session
 
 from .adjust import readjust
 from .jquants import JQuantsClient
-from .period_fixes import apply_period_fix, default_period_fixes, warn_period_candidates
+from .period_fixes import (
+    apply_period_fix,
+    default_dropped_disclosures,
+    default_period_fixes,
+    warn_period_candidates,
+)
 from ..db import upsert
 from ..models import Stock, DailyPrice, Topix, Statement
 from ..xbrl.statements import (
@@ -164,7 +169,8 @@ def _statement_row(s: dict, fixes: dict[str, date] | None = None) -> dict:
 
 def upsert_statements(db: Session, rows: list[dict], *, commit: bool = True) -> None:
     """XBRL から作った行（source='xbrl'）は数値を上書きしない。raw_json と空の数値だけ J-Quants で埋める。"""
-    rows = [{**r, "source": SOURCE_JQUANTS} for r in rows if r["disclosed_date"]]
+    dropped = default_dropped_disclosures()
+    rows = [{**r, "source": SOURCE_JQUANTS} for r in rows if r["disclosed_date"] and r["disclosure_no"] not in dropped]
     nos = [r["disclosure_no"] for r in rows]
     xbrl = {}
     for i in range(0, len(nos), 500):
@@ -199,7 +205,8 @@ def ingest_statements_for_date(
 ) -> int:
     """warn は J-Quants から初めて入った開示のうち、期の日付が 1 年前の疑いがあるものを WARNING に出す（直さない）。"""
     pairs = [(s, _statement_row(s)) for s in jq.fins_summary(date=day)]
-    pairs = [(s, r) for s, r in pairs if r["disclosed_date"]]
+    dropped = default_dropped_disclosures()
+    pairs = [(s, r) for s, r in pairs if r["disclosed_date"] and r["disclosure_no"] not in dropped]
     rows = [r for _, r in pairs]
     known = _jquants_seen(db, [r["disclosure_no"] for r in rows]) if warn else set()
     upsert_statements(db, rows, commit=commit)
@@ -210,8 +217,9 @@ def ingest_statements_for_date(
 
 
 def ingest_statements_for_code(db: Session, jq: JQuantsClient, code: str) -> int:
+    dropped = default_dropped_disclosures()
     rows = [_statement_row(s) for s in jq.fins_summary(code=code)]
-    rows = [r for r in rows if r["disclosed_date"]]
+    rows = [r for r in rows if r["disclosed_date"] and r["disclosure_no"] not in dropped]
     upsert_statements(db, rows)
     return len(rows)
 
