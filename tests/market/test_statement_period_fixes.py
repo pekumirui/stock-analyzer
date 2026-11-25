@@ -27,8 +27,10 @@ from app.market.ingest import (
 from app.market.period_fixes import (
     apply_period_fix,
     default_dropped_disclosures,
+    default_value_fixes,
     load_dropped_disclosures,
     load_period_fixes,
+    load_value_fixes,
     next_year,
     period_candidates,
 )
@@ -111,8 +113,61 @@ def test_drop_config(tmp_path: Path) -> None:
             load_period_fixes(path)
         with pytest.raises(ValueError):
             load_dropped_disclosures(path)
-    assert default_dropped_disclosures() == frozenset({DROPPED})
+    assert DROPPED in default_dropped_disclosures()
+    assert len(default_dropped_disclosures()) == 14
     assert DROPPED not in load_period_fixes()
+
+
+SIGN = "20220204580550"
+SIGN_RAW = {
+    "DiscDate": "2022-02-04", "DiscTime": "15:00", "Code": "94750", "DiscNo": SIGN,
+    "DocType": "3QFinancialStatements_Consolidated_JP", "CurPerType": "3Q",
+    "CurPerSt": "2021-04-01", "CurPerEn": "2021-12-31", "CurFYSt": "2021-04-01", "CurFYEn": "2022-03-31",
+    "Sales": "3560000000", "NP": "696000000", "EPS": "-38.34",
+}
+
+
+def test_value_config(tmp_path: Path) -> None:
+    path = tmp_path / "fixes.json"
+    value = {"disclosure_no": "3", "code": "94750", "values": {"profit": -1, "eps": 2}, "evidence": "x"}
+    drop = {"disclosure_no": "2", "code": "13320", "drop": True, "evidence": "x"}
+    path.write_text(json.dumps({"fixes": [value, drop]}), encoding="utf-8")
+    assert load_value_fixes(path) == {"3": {"profit": -1.0, "eps": 2.0}}
+    assert load_period_fixes(path) == {}
+    bad = ({**value, "values": {"raw_json": 1}}, {**value, "values": {}})
+    for items in ([value, value], [value, {**drop, "disclosure_no": "3"}], [bad[0]], [bad[1]]):
+        path.write_text(json.dumps({"fixes": items}), encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_value_fixes(path)
+    assert default_value_fixes()[SIGN] == {"profit": -696000000.0}
+
+
+def test_value_fix_applies_on_ingest_and_xbrl(db) -> None:
+    row = _statement_row(dict(SIGN_RAW))
+    assert (row["profit"], row["eps"]) == (-696000000.0, -38.34)
+    assert json.loads(row["raw_json"])["NP"] == "696000000"
+    upsert_statements(db, [row])
+    assert db.get(Statement, SIGN).profit == -696000000.0
+    xbrl = {**{k: row[k] for k in ("code", "disclosed_date", "disclosed_time", "type_of_period", "type_of_document",
+                                   "period_start", "period_end", "fiscal_year_start", "fiscal_year_end", "is_revision")},
+            "disclosure_no": SIGN, "profit": 696000000.0, "raw_json": json.dumps({RAW_MARKER: SOURCE_XBRL})}
+    merge_into(db, xbrl)
+    db.commit()
+    assert db.get(Statement, SIGN).profit == -696000000.0
+
+
+def test_fix_tool_value(db) -> None:
+    db.add(Statement(disclosure_no=SIGN, code="94750", disclosed_date=date(2022, 2, 4), profit=696000000.0,
+                     eps=-38.34, raw_json=json.dumps(SIGN_RAW)))
+    db.commit()
+    by_no = {p.disclosure_no: p for p in plan(db)}
+    assert by_no[SIGN].status == "set"
+    assert by_no[SIGN].line() == f"set disclosure_no={SIGN} code=94750 profit=696000000->-696000000"
+    write(db, plan(db))
+    db.expire_all()
+    got = db.get(Statement, SIGN)
+    assert (got.profit, got.eps, json.loads(got.raw_json)["NP"]) == (-696000000.0, -38.34, "696000000")
+    assert {p.disclosure_no: p.status for p in plan(db)}[SIGN] == "unchanged"
 
 
 def test_next_year() -> None:
@@ -226,7 +281,7 @@ def test_fix_tool(db) -> None:
     db.commit()
     before_other = {c.key: getattr(db.get(Statement, "F1"), c.key) for c in Statement.__table__.columns}
     planned = {p.disclosure_no: p for p in plan(db)}
-    assert len(planned) == 25
+    assert len(planned) == 41
     assert planned["20240508585107"].status == "changed"
     assert "period_end=2023-03-31->2024-03-31" in planned["20240508585107"].line()
     assert planned["20260513530259"].status == "mismatch"
