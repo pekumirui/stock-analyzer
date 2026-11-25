@@ -7,8 +7,9 @@ from pathlib import Path
 
 from sqlalchemy import Enum, Table
 from sqlalchemy.dialects import sqlite
+from sqlalchemy.types import TypeDecorator
 
-from app.models import Base, JstDateTime, UtcDateTime
+from app.models import Base, ItemSet, JstDateTime, UtcDateTime
 from tools.schema.erd import ERD_DIR, TBLS
 from tools.dataflow.render import DOMAINS, PAGE_DIR as FLOW_DIR, table_domain
 
@@ -23,6 +24,7 @@ LAYOUT = ["---", "config:", "  layout: elk", "---"]
 TYPE_NOTES = {
     JstDateTime: "日本時間をタイムゾーンなしで持つ",
     UtcDateTime: "UTC をタイムゾーンなしで持つ",
+    ItemSet: "決まった項目名の集合をカンマ区切りの文字列で持つ。知らない項目名は書き込みで弾く",
 }
 
 
@@ -39,7 +41,8 @@ def _own_type(col) -> type | None:
 
 
 def _base_type(col) -> str:
-    return next(k.__name__ for k in type(col.type).__mro__ if k.__module__.startswith("sqlalchemy"))
+    t = col.type.impl if isinstance(col.type, TypeDecorator) else col.type
+    return next(k.__name__ for k in type(t).__mro__ if k.__module__.startswith("sqlalchemy"))
 
 
 def _type_cell(col) -> str:
@@ -101,6 +104,8 @@ def meanings(col) -> dict[str, str]:
 
 
 def _values(col) -> str:
+    if isinstance(col.type, ItemSet):
+        return " / ".join(f"`{v}`" for v in col.type.items)
     if not isinstance(col.type, Enum):
         return ""
     said = meanings(col)
@@ -228,6 +233,8 @@ def _tbls_note(col) -> str:
     out += dict.fromkeys(
         f"→ {_spell(table, to)}（宣言だけ。DB の制約なし）" for cols, table, to in declared_refs(col.table) if col.name in cols
     )
+    if isinstance(col.type, ItemSet):
+        out.append("値: " + " / ".join(col.type.items))
     if isinstance(col.type, Enum):
         said = meanings(col)
         out.append("値: " + " / ".join(f"{v}（{said[v]}）" if v in said else v for v in col.type.enums).replace("） / ", "）/ "))

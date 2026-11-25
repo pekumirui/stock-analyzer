@@ -5,6 +5,7 @@ import json
 from datetime import date
 from pathlib import Path
 
+from tests.market.jquants_columns import fy_columns
 from app.db import SessionLocal
 from app.models import DailyPrice, EarningsDatePub, Statement, Stock
 
@@ -13,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _st(no: str, day: str, doc: str, **raw) -> Statement:
     return Statement(disclosure_no=no, code="99990", disclosed_date=date.fromisoformat(day),
-                     disclosed_time="15:30:00", type_of_document=doc, raw_json=json.dumps(raw))
+                     disclosed_time="15:30:00", type_of_document=doc, raw_json=json.dumps(raw), **fy_columns(raw))
 
 
 def _seed() -> None:
@@ -105,6 +106,29 @@ def test_overview_after_split(c) -> None:
     assert abs(m["pbr"] - 4100.0 / 600.0) < 1e-9
     assert abs(m["per"] - 4100.0 / 40.0) < 1e-9
     assert abs(m["dividend_yield"] - 10.0 / 4100.0) < 1e-9
+
+
+def test_withdrawn_dividend_forecast_hides_yield(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99960", name="取り下げ工業"))
+        db.add(DailyPrice(code="99960", date=date(2026, 10, 23), close=1000.0, adj_factor=1.0))
+        rows = [
+            _st("961", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="50.0", NxFDivAnn="25.0"),
+            _st("962", "2026-08-14", "EarnForecastRevision", FDivAnn="", FEPS=""),
+        ]
+        for r in rows:
+            r.code = "99960"
+        db.add_all(rows)
+        db.commit()
+        assert c.get("/api/stock/9996/overview").json()["metrics"]["dividend_yield"] == 25.0 / 1000.0
+        rows[1].withdrawn_forecasts = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps",
+                                       "div_annual")
+        db.commit()
+    finally:
+        db.close()
+    m = c.get("/api/stock/9996/overview").json()["metrics"]
+    assert m["dividend_yield"] is None and m["per"] is None
 
 
 def test_spa_stock_sub_tabs() -> None:

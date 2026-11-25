@@ -2180,6 +2180,7 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         by_code[code] = [p for p in pairs if p[2] == min_as]
 
     c = TestClient(app)
+    migrated: list[tuple[int, str, str, str, str, int, int]] = []
     for i, (code, pairs) in enumerate(sorted(by_code.items())):
         as_of = pairs[0][2]
         year = as_of.year if as_of.month >= 6 else as_of.year - 1
@@ -2281,7 +2282,10 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         finally:
             db.close()
 
-        reports = apply_issuer_element_aliases()
+        migrated.append((i, code, incoming, stored, unit, old_year, merge_year))
+
+    reports = apply_issuer_element_aliases()
+    for i, code, incoming, stored, unit, old_year, merge_year in migrated:
         if not any(
             r.get("code") == code and r.get("year") == old_year and r.get("canonical") == stored
             for r in reports
@@ -2321,7 +2325,8 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         if created != expect_kept:
             _fail(f"{code} year {later} must keep {expect_kept!r}, got {created!r}")
 
-        again = apply_issuer_element_aliases()
+    again = apply_issuer_element_aliases()
+    for i, code, incoming, stored, unit, old_year, merge_year in migrated:
         if any(r.get("code") == code and r.get("year") in {old_year, merge_year} for r in again):
             _fail(f"{code} alias migrate must be idempotent: {again!r}")
 

@@ -20,6 +20,7 @@ PDF_STANDARD_FIXES_PATH = CONFIG_DIR / "xbrl" / "pdf_standard_fixes.json"
 XBRL_ROW_MERGE_EXCLUSIONS_PATH = CONFIG_DIR / "xbrl" / "row_merge_exclusions.json"
 XBRL_STANDARD_LABELS_PATH = CONFIG_DIR / "xbrl" / "standard_labels.json"
 STATEMENT_PERIOD_FIXES_PATH = CONFIG_DIR / "market" / "statement_period_fixes.json"
+FORECAST_WITHDRAWALS_PATH = CONFIG_DIR / "market" / "forecast_withdrawals.json"
 
 
 def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:

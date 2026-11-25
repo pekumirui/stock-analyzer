@@ -18,7 +18,13 @@ def _st(no: str, day: str, period: str, fy_end: date, profit: float, eps: float,
                      fiscal_year_end=fy_end, net_sales=profit * 10, operating_profit=profit * 2,
                      profit=profit, eps=eps, fy_net_sales=None if fy_profit is None else fy_profit * 10,
                      fy_operating_profit=None if fy_profit is None else fy_profit * 2,
-                     fy_profit=fy_profit, fy_eps=fy_eps, raw_json=json.dumps(raw))
+                     fy_profit=fy_profit, fy_eps=fy_eps, raw_json=json.dumps({**_forecast_raw(fy_profit, fy_eps), **raw}))
+
+
+def _forecast_raw(fy_profit: float | None, fy_eps: float | None) -> dict:
+    if fy_profit is None:
+        return {}
+    return {"FSales": str(fy_profit * 10), "FOP": str(fy_profit * 2), "FNP": str(fy_profit), "FEPS": str(fy_eps)}
 
 
 def _seed() -> None:

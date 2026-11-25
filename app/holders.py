@@ -33,10 +33,6 @@ _CODE_Q_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _EDINET_PREFIX_RE = re.compile(r"^E[0-9]{1,5}$")
 
 
-def news_id(doc_id: str) -> str:
-    return f"l{doc_id}"
-
-
 def purpose_line(text: str | None) -> str | None:
     if not text:
         return None
@@ -307,7 +303,6 @@ def _activity_item(h: LargeHolding, r: LargeHoldingReport, stocks: dict[str, Sto
         "holding_ratio": h.holding_ratio,
         "holding_ratio_prev": h.holding_ratio_prev,
         "shares_held": h.shares_held,
-        "news_id": news_id(r.doc_id),
     }
 
 
@@ -438,7 +433,6 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
             "obligation_date": r.obligation_date.isoformat() if r.obligation_date else None,
             "file_date": r.file_date.isoformat() if r.file_date else None,
             "purpose": purpose_line(h.purpose),
-            "news_id": news_id(r.doc_id),
             "price": close,
             "price_date": px[0].isoformat() if px else None,
             "market_value": mv,
@@ -517,7 +511,6 @@ def stock_holders(db: Session, code5: str, *, today: date | None = None) -> dict
             "obligation_date": r.obligation_date.isoformat() if r.obligation_date else None,
             "file_date": r.file_date.isoformat() if r.file_date else None,
             "purpose": _purpose_for_report(people.get(r.doc_id, []), r),
-            "news_id": news_id(r.doc_id),
             "history": hist,
         })
     return {"code": code5, "large_holders": large, "treasury": stock_treasury(db, code5, today=day)}
