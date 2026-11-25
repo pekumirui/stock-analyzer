@@ -70,7 +70,7 @@ flowchart TD
 |---|---|
 | `stocks` | `ingest_master` は API が返した銘柄を商品区分で落とさずに UPSERT する。行に含まれない `edinet_code` は上書きしない |
 | `daily_prices` | `close` と `adj_close` が両方空の行は捨てる。生値（`open`・`high`・`low`・`close`・`volume`）と J-Quants の分割調整済み値（`adj_*`）の両方に加え、`turnover`・`adj_factor`（`AdjFactor`）・`upper_limit`（`UL`）・`lower_limit`（`LL`）を保存する |
-| `statements` | `stocks` に存在する銘柄コードだけを残し、API 応答の JSON 全文を `raw_json` にそのまま保存する。`config/market/statement_period_fixes.json` で `"drop": true` が付いた開示（同日の訂正開示で置き換えられた壊れた元開示など、`KAB-449`）は取り込まず、日付補正が登録された開示は 4 つの日付列を補正して UPSERT する |
+| `statements` | `stocks` に存在する銘柄コードだけを残し、API 応答の JSON 全文を `raw_json` にそのまま保存する。`config/market/statement_period_fixes.json` で `"drop": true` が付いた開示（`default_dropped_disclosures`。KAB-573）は J-Quants の応答から取り込まず（`upsert_statements` で落とすので日次・銘柄指定・バックフィルのどれでも同じ）、日付補正が登録された開示は 4 つの日付列を補正して UPSERT する。短信 XBRL からも作らない（`app/xbrl/statements.py` の `merge_into` が `skipped` を返す） |
 
 短信 XBRL から先に作られた行（`source='xbrl'`）は、後から同じ `disclosure_no` の J-Quants 行が届いたとき（`app/market/ingest.py` の `upsert_statements`）、`code` や開示日では引かず、`raw_json` の差し替えと `NULL` だった数値列（`app/xbrl/statements.py` の `NUMERIC_COLUMNS`）の補完だけを行う。4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）はこの関数では書かない。詳細は [XBRL の設計](xbrl.md)「statements との関係」を参照する。
 
@@ -83,7 +83,9 @@ flowchart TD
 | 通期（`FY` の `FinancialStatements` または `DividendForecastRevision`） | `period_end != fiscal_year_end`、または `period_end - period_start > 400` 日、または `disclosed_date - period_end >= 365` 日のいずれかに該当する |
 | 四半期（`1Q`・`2Q`・`3Q` の `FinancialStatements`） | `disclosed_date - period_end >= 300` 日であり、かつ同一 `(code, type_of_period, period_end)` の過去の短信と `net_sales` が異なる |
 
-提出者側の誤りであることを確認した開示は、`config/market/statement_period_fixes.json` に `disclosure_number`・`code`・正しい 4 つの日付列（`period_start`・`period_end`・`fiscal_year_start`・`fiscal_year_end`）、または `"drop": true` を登録する。既に DB に入っている行を直すときは `python -m tools.market.fix_statement_periods --write` を手で実行し、対象銘柄の `statements` と `earnings_events` を更新する。なお `raw_json` が XBRL 由来のままの行（`xbrl-raw`）は変更せず、補正後の主キーが既存行と衝突する場合は上書きせずに `conflict` としてスキップする。
+提出者側の誤りであることを確認した開示は、`config/market/statement_period_fixes.json` に `disclosure_no`・`code`・`evidence` と、正しい期末ではなく J-Quants が返す誤った `period_end`（取込はこの値と一致したときだけ 4 つの日付列を 1 年進める）、または `"drop": true`（`period_end` は付けない）を登録する。同じ `disclosure_no` を日付補正と `drop` の両方、または 2 回登録すると読み込みで `ValueError` になる。`drop` は、訂正短信なのに J-Quants の行が壊れている開示（KAB-573: ニッスイの `20250521559959` は XBRL データの訂正が無いのに、純利益が非支配株主を含む額で EPS・配当・予想が空）を、元の開示を残して消すために使う。
+
+既に DB に入っている行は `python -m tools.market.fix_statement_periods` で確かめ（書かない）、`--write` を付けて直す。出力は開示ごとに 1 行で、日付補正は `changed`・`unchanged`・`missing`・`xbrl-raw`・`mismatch`、`drop` は行が残っていれば `drop`、無ければ `missing`。最後の `statement_period_fixes` 行に `drop=` の件数と `written=` が出る。`--write` は `changed` の行の 4 つの日付列を書き換え、`drop` の行は `statements` から消す。あわせてその開示の `tdnet_pdf_documents` の行を消し、同じ銘柄・同じ開示日の `statements` がほかに無くなれば `earnings_events` のその行も消す。`earnings_events` は日付補正では更新しない。`raw_json` が XBRL 由来のままの行（`xbrl-raw`）は変更しない。
 
 ### 予想の取り下げの印
 

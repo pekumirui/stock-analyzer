@@ -6,7 +6,7 @@ import os
 import re
 import sys
 import tempfile
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -18,17 +18,24 @@ _tmp = tempfile.mkdtemp(prefix="stock-analyzer-period-fixes-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from app.db import SessionLocal, init_db
-from app.market.ingest import _statement_row, ingest_statements_for_date, upsert_statements
+from app.market.ingest import (
+    _statement_row,
+    ingest_statements_for_code,
+    ingest_statements_for_date,
+    upsert_statements,
+)
 from app.market.period_fixes import (
     apply_period_fix,
+    default_dropped_disclosures,
+    load_dropped_disclosures,
     load_period_fixes,
     next_year,
     period_candidates,
 )
-from app.models import Statement
-from app.xbrl.statements import RAW_MARKER, SOURCE_XBRL
+from app.models import EarningsEvent, Statement, TdnetPdfDocument
+from app.xbrl.statements import RAW_MARKER, SOURCE_XBRL, merge_into
 from deploy.alert_patterns import ALERT_PATTERNS
-from tools.market.fix_statement_periods import plan, scan_candidates, write
+from tools.market.fix_statement_periods import main, plan, scan_candidates, write
 
 FY_2121 = {
     "DiscDate": "2024-05-10", "DiscTime": "15:00", "Code": "21210", "DiscNo": "20240508585107",
@@ -36,6 +43,13 @@ FY_2121 = {
     "CurPerSt": "2022-04-01", "CurPerEn": "2023-03-31", "CurFYSt": "2022-04-01", "CurFYEn": "2023-03-31",
     "NxtFYSt": "2024-04-01", "NxtFYEn": "2025-03-31",
     "Sales": "146868000000", "OP": "19177000000", "OdP": "", "NP": "", "EPS": "",
+}
+DROPPED = "20250521559959"
+DROPPED_RAW = {
+    "DiscDate": "2025-05-21", "DiscTime": "15:00", "Code": "13320", "DiscNo": DROPPED,
+    "DocType": "FYFinancialStatements_Consolidated_JP", "CurPerType": "FY",
+    "CurPerSt": "2024-04-01", "CurPerEn": "2025-03-31", "CurFYSt": "2024-04-01", "CurFYEn": "2025-03-31",
+    "NxtFYSt": "2025-04-01", "NxtFYEn": "2026-03-31", "Sales": "1000", "NP": "27213000000", "EPS": "",
 }
 NEXT_ONLY = {
     "DiscDate": "2023-12-13", "Code": "92540", "DiscNo": "20231213502556",
@@ -57,7 +71,8 @@ def _q(no: str, disc: str, sales: str, *, code: str = "17570", end: str = "2024-
 def db():
     init_db()
     s = SessionLocal()
-    s.query(Statement).delete()
+    for model in (Statement, EarningsEvent, TdnetPdfDocument):
+        s.query(model).delete()
     s.commit()
     try:
         yield s
@@ -81,6 +96,23 @@ def test_duplicate_config(tmp_path: Path) -> None:
     path.write_text(json.dumps({"fixes": [item, item]}), encoding="utf-8")
     with pytest.raises(ValueError):
         load_period_fixes(path)
+
+
+def test_drop_config(tmp_path: Path) -> None:
+    path = tmp_path / "fixes.json"
+    fix = {"disclosure_no": "1", "period_end": "2023-03-31"}
+    drop = {"disclosure_no": "2", "code": "13320", "drop": True, "evidence": "x"}
+    path.write_text(json.dumps({"fixes": [fix, drop]}), encoding="utf-8")
+    assert load_period_fixes(path) == {"1": date(2023, 3, 31)}
+    assert load_dropped_disclosures(path) == frozenset({"2"})
+    for items in ([drop, drop], [fix, {**drop, "disclosure_no": "1"}], [drop, {**fix, "disclosure_no": "2"}]):
+        path.write_text(json.dumps({"fixes": items}), encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_period_fixes(path)
+        with pytest.raises(ValueError):
+            load_dropped_disclosures(path)
+    assert default_dropped_disclosures() == frozenset({DROPPED})
+    assert DROPPED not in load_period_fixes()
 
 
 def test_next_year() -> None:
@@ -194,7 +226,7 @@ def test_fix_tool(db) -> None:
     db.commit()
     before_other = {c.key: getattr(db.get(Statement, "F1"), c.key) for c in Statement.__table__.columns}
     planned = {p.disclosure_no: p for p in plan(db)}
-    assert len(planned) == 24
+    assert len(planned) == 25
     assert planned["20240508585107"].status == "changed"
     assert "period_end=2023-03-31->2024-03-31" in planned["20240508585107"].line()
     assert planned["20260513530259"].status == "mismatch"
@@ -211,3 +243,57 @@ def test_fix_tool(db) -> None:
     assert {p.disclosure_no: p.status for p in plan(db)}["20240508585107"] == "unchanged"
     found = scan_candidates(db)
     assert [c.disclosure_no for c in found] == ["F1"]
+
+
+def test_ingest_skips_dropped(db) -> None:
+    kept = {**DROPPED_RAW, "DiscNo": "20250513546856", "DiscDate": "2025-05-13", "NP": "25381000000", "EPS": "81.66"}
+    assert ingest_statements_for_date(db, _JQ([DROPPED_RAW, kept]), "2025-05-21") == 1
+    assert db.get(Statement, DROPPED) is None
+    assert db.get(Statement, "20250513546856").eps == 81.66
+    assert ingest_statements_for_code(db, _JQ([DROPPED_RAW]), "13320") == 0
+    upsert_statements(db, [_statement_row(dict(DROPPED_RAW))])
+    assert db.get(Statement, DROPPED) is None
+
+
+def test_xbrl_merge_does_not_create_dropped(db) -> None:
+    assert merge_into(db, {"disclosure_no": DROPPED}) == "skipped"
+    db.commit()
+    assert db.get(Statement, DROPPED) is None
+
+
+def test_fix_tool_drop(db, capsys) -> None:
+    other = {**DROPPED_RAW, "DiscNo": "20250513546856", "DiscDate": "2025-05-13"}
+    db.add_all([
+        Statement(disclosure_no=DROPPED, code="13320", disclosed_date=date(2025, 5, 21), raw_json=json.dumps(DROPPED_RAW)),
+        Statement(disclosure_no="20250513546856", code="13320", disclosed_date=date(2025, 5, 13), raw_json=json.dumps(other)),
+        TdnetPdfDocument(disclosure_no=DROPPED, code="13320", status="missing", created_at=datetime(2025, 5, 22)),
+        EarningsEvent(code="13320", disclosed_date=date(2025, 5, 21)),
+        EarningsEvent(code="13320", disclosed_date=date(2025, 5, 13)),
+    ])
+    db.commit()
+    planned = plan(db)
+    by_no = {p.disclosure_no: p for p in planned}
+    assert by_no[DROPPED].status == "drop"
+    assert by_no[DROPPED].line() == f"drop disclosure_no={DROPPED} code=13320"
+    assert db.get(Statement, DROPPED) is not None
+    assert plan(db, {}, frozenset({"nope"}))[0].status == "missing"
+    assert write(db, planned) == 1
+    db.expire_all()
+    assert db.get(Statement, DROPPED) is None
+    assert db.get(Statement, "20250513546856") is not None
+    assert db.query(TdnetPdfDocument).count() == 0
+    assert [e.disclosed_date for e in db.query(EarningsEvent)] == [date(2025, 5, 13)]
+    assert {p.disclosure_no: p.status for p in plan(db)}[DROPPED] == "missing"
+    main(["--write"])
+    assert "drop=0" in capsys.readouterr().out
+
+
+def test_fix_tool_drop_keeps_event_with_other_disclosure(db) -> None:
+    db.add_all([
+        Statement(disclosure_no=DROPPED, code="13320", disclosed_date=date(2025, 5, 21), raw_json="{}"),
+        Statement(disclosure_no="20250521000001", code="13320", disclosed_date=date(2025, 5, 21), raw_json="{}"),
+        EarningsEvent(code="13320", disclosed_date=date(2025, 5, 21)),
+    ])
+    db.commit()
+    assert write(db, plan(db)) == 1
+    assert db.query(EarningsEvent).count() == 1

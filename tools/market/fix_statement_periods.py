@@ -1,7 +1,9 @@
 """config/market/statement_period_fixes.json の開示の期の日付を、DB の raw_json から作り直して直す。
 
 J-Quants は引き直さない。直すのは一覧にある開示の period_start / period_end / fiscal_year_start /
-fiscal_year_end だけ（ほかの列・ほかの行は触らない）。既定は変わる行を出すだけ。
+fiscal_year_end だけ（ほかの列・ほかの行は触らない）。`"drop": true` の開示は statements の行と、その開示の
+tdnet_pdf_documents の行を消し、同じ銘柄・同じ開示日の statements がほかに無くなれば earnings_events の行も消す。
+既定は変わる行・消す行を出すだけ。
 
   python tools/market/fix_statement_periods.py               # 変わる行を出す（書かない）
   python tools/market/fix_statement_periods.py --write       # 書く
@@ -23,8 +25,14 @@ from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.market.ingest import _d, _statement_row
-from app.market.period_fixes import LATE_DAYS, PERIOD_COLUMNS, default_period_fixes, period_candidates
-from app.models import Statement
+from app.market.period_fixes import (
+    LATE_DAYS,
+    PERIOD_COLUMNS,
+    default_dropped_disclosures,
+    default_period_fixes,
+    period_candidates,
+)
+from app.models import EarningsEvent, Statement, TdnetPdfDocument
 from app.xbrl.statements import is_xbrl_raw
 
 
@@ -48,9 +56,12 @@ def _iso(d: date | None) -> str:
     return d.isoformat() if d else "-"
 
 
-def plan(db: Session, fixes: dict[str, date] | None = None) -> list[Planned]:
-    """一覧の開示ごとに changed / unchanged / missing / xbrl-raw / mismatch。"""
+def plan(
+    db: Session, fixes: dict[str, date] | None = None, dropped: frozenset[str] | None = None,
+) -> list[Planned]:
+    """日付補正の開示ごとに changed / unchanged / missing / xbrl-raw / mismatch、drop の開示ごとに drop / missing。"""
     table = default_period_fixes() if fixes is None else fixes
+    drops = default_dropped_disclosures() if dropped is None else dropped
     out: list[Planned] = []
     for no, recorded in table.items():
         st = db.get(Statement, no)
@@ -68,12 +79,32 @@ def plan(db: Session, fixes: dict[str, date] | None = None) -> list[Planned]:
         row = _statement_row(raw, table)
         after = {c: row[c] for c in PERIOD_COLUMNS}
         out.append(Planned(no, st.code, "changed" if after != before else "unchanged", before, after))
+    for no in sorted(drops):
+        st = db.get(Statement, no)
+        out.append(Planned(no, None, "missing", {}, {}) if st is None else Planned(no, st.code, "drop", {}, {}))
     return out
+
+
+def _delete_dropped(db: Session, disclosure_no: str) -> None:
+    st = db.get(Statement, disclosure_no)
+    code, disclosed = st.code, st.disclosed_date
+    db.query(TdnetPdfDocument).filter(TdnetPdfDocument.disclosure_no == disclosure_no).delete()
+    db.delete(st)
+    db.flush()
+    left = db.query(Statement.disclosure_no).filter(
+        Statement.code == code, Statement.disclosed_date == disclosed).first()
+    if left is None:
+        db.query(EarningsEvent).filter(
+            EarningsEvent.code == code, EarningsEvent.disclosed_date == disclosed).delete()
 
 
 def write(db: Session, planned: list[Planned]) -> int:
     n = 0
     for p in planned:
+        if p.status == "drop":
+            _delete_dropped(db, p.disclosure_no)
+            n += 1
+            continue
         if p.status != "changed":
             continue
         st = db.get(Statement, p.disclosure_no)
@@ -123,7 +154,7 @@ def main(argv: list[str] | None = None) -> int:
         for p in planned:
             print(p.line(), flush=True)
         counts = {s: sum(1 for p in planned if p.status == s)
-                  for s in ("changed", "unchanged", "missing", "xbrl-raw", "mismatch")}
+                  for s in ("changed", "unchanged", "missing", "xbrl-raw", "mismatch", "drop")}
         written = write(db, planned) if args.write else 0
         parts = " ".join(f"{k.replace('-', '_')}={v}" for k, v in counts.items())
         print(f"statement_period_fixes listed={len(planned)} {parts} written={written}", flush=True)
