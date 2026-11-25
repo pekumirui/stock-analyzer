@@ -91,20 +91,6 @@ def _is_fy_actual(s: Statement) -> bool:
     return _is_actual(s) and (s.type_of_document or "").startswith("FY")
 
 
-def _forecast(stmts: list[tuple[Statement, dict]], key: str) -> tuple[float | None, date | None]:
-    """今期の予想と開示日。新しい順に見て、決算短信本体ならそこで決める（本決算は来期予想 NxF*）。
-    予想修正だけの開示は値があるときだけ使う。"""
-    for s, raw in stmts:
-        if _is_fy_actual(s):
-            return _num(raw, f"NxF{key}"), s.disclosed_date
-        if _is_actual(s):
-            return _num(raw, f"F{key}"), s.disclosed_date
-        v = _num(raw, f"F{key}")
-        if v is not None:
-            return v, s.disclosed_date
-    return None, None
-
-
 def _latest_with_date(stmts: list[tuple[Statement, dict]], key: str,
                       *, fy_only: bool = False) -> tuple[float | None, date | None]:
     for s, raw in stmts:

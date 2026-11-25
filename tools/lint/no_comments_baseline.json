@@ -129,7 +129,7 @@
  },
  "app/api/stock.py": {
   "comment": 3,
-  "docstring": 6
+  "docstring": 5
  },
  "app/api/stock_decks.py": {
   "docstring": 2
