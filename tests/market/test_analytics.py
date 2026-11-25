@@ -607,3 +607,14 @@ def test_list_row_of_a_partial_correction_keeps_eps_and_forecast() -> None:
         _fail(f"list row {got['cumulative']} {got['forecast_fy']}")
     if got["progress"]["cur"]["operating_profit"] is None:
         _fail(f"progress {got['progress']}")
+
+
+def test_correction_does_not_show_an_eps_computed_from_profit() -> None:
+    fy = _stmt("cfy", "FY", FY26, date(2026, 5, 1), 600)
+    fy.raw_json = json.dumps({"NxFOP": "90", "NxFNp": "50", "AvgSh": "10"})
+    later = _stmt("cfy2", "FY", FY26, date(2026, 10, 15), 650)
+    later.raw_json = json.dumps({"NxFOP": "95", "NxFNp": "60", "AvgSh": "10"})
+    rows = cumulative_rows([fy, later], current_statement([fy, later], later), 2, TOL)
+    fyf = next(r for r in rows if r["kind"] == "forecast_fy")
+    if fyf["values"]["eps"] is not None or fyf["values"]["operating_profit"] != 95:
+        _fail(f"computed eps {fyf['values']}")

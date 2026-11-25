@@ -195,6 +195,14 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
     return out
 
 
+def stated_value(s, item: str) -> float | None:
+    if s is None:
+        return None
+    if is_actual(s) and (s.type_of_document or "").startswith("FY"):
+        return num(parse_raw(s), NEXT_KEYS[item])
+    return getattr(s, CURRENT_COLUMN_PREFIX + item, None)
+
+
 def correction_overrides(stmts: Iterable, stmt) -> dict[str, Any]:
     upto = statement_order(stmt)
     point = next((p for p in forecast_points([s for s in stmts if statement_order(s) <= upto])
@@ -206,8 +214,11 @@ def correction_overrides(stmts: Iterable, stmt) -> dict[str, Any]:
     values = {}
     for item in FORECAST_ITEMS:
         v = point.values[item]
+        source = by_no.get(v.disclosure_no)
+        if v.disclosure_no == stmt.disclosure_no or (v.value is not None and stated_value(source, item) is None):
+            continue
         if v.value is not None and item == "eps":
-            values[item] = v.value * getattr(by_no.get(v.disclosure_no), "fc_eps_scale", 1.0) / own_scale
+            values[item] = v.value * getattr(source, "fc_eps_scale", 1.0) / own_scale
         else:
             values[item] = v.value
     if not (stmt.type_of_document or "").startswith("FY"):
