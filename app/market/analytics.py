@@ -619,6 +619,45 @@ def disclosure_state(hist: list[Statement], stmt: Statement) -> str:
     return "duplicate" if same else "restated"
 
 
+CARRIED_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+SAME_YEN = 1_000_000
+SAME_EPS = 0.01
+
+
+class CarriedStatement:
+    def __init__(self, base: Statement, values: dict):
+        self.__dict__.update(_base=base, _values=values)
+
+    def __getattr__(self, name: str):
+        values = self.__dict__["_values"]
+        return values[name] if name in values else getattr(self.__dict__["_base"], name)
+
+
+def disclosure_order(s) -> tuple:
+    return (s.disclosed_date, s.disclosed_time or "", s.disclosure_no or "")
+
+
+def _same_value(key: str, a: float, b: float) -> bool:
+    return abs(a - b) < (SAME_EPS if key == "eps" else SAME_YEN)
+
+
+def carried_values(rows) -> tuple[dict, float]:
+    carried: dict = {}
+    scale = 1.0
+    for s in sorted(rows, key=disclosure_order):
+        own = {k: getattr(s, k, None) for k in CARRIED_KEYS}
+        own_scale = getattr(s, "eps_scale", 1.0)
+        same = all(
+            carried.get(k) is None
+            or _same_value(k, v * (own_scale if k == "eps" else 1.0), carried[k] * (scale if k == "eps" else 1.0))
+            for k, v in own.items() if v is not None
+        )
+        if own["eps"] is not None or not same:
+            scale = own_scale
+        carried = {k: v if v is not None else carried.get(k) if same else None for k, v in own.items()}
+    return carried, scale
+
+
 def find_statement(hist: list[Statement], fy_end: date | None, period: str | None,
                    tol_days: int) -> Statement | None:
     """事業年度末が fy_end に最も近い(±tol_days)同一四半期の開示。
@@ -636,8 +675,18 @@ def find_statement(hist: list[Statement], fy_end: date | None, period: str | Non
     if not cands:
         return None
     cands = [s for s in cands if not s.is_revision] or cands
-    return min(cands, key=lambda s: (abs((s.fiscal_year_end - fy_end).days),
-                                     -s.disclosed_date.toordinal()))
+    nearest = min(abs((s.fiscal_year_end - fy_end).days) for s in cands)
+    best = max((s for s in cands if abs((s.fiscal_year_end - fy_end).days) == nearest), key=disclosure_order)
+    same_period = [s for s in cands
+                   if s.fiscal_year_end == best.fiscal_year_end and s.type_of_period == best.type_of_period
+                   and s.type_of_document == best.type_of_document]
+    carried, scale = carried_values(same_period)
+    filled = {k: v for k, v in carried.items() if v is not None and getattr(best, k, None) is None}
+    if not filled:
+        return best
+    if "eps" in filled:
+        filled["eps_scale"] = scale
+    return CarriedStatement(best, filled)
 
 
 def growth_cell(cur: float | None, prev: float | None, signed: bool = True) -> dict:

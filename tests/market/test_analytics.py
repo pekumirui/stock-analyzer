@@ -208,6 +208,51 @@ def test_single_quarter_from_cumulative() -> None:
         _fail(f"qoq {qoq}")
 
 
+def _amend(no: str, disclosed: date, time: str, **values) -> Statement:
+    row = _stmt(no, "FY", FY26, disclosed, 600, eps=60.0)
+    row.disclosed_time = time
+    row.gross_profit = None
+    for key in ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps"):
+        setattr(row, key, values.get(key))
+    return row
+
+
+def test_find_statement_same_day_takes_later_time() -> None:
+    first = _amend("20230310528927", date(2026, 5, 1), "15:00", net_sales=600.0)
+    later = _amend("20230310528427", date(2026, 5, 1), "18:40", net_sales=700.0)
+    got = find_statement([first, later], FY26, "FY", TOL)
+    if got.net_sales != 700.0:
+        _fail(f"same day {got.net_sales}")
+
+
+def test_find_statement_carries_blank_when_unchanged() -> None:
+    first = _amend("a", date(2026, 5, 1), "11:30", net_sales=40399e6, profit=514e6, eps=54.75)
+    later = _amend("b", date(2026, 6, 1), "19:30", net_sales=40399528e3, profit=514078e3)
+    got = metrics(find_statement([first, later], FY26, "FY", TOL))
+    if got["eps"] != 54.75 or got["profit"] != 514078e3:
+        _fail(f"carried {got}")
+    if later.eps is not None:
+        _fail("row was written")
+
+
+def test_find_statement_keeps_blank_when_changed() -> None:
+    first = _amend("a", date(2026, 5, 1), "12:00", profit=25381e6, eps=81.66)
+    later = _amend("b", date(2026, 6, 1), "12:00", profit=27213e6)
+    got = metrics(find_statement([first, later], FY26, "FY", TOL))
+    if got["eps"] is not None or got["profit"] != 27213e6:
+        _fail(f"changed {got}")
+
+
+def test_find_statement_carries_eps_with_its_scale() -> None:
+    first = _amend("a", date(2026, 5, 1), "12:00", profit=100.0, eps=50.0)
+    later = _amend("b", date(2026, 6, 1), "12:00", profit=100.0)
+    first.eps_scale = 0.5
+    later.eps_scale = 1.0
+    got = metrics(find_statement([first, later], FY26, "FY", TOL))
+    if got["eps"] != 25.0:
+        _fail(f"scale {got}")
+
+
 def test_disclosure_and_rows() -> None:
     hist = _hist()
     q2 = next(s for s in hist if s.disclosure_no == "c2q")

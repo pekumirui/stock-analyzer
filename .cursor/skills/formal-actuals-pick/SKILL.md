@@ -7,7 +7,7 @@ description: "同じ期の実績（BS・PL・CF、決算速報の数字、売上
 
 1 銘柄の 1 つの期について、書類が何本、どの順で、どんな欠け方で来ても、項目ごとに出す値が「最後にその項目を言った書類の値」になるかを、TLC で全部の並びについて確かめる。
 
-- 約束: 有報がその項目を言っていれば、最後に言った有報の値。言っていなければ、短信（XBRL と PDF を合わせて提出順）で最後に言った書類の値。`statements` の行は、その期の決算短信で最後にその項目を言った行の値
+- 約束: 有報がその項目を言っていれば、最後に言った有報の値。言っていなければ、短信（XBRL と PDF を合わせて提出順）で最後に言った書類の値。`statements` の行は、その期の決算短信を古い順に畳んだ値。値のある項目はその行の値、空の項目は、その行で値のある項目がそれまでの値とすべて同じならそれまでの値、1 つでも違えば空
 - 破れたときの害: 業績詳細の三表で訂正前の値が出る・科目が消える。決算速報・概要・株価チャートの伸び率が訂正前の値で計算される・EPS が空になる
 - 模型は「保存された行が正しい」前提で、選び方だけを見る。読み違い・取込漏れは別の検査（IR BANK のゴールデン、J-Quants との突き合わせ、BS の合計の検査）
 
@@ -34,14 +34,14 @@ tools/formal/check.sh actuals_pick FindingSameDayGross.cfg
 | cfg | 期待 | 意味 |
 |---|---|---|
 | `MCThree.cfg` | `No error has been found`（152,527 distinct states） | 三表の回帰検査。書類 6 本まで |
-| `MCRow.cfg` | `No error has been found`（729 distinct states） | `find_statement` の回帰検査。行 6 本まで |
+| `MCRow.cfg` | `No error has been found`（50,065 distinct states） | `find_statement` の回帰検査。行 4 本まで。空欄のある行と同じ日の 2 本目を含む |
 | `MCGross.cfg` | `No error has been found`（71,076 distinct states） | 売上総利益の回帰検査。開示 5 本まで |
 | `FindingPartialXbrl.cfg` | `Matches` 違反 | 既知の限界 1 |
 | `FindingPdfAfterXbrl.cfg` | `Matches` 違反 | 既知の限界 2 |
 | `FindingBigPartialPdf.cfg` | `Matches` 違反 | 既知の限界 3 |
 | `FindingOrphanPartialPdf.cfg` | `Matches` 違反 | 既知の限界 4 |
-| `FindingPartialRow.cfg` | `Matches` 違反 | 既知の不具合 1（KAB-571） |
-| `FindingSameDayRow.cfg` | `Matches` 違反 | 既知の不具合 2（KAB-570） |
+| `FindingPartialRow.cfg` | `No error has been found` | 直した不具合（KAB-571） |
+| `FindingSameDayRow.cfg` | `No error has been found` | 直した不具合（KAB-570） |
 | `FindingSameDayGross.cfg` | `Matches` 違反 | 既知の限界 5 |
 
 Finding の cfg が通るようになったら、その食い違いが直ったということ。直した変更の PR で、その cfg の期待を「違反なし」に書き換え、下の一覧から外す。回帰検査に入れたいなら、`MC*.cfg` の対応する `Allow*` を `TRUE` にする。
@@ -64,8 +64,8 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 | `ThreeSpec` | あるべき値。有報の中で最後に言った値、無ければ短信（XBRL と PDF を合わせて提出順）で最後に言った値 |
 | `View = "row"` | `find_statement` が 1 つの期（年度末・四半期）について選ぶ行。`seq` は `statements` の決算短信の行で、J-Quants と XBRL を合わせた後の値 |
 | `slot` | `disclosed_date`。同じ `slot` の中の並びは `disclosure_no` の昇順（履歴の並び） |
-| `RowCode` | 開示日が最新の行を丸ごと。同じ日なら履歴で先の行 |
-| `RowSpec` | 項目ごとに、最後にその項目を言った行の値 |
+| `RowCode` | 開示日・開示時刻・開示番号の順で最後の行。空の項目は `carried_values` で畳んだ値（返すのは `CarriedStatement`。行は書き換えない） |
+| `RowSpec` | `RowFold`。行を古い順に畳み、値のある項目はその行の値、空の項目は、その行の値のある項目がそれまでの値とすべて同じならそれまでの値、違えば空 |
 | `View = "gross"` | `_pick` が 1 つの開示（`src = "tanshin"` の各行）に付ける売上総利益。`has = {"a"}` はその開示の短信の filing に売上総利益がある |
 | `GrossCode` | その開示の filing、無ければ開示日以前（その日の終わりまで）で最新の短信、無ければ最初の EDINET |
 | `GrossSpec` | その開示までで最後に売上総利益を言った短信、無ければ最初の EDINET |
@@ -83,7 +83,7 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 
 ほかの前提: 項目は 2 つ、値は 2 種類。1 本の書類は言う項目すべてに同じ値を言う。全部入りの書類はどの項目も持つ（訂正で科目が無くなることは入れていない）。三表は提出時刻が全部違う（`_newest` の `id` での決着は入れていない）。有報が言った項目は、後から短信の訂正が来ても有報の値（`docs/jobs/xbrl.md` の優先のとおり。本番で有報より後に出た短信は XBRL 88 件・PDF 871 件）。`_fills` の BS の制限（主の表示リンクに無い要素は補わない）、PDF の行と XBRL の要素の対応付け、連結と個別の継ぎ合わせ、会計基準での表の分割、決算期変更、`find_statement` の年度末の近傍探しと `is_revision` の後回し、`merge_into` と `upsert_statements` の取込順、同じ開示の ZIP と PDF の両立（[formal-tdnet-pdf-retire](../formal-tdnet-pdf-retire/SKILL.md)）は入れていない。
 
-`RowSpec` の「空欄は触れていない」は模型が置いた仮定で、J-Quants の仕様では支えられない。`/v2/fins/summary` の仕様は、空文字列は「値の記載がなかったことのみを示す」もので、前回からの変更の有無を表さないと書いている。訂正であることを示す項目も無い。KAB-571 で空欄の読み方を決めたら `RowSpec` を合わせる。
+`RowSpec` の空欄の読み方は KAB-571 で決めた規則で、J-Quants の仕様からは出てこない。`/v2/fins/summary` の仕様は、空文字列は「値の記載がなかったことのみを示す」もので、前回からの変更の有無を表さないと書いている。訂正であることを示す項目も無い。値のある項目が元と同じなら空欄は載せていないだけ（`95560` の訂正はサマリーの無い ZIP から作った行で、本文の EPS は元と同じ 54.75）、違えば空欄の項目も変わりうる（古い EPS を新しい利益と混ぜない）、と読む。模型の「同じ」は値が等しいこと。コードは金額の差 100 万円未満、EPS の差 0.01 未満を同じとみなす（百万円と千円の単位の違い）。
 
 同じ期の 2 本目の行は訂正とは限らない。2025 年以降の決算短信の 2 本目 1,159 行のうち、TDnet の題名に「訂正」「修正」があるのは 653 行。ほかは期中レビュー完了後の出し直し（数字はたいてい同じ）と数値データの追加（元の短信に XBRL が無かった）。模型は 2 本目の種類を区別しない。
 
@@ -93,10 +93,10 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 
 - `Matches`: コードが出す値が、あるべき値と同じ（`three` と `row` は項目ごと、`gross` は開示ごと）
 
-## 既知の不具合（2026-11-25、KAB-568 で発見。どれも本物の関数に反例の並びを流して再現した）
+## 直した不具合（2026-11-25、KAB-568 で発見し、KAB-570・KAB-571 で直した。どれも本物の関数に反例の並びを流して再現した）
 
-1. **訂正の行の空欄で値が消える**（`FindingPartialRow.cfg`、KAB-571）: `find_statement` は新しい行を丸ごと選ぶので、訂正の行で空の欄は、元の短信に値があっても空になる。本番で 71 組（J-Quants の行 37、短信 XBRL から作った行 34）。ほとんどが EPS。95560 の 2026/07 は EPS 54.75・BPS 706.44 が空になる。銘柄の概要の BPS・自己資本比率（`app/api/stock.py` の `_latest_with_date`）は値のある行まで遡るので起きない
-2. **同じ日の 2 本目が選ばれない**（`FindingSameDayRow.cfg`、KAB-570）: 同じ開示日に同じ期の決算短信が 2 本あると、先に出た方を選ぶ。本番で 110 組、うち数字が違うのは 9 組。81420 の 2023/01 は売上 2,155 億でなく 1,885 億になる
+1. **訂正の行の空欄で値が消える**（`FindingPartialRow.cfg`、KAB-571）: `find_statement` は新しい行を丸ごと選んでいたので、訂正の行で空の欄は、元の短信に値があっても空になる。本番で 71 組（J-Quants の行 37、短信 XBRL から作った行 34）。ほとんどが EPS。95560 の 2026/07 は EPS 54.75・BPS 706.44 が空になる。銘柄の概要の BPS・自己資本比率（`app/api/stock.py` の `_latest_with_date`）は値のある行まで遡るので起きない
+2. **同じ日の 2 本目が選ばれない**（`FindingSameDayRow.cfg`、KAB-570）: 同じ開示日に同じ期の決算短信が 2 本あると、先に出た方を選んでいた。本番で 110 組、うち数字が違うのは 9 組。81420 の 2023/01 は売上 2,155 億でなく 1,885 億になっていた
 
 ## 既知の限界（コードは模型のとおり動くが、本番にその並びが無いか、上位の出どころに隠れている）
 

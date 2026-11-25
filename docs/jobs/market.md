@@ -140,7 +140,7 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 | 実績値（`Sales`・`OP`・`OdP`・`NP`・`EPS`） | 1Q・2Q・3Q・FY のすべてが期首からの累計値（YTD）で格納される | 前四半期の累計値を差し引いて Q 単独値を算出する |
 | 予想値（`FSales`・`FOP`・`FOdP`・`FNP`・`FEPS`・`NxF*`） | 各開示時点の最新予想値だけが入り、修正前の前回予想値は同じ行に入らない | 速報一覧のバッジは同一 `fiscal_year_end` の開示を古い順に畳んだ `fy_operating_profit` と比べる（下の「予想修正の検知」）。複数指標の履歴は別 |
 | 予想修正の単独開示（`DocType = *ForecastRevision*`） | 実績列がすべて `NULL` になり、予想列だけに値が入る。`EarnForecastRevision` で `CurPerType` が `1Q`・`3Q` の開示は四半期の速報値で、末尾なしの `FSales`・`FOP`・`FOdP`・`FNP`・`FEPS` に通期予想ではなくその四半期の累計値が入り、そのまま `fy_*` と `raw_json` に残る | 決算速報一覧からは外し、予想修正の履歴比較には含める。`1Q`・`3Q` 型の `EarnForecastRevision` は読む側（`app/market/analytics.py` の `is_quarter_flash_revision`）で通期予想として使わない（株価チャートの予想 EPS・修正履歴・予想修正の判定。KAB-553） |
-| 訂正開示（数値データ訂正・一部訂正など） | 元の行は消えず、同じ `(code, type_of_period, fiscal_year_end)` に新しい `disclosure_no` の行が追加される | PL 4 項目の変化有無で「重複」と「数値訂正」を切り分ける |
+| 訂正開示（数値データ訂正・一部訂正など） | 元の行は消えず、同じ `(code, type_of_period, fiscal_year_end)` に新しい `disclosure_no` の行が追加される。訂正であることを示す項目は無く、記載の無い項目は空文字列（前回からの変更の有無を表さない） | PL 4 項目の変化有無で「重複」と「数値訂正」を切り分ける。前年同期・前四半期として引く行は下の「同じ期の行が複数あるとき」 |
 | 会計基準の変更 | 同じ期の数値が新しい会計基準の `DocType` で再開示されることがある | 原則として会計基準ごとに系列を分け、重複期間で連続性が確認できるときだけ前基準の四半期を引き継ぐ |
 
 ### 速報一覧に出す開示
@@ -157,6 +157,10 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 | `ForecastRevision`・`DividendForecastRevision`・`Other*` など `FinancialStatements` を含まない開示 | 速報一覧には出さない。同じ日の予想修正のみの開示は、その日の短信のバッジにも畳まない（下の「予想修正の検知」） |
 
 月間カレンダーの日別件数（`actual_month_facts`）も上とまったく同じ条件で重複開示と REIT を除外したうえで、`COUNT(DISTINCT code)`（その日に開示した銘柄数）を集計する。そのため、1 銘柄が同じ日に複数の期を同時に初出開示した日は、一覧が期ごとの複数行になる一方でカレンダーの件数は 1 銘柄 1 件になる。
+
+### 同じ期の行が複数あるとき
+
+伸び率・Q 単独値・進捗率などで、ほかの期の実績を引く `find_statement`（`app/market/analytics.py`）は、年度末が最も近い同じ四半期の決算短信のうち、開示日・開示時刻・開示番号の順で最後の行を採る（同じ日の訂正は開示時刻で後の方。KAB-570。`81420` の 2023/01 期は 15:00 の元の短信でなく 18:40 の数値データ訂正）。その行の空の実績（`net_sales`・`operating_profit`・`ordinary_profit`・`profit`・`eps`。`CARRIED_KEYS`）は、同じ `fiscal_year_end`・`type_of_period`・`type_of_document` の行を古い順に畳んだ値で埋める。畳むとき、その行で値のある項目がそれまでの値とすべて同じ（金額は差が 100 万円未満、EPS は株数をそろえて差が 0.01 未満）なら空の項目はそれまでの値のまま、1 つでも違えば空の項目は空にする（KAB-571。`95560` の 2026/07 期の訂正は、サマリーの無い ZIP から作った行で EPS が空だが、売上・利益は元と同じなので元の EPS 54.75 を使う。利益の変わった訂正の空の EPS には、古い EPS を混ぜない）。埋めるのは返す値だけで、`statements` の行は書き換えない。この規則は TLA+ の模型（`tools/formal/actuals_pick` の `RowSpec`。スキル `formal-actuals-pick`）で全順序を検査している。
 
 ### Q単独値の算出
 
