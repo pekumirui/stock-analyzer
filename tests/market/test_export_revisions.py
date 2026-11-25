@@ -9,7 +9,8 @@ from tests.market.jquants_columns import fy_columns
 from tests.market.test_compare_withdrawals import _seed
 from tools.market.compare_quarter_flash import readonly_session
 from tools.market.export_revisions import (after_undecided_report, compare, export, fiscal_year_changes,
-                                           old_period_reports, partial_revisions, same_day_out_of_order)
+                                           old_period_reports, partial_revisions, same_day_out_of_order,
+                                           same_period_reports)
 
 
 def _export(tmp_path: Path) -> dict[str, dict]:
@@ -56,8 +57,8 @@ def test_compare_sorts_changed_codes_into_categories(tmp_path: Path, capsys) -> 
 def test_compare_explains_badges_after_an_undecided_report(tmp_path: Path, capsys) -> None:
     new = _export(tmp_path)
     old = json.loads(json.dumps(new))
-    new["99990"]["badges"] = [["99990x", None]]
-    old["99990"]["badges"] = [["99990x", {"direction": "up", "pct": 5.0}]]
+    new["99990"]["badges"] = [["99990x", "2026-08-01", None]]
+    old["99990"]["badges"] = [["99990x", "2026-08-01", {"direction": "up", "pct": 5.0}]]
     new["99990"]["after_undecided_report"] = ["99990x"]
     assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 0
     assert "after_undecided_report=1 codes=99990" in capsys.readouterr().out
@@ -169,3 +170,21 @@ def test_reports_whose_year_start_and_year_end_disagree_on_which_is_newer() -> N
     for s in (q2, q1b):
         s.fiscal_year_start = date(2026, 4, 1)
     assert fiscal_year_changes([q2, q1b]) == []
+
+
+def test_compare_explains_changes_from_the_second_report_of_the_same_period(tmp_path: Path, capsys) -> None:
+    doc = "3QFinancialStatements_Consolidated_JP"
+    q3 = _s("q3", date(2025, 11, 12), "3Q", doc, 47)
+    rev = _s("rev", date(2025, 11, 27), "FY", "EarnForecastRevision", 56)
+    fix = _s("fix", date(2025, 11, 27), "3Q", doc, 47)
+    ifrs = _s("ifrs", date(2025, 12, 1), "3Q", "3QFinancialStatements_Consolidated_IFRS", 47)
+    assert same_period_reports([q3, rev, fix, ifrs]) == ["2025-11-27"]
+    new = _export(tmp_path)
+    old = json.loads(json.dumps(new))
+    new["99990"]["same_period_report"] = ["2025-11-27"]
+    old["99990"]["chart"] = [["2025-11-28", 396.09]]
+    new["99990"]["chart"] = [["2025-11-28", 443.49]]
+    assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 0
+    assert "same_period_report=1 codes=99990" in capsys.readouterr().out
+    new["99990"]["badges"] = [["early", "2025-11-12", None]]
+    assert compare(_write(tmp_path / "old.jsonl", old), _write(tmp_path / "new.jsonl", new), show=False) == 1
