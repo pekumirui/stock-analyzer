@@ -30,6 +30,7 @@ from app.market.period_fixes import (
     PERIOD_COLUMNS,
     default_dropped_disclosures,
     default_period_fixes,
+    default_value_fixes,
     period_candidates,
 )
 from app.models import EarningsEvent, Statement
@@ -47,19 +48,23 @@ class Planned:
     def line(self) -> str:
         cols = " ".join(
             f"{c}={_iso(self.before.get(c))}->{_iso(self.after.get(c))}"
-            for c in PERIOD_COLUMNS if self.before.get(c) != self.after.get(c)
+            for c in dict.fromkeys([*PERIOD_COLUMNS, *self.after]) if self.before.get(c) != self.after.get(c)
         )
         return f"{self.status} disclosure_no={self.disclosure_no} code={self.code or '-'} {cols}".rstrip()
 
 
-def _iso(d: date | None) -> str:
-    return d.isoformat() if d else "-"
+def _iso(d: date | float | None) -> str:
+    if d is None:
+        return "-"
+    return d.isoformat() if isinstance(d, date) else f"{d:.15g}"
 
 
 def plan(
     db: Session, fixes: dict[str, date] | None = None, dropped: frozenset[str] | None = None,
+    values: dict[str, dict[str, float]] | None = None,
 ) -> list[Planned]:
-    """日付補正の開示ごとに changed / unchanged / missing / xbrl-raw / mismatch、drop の開示ごとに drop / missing。"""
+    """日付補正の開示ごとに changed / unchanged / missing / xbrl-raw / mismatch、drop の開示ごとに drop / missing、
+    値の差し替えの開示ごとに set / unchanged / missing。"""
     table = default_period_fixes() if fixes is None else fixes
     drops = default_dropped_disclosures() if dropped is None else dropped
     out: list[Planned] = []
@@ -82,6 +87,13 @@ def plan(
     for no in sorted(drops):
         st = db.get(Statement, no)
         out.append(Planned(no, None, "missing", {}, {}) if st is None else Planned(no, st.code, "drop", {}, {}))
+    for no, after in sorted((default_value_fixes() if values is None else values).items()):
+        st = db.get(Statement, no)
+        if st is None:
+            out.append(Planned(no, None, "missing", {}, {}))
+            continue
+        before = {c: getattr(st, c) for c in after}
+        out.append(Planned(no, st.code, "set" if before != after else "unchanged", before, dict(after)))
     return out
 
 
@@ -104,7 +116,7 @@ def write(db: Session, planned: list[Planned]) -> int:
             _delete_dropped(db, p.disclosure_no)
             n += 1
             continue
-        if p.status != "changed":
+        if p.status not in ("changed", "set"):
             continue
         st = db.get(Statement, p.disclosure_no)
         for col, value in p.after.items():
@@ -153,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         for p in planned:
             print(p.line(), flush=True)
         counts = {s: sum(1 for p in planned if p.status == s)
-                  for s in ("changed", "unchanged", "missing", "xbrl-raw", "mismatch", "drop")}
+                  for s in ("changed", "unchanged", "missing", "xbrl-raw", "mismatch", "drop", "set")}
         written = write(db, planned) if args.write else 0
         parts = " ".join(f"{k.replace('-', '_')}={v}" for k, v in counts.items())
         print(f"statement_period_fixes listed={len(planned)} {parts} written={written}", flush=True)

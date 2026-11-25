@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.market.period_fixes import default_dropped_disclosures
+from app.market.period_fixes import default_dropped_disclosures, default_value_fixes
 from app.models import DIVIDEND_ITEM, WITHDRAWABLE_ITEMS, Statement, XbrlFiling, XbrlFinancial, XbrlStdItem
 
 SOURCE_XBRL = "xbrl"
@@ -296,6 +296,7 @@ def merge_into(db: Session, row: dict) -> str:
     """XBRL の行を入れる。戻りは inserted / updated / skipped（取り込まない開示）。"""
     if row["disclosure_no"] in default_dropped_disclosures():
         return "skipped"
+    row = {**row, **default_value_fixes().get(row["disclosure_no"], {})}
     existing = db.get(Statement, row["disclosure_no"])
     if existing is None:
         db.add(Statement(**row, source=SOURCE_XBRL))
