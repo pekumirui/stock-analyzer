@@ -4,13 +4,13 @@ from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ..config import EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES
 from ..db import get_session
 from ..models import Stock, Statement
-from ..market.analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
+from ..market.analytics import (ORDER, METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         align_eps, disclosure_state, earnings_detail as build_earnings_detail, split_factors)
 from ..market.earnings_schedule import ActualMonth, day_payload, month_payload
 from ..market.pts import latest_by_code as pts_by_code
@@ -144,15 +144,20 @@ def _list_row(db: Session, s, hist, code: str, name: str) -> dict:
     }
 
 
+_NEWEST_IN_A_DAY = (Statement.fiscal_year_end.desc(),
+                    case(ORDER, value=Statement.type_of_period, else_=0).desc(),
+                    Statement.disclosed_time.desc(), Statement.disclosure_no.desc())
+
+
+def newest_report_key(s) -> tuple:
+    return (s.disclosed_date, s.fiscal_year_end or date.min, ORDER.get(s.type_of_period or "", 0),
+            s.disclosed_time or "", s.disclosure_no or "")
+
+
 def _latest_statement(hist):
     """履歴の末尾から、重複再提出でない短信本体を 1 件。"""
-    for s in reversed(hist):
-        if not is_actual(s):
-            continue
-        if disclosure_state(hist, s) == "duplicate":
-            continue
-        return s
-    return None
+    reports = [s for s in hist if is_actual(s) and disclosure_state(hist, s) != "duplicate"]
+    return max(reports, key=newest_report_key, default=None)
 
 
 def latest_actuals(db: Session, codes, as_of: date) -> dict[str, dict]:
@@ -246,12 +251,11 @@ def earnings_detail(code: str, date_: str | None = Query(None, alias="date"),
         if date_:
             day = _pd(date_)
             stmt = (q.filter(Statement.disclosed_date == day, Statement.is_revision.isnot(True))
-                    .order_by(Statement.fiscal_year_end.desc()).first())
+                    .order_by(*_NEWEST_IN_A_DAY).first())
             q = q.filter(Statement.disclosed_date <= day)
         if stmt is None:
             # 同日に複数期を開示する銘柄があるので、年度末の新しい方を既定にする
-            stmt = q.order_by(Statement.disclosed_date.desc(),
-                              Statement.fiscal_year_end.desc()).first()
+            stmt = q.order_by(Statement.disclosed_date.desc(), *_NEWEST_IN_A_DAY).first()
     if stmt is None:
         raise HTTPException(404, "no statement")
 

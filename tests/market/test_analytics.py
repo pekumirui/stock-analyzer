@@ -618,3 +618,24 @@ def test_correction_does_not_show_an_eps_computed_from_profit() -> None:
     fyf = next(r for r in rows if r["kind"] == "forecast_fy")
     if fyf["values"]["eps"] is not None or fyf["values"]["operating_profit"] != 95:
         _fail(f"computed eps {fyf['values']}")
+
+
+def test_detail_opens_the_newest_quarter_when_two_corrections_share_a_day() -> None:
+    init_db()
+    code = "38000"
+    db = SessionLocal()
+    try:
+        upsert(db, Stock, [{"code": code, "name": "同じ日の訂正", "product_category": "011"}])
+        day = date(2026, 11, 12)
+        rows = [("20261112576239", "1Q"), ("20261112576228", "2Q")]
+        upsert(db, Statement, [{"disclosure_no": no, "code": code, "disclosed_date": day, "disclosed_time": "16:15",
+                                "type_of_period": period, "fiscal_year_end": date(2027, 3, 31),
+                                "type_of_document": f"{period}FinancialStatements_Consolidated_JP",
+                                "net_sales": 100.0, "is_revision": False} for no, period in rows])
+    finally:
+        db.close()
+    c = TestClient(app)
+    for params in ({}, {"date": day.isoformat()}):
+        r = c.get(f"/api/earnings/detail/{code}", params=params)
+        if r.status_code != 200 or r.json()["period"] != "2Q":
+            _fail(f"{params} {r.status_code} {r.text[:200]}")

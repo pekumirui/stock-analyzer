@@ -17,7 +17,7 @@ FastAPI が公開する REST エンドポイントの応答構造・エラー規
 | エンドポイント | 応答の要点 | 詳細仕様 |
 |---|---|---|
 | `GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` | 指定日の実績開示と発表予定を `{kind, actuals, scheduled, ready?}` で返す。REIT（`product_category` が `'013'`・`'022'`）は除外する | [決算速報](earnings.md) |
-| `GET /api/earnings/detail/{code}?disclosure_no=…` | 1 銘柄の累計表（過去 4 期 + 当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績）、3 か月表（直近 12 四半期の Q 単独）、通期予想の修正履歴 `revisions`、中間予想の有無 `notes.half_forecast` を返す。実績が無ければ `404` を返す | [決算速報](earnings.md) |
+| `GET /api/earnings/detail/{code}?disclosure_no=…` | 1 銘柄の累計表（過去 4 期 + 当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績）、3 か月表（直近 12 四半期の Q 単独）、通期予想の修正履歴 `revisions`、中間予想の有無 `notes.half_forecast` を返す。`disclosure_no` が無ければ、最新の決算短信（開示日・年度末・四半期・時刻・開示番号の新しい順。同じ日に出た 2Q と 1Q の訂正なら 2Q）を開く。選んだ開示が同じ期の 2 本目の決算短信（訂正）なら、変わっていない空欄の実績と予想を元の値で埋める（KAB-576）。実績が無ければ `404` を返す | [決算速報](earnings.md) |
 | `GET /api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` | 月内の各日付に対し `{kind, n, pending?}` を疎なマップで返す。件数は決算短信本体の銘柄数（distinct）で、REIT は除外する | [決算速報](earnings.md) |
 | `GET /api/ranking/earnings-perf?month=YYYY-MM` | 指定月に初回決算短信を出した銘柄を、次の決算の前営業日終値までの騰落率（`return_to_next`）降順で返す | [ランキング](ranking.md) |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs&limit=100` | `indicators` の最新営業日における内国株券（`'011'`）をステージと RS ランク下限で絞り、`{date, results}` を返す（`indicators` が空なら `[]`） | [画面設計（スクリーナー）](gen/screener.md) |
