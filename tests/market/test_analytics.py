@@ -25,6 +25,7 @@ from app.market.analytics import (
     calendar_span,
     compute_earnings_events,
     cumulative_rows,
+    current_statement,
     disclosure_state,
     earnings_detail,
     find_statement,
@@ -554,3 +555,37 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def _blank_correction(of: Statement, no: str, disclosed: date) -> Statement:
+    row = _stmt(no, of.type_of_period, of.fiscal_year_end, disclosed, of.net_sales, doc=of.type_of_document)
+    row.eps = None
+    return row
+
+
+def test_current_row_and_forecast_survive_a_partial_correction() -> None:
+    q2_doc = "2QFinancialStatements_Consolidated_JP"
+    q2 = _stmt("c2q", "2Q", FY26, date(2025, 11, 1), 250, eps=175.13, fy_op=70, doc=q2_doc)
+    fix = _blank_correction(q2, "c2q-fix", date(2025, 11, 14))
+    hist = [*_hist()[:5], q2, fix]
+    if current_statement(hist, q2) is not q2:
+        _fail("report wrapped")
+    rows = cumulative_rows(hist, current_statement(hist, fix), 2, TOL)
+    cur = next(r for r in rows if r["kind"] == "actual_current")
+    fyf = next((r for r in rows if r["kind"] == "forecast_fy"), None)
+    if cur["values"]["eps"] != 175.13 or fyf is None or fyf["values"]["operating_profit"] != 70:
+        _fail(f"partial correction {cur['values']} {fyf}")
+    if fix.eps is not None or fix.fy_operating_profit is not None:
+        _fail("row was written")
+
+
+def test_next_year_forecast_survives_a_blank_annual_correction() -> None:
+    fy = _stmt("cfy", "FY", FY26, date(2026, 5, 1), 600)
+    fy.raw_json = json.dumps({"NxFOP": "90", "NxFSales": "700"})
+    fix = _blank_correction(fy, "cfy-fix", date(2026, 5, 20))
+    fix.eps = fy.eps
+    fix.raw_json = json.dumps({"NxFOP": "", "NxFSales": ""})
+    rows = cumulative_rows([fy, fix], current_statement([fy, fix], fix), 2, TOL)
+    fyf = next((r for r in rows if r["kind"] == "forecast_fy"), None)
+    if fyf is None or fyf["values"]["operating_profit"] != 90 or fyf["values"]["net_sales"] != 700:
+        _fail(f"annual correction {fyf}")

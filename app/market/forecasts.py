@@ -195,5 +195,26 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
     return out
 
 
+def correction_overrides(stmts: Iterable, stmt) -> dict[str, Any]:
+    upto = statement_order(stmt)
+    point = next((p for p in forecast_points([s for s in stmts if statement_order(s) <= upto])
+                  if p.statement is stmt), None)
+    if point is None or point.role != CORRECTION:
+        return {}
+    by_no = {s.disclosure_no: s for s in stmts}
+    own_scale = getattr(stmt, "fc_eps_scale", 1.0) or 1.0
+    values = {}
+    for item in FORECAST_ITEMS:
+        v = point.values[item]
+        if v.value is not None and item == "eps":
+            values[item] = v.value * getattr(by_no.get(v.disclosure_no), "fc_eps_scale", 1.0) / own_scale
+        else:
+            values[item] = v.value
+    if not (stmt.type_of_document or "").startswith("FY"):
+        return {CURRENT_COLUMN_PREFIX + item: v for item, v in values.items()}
+    raw = {**point.raw, **{NEXT_KEYS[item]: "" if v is None else str(v) for item, v in values.items()}}
+    return {"raw_json": json.dumps(raw)}
+
+
 def latest_forecast(points: list[ForecastPoint], item: str) -> Sourced:
     return points[-1].values[item] if points else Sourced()
