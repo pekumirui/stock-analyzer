@@ -12,6 +12,7 @@ from .withdrawals import Withdrawn, withdrawn_items
 REPORT = "report"
 CORRECTION = "correction"
 REVISION = "revision"
+STALE = "stale"
 IGNORED = "ignored"
 
 CURRENT_KEYS = {"net_sales": "FSales", "operating_profit": "FOP", "ordinary_profit": "FOdP",
@@ -36,6 +37,7 @@ class ForecastPoint:
     role: str
     touched: frozenset[str]
     values: Mapping[str, Sourced]
+    stated: Mapping[str, Sourced]
 
 
 def num(raw: dict, key: str) -> float | None:
@@ -90,6 +92,16 @@ def is_older_report(keys: ReportKeys, latest: ReportKeys | None) -> bool:
     return latest is not None and keys[0] < latest[0] and keys[1] < latest[1]
 
 
+HeldYear = tuple[date, bool]
+
+
+def is_stale(s, held: HeldYear | None) -> bool:
+    if held is None or s.fiscal_year_end is None:
+        return False
+    end, next_year = held
+    return s.fiscal_year_end <= end if next_year else s.fiscal_year_end < end
+
+
 def newest_keys(keys: ReportKeys, latest: ReportKeys | None) -> ReportKeys:
     return keys if latest is None else (max(keys[0], latest[0]), max(keys[1], latest[1]))
 
@@ -137,6 +149,7 @@ def _changed_from(stated: dict[str, float | None], given: dict[str, float | None
 def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> list[ForecastPoint]:
     state = {item: Sourced() for item in WITHDRAWABLE_ITEMS}
     latest: ReportKeys | None = None
+    held: HeldYear | None = None
     stated_by_period: dict[tuple, dict[str, float | None]] = {}
     shares: float | None = None
     out: list[ForecastPoint] = []
@@ -148,8 +161,10 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
             full_year = (s.type_of_document or "").startswith("FY")
             given = {DIVIDEND_ITEM: num(raw, NEXT_DIVIDEND_KEY if full_year else CURRENT_DIVIDEND_KEY)}
             keys = report_keys(s)
-            if keys is not None and not is_older_report(keys, latest):
+            outdated = keys is not None and is_older_report(keys, latest)
+            if keys is not None and not outdated:
                 latest = newest_keys(keys, latest)
+                held = (s.fiscal_year_end, full_year)
                 shares = report_shares(raw)
                 given.update(_report_values(next_forecast(raw) if full_year else current_forecast(s), shares))
                 role = REPORT
@@ -162,19 +177,21 @@ def forecast_points(stmts: Iterable, withdrawn: Withdrawn = withdrawn_items) -> 
                 role = CORRECTION if role == REPORT else role
             stated_by_period[period] = {**(stated or {}), **{k: v for k, v in given.items() if v is not None}}
         else:
+            outdated = is_stale(s, held)
             dividend = num(raw, CURRENT_DIVIDEND_KEY)
             if dividend is not None:
                 found[DIVIDEND_ITEM] = dividend
             if not is_quarter_flash_revision(s):
-                role = REVISION
+                role = STALE if outdated else REVISION
                 found.update(_revision_values(current_forecast(s), shares))
         for item in withdrawn(s):
             if item == DIVIDEND_ITEM or role != IGNORED:
                 found[item] = None
         here = (s.disclosure_no, s.disclosed_date)
-        for item, v in found.items():
-            state[item] = Sourced(v, *here)
-        out.append(ForecastPoint(s, raw, role, frozenset(found), dict(state)))
+        sourced = {item: Sourced(v, *here) for item, v in found.items()}
+        if not outdated:
+            state.update(sourced)
+        out.append(ForecastPoint(s, raw, role, frozenset(found), dict(state), sourced))
     return out
 
 
