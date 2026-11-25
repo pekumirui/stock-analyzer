@@ -12,3 +12,4 @@
 - [期首残高は計算で作らない](no-derived-opening-cash.md) — XBRL の期に埋めない。短信 PDF の行を出さない（KAB-458）
 - [コメント禁止・文書は生成](no-comments-generate-docs.md) — コメントも docstring も足さない。制約はテスト・名前・型、文書と図はコードから
 - [DB の縛りはアプリ側](db-constraints-app-side.md) — 列挙は Enum、参照は info の宣言。本番の作り直しと FK 有効化はしない
+- [返事は日本語で](reply-in-japanese.md) — 途中経過も最後のまとめも日本語。英語になって指摘された
