@@ -96,5 +96,5 @@ Finding の cfg が通るようになったら、その不具合が直ったと�
 ## 同期
 
 - 対象: `app/market/forecasts.py`、`app/market/withdrawals.py`、`app/market/analytics.py`（`is_actual`・`is_quarter_flash_revision`・`ORDER`）
-- 最後に模型とコードの一致を確かめたコミット: `c042729`
-- `git log c042729..HEAD -- app/market/forecasts.py app/market/withdrawals.py app/market/analytics.py` に何か出たら、模型を見直してから同期コミットを進める
+- 最後に模型とコードの一致を確かめたコミット: `0d3b915`
+- `git log 0d3b915..HEAD -- app/market/forecasts.py app/market/withdrawals.py app/market/analytics.py` に何か出たら、模型を見直してから同期コミットを進める
