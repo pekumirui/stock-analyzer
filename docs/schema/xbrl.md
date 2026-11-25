@@ -152,7 +152,7 @@ TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの
 | `pages` | INTEGER | 可 |  |  |  | 元の PDF |
 | `pdf_bytes` | INTEGER | 可 |  |  |  | 元の PDF |
 | `pdf_sha256` | VARCHAR(64) | 可 |  |  |  | 元の PDF |
-| `converter` | VARCHAR(16) | 可 |  |  |  | 変換器の版（tools/tdnet_pdf/convert.py CONVERTER） |
+| `converter` | VARCHAR(16) | 可 |  |  |  | 変換器の版（app/xbrl/pdf/convert.py CONVERTER） |
 | `created_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |

@@ -29,7 +29,7 @@ flowchart LR
   n4["crontab<br>deploy/crontab"]:::proc
   n5["deploy/cron-run.sh"]:::proc
   n4 --> n5
-  n6["jobs/ のジョブ 31 本<br>起動の定義 46 件"]:::job
+  n6["jobs/ のジョブ 32 本<br>起動の定義 47 件"]:::job
   n5 --> n6
   n7["r2-share-watch.timer<br>起動 2min 後に 1 回目、以降 5min ごと"]:::unit
   n8["r2-share-watch.service"]:::unit
@@ -82,7 +82,7 @@ flowchart LR
 
 ## cron
 
-`deploy/crontab` の起動の定義は 46 件、ジョブは 31 本。すべて `deploy/cron-run.sh` 経由。
+`deploy/crontab` の起動の定義は 47 件、ジョブは 32 本。すべて `deploy/cron-run.sh` 経由。
 
 | 機能のフォルダ | 起動の定義 |
 |---|---|
@@ -91,7 +91,7 @@ flowchart LR
 | `monthly` | 16 |
 | `ops` | 3 |
 | `supply` | 3 |
-| `xbrl` | 4 |
+| `xbrl` | 5 |
 | `（jobs 直下）` | 1 |
 
 ## ここからは拾えない

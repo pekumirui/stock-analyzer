@@ -1440,7 +1440,7 @@
  "tools/tdnet_pdf/__init__.py": {
   "docstring": 1
  },
- "tools/tdnet_pdf/convert.py": {
+ "app/xbrl/pdf/convert.py": {
   "comment": 6,
   "docstring": 4
  },
@@ -1451,7 +1451,7 @@
   "comment": 13,
   "docstring": 8
  },
- "tools/tdnet_pdf/ingest.py": {
+ "jobs/xbrl/tdnet_pdf_ingest.py": {
   "comment": 1,
   "docstring": 2
  },

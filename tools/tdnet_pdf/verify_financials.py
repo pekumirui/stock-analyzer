@@ -387,7 +387,7 @@ def fetch_pdf(no: str, dest: Path) -> Path:
 
 
 def convert_one(pdf_path: Path, html_path: Path) -> Path:
-    from tools.tdnet_pdf.convert import convert_pdf
+    from app.xbrl.pdf.convert import convert_pdf
 
     converted = convert_pdf(pdf_path)
     html_path.write_text(converted.html, encoding="utf-8")

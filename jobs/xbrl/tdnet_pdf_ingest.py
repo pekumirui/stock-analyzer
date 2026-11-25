@@ -6,11 +6,12 @@
 この表に ok / missing で入っている回。1 件ごとに --sleep 秒あける。IR BANK が 429 / 503 を返したら
 上限とみなしてそこで止める（終了コード 0）。1 件ごとに commit するので、途中で止めても続きから再開できる。
 
-  python tools/tdnet_pdf/ingest.py --code 5933 --code 7203
-  python tools/tdnet_pdf/ingest.py --code 5933 --limit 50 --sleep 2
-  python tools/tdnet_pdf/ingest.py --all --limit 1000
-  python tools/tdnet_pdf/ingest.py --code 5933 --dry-run       # 対象の件数と先頭だけ。取りに行かない
-  python tools/tdnet_pdf/ingest.py --code 5933 --retry-failed  # failed も取り直す
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --code 7203
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --limit 50 --sleep 2
+  python jobs/xbrl/tdnet_pdf_ingest.py --all --limit 1000
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --dry-run       # 対象の件数と先頭だけ。取りに行かない
+  python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --retry-failed  # failed も取り直す
+  python jobs/xbrl/tdnet_pdf_ingest.py --redo nos.txt              # 一覧の回を今の変換器で変換し直す（KAB-572）
 
 最後に 1 行: tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…
 remaining は実行後に targets() を取り直した件数。failed（この実行で failed にした件数）とは別で、
@@ -38,7 +39,7 @@ from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, run_sqlite_write
 from app.models import Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
+from app.xbrl.pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/tdnet_pdf)"
@@ -92,6 +93,20 @@ def targets(db: Session, codes: list[str] | None, *, retry_failed: bool = False)
         seen.add(r.disclosure_no)
         out.append(r)
     return out
+
+
+def redo_targets(db: Session, nos: list[str]) -> list[Statement]:
+    stale = ~exists().where(
+        (TdnetPdfDocument.disclosure_no == Statement.disclosure_no) & (TdnetPdfDocument.converter == CONVERTER)
+    )
+    rows = (
+        db.query(Statement).filter(Statement.disclosure_no.in_(nos)).filter(stale)
+        .order_by(Statement.disclosed_date.desc(), Statement.disclosure_no.desc()).all()
+    )
+    out: dict[str, Statement] = {}
+    for r in rows:
+        out.setdefault(r.disclosure_no, r)
+    return list(out.values())
 
 
 def fetch_pdf(client: httpx.Client, no: str) -> bytes:
@@ -148,10 +163,14 @@ def run(
     limit: int | None = None,
     sleep: float = 1.0,
     retry_failed: bool = False,
+    redo: list[str] | None = None,
     client: httpx.Client | None = None,
     log=print,
 ) -> dict:
-    todo = targets(db, codes, retry_failed=retry_failed)
+    def pending() -> list[Statement]:
+        return redo_targets(db, redo) if redo is not None else targets(db, codes, retry_failed=retry_failed)
+
+    todo = pending()
     stats = {"ok": 0, "missing": 0, "failed": 0, "stopped": "done"}
     own = client is None
     client = client or httpx.Client(timeout=60, headers={"User-Agent": USER_AGENT}, follow_redirects=True)
@@ -174,18 +193,20 @@ def run(
                 log(f"rate_limited {st.disclosure_no} {exc}")
                 break
             except Missing as exc:
-                _mark(db, st, "missing", str(exc))
+                if redo is None:
+                    _mark(db, st, "missing", str(exc))
                 stats["missing"] += 1
                 log(f"missing {st.disclosure_no} code={st.code} date={st.disclosed_date}")
             except Exception as exc:
                 db.rollback()
-                _mark(db, st, "failed", f"{type(exc).__name__}: {exc}")
+                if redo is None:
+                    _mark(db, st, "failed", f"{type(exc).__name__}: {exc}")
                 stats["failed"] += 1
                 log(f"failed {st.disclosure_no} code={st.code} err={type(exc).__name__}: {exc}")
     finally:
         if own:
             client.close()
-    stats["remaining"] = len(targets(db, codes, retry_failed=retry_failed))
+    stats["remaining"] = len(pending())
     return stats
 
 
@@ -196,21 +217,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--limit", type=int, help="この実行で取る最大件数")
     ap.add_argument("--sleep", type=float, default=1.0, help="1 件ごとの間隔（秒）。既定 1")
     ap.add_argument("--retry-failed", action="store_true", help="failed の回も取り直す")
+    ap.add_argument("--redo", help="開示番号を 1 行 1 つ書いたファイル。今の変換器で変換し直していない回だけ取り直す")
     ap.add_argument("--dry-run", action="store_true", help="対象の件数と先頭 10 件だけ出す")
     args = ap.parse_args(argv)
-    if bool(args.code) == args.all:
-        ap.error("--code か --all のどちらか一方を指定してください")
-    codes = None if args.all else sorted({code5(c) for c in args.code})
+    if bool(args.code) + args.all + bool(args.redo) != 1:
+        ap.error("--code か --all か --redo のどれか 1 つを指定してください")
+    codes = None if args.all or args.redo else sorted({code5(c) for c in args.code})
+    redo = sorted({ln.strip() for ln in Path(args.redo).read_text().splitlines() if ln.strip()}) if args.redo else None
 
     db = SessionLocal()
     try:
         if args.dry_run:
-            todo = targets(db, codes, retry_failed=args.retry_failed)
+            todo = redo_targets(db, redo) if redo is not None else targets(db, codes, retry_failed=args.retry_failed)
             for st in todo[:10]:
                 print(f"todo {st.disclosure_no} code={st.code} date={st.disclosed_date} {st.type_of_document}")
             print(f"tdnet_pdf dry_run targets={len(todo)}")
             return 0
-        stats = run(db, codes, limit=args.limit, sleep=args.sleep, retry_failed=args.retry_failed)
+        stats = run(db, codes, limit=args.limit, sleep=args.sleep, retry_failed=args.retry_failed, redo=redo)
         print(
             f"tdnet_pdf stopped={stats['stopped']} ok={stats['ok']} missing={stats['missing']} "
             f"failed={stats['failed']} remaining={stats['remaining']}",

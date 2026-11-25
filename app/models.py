@@ -566,7 +566,7 @@ class TdnetPdfDocument(Base):
     pages = Column(Integer, comment="元の PDF")
     pdf_bytes = Column(Integer, comment="元の PDF")
     pdf_sha256 = Column(String(64), comment="元の PDF")
-    converter = Column(String(16), comment="変換器の版（tools/tdnet_pdf/convert.py CONVERTER）")
+    converter = Column(String(16), comment="変換器の版（app/xbrl/pdf/convert.py CONVERTER）")
     created_at = Column(UtcDateTime, nullable=False)
 
 

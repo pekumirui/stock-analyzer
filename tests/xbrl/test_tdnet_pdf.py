@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import gzip
+import re
 from datetime import date, datetime
 
 import httpx
 
 from app.db import SessionLocal
 from app.models import Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
-from tools.tdnet_pdf import ingest
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
+from jobs.xbrl import tdnet_pdf_ingest as ingest
+from tools.tdnet_pdf import tiny_text
+from app.xbrl.pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 
 def make_pdf(title: str = "Financial Results FY2025", value: str = "1,234") -> bytes:
@@ -51,8 +53,39 @@ def test_convert_pdf_draws_text_rules_and_shading() -> None:
     assert 'fill="rgb(204,204,204)"' in conv.html
     assert conv.html.count("<path ") == 2
     assert 'stroke="rgb(0,0,0)"' in conv.html
-    assert "<script" not in conv.html and CONVERTER == "svg2"
+    assert "<script" not in conv.html and CONVERTER == "svg3"
     assert convert_pdf(make_pdf("Other title")).title is None
+
+
+SCALED_TEXT = b"BT /F1 1 Tf 11.04 0 0 11.04 50 750 Tm (Revised) Tj ET"
+
+
+def _text_html(content: bytes) -> str:
+    return convert_pdf(_pdf([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ])).html
+
+
+def _font_sizes(content: bytes) -> list[str]:
+    return re.findall(r'font-size="([\d.]+)"', _text_html(content))
+
+
+def test_convert_pdf_font_size_includes_text_matrix_scale() -> None:
+    assert _font_sizes(SCALED_TEXT) == ["11.0"]
+    assert _font_sizes(b"2 0 0 2 0 0 cm BT /F1 5 Tf 25 375 Td (Revised) Tj ET") == ["10.0"]
+    assert _font_sizes(b"BT /F1 10 Tf 50 750 Td (Revised) Tj ET") == ["10.0"]
+
+
+def test_tiny_text_flags_text_squashed_by_the_old_font_size() -> None:
+    squashed = '<text x="50" y="90" font-size="1.0" font-family="serif" textLength="33.0">年５月</text>'
+    normal = '<text x="50" y="90" font-size="11.0" font-family="serif" textLength="33.0">年５月</text>'
+    assert tiny_text.stretched_share(squashed + normal) == 0.5
+    assert tiny_text.stretched_share(normal) == 0.0
+    assert tiny_text.stretched_share(_text_html(SCALED_TEXT)) == 0.0
 
 
 def test_convert_pdf_joins_surrogate_pairs() -> None:
@@ -276,6 +309,38 @@ def test_targets_run_and_api(c) -> None:
     assert c.get("/api/stock/pdf/20990101000000").status_code == 404
 
 
+def test_redo_reconverts_old_rows_and_keeps_them_on_error() -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99980", name="テスト工業", market="プライム", sector33="金属製品"))
+        now = datetime(2026, 1, 1, 15, 30)
+        for no in ("20190101000091", "20190101000092", "20190101000093", "20190101000094"):
+            db.add(Statement(disclosure_no=no, code="99980", disclosed_date=date(2025, 1, 1), disclosed_time="15:30:00",
+                             type_of_document="FYFinancialStatements_Consolidated_JP"))
+            db.add(TdnetPdfDocument(disclosure_no=no, code="99980", status="ok", html_gz=gzip.compress(b"<p>old</p>"),
+                                    converter="svg2" if no != "20190101000094" else CONVERTER, created_at=now))
+        db.commit()
+        nos = ["20190101000091", "20190101000092", "20190101000094"]
+        assert [s.disclosure_no for s in ingest.redo_targets(db, nos)] == ["20190101000092", "20190101000091"]
+
+        pdf = make_pdf("Financial Results FY2024")
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            no = req.url.path.rsplit("/", 1)[-1].removesuffix(".pdf")
+            return httpx.Response(200, content=pdf) if no == "20190101000091" else httpx.Response(404)
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            stats = ingest.run(db, None, sleep=0, redo=nos, client=client, log=lambda line: None)
+        assert stats == {"ok": 1, "missing": 1, "failed": 0, "stopped": "done", "remaining": 1}
+        redone = db.get(TdnetPdfDocument, "20190101000091")
+        assert redone.converter == CONVERTER and b"<svg" in gzip.decompress(redone.html_gz)
+        kept = db.get(TdnetPdfDocument, "20190101000092")
+        assert kept.status == "ok" and kept.converter == "svg2" and gzip.decompress(kept.html_gz) == b"<p>old</p>"
+        assert gzip.decompress(db.get(TdnetPdfDocument, "20190101000093").html_gz) == b"<p>old</p>"
+    finally:
+        db.close()
+
+
 def test_cli_requires_code_or_all(capsys) -> None:
     import pytest
 
@@ -288,5 +353,5 @@ def test_cli_does_not_create_tables() -> None:
     """表はデプロイの migrate が作る。ツールは作らず、無ければ落ちる（KAB-165）。"""
     from pathlib import Path
 
-    src = (Path(__file__).resolve().parents[2] / "tools/tdnet_pdf/ingest.py").read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[2] / "jobs/xbrl/tdnet_pdf_ingest.py").read_text(encoding="utf-8")
     assert "init_db" not in src and "create_all" not in src

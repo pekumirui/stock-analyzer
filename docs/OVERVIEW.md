@@ -82,7 +82,7 @@ flowchart LR
 | TDnet | 決算短信 XBRL・原文 HTML、月次 PDF、決算説明資料 PDF | `jobs/xbrl/tdnet_xbrl_r2.py`, `jobs/monthly/tdnet_monthly_r2.py`, `jobs/market/tdnet_briefing_r2.py` |
 | EDINET API v2 | 提出者コード、有報・半期報・四半期報の財務3表とセグメント・大株主、大量保有報告書、公開買付け、自己株券買付状況報告書 | `jobs/edinet/` |
 | 会社の IR ページ・eir-parts | 月次 KPI の HTML・Excel・JSON、決算説明資料 PDF | `jobs/monthly/ir_monthly_*.py`, `jobs/market/homepage_briefing.py` |
-| IR BANK（HTTP） | TDnet の掲載期間を過ぎた過去の決算短信 PDF と決算説明資料 PDF（手動バックフィル専用） | `tools/tdnet_pdf/ingest.py`, `tools/briefing/irbank_ingest.py` |
+| IR BANK（HTTP） | TDnet の掲載期間を過ぎた過去の決算短信 PDF と決算説明資料 PDF（手動バックフィル。短信 PDF の取り直しだけ KAB-572 の間 cron） | `jobs/xbrl/tdnet_pdf_ingest.py`, `tools/briefing/irbank_ingest.py` |
 | Anthropic Message Batches API | 決算説明資料 PDF からの数値表と要約の抽出 | `jobs/market/briefing_extract.py` |
 | e-Stat・経済産業省 | 生産動態統計、石油統計、貿易統計 | `jobs/supply/material_stats.py` |
 | 株探・Yahoo Finance・Frankfurter（ECB） | 夜間 PTS ランキング、1 分足（直近 7 日）、EUR 基準の為替レート | `jobs/market/pts_snapshot.py`, `jobs/market/intraday_1m.py`, `jobs/fx_rates.py` |
