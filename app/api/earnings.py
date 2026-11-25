@@ -144,7 +144,7 @@ def _list_row(db: Session, s, hist, code: str, name: str) -> dict:
     }
 
 
-_NEWEST_IN_A_DAY = (Statement.fiscal_year_end.desc(),
+NEWEST_IN_A_DAY = (Statement.fiscal_year_end.desc(),
                     case(ORDER, value=Statement.type_of_period, else_=0).desc(),
                     Statement.disclosed_time.desc(), Statement.disclosure_no.desc())
 
@@ -251,11 +251,11 @@ def earnings_detail(code: str, date_: str | None = Query(None, alias="date"),
         if date_:
             day = _pd(date_)
             stmt = (q.filter(Statement.disclosed_date == day, Statement.is_revision.isnot(True))
-                    .order_by(*_NEWEST_IN_A_DAY).first())
+                    .order_by(*NEWEST_IN_A_DAY).first())
             q = q.filter(Statement.disclosed_date <= day)
         if stmt is None:
             # 同日に複数期を開示する銘柄があるので、年度末の新しい方を既定にする
-            stmt = q.order_by(Statement.disclosed_date.desc(), *_NEWEST_IN_A_DAY).first()
+            stmt = q.order_by(Statement.disclosed_date.desc(), *NEWEST_IN_A_DAY).first()
     if stmt is None:
         raise HTTPException(404, "no statement")
 
