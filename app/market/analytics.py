@@ -684,7 +684,8 @@ def find_statement(hist: list[Statement], fy_end: date | None, period: str | Non
     filled = {k: v for k, v in carried.items() if v is not None and getattr(best, k, None) is None}
     if "eps" in filled:
         filled["eps_scale"] = scale
-    first = min(same_period, key=disclosure_order)
+    first = min((s for s in cands if s.fiscal_year_end == best.fiscal_year_end and s.type_of_period == best.type_of_period),
+                key=disclosure_order)
     if first is not best:
         filled.update(disclosed_date=first.disclosed_date, disclosed_time=first.disclosed_time)
     return CarriedStatement(best, filled) if filled else best

@@ -28,6 +28,7 @@ from app.market.analytics import (
     disclosure_state,
     earnings_detail,
     find_statement,
+    first_disclosures,
     growth_cell,
     growth_map,
     half_forecast_status,
@@ -245,6 +246,18 @@ def test_find_statement_dates_from_first_report() -> None:
         _fail("row was written")
     if find_statement([first], FY26, "FY", TOL) is not first:
         _fail("single row wrapped")
+
+
+def test_find_statement_date_matches_earnings_events() -> None:
+    jp = _amend("a", date(2026, 5, 1), "15:00", net_sales=600.0)
+    ifrs = _amend("b", date(2026, 6, 1), "15:00", net_sales=610.0)
+    ifrs.type_of_document = "FYFinancialStatements_Consolidated_IFRS"
+    rows = [jp, ifrs]
+    got = find_statement(rows, FY26, "FY", TOL)
+    firsts = first_disclosures([(CODE, s.disclosed_date, s.disclosed_time, s.fiscal_year_end, s.type_of_period,
+                                 s.is_revision) for s in rows])
+    if got.net_sales != 610.0 or list(firsts) != [(CODE, got.disclosed_date)]:
+        _fail(f"date {got.disclosed_date} {firsts}")
 
 
 def test_find_statement_keeps_blank_when_changed() -> None:
