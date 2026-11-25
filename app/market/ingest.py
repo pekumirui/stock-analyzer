@@ -5,9 +5,11 @@
 5年バックフィル = 営業日約1,220日 × (株価1 + 財務1) ≒ 2,450リクエスト。
 """
 import json
+import time
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import func
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from .adjust import readjust
@@ -19,7 +21,7 @@ from .period_fixes import (
     default_period_fixes,
     warn_period_candidates,
 )
-from ..db import upsert
+from ..db import is_sqlite_lock, upsert
 from ..models import Stock, DailyPrice, Topix, Statement
 from ..xbrl.statements import (
     NUMERIC_COLUMNS as STATEMENT_NUMERIC_COLUMNS, SOURCE_JQUANTS, SOURCE_XBRL, is_xbrl_raw,
@@ -230,15 +232,14 @@ def _prev_trading_day(db: Session, day: str) -> date | None:
     return db.query(func.max(DailyPrice.date)).filter(DailyPrice.date < _d(day)).scalar()
 
 
-def run_daily(db: Session, day: str | None = None) -> int:
-    """当日の全銘柄株価・財務・TOPIXと前営業日の財務を取得。マスタを入れて 5 リクエスト。
+DAILY_LOCK_ATTEMPTS = 10
+DAILY_LOCK_SLEEP_S = 5.0
+DAILY_LOCK_SLEEP_CAP_S = 60.0
 
-    前営業日の財務は 19:30 より後の開示を拾うための取り直し。
-    発表予定はここではなく jobs/market/run_batch.py が指標の後に取る。
-    返り値は株価・TOPIX・当日決算の件数と、前営業日に新しく増えた決算の件数の和。
-    """
-    day = day or date.today().strftime("%Y-%m-%d")
+
+def _run_daily_once(db: Session, day: str) -> int:
     prev = _prev_trading_day(db, day)
+    db.commit()
     with JQuantsClient() as jq:
         n_m = ingest_master(db, jq)
         px_rows = _ingest_day(db, jq, day)
@@ -255,6 +256,35 @@ def run_daily(db: Session, day: str | None = None) -> int:
     adj = f" / 権利落ちで調整後を計算し直し {','.join(adjusted)}" if adjusted else ""
     print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}{late}{adj}")
     return n_p + n_t + n_s + n_late
+
+
+def run_daily(
+    db: Session, day: str | None = None, *,
+    attempts: int = DAILY_LOCK_ATTEMPTS, sleep=time.sleep,
+    lock_sleep_s: float = DAILY_LOCK_SLEEP_S, lock_sleep_cap_s: float = DAILY_LOCK_SLEEP_CAP_S,
+) -> int:
+    """当日の全銘柄株価・財務・TOPIXと前営業日の財務を取得。マスタを入れて 5 リクエスト。
+
+    前営業日の財務は 19:30 より後の開示を拾うための取り直し。
+    発表予定はここではなく jobs/market/run_batch.py が指標の後に取る。
+    返り値は株価・TOPIX・当日決算の件数と、前営業日に新しく増えた決算の件数の和。
+    """
+    day = day or date.today().strftime("%Y-%m-%d")
+    delay = lock_sleep_s
+    for attempt in range(1, attempts + 1):
+        try:
+            return _run_daily_once(db, day)
+        except OperationalError as exc:
+            db.rollback()
+            if not is_sqlite_lock(exc) or attempt >= attempts:
+                raise
+            print(
+                f"run_daily locked (attempt {attempt}/{attempts}); retry in {delay:g}s",
+                flush=True,
+            )
+            sleep(delay)
+            delay = min(delay * 2, lock_sleep_cap_s)
+    raise RuntimeError("run_daily attempts exhausted")
 
 
 class BackfillError(RuntimeError):
