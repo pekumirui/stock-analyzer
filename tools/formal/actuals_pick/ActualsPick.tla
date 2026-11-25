@@ -65,12 +65,21 @@ ThreeSpec(s, k) ==
     LET y == LastStated(s, Of(s, "edinet"), k)
     IN IF y # Absent THEN y ELSE LastStated(s, Tanshin(s), k)
 
+RowStep(e, r) ==
+    LET same == \A j \in r.has : e[j] \in {Absent, r.val}
+    IN [k \in Items |-> IF k \in r.has THEN r.val ELSE IF same THEN e[k] ELSE Absent]
+
+RowFold(s) ==
+    LET F[i \in 0..Len(s)] ==
+            IF i = 0 THEN [k \in Items |-> Absent] ELSE RowStep(F[i - 1], s[i])
+    IN F[Len(s)]
+
+RowSpec(s, k) == RowFold(s)[k]
+
 RowCode(s, k) ==
     IF Len(s) = 0 THEN Absent
-    ELSE LET top == Max({s[i].slot : i \in 1..Len(s)})
-         IN Own(s, Min({i \in 1..Len(s) : s[i].slot = top}), k)
-
-RowSpec(s, k) == LastStated(s, 1..Len(s), k)
+    ELSE IF k \in s[Len(s)].has THEN s[Len(s)].val
+    ELSE RowFold(s)[k]
 
 FirstEdinet(s) == IF Of(s, "edinet") = {} THEN Absent ELSE s[Min(Of(s, "edinet"))].val
 

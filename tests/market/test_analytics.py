@@ -28,6 +28,7 @@ from app.market.analytics import (
     disclosure_state,
     earnings_detail,
     find_statement,
+    first_disclosures,
     growth_cell,
     growth_map,
     half_forecast_status,
@@ -206,6 +207,75 @@ def test_single_quarter_from_cumulative() -> None:
     qoq = qoq_map(hist, q2, TOL)
     if qoq is None or qoq["net_sales"]["pct"] != 50.0:
         _fail(f"qoq {qoq}")
+
+
+def _amend(no: str, disclosed: date, time: str, **values) -> Statement:
+    row = _stmt(no, "FY", FY26, disclosed, 600, eps=60.0)
+    row.disclosed_time = time
+    row.gross_profit = None
+    for key in ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps"):
+        setattr(row, key, values.get(key))
+    return row
+
+
+def test_find_statement_same_day_takes_later_time() -> None:
+    first = _amend("20230310528927", date(2026, 5, 1), "15:00", net_sales=600.0)
+    later = _amend("20230310528427", date(2026, 5, 1), "18:40", net_sales=700.0)
+    got = find_statement([first, later], FY26, "FY", TOL)
+    if got.net_sales != 700.0:
+        _fail(f"same day {got.net_sales}")
+
+
+def test_find_statement_carries_blank_when_unchanged() -> None:
+    first = _amend("a", date(2026, 5, 1), "11:30", net_sales=40399e6, profit=514e6, eps=54.75)
+    later = _amend("b", date(2026, 6, 1), "19:30", net_sales=40399528e3, profit=514078e3)
+    got = metrics(find_statement([first, later], FY26, "FY", TOL))
+    if got["eps"] != 54.75 or got["profit"] != 514078e3:
+        _fail(f"carried {got}")
+    if later.eps is not None:
+        _fail("row was written")
+
+
+def test_find_statement_dates_from_first_report() -> None:
+    first = _amend("a", date(2026, 5, 1), "11:30", net_sales=600.0, eps=60.0)
+    later = _amend("b", date(2026, 6, 1), "19:30", net_sales=700.0, eps=70.0)
+    got = find_statement([first, later], FY26, "FY", TOL)
+    if (got.disclosed_date, got.disclosed_time, got.net_sales) != (date(2026, 5, 1), "11:30", 700.0):
+        _fail(f"first date {got.disclosed_date} {got.net_sales}")
+    if later.disclosed_date != date(2026, 6, 1):
+        _fail("row was written")
+    if find_statement([first], FY26, "FY", TOL) is not first:
+        _fail("single row wrapped")
+
+
+def test_find_statement_date_matches_earnings_events() -> None:
+    jp = _amend("a", date(2026, 5, 1), "15:00", net_sales=600.0)
+    ifrs = _amend("b", date(2026, 6, 1), "15:00", net_sales=610.0)
+    ifrs.type_of_document = "FYFinancialStatements_Consolidated_IFRS"
+    rows = [jp, ifrs]
+    got = find_statement(rows, FY26, "FY", TOL)
+    firsts = first_disclosures([(CODE, s.disclosed_date, s.disclosed_time, s.fiscal_year_end, s.type_of_period,
+                                 s.is_revision) for s in rows])
+    if got.net_sales != 610.0 or list(firsts) != [(CODE, got.disclosed_date)]:
+        _fail(f"date {got.disclosed_date} {firsts}")
+
+
+def test_find_statement_keeps_blank_when_changed() -> None:
+    first = _amend("a", date(2026, 5, 1), "12:00", profit=25381e6, eps=81.66)
+    later = _amend("b", date(2026, 6, 1), "12:00", profit=27213e6)
+    got = metrics(find_statement([first, later], FY26, "FY", TOL))
+    if got["eps"] is not None or got["profit"] != 27213e6:
+        _fail(f"changed {got}")
+
+
+def test_find_statement_carries_eps_with_its_scale() -> None:
+    first = _amend("a", date(2026, 5, 1), "12:00", profit=100.0, eps=50.0)
+    later = _amend("b", date(2026, 6, 1), "12:00", profit=100.0)
+    first.eps_scale = 0.5
+    later.eps_scale = 1.0
+    got = metrics(find_statement([first, later], FY26, "FY", TOL))
+    if got["eps"] != 25.0:
+        _fail(f"scale {got}")
 
 
 def test_disclosure_and_rows() -> None:
