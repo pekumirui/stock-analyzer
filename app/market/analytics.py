@@ -682,11 +682,12 @@ def find_statement(hist: list[Statement], fy_end: date | None, period: str | Non
                    and s.type_of_document == best.type_of_document]
     carried, scale = carried_values(same_period)
     filled = {k: v for k, v in carried.items() if v is not None and getattr(best, k, None) is None}
-    if not filled:
-        return best
     if "eps" in filled:
         filled["eps_scale"] = scale
-    return CarriedStatement(best, filled)
+    first = min(same_period, key=disclosure_order)
+    if first is not best:
+        filled.update(disclosed_date=first.disclosed_date, disclosed_time=first.disclosed_time)
+    return CarriedStatement(best, filled) if filled else best
 
 
 def growth_cell(cur: float | None, prev: float | None, signed: bool = True) -> dict:

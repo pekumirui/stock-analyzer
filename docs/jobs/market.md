@@ -160,7 +160,7 @@ J-Quants V2 の `/fins/summary`（`statements` テーブル）には次の仕様
 
 ### 同じ期の行が複数あるとき
 
-伸び率・Q 単独値・進捗率などで、ほかの期の実績を引く `find_statement`（`app/market/analytics.py`）は、年度末が最も近い同じ四半期の決算短信のうち、開示日・開示時刻・開示番号の順で最後の行を採る（同じ日の訂正は開示時刻で後の方。KAB-570。`81420` の 2023/01 期は 15:00 の元の短信でなく 18:40 の数値データ訂正）。その行の空の実績（`net_sales`・`operating_profit`・`ordinary_profit`・`profit`・`eps`。`CARRIED_KEYS`）は、同じ `fiscal_year_end`・`type_of_period`・`type_of_document` の行を古い順に畳んだ値で埋める。畳むとき、その行で値のある項目がそれまでの値とすべて同じ（金額は差が 100 万円未満、EPS は株数をそろえて差が 0.01 未満）なら空の項目はそれまでの値のまま、1 つでも違えば空の項目は空にする（KAB-571。`95560` の 2026/07 期の訂正は、サマリーの無い ZIP から作った行で EPS が空だが、売上・利益は元と同じなので元の EPS 54.75 を使う。利益の変わった訂正の空の EPS には、古い EPS を混ぜない）。埋めるのは返す値だけで、`statements` の行は書き換えない。この規則は TLA+ の模型（`tools/formal/actuals_pick` の `RowSpec`。スキル `formal-actuals-pick`）で全順序を検査している。
+伸び率・Q 単独値・進捗率などで、ほかの期の実績を引く `find_statement`（`app/market/analytics.py`）は、年度末が最も近い同じ四半期の決算短信のうち、開示日・開示時刻・開示番号の順で最後の行を採る（同じ日の訂正は開示時刻で後の方。KAB-570。`81420` の 2023/01 期は 15:00 の元の短信でなく 18:40 の数値データ訂正）。その行の空の実績（`net_sales`・`operating_profit`・`ordinary_profit`・`profit`・`eps`。`CARRIED_KEYS`）は、同じ `fiscal_year_end`・`type_of_period`・`type_of_document` の行を古い順に畳んだ値で埋める。畳むとき、その行で値のある項目がそれまでの値とすべて同じ（金額は差が 100 万円未満、EPS は株数をそろえて差が 0.01 未満）なら空の項目はそれまでの値のまま、1 つでも違えば空の項目は空にする（KAB-571。`95560` の 2026/07 期の訂正は、サマリーの無い ZIP から作った行で EPS が空だが、売上・利益は元と同じなので元の EPS 54.75 を使う。利益の変わった訂正の空の EPS には、古い EPS を混ぜない）。返す行の発表日（`disclosed_date`・`disclosed_time`。決算速報の詳細の過去の期の行の発表日）は、その期の最初の決算短信のものにする（数字は最後の行と埋めた値）。埋めるのは返す値だけで、`statements` の行は書き換えない。この規則は TLA+ の模型（`tools/formal/actuals_pick` の `RowSpec`。スキル `formal-actuals-pick`）で全順序を検査している。
 
 ### Q単独値の算出
 

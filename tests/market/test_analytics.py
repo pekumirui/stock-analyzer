@@ -235,6 +235,18 @@ def test_find_statement_carries_blank_when_unchanged() -> None:
         _fail("row was written")
 
 
+def test_find_statement_dates_from_first_report() -> None:
+    first = _amend("a", date(2026, 5, 1), "11:30", net_sales=600.0, eps=60.0)
+    later = _amend("b", date(2026, 6, 1), "19:30", net_sales=700.0, eps=70.0)
+    got = find_statement([first, later], FY26, "FY", TOL)
+    if (got.disclosed_date, got.disclosed_time, got.net_sales) != (date(2026, 5, 1), "11:30", 700.0):
+        _fail(f"first date {got.disclosed_date} {got.net_sales}")
+    if later.disclosed_date != date(2026, 6, 1):
+        _fail("row was written")
+    if find_statement([first], FY26, "FY", TOL) is not first:
+        _fail("single row wrapped")
+
+
 def test_find_statement_keeps_blank_when_changed() -> None:
     first = _amend("a", date(2026, 5, 1), "12:00", profit=25381e6, eps=81.66)
     later = _amend("b", date(2026, 6, 1), "12:00", profit=27213e6)

@@ -64,7 +64,7 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 | `ThreeSpec` | あるべき値。有報の中で最後に言った値、無ければ短信（XBRL と PDF を合わせて提出順）で最後に言った値 |
 | `View = "row"` | `find_statement` が 1 つの期（年度末・四半期）について選ぶ行。`seq` は `statements` の決算短信の行で、J-Quants と XBRL を合わせた後の値 |
 | `slot` | `disclosed_date`。同じ `slot` の中の並びは `disclosure_no` の昇順（履歴の並び） |
-| `RowCode` | 開示日・開示時刻・開示番号の順で最後の行。空の項目は `carried_values` で畳んだ値（返すのは `CarriedStatement`。行は書き換えない） |
+| `RowCode` | 開示日・開示時刻・開示番号の順で最後の行。空の項目は `carried_values` で畳んだ値（返すのは `CarriedStatement`。行は書き換えない）。発表日は最初の決算短信の日で、模型には入れていない |
 | `RowSpec` | `RowFold`。行を古い順に畳み、値のある項目はその行の値、空の項目は、その行の値のある項目がそれまでの値とすべて同じならそれまでの値、違えば空 |
 | `View = "gross"` | `_pick` が 1 つの開示（`src = "tanshin"` の各行）に付ける売上総利益。`has = {"a"}` はその開示の短信の filing に売上総利益がある |
 | `GrossCode` | その開示の filing、無ければ開示日以前（その日の終わりまで）で最新の短信、無ければ最初の EDINET |
