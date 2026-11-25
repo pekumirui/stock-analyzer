@@ -77,12 +77,21 @@ def test_overview(c) -> None:
     assert c.get("/api/stock/xx/overview").status_code == 400
 
 
-def test_fy_actual_without_forecast_hides_per() -> None:
-    from app.api.stock import _forecast
-
-    fy = _st("9", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="", FEPS="")
-    q3 = _st("8", "2026-02-10", "3QFinancialStatements_Consolidated_JP", FEPS="30.0")
-    assert _forecast([(fy, json.loads(fy.raw_json)), (q3, json.loads(q3.raw_json))], "EPS")[0] is None
+def test_fy_actual_without_forecast_hides_per(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99940", name="予想なし工業"))
+        db.add(DailyPrice(code="99940", date=date(2026, 10, 23), close=1000.0, adj_factor=1.0))
+        q3 = _st("8", "2026-02-10", "3QFinancialStatements_Consolidated_JP", FEPS="30.0")
+        fy = _st("9", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="", FEPS="")
+        q3.type_of_period, fy.type_of_period = "3Q", "FY"
+        for r in (q3, fy):
+            r.code, r.fiscal_year_end = "99940", date(2026, 3, 31)
+        db.add_all([q3, fy])
+        db.commit()
+    finally:
+        db.close()
+    assert c.get("/api/stock/9994/overview").json()["metrics"]["per"] is None
 
 
 def test_overview_after_split(c) -> None:
@@ -179,3 +188,24 @@ def test_summary_reuses_earnings_tables() -> None:
     assert "/api/earnings/detail/${code}`" in js
     for fn in ("renderFin($(\"#st-cum-tbl\")", "renderFin($(\"#st-q-tbl\")", "renderProg(", "renderRev("):
         assert fn in js
+
+
+def test_same_day_reports_pick_the_newest_period(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99950", name="訂正工業"))
+        db.add(DailyPrice(code="99950", date=date(2026, 11, 12), close=1000.0, adj_factor=1.0))
+        old_1q = _st("20261112576239", "2026-11-12", "1QFinancialStatements_Consolidated_JP",
+                     BPS="1800.0", EqAR="0.60")
+        new_2q = _st("20261112576228", "2026-11-12", "2QFinancialStatements_Consolidated_JP",
+                     BPS="1100.0", EqAR="0.64")
+        old_1q.type_of_period, old_1q.fiscal_year_end = "1Q", date(2026, 3, 31)
+        new_2q.type_of_period, new_2q.fiscal_year_end = "2Q", date(2027, 3, 31)
+        for r in (old_1q, new_2q):
+            r.code = "99950"
+        db.add_all([old_1q, new_2q])
+        db.commit()
+    finally:
+        db.close()
+    m = c.get("/api/stock/9995/overview").json()["metrics"]
+    assert m["pbr"] == 1000.0 / 1100.0 and m["equity_ratio"] == 0.64

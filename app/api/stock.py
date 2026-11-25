@@ -22,6 +22,7 @@ from ..market.withdrawals import withdrawn_items
 from ..models import DIVIDEND_ITEM, DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
 from ..xbrl.three_statements import DEFAULT_PERIODS, MAX_PERIODS, financial_table
+from .earnings import NEWEST_IN_A_DAY
 from .monthly._common import ApiError, _parse_code
 
 router = APIRouter()
@@ -69,8 +70,7 @@ def _statements_newest_first(db: Session, code5: str) -> list[tuple[Statement, d
     rows = (
         db.query(Statement)
         .filter(Statement.code == code5)
-        .order_by(Statement.disclosed_date.desc(), Statement.disclosed_time.desc(),
-                  Statement.disclosure_no.desc())
+        .order_by(Statement.disclosed_date.desc(), *NEWEST_IN_A_DAY)
         .all()
     )
     out = []
@@ -89,20 +89,6 @@ def _is_actual(s: Statement) -> bool:
 
 def _is_fy_actual(s: Statement) -> bool:
     return _is_actual(s) and (s.type_of_document or "").startswith("FY")
-
-
-def _forecast(stmts: list[tuple[Statement, dict]], key: str) -> tuple[float | None, date | None]:
-    """今期の予想と開示日。新しい順に見て、決算短信本体ならそこで決める（本決算は来期予想 NxF*）。
-    予想修正だけの開示は値があるときだけ使う。"""
-    for s, raw in stmts:
-        if _is_fy_actual(s):
-            return _num(raw, f"NxF{key}"), s.disclosed_date
-        if _is_actual(s):
-            return _num(raw, f"F{key}"), s.disclosed_date
-        v = _num(raw, f"F{key}")
-        if v is not None:
-            return v, s.disclosed_date
-    return None, None
 
 
 def _latest_with_date(stmts: list[tuple[Statement, dict]], key: str,

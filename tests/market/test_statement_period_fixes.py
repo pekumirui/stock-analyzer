@@ -30,9 +30,11 @@ from app.market.period_fixes import (
     default_value_fixes,
     load_dropped_disclosures,
     load_period_fixes,
+    load_period_months,
     load_value_fixes,
     next_year,
     period_candidates,
+    shift_months,
 )
 from app.models import EarningsEvent, Statement, TdnetPdfDocument
 from app.xbrl.statements import RAW_MARKER, SOURCE_XBRL, merge_into
@@ -84,7 +86,7 @@ def db():
 
 def test_real_config() -> None:
     fixes = load_period_fixes()
-    assert len(fixes) == 24
+    assert len(fixes) == 26
     assert fixes["20240508585107"] == date(2023, 3, 31)
     assert fixes["20260513530259"] == date(2025, 3, 31)
     for no in ("20260731505749", "20231213502556", "20240215537950", "20250720517365",
@@ -177,6 +179,63 @@ def test_next_year() -> None:
     assert next_year(date(2024, 2, 29)) == date(2025, 2, 28)
     assert next_year(date(2023, 6, 30)) == date(2024, 6, 30)
     assert next_year(None) is None
+
+
+REIT_3281 = {
+    "DiscDate": "2026-04-13", "DiscTime": "15:30", "Code": "32810", "DiscNo": "20260413502567",
+    "DocType": "FYFinancialStatements_Consolidated_REIT", "CurPerType": "FY",
+    "CurPerSt": "2026-03-01", "CurPerEn": "2026-08-31", "CurFYSt": "2026-03-01", "CurFYEn": "2026-08-31",
+    "NxtFYSt": "2026-03-01", "NxtFYEn": "2026-08-31", "Sales": "28821000000", "NP": "14896000000",
+}
+
+
+def test_shift_months() -> None:
+    assert shift_months(date(2026, 8, 31), -6) == date(2026, 2, 28)
+    assert shift_months(date(2026, 3, 1), -6) == date(2025, 9, 1)
+    assert shift_months(date(2027, 1, 31), -6) == date(2026, 7, 31)
+    assert shift_months(date(2026, 8, 1), -6) == date(2026, 2, 1)
+    assert shift_months(date(2023, 8, 31), 6) == date(2024, 2, 29)
+    assert shift_months(date(2023, 3, 15), -15) == date(2021, 12, 15)
+    assert shift_months(None, -6) is None
+
+
+def test_months_config(tmp_path: Path) -> None:
+    path = tmp_path / "fixes.json"
+    year = {"disclosure_no": "1", "period_end": "2023-03-31"}
+    half = {"disclosure_no": "2", "period_end": "2026-08-31", "months": -6}
+    path.write_text(json.dumps({"fixes": [year, half]}), encoding="utf-8")
+    assert load_period_fixes(path) == {"1": date(2023, 3, 31), "2": date(2026, 8, 31)}
+    assert load_period_months(path) == {"2": -6}
+    for bad in (0, "6", 1.5, True):
+        path.write_text(json.dumps({"fixes": [{**half, "months": bad}]}), encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_period_fixes(path)
+    assert load_period_months() == {"20260413502567": -6, "20260917537640": -6}
+
+
+def test_reit_row_moves_back_half_a_year_and_keeps_raw() -> None:
+    row = _statement_row(dict(REIT_3281))
+    assert (row["period_start"], row["period_end"]) == (date(2025, 9, 1), date(2026, 2, 28))
+    assert (row["fiscal_year_start"], row["fiscal_year_end"]) == (date(2025, 9, 1), date(2026, 2, 28))
+    assert json.loads(row["raw_json"]) == REIT_3281
+    assert row["net_sales"] == 28821000000.0
+
+
+def test_fix_tool_reit(db) -> None:
+    raw = dict(REIT_3281)
+    db.add(Statement(disclosure_no=raw["DiscNo"], code="32810", disclosed_date=date(2026, 4, 13),
+                     period_start=date(2026, 3, 1), period_end=date(2026, 8, 31),
+                     fiscal_year_start=date(2026, 3, 1), fiscal_year_end=date(2026, 8, 31),
+                     raw_json=json.dumps(raw)))
+    db.commit()
+    got = {p.disclosure_no: p for p in plan(db)}[raw["DiscNo"]]
+    assert got.status == "changed"
+    assert "period_end=2026-08-31->2026-02-28" in got.line()
+    write(db, plan(db))
+    db.expire_all()
+    st = db.get(Statement, raw["DiscNo"])
+    assert (st.period_start, st.fiscal_year_end) == (date(2025, 9, 1), date(2026, 2, 28))
+    assert {p.disclosure_no: p.status for p in plan(db)}[raw["DiscNo"]] == "unchanged"
 
 
 def test_listed_row_moves_one_year_and_keeps_raw() -> None:
@@ -281,7 +340,7 @@ def test_fix_tool(db) -> None:
     db.commit()
     before_other = {c.key: getattr(db.get(Statement, "F1"), c.key) for c in Statement.__table__.columns}
     planned = {p.disclosure_no: p for p in plan(db)}
-    assert len(planned) == 46
+    assert len(planned) == 48
     assert planned["20240508585107"].status == "changed"
     assert "period_end=2023-03-31->2024-03-31" in planned["20240508585107"].line()
     assert planned["20260513530259"].status == "mismatch"
