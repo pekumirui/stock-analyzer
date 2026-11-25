@@ -14,6 +14,7 @@ from .adjust import readjust
 from .jquants import JQuantsClient
 from .period_fixes import (
     apply_period_fix,
+    apply_value_fix,
     default_dropped_disclosures,
     default_period_fixes,
     warn_period_candidates,
@@ -164,7 +165,7 @@ def _statement_row(s: dict, fixes: dict[str, date] | None = None) -> dict:
                        and "FinancialStatements" not in doc,
         "raw_json": json.dumps(s, ensure_ascii=False),
     }
-    return apply_period_fix(row, default_period_fixes() if fixes is None else fixes)
+    return apply_value_fix(apply_period_fix(row, default_period_fixes() if fixes is None else fixes))
 
 
 def upsert_statements(db: Session, rows: list[dict], *, commit: bool = True) -> None:

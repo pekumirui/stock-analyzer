@@ -20,29 +20,49 @@ LATE_DAYS = 300
 QUARTERS = ("1Q", "2Q", "3Q")
 
 
-def _load_items(path: Path | None) -> tuple[dict[str, date], frozenset[str]]:
+VALUE_COLUMNS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+
+
+@dataclass(frozen=True)
+class StatementFixes:
+    periods: dict[str, date]
+    dropped: frozenset[str]
+    values: dict[str, dict[str, float]]
+
+
+def load_statement_fixes(path: Path | None = None) -> StatementFixes:
     src = STATEMENT_PERIOD_FIXES_PATH if path is None else path
     raw = json.loads(src.read_text(encoding="utf-8"))
-    fixes: dict[str, date] = {}
+    periods: dict[str, date] = {}
     dropped: set[str] = set()
+    values: dict[str, dict[str, float]] = {}
     for item in raw.get("fixes") or []:
         no = str(item["disclosure_no"]).strip()
-        if no in fixes or no in dropped:
+        if no in periods or no in dropped or no in values:
             raise ValueError(f"duplicate disclosure_no in period fixes: {no}")
         if item.get("drop") is True:
             dropped.add(no)
+        elif "values" in item:
+            unknown = set(item["values"]) - set(VALUE_COLUMNS)
+            if unknown or not item["values"]:
+                raise ValueError(f"bad values in period fixes: {no} {sorted(unknown)}")
+            values[no] = {k: float(v) for k, v in item["values"].items()}
         else:
-            fixes[no] = date.fromisoformat(item["period_end"])
-    return fixes, frozenset(dropped)
+            periods[no] = date.fromisoformat(item["period_end"])
+    return StatementFixes(periods, frozenset(dropped), values)
 
 
 def load_period_fixes(path: Path | None = None) -> dict[str, date]:
     """開示番号 → J-Quants が返す誤った期末（CurPerEn）。drop の開示は含めない。重複は drop も含めて ValueError。"""
-    return _load_items(path)[0]
+    return load_statement_fixes(path).periods
 
 
 def load_dropped_disclosures(path: Path | None = None) -> frozenset[str]:
-    return _load_items(path)[1]
+    return load_statement_fixes(path).dropped
+
+
+def load_value_fixes(path: Path | None = None) -> dict[str, dict[str, float]]:
+    return load_statement_fixes(path).values
 
 
 @lru_cache(maxsize=1)
@@ -53,6 +73,16 @@ def default_period_fixes() -> dict[str, date]:
 @lru_cache(maxsize=1)
 def default_dropped_disclosures() -> frozenset[str]:
     return load_dropped_disclosures()
+
+
+@lru_cache(maxsize=1)
+def default_value_fixes() -> dict[str, dict[str, float]]:
+    return load_value_fixes()
+
+
+def apply_value_fix(row: dict, fixes: dict[str, dict[str, float]] | None = None) -> dict:
+    found = (default_value_fixes() if fixes is None else fixes).get(row["disclosure_no"])
+    return {**row, **found} if found else row
 
 
 def next_year(d: date | None) -> date | None:
