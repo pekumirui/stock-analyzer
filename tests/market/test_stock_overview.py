@@ -77,12 +77,21 @@ def test_overview(c) -> None:
     assert c.get("/api/stock/xx/overview").status_code == 400
 
 
-def test_fy_actual_without_forecast_hides_per() -> None:
-    from app.api.stock import _forecast
-
-    fy = _st("9", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="", FEPS="")
-    q3 = _st("8", "2026-02-10", "3QFinancialStatements_Consolidated_JP", FEPS="30.0")
-    assert _forecast([(fy, json.loads(fy.raw_json)), (q3, json.loads(q3.raw_json))], "EPS")[0] is None
+def test_fy_actual_without_forecast_hides_per(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99940", name="予想なし工業"))
+        db.add(DailyPrice(code="99940", date=date(2026, 10, 23), close=1000.0, adj_factor=1.0))
+        q3 = _st("8", "2026-02-10", "3QFinancialStatements_Consolidated_JP", FEPS="30.0")
+        fy = _st("9", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="", FEPS="")
+        q3.type_of_period, fy.type_of_period = "3Q", "FY"
+        for r in (q3, fy):
+            r.code, r.fiscal_year_end = "99940", date(2026, 3, 31)
+        db.add_all([q3, fy])
+        db.commit()
+    finally:
+        db.close()
+    assert c.get("/api/stock/9994/overview").json()["metrics"]["per"] is None
 
 
 def test_overview_after_split(c) -> None:
