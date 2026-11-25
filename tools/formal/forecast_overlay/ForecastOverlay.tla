@@ -72,16 +72,17 @@ CodeStep(st, s, i) ==
         o == Obs(s, i)
     IN IF r.kind = "report"
        THEN IF Older(Key(r), st.latest)
-            THEN [val |-> IF Item = "div" THEN ValueOf(o) ELSE st.val, latest |-> st.latest]
-            ELSE [val |-> ValueOf(o), latest |-> Newest(Key(r), st.latest)]
-       ELSE [val |-> CASE r.marked /\ ReadsNonReport(r) -> None
-                       [] o # Blank /\ ReadsNonReport(r) -> o
-                       [] OTHER -> st.val,
-             latest |-> st.latest]
+            THEN st
+            ELSE [val |-> ValueOf(o), latest |-> Newest(Key(r), st.latest), held |-> Target(r)]
+       ELSE IF r.year < st.held
+            THEN st
+            ELSE [st EXCEPT !.val = CASE r.marked /\ ReadsNonReport(r) -> None
+                                     [] o # Blank /\ ReadsNonReport(r) -> o
+                                     [] OTHER -> st.val]
 
 CodeFold(s) ==
     LET F[i \in 0..Len(s)] ==
-            IF i = 0 THEN [val |-> None, latest |-> NoKey] ELSE CodeStep(F[i - 1], s, i)
+            IF i = 0 THEN [val |-> None, latest |-> NoKey, held |-> 0] ELSE CodeStep(F[i - 1], s, i)
     IN F[Len(s)].val
 
 Apply(x, v) == CASE x \in Values -> x
