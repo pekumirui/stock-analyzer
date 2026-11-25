@@ -190,11 +190,11 @@ stateDiagram-v2
 
 | 元 | 先 | 条件 | 根拠 |
 |---|---|---|---|
-| `[*]` | `ok` | 新規の開示で PDF を HTML にできたとき。検証用の `put_html` とゴールデンの投入も、行が無ければ `ok` で作る | `tools/tdnet_pdf/ingest.py` `ingest_one`<br>`tools/tdnet_pdf/verify_financials.py` `put_html`<br>`tools/tdnet_pdf/golden_check.py` `_seed_and_sync` |
-| `[*]` | `missing` | 新規の開示で IR BANK が 404 のとき | `tools/tdnet_pdf/ingest.py` `_mark`<br>`tools/tdnet_pdf/ingest.py` `run` |
-| `[*]` | `failed` | 新規の開示で PDF ではない、途中までの PDF、変換例外のとき | `tools/tdnet_pdf/ingest.py` `_mark`<br>`tools/tdnet_pdf/ingest.py` `run` |
-| `failed` | `ok` | `--retry-failed` で再び取りに行き HTML にできたとき。`put_html` とゴールデンの投入は、`failed` の行を `ok` で上書きする | `tools/tdnet_pdf/ingest.py` `ingest_one`<br>`tools/tdnet_pdf/ingest.py` `targets`<br>`tools/tdnet_pdf/verify_financials.py` `put_html`<br>`tools/tdnet_pdf/golden_check.py` `_seed_and_sync` |
-| `failed` | `missing` | `--retry-failed` で再び取りに行き 404 のとき | `tools/tdnet_pdf/ingest.py` `_mark`<br>`tools/tdnet_pdf/ingest.py` `targets` |
+| `[*]` | `ok` | 新規の開示で PDF を HTML にできたとき。検証用の `put_html` とゴールデンの投入も、行が無ければ `ok` で作る | `jobs/xbrl/tdnet_pdf_ingest.py` `ingest_one`<br>`tools/tdnet_pdf/verify_financials.py` `put_html`<br>`tools/tdnet_pdf/golden_check.py` `_seed_and_sync` |
+| `[*]` | `missing` | 新規の開示で IR BANK が 404 のとき | `jobs/xbrl/tdnet_pdf_ingest.py` `_mark`<br>`jobs/xbrl/tdnet_pdf_ingest.py` `run` |
+| `[*]` | `failed` | 新規の開示で PDF ではない、途中までの PDF、変換例外のとき | `jobs/xbrl/tdnet_pdf_ingest.py` `_mark`<br>`jobs/xbrl/tdnet_pdf_ingest.py` `run` |
+| `failed` | `ok` | `--retry-failed` で再び取りに行き HTML にできたとき。`put_html` とゴールデンの投入は、`failed` の行を `ok` で上書きする | `jobs/xbrl/tdnet_pdf_ingest.py` `ingest_one`<br>`jobs/xbrl/tdnet_pdf_ingest.py` `targets`<br>`tools/tdnet_pdf/verify_financials.py` `put_html`<br>`tools/tdnet_pdf/golden_check.py` `_seed_and_sync` |
+| `failed` | `missing` | `--retry-failed` で再び取りに行き 404 のとき | `jobs/xbrl/tdnet_pdf_ingest.py` `_mark`<br>`jobs/xbrl/tdnet_pdf_ingest.py` `targets` |
 | `missing` | `ok` | 取り込みは `missing` を取り直さない。`put_html` とゴールデンの投入だけが、既存行を `ok` で上書きする | `tools/tdnet_pdf/verify_financials.py` `put_html`<br>`tools/tdnet_pdf/golden_check.py` `_seed_and_sync` |
 
 ## 状態遷移図に含めない列

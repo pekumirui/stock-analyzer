@@ -38,6 +38,7 @@ flowchart LR
   n2 --> n7
   n3 --> n6
   n6 --> n2
+  n6 --> n3
   n6 --> n7
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
@@ -104,50 +105,52 @@ flowchart LR
   n6["jobs/market"]:::ext
   n7["jobs/monthly"]:::ext
   n8["jobs/ops"]:::ext
-  n9["mcp"]:::own
-  n10["tools/briefing"]:::own
-  n11["tools/dataflow"]:::own
-  n12["tools/edinet"]:::own
-  n13["tools/jobs"]:::own
-  n14["tools/market"]:::own
-  n15["tools/mcp"]:::own
-  n16["tools/monthly"]:::own
-  n17["tools/overview"]:::own
-  n18["tools/schema"]:::own
-  n19["tools/screen"]:::own
-  n20["tools/supply"]:::own
-  n21["tools/tdnet_pdf"]:::own
-  n22["tools/wiki"]:::own
-  n23["tools/xbrl"]:::own
-  n24["vendor"]:::ext
+  n9["jobs/xbrl"]:::ext
+  n10["mcp"]:::own
+  n11["tools/briefing"]:::own
+  n12["tools/dataflow"]:::own
+  n13["tools/edinet"]:::own
+  n14["tools/jobs"]:::own
+  n15["tools/market"]:::own
+  n16["tools/mcp"]:::own
+  n17["tools/monthly"]:::own
+  n18["tools/overview"]:::own
+  n19["tools/schema"]:::own
+  n20["tools/screen"]:::own
+  n21["tools/supply"]:::own
+  n22["tools/tdnet_pdf"]:::own
+  n23["tools/wiki"]:::own
+  n24["tools/xbrl"]:::own
+  n25["vendor"]:::ext
   n0 --> n2
-  n9 --> n5
-  n10 --> n2
-  n10 --> n6
-  n10 --> n7
-  n10 --> n8
-  n11 --> n13
-  n11 --> n18
-  n11 --> n19
-  n12 --> n24
-  n13 --> n11
-  n13 --> n15
-  n14 --> n1
-  n14 --> n2
-  n14 --> n5
-  n16 --> n1
-  n16 --> n3
-  n16 --> n5
-  n16 --> n7
-  n17 --> n11
-  n17 --> n13
-  n18 --> n11
-  n19 --> n11
-  n20 --> n4
-  n21 --> n5
-  n22 --> n18
-  n23 --> n5
-  n23 --> n24
+  n10 --> n5
+  n11 --> n2
+  n11 --> n6
+  n11 --> n7
+  n11 --> n8
+  n12 --> n14
+  n12 --> n19
+  n12 --> n20
+  n13 --> n25
+  n14 --> n12
+  n14 --> n16
+  n15 --> n1
+  n15 --> n2
+  n15 --> n5
+  n17 --> n1
+  n17 --> n3
+  n17 --> n5
+  n17 --> n7
+  n18 --> n12
+  n18 --> n14
+  n19 --> n12
+  n20 --> n12
+  n21 --> n4
+  n22 --> n5
+  n22 --> n9
+  n23 --> n19
+  n24 --> n5
+  n24 --> n25
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
@@ -165,7 +168,7 @@ flowchart LR
 | `app/market` | `app`, `app/xbrl` |
 | `app/monthly` | `app` |
 | `app/supply` | `app` |
-| `app/xbrl` | `app`, `app/edinet`, `vendor` |
+| `app/xbrl` | `app`, `app/edinet`, `app/market`, `vendor` |
 | `jobs` | `app`, `app/market`, `app/monthly` |
 | `jobs/edinet` | `app`, `app/edinet`, `app/xbrl`, `vendor` |
 | `jobs/market` | `app`, `app/market`, `app/xbrl`, `jobs`, `jobs/monthly`, `jobs/ops` |
@@ -190,7 +193,7 @@ flowchart LR
 | `tools/schema` | `app`, `tools/dataflow` |
 | `tools/screen` | `app`, `tools/dataflow` |
 | `tools/supply` | `app/supply` |
-| `tools/tdnet_pdf` | `app`, `app/xbrl` |
+| `tools/tdnet_pdf` | `app`, `app/xbrl`, `jobs/xbrl` |
 | `tools/wiki` | `tools/schema` |
 | `tools/xbrl` | `app`, `app/xbrl`, `vendor` |
 | `vendor` |  |

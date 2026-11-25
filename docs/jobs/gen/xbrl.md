@@ -22,29 +22,54 @@ flowchart LR
   n7["monthly/ir_monthly_json_ingest"]:::ext
   n8["monthly/ir_monthly_xls_ingest"]:::ext
   n9["monthly/tdnet_monthly_pdf_ingest"]:::ext
-  n10["xbrl/xbrl_normalize"]:::own
-  n11["xbrl/xbrl_parse"]:::own
-  n12["xbrl/xbrl_statements"]:::own
-  n1 -->|"edinet_documents"| n10
-  n2 -->|"edinet_documents"| n10
-  n3 -->|"xbrl_contexts<br>xbrl_elements<br>ほか 2"| n10
-  n3 -->|"xbrl_filings<br>xbrl_financials"| n12
-  n4 -->|"statements"| n11
-  n10 -->|"xbrl_element_mappings<br>xbrl_std_items"| n3
-  n10 -->|"xbrl_financials<br>xbrl_std_items"| n12
-  n11 -->|"xbrl_filings"| n0
+  n10["xbrl/tdnet_pdf_ingest"]:::own
+  n11["xbrl/xbrl_normalize"]:::own
+  n12["xbrl/xbrl_parse"]:::own
+  n13["xbrl/xbrl_statements"]:::own
+  n1 -->|"edinet_documents"| n11
+  n2 -->|"edinet_documents"| n11
+  n3 -->|"xbrl_filings"| n10
+  n3 -->|"xbrl_contexts<br>xbrl_elements<br>ほか 2"| n11
+  n3 -->|"xbrl_filings<br>xbrl_financials"| n13
+  n4 -->|"statements"| n10
+  n4 -->|"statements"| n12
+  n10 -->|"tdnet_pdf_documents"| n5
+  n10 -->|"tdnet_pdf_documents"| n12
   n11 -->|"xbrl_element_mappings<br>xbrl_std_items"| n3
-  n11 -->|"xbrl_documents<br>xbrl_filings"| n5
-  n11 -->|"xbrl_contexts<br>xbrl_elements<br>ほか 2"| n10
-  n11 -->|"xbrl_filings<br>xbrl_financials<br>ほか 1"| n12
-  n12 -->|"statements"| n6
-  n12 -->|"statements"| n7
-  n12 -->|"statements"| n8
-  n12 -->|"statements"| n9
-  n12 -->|"statements"| n11
+  n11 -->|"xbrl_financials<br>xbrl_std_items"| n13
+  n12 -->|"xbrl_filings"| n0
+  n12 -->|"xbrl_element_mappings<br>xbrl_std_items"| n3
+  n12 -->|"xbrl_documents<br>xbrl_filings"| n5
+  n12 -->|"xbrl_documents<br>xbrl_filings"| n10
+  n12 -->|"xbrl_contexts<br>xbrl_elements<br>ほか 2"| n11
+  n12 -->|"xbrl_filings<br>xbrl_financials<br>ほか 1"| n13
+  n13 -->|"statements"| n6
+  n13 -->|"statements"| n7
+  n13 -->|"statements"| n8
+  n13 -->|"statements"| n9
+  n13 -->|"statements"| n10
+  n13 -->|"statements"| n12
   classDef own fill:#e3ecff,stroke:#3b5bdb
   classDef ext fill:#f1f3f5,stroke:#868e96,stroke-dasharray:4 3
 ```
+
+## xbrl/tdnet_pdf_ingest
+
+`jobs/xbrl/tdnet_pdf_ingest.py`
+
+- 起動: 毎日 02:20（`--redo config/xbrl/tdnet_pdf_redo.txt --limit 190`）
+- 書き込み: `tdnet_pdf_documents`
+- 読み取りだけ: `statements`, `stocks`, `xbrl_documents`, `xbrl_filings`
+
+| 引数 | 種類 | 既定 | 説明 |
+|---|---|---|---|
+| `--code` | append | `[]` | 銘柄コード（4 桁か 5 桁）。複数可 |
+| `--all` | フラグ |  | 全銘柄（statements にある銘柄すべて） |
+| `--limit` | int |  | この実行で取る最大件数 |
+| `--sleep` | float | `1.0` | 1 件ごとの間隔（秒）。既定 1 |
+| `--retry-failed` | フラグ |  | failed の回も取り直す |
+| `--redo` |  |  | 開示番号を 1 行 1 つ書いたファイル。今の変換器で変換し直していない回だけ取り直す |
+| `--dry-run` | フラグ |  | 対象の件数と先頭 10 件だけ出す |
 
 ## xbrl/tdnet_xbrl_r2
 

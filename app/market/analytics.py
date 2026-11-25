@@ -545,6 +545,10 @@ def _disc_key(s: Statement) -> tuple:
     return (s.disclosed_date, s.disclosure_no or "")
 
 
+def report_kind(s) -> tuple:
+    return s.type_of_period, s.type_of_document
+
+
 def forecast_revision(hist: list[Statement], stmt: Statement,
                       withdrawn: Withdrawn = withdrawn_items) -> dict | None:
     """同一事業年度の直前の時点の通期営業利益予想と比べた {direction, pct}。無ければ None。
@@ -559,6 +563,8 @@ def forecast_revision(hist: list[Statement], stmt: Statement,
         return None
     key = _disc_key(stmt)
     prev = None
+    stated: dict[tuple, float] = {}
+    latest_quarter = 0
     for s in sorted(hist, key=_disc_key):
         if _disc_key(s) >= key:
             break
@@ -566,12 +572,25 @@ def forecast_revision(hist: list[Statement], stmt: Statement,
             continue
         if s.disclosed_date == stmt.disclosed_date and getattr(s, "is_revision", False):
             continue
+        if is_actual(s):
+            quarter = ORDER.get(s.type_of_period or "", 0)
+            if quarter < latest_quarter:
+                continue
+            latest_quarter = quarter
         if "operating_profit" in withdrawn(s):
             prev = None
+        elif is_actual(s) and report_kind(s) in stated:
+            if s.fy_operating_profit not in (None, stated[report_kind(s)]):
+                prev = s.fy_operating_profit
         elif s.fy_operating_profit is not None:
             prev = s.fy_operating_profit
         elif is_actual(s):
             prev = None
+        if is_actual(s) and s.fy_operating_profit is not None:
+            stated[report_kind(s)] = s.fy_operating_profit
+    if is_actual(stmt) and (stated.get(report_kind(stmt)) == cur
+                            or ORDER.get(stmt.type_of_period or "", 0) < latest_quarter):
+        return None
     if not prev:
         return None
     diff = (cur - prev) / abs(prev)

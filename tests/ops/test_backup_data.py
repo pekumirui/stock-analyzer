@@ -12,6 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from jobs.ops.backup_data import (
+    CHECK_LIST_ATTEMPTS,
+    CHECK_LIST_RETRY_SLEEP_S,
     KINDS,
     MOVE_KINDS,
     RCLONE_MOVE_MAX_DURATION,
@@ -206,6 +208,166 @@ def test_rclone_failure_raises(tmp_path: Path, fail: str) -> None:
     env = _share(tmp_path)
     with pytest.raises(BackupError, match=f"rclone {fail} xbrl exit=1"):
         run(environ=env, which=lambda _n: "/usr/bin/rclone", rclone=_fake([], fail=fail))
+
+
+PAGING = (
+    "error reading destination root directory: couldn't list files: "
+    "invalidRequest: invalidQueryOption: Invalid paging token: "
+    "failed to parse integer value from token.\n"
+    "NOTICE: 0 differences found\n"
+)
+MALFORMED = (
+    "ERROR : 6233/a.zip: file not in OneDrive root 'stock-analyzer-backups/data/xbrl'\n"
+    "ERROR : 6233: error reading destination directory: couldn't list files: "
+    "invalidRequest: The provided drive id appears to be malformed, "
+    "or does not represent a valid drive.\n"
+)
+REAL_GAP = (
+    "ERROR : 6233/a.zip: file not in OneDrive root 'stock-analyzer-backups/data/xbrl'\n"
+    "NOTICE: 1 differences found\n"
+)
+
+
+def _checks(stderrs: list[str], calls: list[str], slept: list[float]):
+    pending = list(stderrs)
+
+    def _run(argv, timeout):
+        calls.append(argv[0])
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        if argv[0] == "check":
+            return CmdResult(1, "", pending.pop(0))
+        return CmdResult(0, "", "")
+
+    def _sleep(seconds: float) -> None:
+        slept.append(seconds)
+
+    return _run, _sleep
+
+
+def test_paging_token_retries_until_check_exits_zero(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    calls: list[str] = []
+    slept: list[float] = []
+
+    def _run(argv, timeout):
+        calls.append(argv[0])
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        if argv[0] == "check":
+            if calls.count("check") == 1:
+                return CmdResult(1, "", PAGING)
+            return CmdResult(0, "", "NOTICE: 0 differences found")
+        return CmdResult(0, "", "")
+
+    rc, out = _run_out(
+        kinds=["xbrl"],
+        environ=env,
+        which=lambda _n: "/usr/bin/rclone",
+        rclone=_run,
+        sleep=lambda seconds: slept.append(seconds),
+    )
+    assert rc == 0 and "offsite ok xbrl" in out
+    assert calls == ["listremotes", "copy", "check", "check"]
+    assert slept == [CHECK_LIST_RETRY_SLEEP_S]
+    assert f"list-error attempt=1/{CHECK_LIST_ATTEMPTS}" in out
+
+
+def test_zero_differences_with_list_error_still_fails(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    calls: list[str] = []
+    slept: list[float] = []
+    rclone, sleep = _checks([PAGING] * CHECK_LIST_ATTEMPTS, calls, slept)
+    with pytest.raises(BackupError, match="rclone check xbrl exit=1"):
+        run(
+            ["xbrl"],
+            environ=env,
+            which=lambda _n: "/usr/bin/rclone",
+            rclone=rclone,
+            sleep=sleep,
+        )
+    assert calls == ["listremotes", "copy", *["check"] * CHECK_LIST_ATTEMPTS]
+    assert slept == [CHECK_LIST_RETRY_SLEEP_S] * (CHECK_LIST_ATTEMPTS - 1)
+
+
+def test_malformed_drive_id_retries_then_ok(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    calls: list[str] = []
+    slept: list[float] = []
+    seen = {"n": 0}
+
+    def _run(argv, timeout):
+        calls.append(argv[0])
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        if argv[0] == "check":
+            seen["n"] += 1
+            if seen["n"] == 1:
+                return CmdResult(1, "", MALFORMED)
+            return CmdResult(0, "", "")
+        return CmdResult(0, "", "")
+
+    rc, out = _run_out(
+        kinds=["xbrl"],
+        environ=env,
+        which=lambda _n: "/usr/bin/rclone",
+        rclone=_run,
+        sleep=lambda seconds: slept.append(seconds),
+    )
+    assert rc == 0 and "offsite ok xbrl" in out
+    assert calls.count("check") == 2
+    assert slept == [CHECK_LIST_RETRY_SLEEP_S]
+
+
+def test_zero_differences_notice_alone_is_not_success(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    calls: list[str] = []
+    slept: list[float] = []
+    rclone, sleep = _checks(["NOTICE: 0 differences found\n"], calls, slept)
+    with pytest.raises(BackupError, match="rclone check xbrl exit=1"):
+        run(
+            ["xbrl"],
+            environ=env,
+            which=lambda _n: "/usr/bin/rclone",
+            rclone=rclone,
+            sleep=sleep,
+        )
+    assert calls == ["listremotes", "copy", "check"]
+    assert slept == []
+
+
+def test_real_difference_is_not_retried(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    calls: list[str] = []
+    slept: list[float] = []
+    rclone, sleep = _checks([REAL_GAP], calls, slept)
+    with pytest.raises(BackupError, match="rclone check xbrl exit=1"):
+        run(
+            ["xbrl"],
+            environ=env,
+            which=lambda _n: "/usr/bin/rclone",
+            rclone=rclone,
+            sleep=sleep,
+        )
+    assert calls == ["listremotes", "copy", "check"]
+    assert slept == []
+
+
+def test_list_error_then_real_difference_fails(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    calls: list[str] = []
+    slept: list[float] = []
+    rclone, sleep = _checks([PAGING, REAL_GAP], calls, slept)
+    with pytest.raises(BackupError, match="attempts=2"):
+        run(
+            ["xbrl"],
+            environ=env,
+            which=lambda _n: "/usr/bin/rclone",
+            rclone=rclone,
+            sleep=sleep,
+        )
+    assert calls == ["listremotes", "copy", "check", "check"]
+    assert slept == [CHECK_LIST_RETRY_SLEEP_S]
 
 
 def test_missing_dir_fails(tmp_path: Path) -> None:

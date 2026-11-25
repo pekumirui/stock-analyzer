@@ -97,6 +97,9 @@ SHELL=/bin/bash
 # 二重起動はジョブが止める。手の全件移動が先に動いていても、こちらは始めない。
 40 1 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/briefing_offsite.py
 
+# 字が横線になった短信 PDF の HTML を IR BANK から取り直す（KAB-572。一覧 7,181 件、1 日 190 件で約 38 日。IR BANK は 1 日 200 件まで）。終わったら外す
+20 2 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_pdf_ingest.py --redo config/xbrl/tdnet_pdf_redo.txt --limit 190
+
 # data/xbrl と data/monthly を OneDrive へ copy、data/edinet は move（sync はしない。手順は docs/DESIGN_backup.md）
 # 03:30 は data/xbrl と data/monthly に書くジョブ（10〜23 時）と backup_db（05:00）の間。data/edinet は edinet_archive（0〜6 時）と重なる（10 分より古い ZIP だけ送る）。
 # edinet の move は 50 分で区切る（残りは翌日。打ち切りは fail にしない）。

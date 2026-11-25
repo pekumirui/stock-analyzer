@@ -258,3 +258,26 @@ def test_list_markup_has_direction_chips() -> None:
     assert "qb-up" in js and "qb-dn" in js
     css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
     assert ".qb-up" in css and ".qb-dn" in css
+
+
+def test_correction_restating_the_report_is_not_a_revision() -> None:
+    q3 = _stmt("q3", "3Q", date(2025, 11, 12), fy_op=47.29)
+    rev = _stmt("rev", "FY", date(2025, 11, 27), fy_op=56, is_revision=True, doc=REV_DOC)
+    fix = _stmt("fix", "3Q", date(2025, 11, 28), fy_op=47.29)
+    blank = _stmt("blank", "3Q", date(2025, 11, 29), fy_op=None)
+    later = _stmt("later", "FY", date(2026, 1, 10), fy_op=60, is_revision=True, doc=REV_DOC)
+    assert forecast_revision([q3, rev], fix) is None
+    assert forecast_revision([q3, rev, fix, blank], later) == {"direction": "up", "pct": 7.1}
+    changed = _stmt("changed", "3Q", date(2025, 11, 28), fy_op=50)
+    assert forecast_revision([q3, rev], changed) == {"direction": "down", "pct": -10.7}
+    assert forecast_revision([q3, rev, changed], later) == {"direction": "up", "pct": 20.0}
+
+
+def test_correction_of_an_earlier_quarter_after_a_later_report_is_not_previous() -> None:
+    q2 = _stmt("q2", "2Q", date(2025, 10, 29), fy_op=15)
+    rev = _stmt("rev", "FY", date(2025, 10, 29), fy_op=15, is_revision=True, doc=REV_DOC)
+    fix_q1 = _stmt("fix1", "1Q", date(2025, 12, 27), fy_op=30, doc="1QFinancialStatements_Consolidated_JP")
+    fix_q2 = _stmt("fix2", "2Q", date(2025, 12, 27), fy_op=15)
+    q3 = _stmt("q3", "3Q", date(2026, 1, 31), fy_op=5, doc="3QFinancialStatements_Consolidated_JP")
+    assert forecast_revision([q2, rev, fix_q1, fix_q2], q3) == {"direction": "down", "pct": -66.7}
+    assert forecast_revision([q2, rev], fix_q1) is None

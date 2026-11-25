@@ -128,8 +128,8 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 ```bash
 cd /home/stock/stock-analyzer
-.venv/bin/python tools/tdnet_pdf/ingest.py --code 5933 --code 7203 --dry-run   # 対象の件数
-.venv/bin/python tools/tdnet_pdf/ingest.py --code 5933 --code 7203 --limit 500  # 429/503 で止まる
+.venv/bin/python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --code 7203 --dry-run   # 対象の件数
+.venv/bin/python jobs/xbrl/tdnet_pdf_ingest.py --code 5933 --code 7203 --limit 500  # 429/503 で止まる
 ```
 
 ## CI/CD

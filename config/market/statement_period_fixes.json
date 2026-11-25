@@ -1,5 +1,5 @@
 {
-  "_meta": {"field": "statements.period_start / period_end / fiscal_year_start / fiscal_year_end", "researched_at": "2026-11-13", "source": "J-Quants /v2/fins/summary の応答（CurPerEn が 1 年前）と短信の原本の期の印字"},
+  "_meta": {"field": "statements.period_start / period_end / fiscal_year_start / fiscal_year_end", "researched_at": "2026-11-25", "source": "J-Quants /v2/fins/summary の応答（CurPerEn が 1 年前）と短信の原本の期の印字。drop は取り込まない開示（\"drop\": true。period_end は付けない）"},
   "fixes": [
     {"disclosure_no": "20240424575451", "code": "79490", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
     {"disclosure_no": "20240419572964", "code": "68370", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
@@ -24,6 +24,7 @@
     {"disclosure_no": "20240509586144", "code": "17640", "period_end": "2023-03-31", "evidence": "3Q。短信の印字は 2024年6月期第3四半期（2023-07-01〜2024-03-31）"},
     {"disclosure_no": "20240509586157", "code": "36720", "period_end": "2023-03-31", "evidence": "2Q。短信の印字は 2024年9月期第2四半期（2023-10-01〜2024-03-31）"},
     {"disclosure_no": "20250731526200", "code": "39250", "period_end": "2024-06-30", "evidence": "1Q。短信の印字は 2026年3月期第1四半期（2025-04-01〜2025-06-30）"},
-    {"disclosure_no": "20260513530259", "code": "92490", "period_end": "2025-03-31", "evidence": "2Q。短信の印字は 2026年9月期中間期（2025-10-01〜2026-03-31）"}
+    {"disclosure_no": "20260513530259", "code": "92490", "period_end": "2025-03-31", "evidence": "2Q。短信の印字は 2026年9月期中間期（2025-10-01〜2026-03-31）"},
+    {"disclosure_no": "20250521559959", "code": "13320", "drop": true, "evidence": "ニッスイ 2025年3月期の訂正短信（2025-05-21 開示）。本文は「数値データ（XBRL データ）の訂正はありません」で、目次の番号と監査人候補の役職名を直しただけ。それなのに J-Quants の行は NP が 27213000000（有報の ProfitLoss＝非支配株主を含む当期純利益。仕様の NP は親会社株主に帰属する当期純利益）で、EPS・BPS・配当・予想・株数が空。find_statement が最新の行を選ぶので画面の純利益が 272.13億・EPS が空になる。正しい値は元の 20250513546856（NP 25381000000、EPS 81.66＝25381000000 / 平均株式数 310826040）にあり、この行を落としても失う情報は無い"}
   ]
 }

@@ -5,7 +5,8 @@ from datetime import date
 from types import SimpleNamespace
 
 from tests.market.jquants_columns import fy_columns
-from app.market.forecasts import IGNORED, REPORT, REVISION, forecast_points, latest_forecast
+from app.market.forecasts import (CORRECTION, IGNORED, REPORT, REVISION, STALE, Sourced, forecast_points,
+                                  latest_forecast)
 from app.market.withdrawals import no_withdrawals
 from app.models import Statement
 
@@ -112,7 +113,7 @@ def test_report_after_a_correction_with_a_wrong_year_start_is_used() -> None:
         _from("2024-04-01", _st("4", "2024-08-09", "1Q", date(2025, 3, 31), FEPS=290)),
     ]
     points = forecast_points(stmts)
-    assert [p.role for p in points] == [REPORT, REPORT, REPORT, REPORT]
+    assert [p.role for p in points] == [REPORT, CORRECTION, REPORT, REPORT]
     assert _values(points[2])["eps"] == 284.31
 
 
@@ -124,8 +125,9 @@ def test_report_with_a_wrong_year_start_after_a_fiscal_year_change_is_used() -> 
         _from("2025-04-01", _st("3", "2025-12-01", "FY", aug25, NxFEPS=21)),
     ]
     points = forecast_points(stmts)
-    assert [p.role for p in points] == [REPORT, REPORT, REPORT]
+    assert [p.role for p in points] == [REPORT, REPORT, CORRECTION]
     assert points[1].values["eps"].disclosure_no == "2" and _values(points[1])["eps"] == 20
+    assert points[2].touched == {"eps"} and _values(points[2])["eps"] == 21
 
 
 def test_correction_of_an_earlier_quarter_of_the_same_year_is_ignored() -> None:
@@ -259,3 +261,82 @@ def test_current_forecast_is_read_from_the_columns_when_raw_json_was_replaced() 
     assert _last([report, xbrl_row], withdrawn=no_withdrawals) == {
         "net_sales": 900, "operating_profit": -15, "ordinary_profit": 110, "profit": -50, "eps": -5.0,
         "div_annual": None}
+
+
+def test_older_period_report_does_not_touch_the_dividend() -> None:
+    newer = [
+        _st("1", "2026-05-12", "FY", FY26, NxFDivAnn=38),
+        _st("2", "2026-08-05", "1Q", FY27, FDivAnn=38),
+    ]
+    for late in (_st("3", "2026-10-29", "FY", date(2025, 3, 31), NxFDivAnn=60),
+                 _st("3", "2026-10-29", "2Q", FY26, FDivAnn=""),
+                 _st("3", "2026-10-29", "3Q", FY26, withdrawn=("div_annual",))):
+        p = forecast_points([*newer, late])[-1]
+        assert p.role == IGNORED and p.values["div_annual"] == Sourced(38, "2", date(2026, 8, 5))
+
+
+def test_revision_of_the_finished_year_does_not_touch_the_next_year_forecast() -> None:
+    report = _st("1", "2026-05-14", "FY", FY26, NxFSales=1000, NxFEPS=154.64, NxFDivAnn=40)
+    stale = _rev("2", "2026-05-14", fy_end=FY26, FSales=900, FEPS=214.75, FDivAnn=50)
+    for no in ("0", "2"):
+        stale.disclosure_no = no
+        points = forecast_points([report, stale])
+        assert _values(points[-1]) == {"net_sales": 1000, "operating_profit": None, "ordinary_profit": None,
+                                       "profit": None, "eps": 154.64, "div_annual": 40}
+    assert points[-1].role == STALE and points[-1].stated["eps"].value == 214.75
+    withdrawn = _rev("2", "2026-06-01", fy_end=FY26, withdrawn=ALL)
+    assert _last([report, withdrawn])["eps"] == 154.64
+
+
+def test_revision_of_the_current_year_after_a_quarter_is_used() -> None:
+    stmts = [
+        _st("1", "2026-08-05", "1Q", FY27, FEPS=8),
+        _rev("2", "2026-09-01", fy_end=FY26, FEPS=1),
+        _rev("3", "2026-09-02", fy_end=FY27, FEPS=9),
+    ]
+    assert [p.role for p in forecast_points(stmts)] == [REPORT, STALE, REVISION]
+    assert _last(stmts)["eps"] == 9
+
+
+def test_blank_correction_keeps_the_forecast() -> None:
+    stmts = [
+        _st("1", "2026-10-30", "2Q", FY27, FSales=5000, FOP=800, FEPS=61.95, FDivAnn=30),
+        _st("2", "2026-11-11", "2Q", FY27, Sales=4900),
+    ]
+    p = forecast_points(stmts)[-1]
+    assert p.role == CORRECTION and p.touched == frozenset()
+    assert _values(p) == {"net_sales": 5000, "operating_profit": 800, "ordinary_profit": None, "profit": None,
+                          "eps": 61.95, "div_annual": 30}
+    assert p.values["eps"].disclosure_no == "1"
+
+
+def test_correction_restating_the_report_keeps_the_revision_between() -> None:
+    dec25 = date(2025, 12, 31)
+    report = _st("20251112597046", "2025-11-12", "3Q", dec25, FOP=4_729_000_000, FEPS=396.09, FDivAnn=100)
+    revision = _rev("20251127510152", "2025-11-27", fy_end=dec25, FOP=5_600_000_000, FEPS=443.49, FDivAnn=120)
+    correction = _st("20251127510228", "2025-11-27", "3Q", dec25, FOP=4_729_000_000, FEPS=396.09, FDivAnn=100)
+    for order in ([report, revision, correction], [report, correction, revision]):
+        p = forecast_points(order)[-1]
+        assert _values(p)["eps"] == 443.49 and _values(p)["operating_profit"] == 5_600_000_000
+        assert _values(p)["div_annual"] == 120 and p.values["eps"].disclosure_no == "20251127510152"
+
+
+def test_correction_that_changes_the_forecast_is_used() -> None:
+    stmts = [
+        _st("1", "2026-08-05", "1Q", FY27, FSales=1000, FOP=100, FEPS=7),
+        _rev("2", "2026-09-01", FOP=120),
+        _st("3", "2026-09-10", "1Q", FY27, FSales=1000, FOP=100, FEPS=8),
+        _st("4", "2026-09-20", "1Q", FY27, FSales=1000, FOP=100, FEPS=8),
+    ]
+    points = forecast_points(stmts)
+    assert points[2].touched == {"eps"} and _values(points[2])["eps"] == 8
+    assert _values(points[2])["operating_profit"] == 120
+    assert points[3].touched == frozenset() and points[3].values["eps"].disclosure_no == "3"
+
+
+def test_withdrawal_mark_on_a_correction_still_withdraws() -> None:
+    stmts = [
+        _st("1", "2026-08-05", "1Q", FY27, FSales=1000, FEPS=7),
+        _st("2", "2026-08-20", "1Q", FY27, withdrawn=ALL),
+    ]
+    assert _last(stmts)["eps"] is None and _last(stmts)["net_sales"] is None
