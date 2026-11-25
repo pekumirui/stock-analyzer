@@ -255,7 +255,7 @@
   "docstring": 10
  },
  "app/market/period_fixes.py": {
-  "docstring": 5
+  "docstring": 4
  },
  "app/market/price_limit.py": {
   "comment": 1,
@@ -384,6 +384,10 @@
  "app/xbrl/pdf/_tanshin.py": {
   "comment": 76,
   "docstring": 27
+ },
+ "app/xbrl/pdf/convert.py": {
+  "comment": 6,
+  "docstring": 4
  },
  "app/xbrl/presentation.py": {
   "docstring": 6
@@ -765,6 +769,10 @@
  "jobs/supply/material_stats.py": {
   "comment": 2,
   "docstring": 13
+ },
+ "jobs/xbrl/tdnet_pdf_ingest.py": {
+  "comment": 1,
+  "docstring": 2
  },
  "jobs/xbrl/tdnet_xbrl_r2.py": {
   "comment": 1,
@@ -1440,20 +1448,12 @@
  "tools/tdnet_pdf/__init__.py": {
   "docstring": 1
  },
- "app/xbrl/pdf/convert.py": {
-  "comment": 6,
-  "docstring": 4
- },
  "tools/tdnet_pdf/financials.py": {
   "docstring": 1
  },
  "tools/tdnet_pdf/golden_check.py": {
   "comment": 13,
   "docstring": 8
- },
- "jobs/xbrl/tdnet_pdf_ingest.py": {
-  "comment": 1,
-  "docstring": 2
  },
  "tools/tdnet_pdf/matches.py": {
   "docstring": 1
