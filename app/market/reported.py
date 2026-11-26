@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from bisect import bisect_left
+from datetime import date, timedelta
 from typing import Callable, Iterable
 
 from .analytics import ORDER, is_actual
@@ -7,6 +9,12 @@ from .forecasts import Sourced, num, outstanding_shares, parse_raw, statement_or
 
 PER_SHARE_MATCH_TOLERANCE = 0.02
 MIN_OUTSTANDING_TO_AVERAGE = 2 / 3
+
+
+def splits_after(s, days: list[date]) -> date:
+    end = s.period_end or s.fiscal_year_end
+    i = bisect_left(days, end)
+    return (days[i - 1] if i else end) - timedelta(days=1)
 
 
 def period_newest_last(s) -> tuple:
@@ -18,6 +26,7 @@ class Newest:
         self.read = read
         self.key: tuple | None = None
         self.found = Sourced()
+        self.statement = None
 
     def add(self, s, raw: dict | None = None) -> None:
         if not is_actual(s) or s.fiscal_year_end is None:
@@ -25,14 +34,18 @@ class Newest:
         v = self.read(parse_raw(s) if raw is None else raw)
         key = period_newest_last(s)
         if v is not None and (self.key is None or key > self.key):
-            self.key, self.found = key, Sourced(v, s.disclosure_no, s.disclosed_date)
+            self.key, self.found, self.statement = key, Sourced(v, s.disclosure_no, s.disclosed_date), s
 
 
-def latest_reported(stmts: Iterable, read: Callable[[dict], float | None]) -> Sourced:
+def newest_reported(stmts: Iterable, read: Callable[[dict], float | None]) -> Newest:
     newest = Newest(read)
     for s in stmts:
         newest.add(s)
-    return newest.found
+    return newest
+
+
+def latest_reported(stmts: Iterable, read: Callable[[dict], float | None]) -> Sourced:
+    return newest_reported(stmts, read).found
 
 
 def reported_bps(raw: dict) -> float | None:
@@ -56,10 +69,10 @@ def equity_matches_bps(raw: dict) -> float | None:
     return float(abs(computed / bps - 1) <= PER_SHARE_MATCH_TOLERANCE)
 
 
-def latest_book_value(stmts: list) -> Sourced:
+def latest_book_value(stmts: list) -> Newest:
     if latest_reported(stmts, equity_matches_bps).value == 0.0:
-        return latest_reported(stmts, reported_bps)
-    return latest_reported(stmts, book_value_per_share)
+        return newest_reported(stmts, reported_bps)
+    return newest_reported(stmts, book_value_per_share)
 
 
 def eps_matches_profit(raw: dict) -> float | None:
@@ -86,8 +99,8 @@ class ProfitPerShare:
         for newest in (self.shares, *self.checks):
             newest.add(s, raw)
 
-    def eps(self, profit: Sourced, company_eps: Sourced) -> Sourced:
+    def eps(self, profit: Sourced) -> tuple[float, object] | None:
         shares = self.shares.found
         if profit.value is None or not shares.value or any(c.found.value == 0.0 for c in self.checks):
-            return company_eps
-        return Sourced(profit.value / shares.value, shares.disclosure_no, shares.disclosed_date)
+            return None
+        return profit.value / shares.value, self.shares.statement

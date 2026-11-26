@@ -175,3 +175,18 @@ def test_eps_is_profit_over_shares_known_at_each_step() -> None:
         ("2026-07-30", round(70000000000 / after_buyback, 2)),
         ("2026-11-02", round(75000000000 / after_buyback, 2)),
     ]
+
+
+def test_shares_at_period_end_count_a_split_dated_on_that_period_end() -> None:
+    days = _days("2026-09-01", "2026-12-31")
+    factors = [0.5 if d == date(2026, 9, 29) else 1.0 for d in days]
+    fy27 = date(2027, 3, 31)
+    q2 = _st("1", "2026-11-10", "15:30:00", "2Q", fy27, 40, FNP=10000000000, FEPS=50,
+             ShOutFY=100000000, AvgSh=100000000, NP=5000000000, EPS=50)
+    q2.period_end = date(2026, 9, 30)
+    early = _st("2", "2026-11-10", "15:30:00", "2Q", fy27, 40, FNP=10000000000, FEPS=50,
+                ShOutFY=200000000, AvgSh=200000000, NP=5000000000, EPS=25)
+    early.period_end = date(2026, 9, 30)
+    assert _rows(fund_steps([q2], days, factors))[0][1] == 50.0
+    factors = [0.5 if d == date(2026, 9, 3) else 1.0 for d in days]
+    assert _rows(fund_steps([early], days, factors))[0][1] == 50.0

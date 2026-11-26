@@ -66,8 +66,8 @@ def test_book_value_keeps_reported_bps_when_equity_over_shares_disagrees() -> No
              ShEq="2265000000", ShOutFY="16214400", TrShFY="603480", BPS="8.58")
     fy = _st("14", "2026-12-10", "FYFinancialStatements_Consolidated_JP", "FY", Y1,
              ShEq="2500000000", ShOutFY="16214400", TrShFY="603480", BPS="")
-    assert latest_book_value([q2, q3, fy]).value == 8.58
-    assert latest_book_value([q2, fy]).value == 2500000000 / (16214400 - 603480)
+    assert latest_book_value([q2, q3, fy]).found.value == 8.58
+    assert latest_book_value([q2, fy]).found.value == 2500000000 / (16214400 - 603480)
 
 
 def test_eps_matches_profit_over_average_shares() -> None:
