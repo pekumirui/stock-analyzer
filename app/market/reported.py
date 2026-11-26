@@ -13,13 +13,26 @@ def period_newest_last(s) -> tuple:
     return (s.fiscal_year_end, ORDER.get(s.type_of_period or "", 0), statement_order(s))
 
 
+class Newest:
+    def __init__(self, read: Callable[[dict], float | None]) -> None:
+        self.read = read
+        self.key: tuple | None = None
+        self.found = Sourced()
+
+    def add(self, s, raw: dict | None = None) -> None:
+        if not is_actual(s) or s.fiscal_year_end is None:
+            return
+        v = self.read(parse_raw(s) if raw is None else raw)
+        key = period_newest_last(s)
+        if v is not None and (self.key is None or key > self.key):
+            self.key, self.found = key, Sourced(v, s.disclosure_no, s.disclosed_date)
+
+
 def latest_reported(stmts: Iterable, read: Callable[[dict], float | None]) -> Sourced:
-    found = [(s, read(parse_raw(s))) for s in stmts if is_actual(s) and s.fiscal_year_end is not None]
-    found = [(s, v) for s, v in found if v is not None]
-    if not found:
-        return Sourced()
-    s, v = max(found, key=lambda sv: period_newest_last(sv[0]))
-    return Sourced(v, s.disclosure_no, s.disclosed_date)
+    newest = Newest(read)
+    for s in stmts:
+        newest.add(s)
+    return newest.found
 
 
 def reported_bps(raw: dict) -> float | None:
@@ -63,6 +76,18 @@ def outstanding_covers_average(raw: dict) -> float | None:
     return float(shares / average >= MIN_OUTSTANDING_TO_AVERAGE)
 
 
-def profit_over_shares_is_eps(stmts: list) -> bool:
-    return (latest_reported(stmts, eps_matches_profit).value != 0.0
-            and latest_reported(stmts, outstanding_covers_average).value != 0.0)
+class ProfitPerShare:
+    def __init__(self) -> None:
+        self.shares = Newest(outstanding_shares)
+        self.checks = (Newest(eps_matches_profit), Newest(outstanding_covers_average))
+
+    def add(self, s, raw: dict | None = None) -> None:
+        raw = parse_raw(s) if raw is None else raw
+        for newest in (self.shares, *self.checks):
+            newest.add(s, raw)
+
+    def eps(self, profit: Sourced, company_eps: Sourced) -> Sourced:
+        shares = self.shares.found
+        if profit.value is None or not shares.value or any(c.found.value == 0.0 for c in self.checks):
+            return company_eps
+        return Sourced(profit.value / shares.value, shares.disclosure_no, shares.disclosed_date)

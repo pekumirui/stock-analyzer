@@ -17,8 +17,8 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..holders import stock_holders as holders_payload
 from ..market.chart_fund import adjust_per_share, fund_steps
-from ..market.forecasts import Withdrawn, forecast_points, latest_forecast, outstanding_shares
-from ..market.reported import latest_book_value, latest_reported, profit_over_shares_is_eps
+from ..market.forecasts import Withdrawn, forecast_points, latest_forecast
+from ..market.reported import latest_book_value
 from ..market.withdrawals import withdrawn_items
 from ..models import DIVIDEND_ITEM, DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
@@ -123,10 +123,6 @@ def _dividend_forecast(stmts: list[Statement], days: list[date], factors: list[f
 
 def _forward_eps(stmts: list[Statement], days: list[date], factors: list[float],
                  withdrawn: Withdrawn = withdrawn_items) -> float | None:
-    profit = latest_forecast(forecast_points(stmts, withdrawn), "profit")
-    shares = latest_reported(stmts, outstanding_shares)
-    if profit_over_shares_is_eps(stmts) and profit.value is not None and shares.value:
-        return _per_share_now(profit.value / shares.value, shares.disclosed_date, days, factors)
     steps = fund_steps(stmts, days, factors, withdrawn)["eps"]
     return steps[-1] if steps else None
 

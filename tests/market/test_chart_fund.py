@@ -155,3 +155,23 @@ def test_withdrawn_forecast_has_no_eps_until_the_next_report() -> None:
     withdrawn.withdrawn_forecasts = None
     f = fund_steps(stmts, days, [1.0] * len(days))
     assert list(zip(f["t"], f["eps"])) == [("2026-05-13", 71.2), ("2026-11-11", 55), ("2026-11-23", 60)]
+
+
+def test_eps_is_profit_over_shares_known_at_each_step() -> None:
+    days = _days("2026-04-01", "2026-12-31")
+    fy27 = date(2027, 3, 31)
+    stmts = [
+        _st("1", "2026-04-27", "15:30:00", "FY", FY26, 100, NxFNp=70000000000, NxFEPS=353.31,
+            ShOutFY=199954180, TrShFY=1966478, AvgSh=198121090, NP=69447000000, EPS=350.53),
+        _st("2", "2026-07-29", "15:30:00", "1Q", fy27, 20, FNP=70000000000, FEPS=406.46,
+            ShOutFY=166454180, TrShFY=1972462, AvgSh=189609594, NP=9894000000, EPS=52.18),
+        _st("3", "2026-10-30", "15:30:00", "FY", fy27, doc="EarnForecastRevision", FNP=75000000000),
+        _st("4", "2026-11-13", "15:30:00", "2Q", fy27, 40, doc="2QFinancialStatements_Consolidated_JP"),
+    ]
+    rows = _rows(fund_steps(stmts, days, [1.0] * len(days)))
+    after_buyback = 166454180 - 1972462
+    assert [(t, eps) for t, eps, *_ in rows[:3]] == [
+        ("2026-04-28", round(70000000000 / (199954180 - 1966478), 2)),
+        ("2026-07-30", round(70000000000 / after_buyback, 2)),
+        ("2026-11-02", round(75000000000 / after_buyback, 2)),
+    ]
