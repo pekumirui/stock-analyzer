@@ -12,5 +12,6 @@
 - [期首残高は計算で作らない](no-derived-opening-cash.md) — XBRL の期に埋めない。短信 PDF の行を出さない（KAB-458）
 - [コメント禁止・文書は生成](no-comments-generate-docs.md) — コメントも docstring も足さない。制約はテスト・名前・型、文書と図はコードから
 - [DB の縛りはアプリ側](db-constraints-app-side.md) — 列挙は Enum、参照は info の宣言。本番の作り直しと FK 有効化はしない
+- [本番の重い読み取りは grok bot 経由](prod-readonly-via-grok.md) — MCP は 125 秒で切れる。使い捨てブランチのスクリプトを VPS で流してもらう。全件の突き合わせは VPS でなく box（OOM でサイトが止まった）
 - [返事は日本語で](reply-in-japanese.md) — 途中経過も最後のまとめも日本語。英語になって指摘された
 - [短信の株数は分割を織り込み済み](tanshin-shares-restated-for-splits.md) — 公表前の分割は期首にさかのぼる。補正は開示日から。新旧比較は import 先も各コミットから
