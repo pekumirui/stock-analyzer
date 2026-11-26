@@ -21,7 +21,7 @@ ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enab
 - `authorized_keys` にデプロイ公開鍵
 - `/etc/sudoers.d/stock-analyzer`（`provision.sh` と `systemctl` だけ）
 
-リポジトリはプライベート。VPS の `stock` ユーザが `git pull` するには GitHub Deploy key（read-only）が必要。
+リポジトリはプライベート。VPS の `stock` ユーザが `git fetch` するには GitHub Deploy key（read-only）が必要。
 `setup-github-ssh.sh` が鍵を作り公開鍵を出すので、GitHub → Settings → Deploy keys に一度だけ登録する。
 clone が鍵未登録で落ちたら、出した公開鍵を入れてから `enable-cicd.sh` を再実行。
 
@@ -59,7 +59,7 @@ GitHub Variables（秘密ではない）:
 
 `update.sh`:
 
-1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
+1. GitHub SSH（deploy key）を冪等に揃えてから、同じ作業ツリーの git ロック（`git rev-parse --git-path deploy-git.lock`。`DEPLOY_GIT_LOCK` でパスを変えられる）を取り、`git fetch origin main` のあと `git merge --ff-only refs/remotes/origin/main` で `main` を合わせる。`git pull` は使わない（`FETCH_HEAD` をマージしない）。ロックが取れなければ 60 秒待つ（秒数は `DEPLOY_GIT_LOCK_WAIT`）。それでも取れなければ標準エラーに `git lock busy: waited 60s for <path>; another git operation is using this worktree` を出して終了コード 1。`git fetch` が ref のロック競合だけで落ちたときは、そのロックを持ったまま最大 8 回やり直す
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh --defer-reboot`（apt のセキュリティ更新、`linux-image-generic` と `linux-headers-generic` だけの `--only-upgrade`、CVE-2026-98432 の nftables 緩和、パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない。この段では再起動しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
