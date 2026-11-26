@@ -13,7 +13,7 @@ from ..config import EARNINGS_PARAMS as EP
 from ..models import Statement
 from .analytics import ORDER, find_statement, is_after_close, shift_year, single_from
 from .forecasts import CORRECTION, REPORT, REVISION, Withdrawn, forecast_points
-from .reported import ProfitPerShare, splits_after
+from .reported import ProfitPerShare
 from .withdrawals import withdrawn_items
 
 
@@ -97,11 +97,8 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float],
         if out["t"] and start < out["t"][-1]:
             start = out["t"][-1]  # 引け後の開示の翌営業日より前に、休日付けの開示が来たとき
         prev_eps = next((x for x in reversed(out["eps"]) if x is not None), None)
-        if exact is None:
-            eps = p.values["eps"]
-            adj_eps = adjust_per_share(eps.value, eps.disclosed_date, days, factors, prev_eps)
-        else:
-            adj_eps = adjust_per_share(exact[0], splits_after(exact[1], days), days, factors, None)
+        eps = exact or p.values["eps"]
+        adj_eps = adjust_per_share(eps.value, eps.disclosed_date, days, factors, None if exact else prev_eps)
         row = (adj_eps, op_q, op_ttm)
         if out["t"] and out["t"][-1] == start:
             for k, v in zip(("eps", "op_q", "op_ttm"), row):

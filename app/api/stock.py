@@ -18,7 +18,7 @@ from ..db import get_session
 from ..holders import stock_holders as holders_payload
 from ..market.chart_fund import adjust_per_share, fund_steps
 from ..market.forecasts import Withdrawn, forecast_points, latest_forecast
-from ..market.reported import latest_book_value, splits_after
+from ..market.reported import latest_book_value
 from ..market.withdrawals import withdrawn_items
 from ..models import DIVIDEND_ITEM, DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
@@ -195,8 +195,7 @@ def stock_overview(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\
     eps = _forward_eps(rows, days, factors)
     div = _dividend_forecast(rows, days, factors)
     book = latest_book_value(rows)
-    bps = (adjust_per_share(book.found.value, splits_after(book.statement, days), days, factors, None)
-           if book.statement else None)
+    bps = _per_share_now(book.value, book.disclosed_date, days, factors)
     metrics = {
         "per": _ratio(close, eps) if eps and eps > 0 else None,
         "pbr": _ratio(close, bps) if bps and bps > 0 else None,

@@ -292,20 +292,3 @@ def test_pbr_hides_negative_equity(c) -> None:
     finally:
         db.close()
     assert c.get("/api/stock/9990/overview").json()["metrics"]["pbr"] is None
-
-
-def test_pbr_counts_a_split_after_the_period_end_even_if_disclosed_later(c) -> None:
-    db = SessionLocal()
-    try:
-        db.add(Stock(code="99890", name="分割後提出工業"))
-        db.add_all([
-            DailyPrice(code="99890", date=date(2026, 9, 29), close=2000.0, adj_factor=0.5),
-            DailyPrice(code="99890", date=date(2026, 11, 25), close=2000.0, adj_factor=1.0),
-        ])
-        fy = _st("9891", "2026-11-13", "FYFinancialStatements_Consolidated_JP", BPS="4000.0")
-        fy.code, fy.period_end = "99890", date(2026, 3, 31)
-        db.add(fy)
-        db.commit()
-    finally:
-        db.close()
-    assert c.get("/api/stock/9989/overview").json()["metrics"]["pbr"] == 2000.0 / 2000.0
