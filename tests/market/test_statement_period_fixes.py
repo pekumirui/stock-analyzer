@@ -411,3 +411,43 @@ def test_fix_tool_drop_keeps_event_with_other_disclosure(db) -> None:
     db.commit()
     assert write(db, plan(db)) == 1
     assert db.query(EarningsEvent).count() == 1
+
+
+GLOE_1Q = {
+    "DiscDate": "2026-03-12", "DiscTime": "15:30", "Code": "95650", "DiscNo": "20260312580514",
+    "DocType": "1QFinancialStatements_Consolidated_JP", "CurPerType": "1Q",
+    "CurPerSt": "2025-11-01", "CurPerEn": "2026-06-30", "CurFYSt": "2025-11-01", "CurFYEn": "2026-06-30",
+    "NxtFYSt": "", "Sales": "781000000",
+}
+FORECAST_AHEAD = {
+    "DiscDate": "2026-02-09", "Code": "95650", "DiscNo": "20260206549827", "DocType": "EarnForecastRevision",
+    "CurPerType": "FY", "CurPerSt": "2025-11-01", "CurPerEn": "2026-06-30", "CurFYSt": "2025-11-01",
+    "CurFYEn": "2026-06-30",
+}
+
+
+def test_future_candidate(db) -> None:
+    reit = {**REIT_3281, "DiscNo": "R1"}
+    items = [(_statement_row(dict(GLOE_1Q)), None), (_statement_row(reit), date(2026, 3, 1)),
+             (_statement_row(dict(REIT_3281)), date(2026, 3, 1)), (_statement_row(dict(FORECAST_AHEAD)), None)]
+    found = period_candidates(db, items)
+    assert [(c.rule, c.disclosure_no) for c in found] == [("future", "20260312580514"), ("future", "R1")]
+    assert "period_end=2026-06-30 disclosed=2026-03-12 fy_end=2026-06-30" in found[0].line()
+    for c in found:
+        assert any(re.search(p.regex, c.line()) for p in ALERT_PATTERNS if p.source == "batch")
+
+
+def test_future_rows_warn_every_day_until_listed(db, capsys) -> None:
+    upsert_statements(db, [_statement_row(dict(GLOE_1Q)), _statement_row(dict(FORECAST_AHEAD)),
+                           _statement_row(dict(REIT_3281))])
+    for _ in range(2):
+        ingest_statements_for_date(db, _JQ([]), "2026-11-26", warn=True)
+        out = capsys.readouterr().out
+        assert out.count("period-candidate") == 1 and "rule=future code=95650 disclosure_no=20260312580514" in out
+    ingest_statements_for_date(db, _JQ([dict(GLOE_1Q)]), "2026-03-12", warn=True)
+    assert capsys.readouterr().out.count("period-candidate") == 1
+    ingest_statements_for_date(db, _JQ([]), "2026-11-26")
+    assert "period-candidate" not in capsys.readouterr().out
+    assert [c.disclosure_no for c in scan_candidates(db)] == ["20260312580514"]
+    listed = {"20260312580514": date(2026, 6, 30)}
+    assert scan_candidates(db, fixes=listed) == []

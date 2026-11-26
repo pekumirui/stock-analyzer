@@ -151,6 +151,16 @@ class PeriodCandidate:
         )
 
 
+def _future_candidate(row: dict) -> PeriodCandidate | None:
+    if "FinancialStatements" not in (row["type_of_document"] or "") or row["period_end"] <= row["disclosed_date"]:
+        return None
+    fy_end = row["fiscal_year_end"].isoformat() if row["fiscal_year_end"] else "-"
+    return PeriodCandidate(
+        "future", row["disclosure_no"], row["code"], row["type_of_period"], row["period_end"], row["disclosed_date"],
+        f"fy_end={fy_end}",
+    )
+
+
 def _fy_candidate(row: dict, next_fy_start: date | None) -> PeriodCandidate | None:
     fy_end = row["fiscal_year_end"]
     if next_fy_start is None or fy_end is None or next_fy_start == fy_end + timedelta(days=1):
@@ -195,10 +205,10 @@ def period_candidates(
     *,
     fixes: dict[str, date] | None = None,
 ) -> list[PeriodCandidate]:
-    """(statements の行, 応答の NxtFYSt) のうち、期の日付が 1 年前の疑いがあるもの。一覧にある開示は除く。
+    """(statements の行, 応答の NxtFYSt) のうち、期の日付がずれている疑いがあるもの。一覧にある開示は除く。
 
-    提出日が期末から LATE_DAYS 日以上あとで、通期は NxtFYSt が CurFYEn の翌日でない、四半期は同じ銘柄・同じ期の
-    前の決算短信と売上高が違う。四半期は 1 年後の出し直し（訂正）も拾う。
+    決算短信の期末が提出日より後なら future。提出日が期末から LATE_DAYS 日以上あとで、通期は NxtFYSt が CurFYEn の
+    翌日でない、四半期は同じ銘柄・同じ期の前の決算短信と売上高が違う。四半期は 1 年後の出し直し（訂正）も拾う。
     """
     table = default_period_fixes() if fixes is None else fixes
     out: list[PeriodCandidate] = []
@@ -206,12 +216,33 @@ def period_candidates(
         if row["disclosure_no"] in table:
             continue
         end, disclosed = row["period_end"], row["disclosed_date"]
-        if end is None or disclosed is None or (disclosed - end).days < LATE_DAYS:
+        if end is None or disclosed is None:
+            continue
+        future = _future_candidate(row)
+        if future is not None:
+            out.append(future)
+            continue
+        if (disclosed - end).days < LATE_DAYS:
             continue
         found = _fy_candidate(row, next_fy_start) or _quarter_candidate(db, row)
         if found is not None:
             out.append(found)
     return out
+
+
+def open_future_candidates(db: Session, *, fixes: dict[str, date] | None = None) -> list[PeriodCandidate]:
+    table = default_period_fixes() if fixes is None else fixes
+    S = Statement
+    cols = ("disclosure_no", "code", "type_of_period", "type_of_document", "period_end", "fiscal_year_end",
+            "disclosed_date")
+    rows = (
+        db.query(*(getattr(S, c) for c in cols))
+        .filter(S.type_of_document.contains("FinancialStatements"), S.period_end > S.disclosed_date)
+        .order_by(S.disclosed_date, S.disclosure_no)
+        .all()
+    )
+    out = [_future_candidate(dict(zip(cols, r))) for r in rows if r.disclosure_no not in table]
+    return [c for c in out if c is not None]
 
 
 def warn_period_candidates(
@@ -221,6 +252,8 @@ def warn_period_candidates(
     fixes: dict[str, date] | None = None,
 ) -> int:
     found = period_candidates(db, items, fixes=fixes)
+    seen = {c.disclosure_no for c in found}
+    found += [c for c in open_future_candidates(db, fixes=fixes) if c.disclosure_no not in seen]
     for c in found:
         print(c.line(), flush=True)
     return len(found)
