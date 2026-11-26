@@ -30,6 +30,7 @@ class StatementFixes:
     dropped: frozenset[str]
     values: dict[str, dict[str, float]]
     months: dict[str, int]
+    dates: dict[str, dict[str, date]]
 
 
 def load_statement_fixes(path: Path | None = None) -> StatementFixes:
@@ -39,6 +40,7 @@ def load_statement_fixes(path: Path | None = None) -> StatementFixes:
     dropped: set[str] = set()
     values: dict[str, dict[str, float]] = {}
     months: dict[str, int] = {}
+    dates: dict[str, dict[str, date]] = {}
     for item in raw.get("fixes") or []:
         no = str(item["disclosure_no"]).strip()
         if no in periods or no in dropped or no in values:
@@ -52,12 +54,18 @@ def load_statement_fixes(path: Path | None = None) -> StatementFixes:
             values[no] = {k: float(v) for k, v in item["values"].items()}
         else:
             periods[no] = date.fromisoformat(item["period_end"])
+            if "dates" in item:
+                unknown = set(item["dates"]) - set(PERIOD_COLUMNS)
+                if unknown or not item["dates"] or "months" in item:
+                    raise ValueError(f"bad dates in period fixes: {no} {sorted(unknown)}")
+                dates[no] = {k: date.fromisoformat(v) for k, v in item["dates"].items()}
+                continue
             shift = item.get("months", YEAR_MONTHS)
             if not isinstance(shift, int) or isinstance(shift, bool) or shift == 0:
                 raise ValueError(f"bad months in period fixes: {no} {shift!r}")
             if shift != YEAR_MONTHS:
                 months[no] = shift
-    return StatementFixes(periods, frozenset(dropped), values, months)
+    return StatementFixes(periods, frozenset(dropped), values, months, dates)
 
 
 def load_period_fixes(path: Path | None = None) -> dict[str, date]:
@@ -67,6 +75,10 @@ def load_period_fixes(path: Path | None = None) -> dict[str, date]:
 
 def load_period_months(path: Path | None = None) -> dict[str, int]:
     return load_statement_fixes(path).months
+
+
+def load_period_dates(path: Path | None = None) -> dict[str, dict[str, date]]:
+    return load_statement_fixes(path).dates
 
 
 def load_dropped_disclosures(path: Path | None = None) -> frozenset[str]:
@@ -85,6 +97,11 @@ def default_period_fixes() -> dict[str, date]:
 @lru_cache(maxsize=1)
 def default_period_months() -> dict[str, int]:
     return load_period_months()
+
+
+@lru_cache(maxsize=1)
+def default_period_dates() -> dict[str, dict[str, date]]:
+    return load_period_dates()
 
 
 @lru_cache(maxsize=1)
@@ -116,8 +133,12 @@ def next_year(d: date | None) -> date | None:
     return shift_months(d, YEAR_MONTHS)
 
 
-def apply_period_fix(row: dict, fixes: dict[str, date], months: dict[str, int] | None = None) -> dict:
-    """一覧にあり、期末が一覧の値と同じ行だけ 4 列を一覧の月数（既定 12）ずらす。期末が違えば WARNING を出して元のまま。"""
+def apply_period_fix(
+    row: dict, fixes: dict[str, date], months: dict[str, int] | None = None,
+    dates: dict[str, dict[str, date]] | None = None,
+) -> dict:
+    """一覧にあり、期末が一覧の値と同じ行だけ直す。dates があればその列をその日付に、無ければ 4 列を一覧の月数（既定 12）ずらす。
+    期末が違えば WARNING を出して元のまま。"""
     recorded = fixes.get(row["disclosure_no"])
     if recorded is None:
         return row
@@ -129,6 +150,9 @@ def apply_period_fix(row: dict, fixes: dict[str, date], months: dict[str, int] |
             flush=True,
         )
         return row
+    exact = (default_period_dates() if dates is None else dates).get(row["disclosure_no"])
+    if exact is not None:
+        return {**row, **exact}
     shift = (default_period_months() if months is None else months).get(row["disclosure_no"], YEAR_MONTHS)
     return {**row, **{col: shift_months(row[col], shift) for col in PERIOD_COLUMNS}}
 
