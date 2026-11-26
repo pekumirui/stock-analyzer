@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..holders import stock_holders as holders_payload
 from ..market.chart_fund import adjust_per_share, fund_steps
-from ..market.forecasts import Withdrawn, forecast_points, latest_forecast
+from ..market.forecasts import Withdrawn, forecast_points, latest_forecast, outstanding_shares
+from ..market.reported import eps_matches_profit, latest_book_value, latest_reported
 from ..market.withdrawals import withdrawn_items
 from ..models import DIVIDEND_ITEM, DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
@@ -120,6 +121,17 @@ def _dividend_forecast(stmts: list[Statement], days: list[date], factors: list[f
     return _per_share_now(div.value, div.disclosed_date, days, factors)
 
 
+def _forward_eps(stmts: list[Statement], days: list[date], factors: list[float],
+                 withdrawn: Withdrawn = withdrawn_items) -> float | None:
+    profit = latest_forecast(forecast_points(stmts, withdrawn), "profit")
+    shares = latest_reported(stmts, outstanding_shares)
+    profit_per_share = latest_reported(stmts, eps_matches_profit).value != 0.0
+    if profit_per_share and profit.value is not None and shares.value:
+        return _per_share_now(profit.value / shares.value, shares.disclosed_date, days, factors)
+    steps = fund_steps(stmts, days, factors, withdrawn)["eps"]
+    return steps[-1] if steps else None
+
+
 def _ratio(a: float | None, b: float | None) -> float | None:
     return a / b if a is not None and b else None
 
@@ -185,10 +197,10 @@ def stock_overview(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\
     px = db.query(DailyPrice.date, DailyPrice.adj_factor).filter(DailyPrice.code == code5).order_by(DailyPrice.date).all()
     days, factors = [r[0] for r in px], [r[1] for r in px]
     rows = [s for s, _ in stmts]
-    steps = fund_steps(rows, days, factors)["eps"]
-    eps = steps[-1] if steps else None
+    eps = _forward_eps(rows, days, factors)
     div = _dividend_forecast(rows, days, factors)
-    bps = _per_share_now(*_latest_with_date(stmts, "BPS"), days, factors)
+    book = latest_book_value(rows)
+    bps = _per_share_now(book.value, book.disclosed_date, days, factors)
     metrics = {
         "per": _ratio(close, eps) if eps and eps > 0 else None,
         "pbr": _ratio(close, bps),

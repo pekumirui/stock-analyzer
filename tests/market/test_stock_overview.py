@@ -13,8 +13,13 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def _st(no: str, day: str, doc: str, **raw) -> Statement:
-    return Statement(disclosure_no=no, code="99990", disclosed_date=date.fromisoformat(day),
-                     disclosed_time="15:30:00", type_of_document=doc, raw_json=json.dumps(raw), **fy_columns(raw))
+    d = date.fromisoformat(day)
+    period = doc[:2] if "FinancialStatements" in doc else "FY"
+    closed = doc.startswith("FYFinancialStatements") or d.month <= 3
+    fy_end = date(d.year if closed else d.year + 1, 3, 31)
+    return Statement(disclosure_no=no, code="99990", disclosed_date=d, disclosed_time="15:30:00",
+                     type_of_document=doc, type_of_period=period, fiscal_year_end=fy_end,
+                     raw_json=json.dumps(raw), **fy_columns(raw))
 
 
 def _seed() -> None:
@@ -209,3 +214,45 @@ def test_same_day_reports_pick_the_newest_period(c) -> None:
         db.close()
     m = c.get("/api/stock/9995/overview").json()["metrics"]
     assert m["pbr"] == 1000.0 / 1100.0 and m["equity_ratio"] == 0.64
+
+
+def test_per_and_pbr_use_shares_after_buyback(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99930", name="買戻し工業"))
+        db.add(DailyPrice(code="99930", date=date(2026, 11, 25), close=5710.0, adj_factor=1.0))
+        rows = [
+            _st("20260420506537", "2026-04-27", "FYFinancialStatements_Consolidated_JP", BPS="3340.44",
+                ShEq="", ShOutFY="199954180", TrShFY="1966478", NxFNp="70000000000", NxFEPS="353.31"),
+            _st("20261028557458", "2026-10-30", "EarnForecastRevision", FNP="75000000000", FEPS="435.5"),
+            _st("20261028557709", "2026-10-30", "2QFinancialStatements_Consolidated_JP", BPS="",
+                ShEq="449691000000", ShOutFY="166454180", TrShFY="1968286", AvgSh="178842968",
+                NP="31321000000", EPS="175.13", FNP="75000000000", FEPS="435.5"),
+            _st("20261112576755", "2026-11-13", "2QFinancialStatements_Consolidated_JP", BPS="", ShEq="",
+                ShOutFY="", TrShFY="", FNP="", FEPS=""),
+        ]
+        for r in rows:
+            r.code = "99930"
+        db.add_all(rows)
+        db.commit()
+    finally:
+        db.close()
+    m = c.get("/api/stock/9993/overview").json()["metrics"]
+    shares = 166454180 - 1968286
+    assert abs(m["per"] - 5710.0 / round(75000000000 / shares, 2)) < 1e-9 and round(m["per"], 1) == 12.5
+    assert abs(m["pbr"] - 5710.0 / round(449691000000 / shares, 2)) < 1e-9 and round(m["pbr"], 2) == 2.09
+
+
+def test_per_keeps_company_eps_when_eps_is_not_profit_over_shares(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99920", name="優先株工業"))
+        db.add(DailyPrice(code="99920", date=date(2026, 11, 25), close=1000.0, adj_factor=1.0))
+        q2 = _st("9921", "2026-11-10", "2QFinancialStatements_Consolidated_JP", ShOutFY="10000000",
+                 NP="500000000", EPS="30.0", AvgSh="10000000", FNP="1000000000", FEPS="80.0")
+        q2.code = "99920"
+        db.add(q2)
+        db.commit()
+    finally:
+        db.close()
+    assert c.get("/api/stock/9992/overview").json()["metrics"]["per"] == 1000.0 / 80.0
