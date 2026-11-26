@@ -6,6 +6,7 @@ from .analytics import ORDER, is_actual
 from .forecasts import Sourced, num, outstanding_shares, parse_raw, statement_order
 
 PER_SHARE_MATCH_TOLERANCE = 0.02
+MIN_OUTSTANDING_TO_AVERAGE = 2 / 3
 
 
 def period_newest_last(s) -> tuple:
@@ -53,3 +54,15 @@ def eps_matches_profit(raw: dict) -> float | None:
     if eps is None or profit is None or not average or eps <= 0:
         return None
     return float(abs(profit / average / eps - 1) <= PER_SHARE_MATCH_TOLERANCE)
+
+
+def outstanding_covers_average(raw: dict) -> float | None:
+    shares, average = outstanding_shares(raw), num(raw, "AvgSh")
+    if not shares or not average or average <= 0:
+        return None
+    return float(shares / average >= MIN_OUTSTANDING_TO_AVERAGE)
+
+
+def profit_over_shares_is_eps(stmts: list) -> bool:
+    return (latest_reported(stmts, eps_matches_profit).value != 0.0
+            and latest_reported(stmts, outstanding_covers_average).value != 0.0)

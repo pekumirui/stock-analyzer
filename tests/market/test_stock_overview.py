@@ -256,3 +256,39 @@ def test_per_keeps_company_eps_when_eps_is_not_profit_over_shares(c) -> None:
     finally:
         db.close()
     assert c.get("/api/stock/9992/overview").json()["metrics"]["per"] == 1000.0 / 80.0
+
+
+def test_per_keeps_company_eps_when_average_shares_count_preferred_as_common(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99910", name="参加型優先株工業"))
+        db.add(DailyPrice(code="99910", date=date(2026, 11, 25), close=313.0, adj_factor=1.0))
+        q2 = _st("9911", "2026-11-16", "2QFinancialStatements_Consolidated_JP", ShOutFY="39511728",
+                 TrShFY="818777", AvgSh="171516511", NP="5760000000", EPS="33.59",
+                 FNP="6000000000", FEPS="34.09")
+        q2.code = "99910"
+        db.add(q2)
+        db.commit()
+    finally:
+        db.close()
+    assert c.get("/api/stock/9991/overview").json()["metrics"]["per"] == 313.0 / 34.09
+
+
+def test_pbr_hides_negative_equity(c) -> None:
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99900", name="債務超過工業"))
+        db.add(DailyPrice(code="99900", date=date(2026, 11, 25), close=300.0, adj_factor=1.0))
+        fy = _st("9901", "2026-02-13", "FYFinancialStatements_Consolidated_JP", BPS="50.02",
+                 ShEq="201000000", ShOutFY="4025671")
+        q3 = _st("9902", "2026-11-13", "3QFinancialStatements_Consolidated_JP", BPS="",
+                 ShEq="-25000000", ShOutFY="4086331")
+        fy.fiscal_year_end = date(2025, 12, 31)
+        q3.fiscal_year_end = date(2026, 12, 31)
+        for r in (fy, q3):
+            r.code = "99900"
+        db.add_all([fy, q3])
+        db.commit()
+    finally:
+        db.close()
+    assert c.get("/api/stock/9990/overview").json()["metrics"]["pbr"] is None
