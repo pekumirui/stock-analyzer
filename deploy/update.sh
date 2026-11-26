@@ -122,24 +122,59 @@ github_ssh_bootstrap() {
 
 github_ssh_bootstrap
 
-if ! git fetch origin main; then
-  echo "git fetch 失敗。プライベートリポジトリは Deploy keys (read-only) が必要です。" >&2
-  echo "hint: GitHub SSH uses ssh.github.com port 443 (outbound 22 often times out)." >&2
-  pub=""
-  if [[ -f "$HOME/.ssh/id_github.pub" ]]; then
-    pub="$HOME/.ssh/id_github.pub"
-  elif [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
-    pub="$HOME/.ssh/id_ed25519.pub"
+git_lock="${DEPLOY_GIT_LOCK:-}"
+if [ -z "$git_lock" ]; then
+  git_lock="$(git rev-parse --git-path deploy-git.lock)"
+fi
+git_lock_wait="${DEPLOY_GIT_LOCK_WAIT:-60}"
+exec 8>"$git_lock"
+if ! flock -w "$git_lock_wait" 8; then
+  echo "git lock busy: waited ${git_lock_wait}s for ${git_lock}; another git operation is using this worktree" >&2
+  exit 1
+fi
+
+fetch_ok=0
+fetch_transient=0
+fetch_err="$(mktemp)"
+for _ in 1 2 3 4 5 6 7 8; do
+  if git fetch origin main 2>"$fetch_err"; then
+    cat "$fetch_err" >&2
+    fetch_ok=1
+    break
   fi
-  if [[ -n "$pub" ]]; then
-    echo "DEPLOY_PUBKEY_BEGIN" >&2
-    cat "$pub" >&2
-    echo "DEPLOY_PUBKEY_END" >&2
+  cat "$fetch_err" >&2
+  if grep -q -i -e "cannot lock ref" -e "unable to update local ref" -e "unable to create .*lock" "$fetch_err"; then
+    fetch_transient=1
+    sleep 0.05
+    continue
+  fi
+  fetch_transient=0
+  break
+done
+rm -f "$fetch_err"
+if [ "$fetch_ok" -ne 1 ]; then
+  if [ "$fetch_transient" -eq 1 ]; then
+    echo "git fetch が ref のロック競合で失敗しました。" >&2
+  else
+    echo "git fetch 失敗。プライベートリポジトリは Deploy keys (read-only) が必要です。" >&2
+    echo "hint: GitHub SSH uses ssh.github.com port 443 (outbound 22 often times out)." >&2
+    pub=""
+    if [[ -f "$HOME/.ssh/id_github.pub" ]]; then
+      pub="$HOME/.ssh/id_github.pub"
+    elif [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
+      pub="$HOME/.ssh/id_ed25519.pub"
+    fi
+    if [[ -n "$pub" ]]; then
+      echo "DEPLOY_PUBKEY_BEGIN" >&2
+      cat "$pub" >&2
+      echo "DEPLOY_PUBKEY_END" >&2
+    fi
   fi
   exit 1
 fi
 git checkout -q main
-git pull --ff-only origin main
+git merge --ff-only refs/remotes/origin/main
+flock -u 8
 
 upsert_env() {
   local key="$1" val="${2:-}"

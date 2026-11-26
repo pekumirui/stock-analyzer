@@ -140,7 +140,7 @@ cd /home/stock/stock-analyzer
 
 1. **PR.** テストを 4 つのジョブ `Test (1)`〜`Test (4)` に分けて同時に走らせ（各ジョブは `python -m pytest tests -n auto --dist loadfile --shard=i/4 --dataflow=dump`。ファイル単位で、`tests/durations.json` の時間で均等に分ける。この表は `--store-durations` で作り直す）、必須チェックの `Test` が `python -m tools.dataflow.merge check` で読み書き表をまとめて突き合わせる。手元では `python -m pytest tests -n auto --dist loadfile --dataflow=check`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`。`--dataflow=check` はテスト中の SQL から作った読み書き表と `docs/DATA_FLOW.md`・`docs/dataflow/` を突き合わせる。合わなければ `--dataflow=write` で作り直してコミット）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
-3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
+3. **VPS.** SSH で `main` を `origin/main` に fast-forward → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない
 
 VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を入れる。手順と Secrets 一覧は [deploy/README.md](deploy/README.md)。
