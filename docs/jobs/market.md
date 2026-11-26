@@ -90,12 +90,15 @@ gap daily_prices date=YYYY-MM-DD count=N prior_median=M prior_days=K
 
 ### 期の誤りの候補の検知と補正
 
-提出者が XBRL の会計期間タグ（たとえば `2025` と `2026` の取り違え）を誤って提出すると、J-Quants の `statements` にも誤った期末日が入る。日次バッチでは、J-Quants から初めて届いた開示（それまで `source='xbrl'` だけで存在していた行を含む）のうち、次の条件に当てはまるものを `WARNING jquants statements period-candidate` としてログに出力する。
+提出者が XBRL の会計期間タグ（たとえば `2025` と `2026` の取り違え）を誤って提出すると、J-Quants の `statements` にも誤った期末日が入る。日次バッチ（`ingest_statements_for_date(warn=True)`）では、次の条件に当てはまるものを `WARNING jquants statements period-candidate rule=<規則>` としてログに出力する（`app/market/period_fixes.py` の `period_candidates`）。`config/market/statement_period_fixes.json` に日付補正を登録した開示は出さない。
 
-| 対象区分 | 候補として警告する条件 |
-|---|---|
-| 通期（`FY` の `FinancialStatements` または `DividendForecastRevision`） | `period_end != fiscal_year_end`、または `period_end - period_start > 400` 日、または `disclosed_date - period_end >= 365` 日のいずれかに該当する |
-| 四半期（`1Q`・`2Q`・`3Q` の `FinancialStatements`） | `disclosed_date - period_end >= 300` 日であり、かつ同一 `(code, type_of_period, period_end)` の過去の短信と `net_sales` が異なる |
+| 規則 | 対象 | 候補として警告する条件 | 出す回 |
+|---|---|---|---|
+| `future` | 決算短信（`type_of_document` に `FinancialStatements`） | `period_end > disclosed_date`（期末が開示日より後。KAB-586: REIT の `32810`・`34630` は当期の日付が次の期と同じで半期先にずれていた） | J-Quants から初めて届いた日と、それ以降も `statements` に残っている限り毎日（`open_future_candidates`）。一覧に載せるまで止まらない |
+| `fy` | 通期 | `disclosed_date - period_end >= 300` 日（`LATE_DAYS`）で、応答の `NxtFYSt` が `fiscal_year_end` の翌日でない | J-Quants から初めて届いた開示だけ（それまで `source='xbrl'` だけで存在していた行を含む） |
+| `quarter` | 第 1〜3 四半期の決算短信 | `disclosed_date - period_end >= 300` 日で、同じ `(code, type_of_period, period_end)` の前の決算短信と `net_sales` が違う（1 年後の出し直しの訂正も拾う） | 同上 |
+
+どの行も `#alerts-batch` に page する（`deploy/alert_patterns.py`）。`fy`・`quarter` は 1 回しか出ないが、`future` は直すまで毎日出る。
 
 提出者側の誤りであることを確認した開示は、`config/market/statement_period_fixes.json` に `disclosure_no`・`code`・`evidence` と、正しい期末ではなく J-Quants が返す誤った `period_end`（取込はこの値と一致したときだけ 4 つの日付列を 1 年進める。1 年でなくずれている開示は `months` に直す月数を書く。KAB-579: REIT の `32810`・`34630` は当期の日付が次の期（`NxtFYSt`〜`NxtFYEn`）と同じになっていて、`"months": -6` で半期戻す。月末は移った先の月の月末にする。`months` が 0・整数でないと読み込みで `ValueError`。ずれ方が列ごとに違う開示は `dates` に列と正しい日付を書き、その列だけ置き換える（`months` と一緒には書けない。`PERIOD_COLUMNS` 以外の列や空なら `ValueError`）。KAB-585: 決算期を 10 月末から 6 月末に変えた `95650` の 8 か月決算の年は、1Q の `period_end` が年度末と同じ 2026-06-30、2Q の `fiscal_year_end` が変更前の 2026-10-31 になっていた）、`"drop": true`（`period_end` は付けない）、または `values`（`net_sales`・`operating_profit`・`ordinary_profit`・`profit`・`eps` のうち差し替える列と値。`VALUE_COLUMNS`）を登録する。同じ `disclosure_no` を 2 種類以上、または 2 回登録すると読み込みで `ValueError` になる。ほかの列名を `values` に書いても `ValueError`。`drop` は、訂正短信なのに J-Quants の行が壊れている開示（KAB-573: ニッスイの `20250521559959` は XBRL データの訂正が無いのに、純利益が非支配株主を含む額で EPS・配当・予想が空）を、元の開示を残して消すために使う。`values` は、J-Quants の行の実績が書類と違い、捨てるとその期の行や最初の決算短信が無くなる開示に使う（KAB-578: 昭文社HD の `20220204580550` は純利益の符号が逆で、同じ期の行がこの 1 本だけ。`63390`・`47280` は最初の決算短信の行の純利益が非支配株主を含む額で、捨てると決算発表後のパフォーマンスの起点がずれる）。値は書類（短信のサマリー・有報）に書いてある値を写し、計算で作らない。会社が自分で後日訂正した最初の短信（`41790`・`73620`）は、その日に出た数字として残す（前期として引くときは訂正の行が選ばれる）。
 

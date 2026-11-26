@@ -476,3 +476,37 @@ def test_fix_tool_dates(db) -> None:
     assert db.get(Statement, "20260612569470").fiscal_year_end == date(2026, 6, 30)
     assert {p.disclosure_no: p.status for p in plan(db) if p.code == "95650"} == {
         "20260312580514": "unchanged", "20260612569470": "unchanged"}
+UNLISTED_1Q = {**GLOE_1Q, "DiscNo": "20260312999999"}
+FORECAST_AHEAD = {
+    "DiscDate": "2026-02-09", "Code": "95650", "DiscNo": "20260206549827", "DocType": "EarnForecastRevision",
+    "CurPerType": "FY", "CurPerSt": "2025-11-01", "CurPerEn": "2026-06-30", "CurFYSt": "2025-11-01",
+    "CurFYEn": "2026-06-30",
+}
+
+
+def test_future_candidate(db) -> None:
+    reit = {**REIT_3281, "DiscNo": "R1"}
+    items = [(_statement_row(dict(UNLISTED_1Q)), None), (_statement_row(dict(GLOE_1Q)), None),
+             (_statement_row(reit), date(2026, 3, 1)),
+             (_statement_row(dict(REIT_3281)), date(2026, 3, 1)), (_statement_row(dict(FORECAST_AHEAD)), None)]
+    found = period_candidates(db, items)
+    assert [(c.rule, c.disclosure_no) for c in found] == [("future", "20260312999999"), ("future", "R1")]
+    assert "period_end=2026-06-30 disclosed=2026-03-12 fy_end=2026-06-30" in found[0].line()
+    for c in found:
+        assert any(re.search(p.regex, c.line()) for p in ALERT_PATTERNS if p.source == "batch")
+
+
+def test_future_rows_warn_every_day_until_listed(db, capsys) -> None:
+    upsert_statements(db, [_statement_row(dict(UNLISTED_1Q)), _statement_row(dict(GLOE_1Q)),
+                           _statement_row(dict(FORECAST_AHEAD)), _statement_row(dict(REIT_3281))])
+    for _ in range(2):
+        ingest_statements_for_date(db, _JQ([]), "2026-11-26", warn=True)
+        out = capsys.readouterr().out
+        assert out.count("period-candidate") == 1 and "rule=future code=95650 disclosure_no=20260312999999" in out
+    ingest_statements_for_date(db, _JQ([dict(UNLISTED_1Q)]), "2026-03-12", warn=True)
+    assert capsys.readouterr().out.count("period-candidate") == 1
+    ingest_statements_for_date(db, _JQ([]), "2026-11-26")
+    assert "period-candidate" not in capsys.readouterr().out
+    assert [c.disclosure_no for c in scan_candidates(db)] == ["20260312999999"]
+    listed = {"20260312999999": date(2026, 6, 30)}
+    assert scan_candidates(db, fixes=listed) == []

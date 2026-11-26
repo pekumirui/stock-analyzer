@@ -7,7 +7,7 @@ fiscal_year_end だけ（ほかの列・ほかの行は触らない）。`"drop"
 
   python tools/market/fix_statement_periods.py               # 変わる行を出す（書かない）
   python tools/market/fix_statement_periods.py --write       # 書く
-  python tools/market/fix_statement_periods.py --candidates  # DB 全体から期が 1 年前の疑いがある開示を出す（書かない）
+  python tools/market/fix_statement_periods.py --candidates  # DB 全体から期の日付がずれている疑いがある開示を出す（書かない）
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
@@ -127,12 +127,13 @@ def write(db: Session, planned: list[Planned]) -> int:
 
 
 def scan_candidates(db: Session, fixes: dict[str, date] | None = None):
-    """提出日が期末から LATE_DAYS 日以上あとの行だけ raw_json を読んで、取込の WARNING と同じ条件で拾う。"""
+    """提出日が期末から LATE_DAYS 日以上あとの行と、期末が提出日より後の行だけ raw_json を読んで、取込の WARNING と同じ条件で拾う。"""
     S = Statement
     late = (
         db.query(S.disclosure_no, S.raw_json)
         .filter(S.period_end.is_not(None), S.disclosed_date.is_not(None),
-                func.julianday(S.disclosed_date) - func.julianday(S.period_end) >= LATE_DAYS)
+                or_(func.julianday(S.disclosed_date) - func.julianday(S.period_end) >= LATE_DAYS,
+                    S.period_end > S.disclosed_date))
         .order_by(S.disclosed_date, S.disclosure_no)
         .all()
     )
