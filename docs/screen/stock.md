@@ -204,9 +204,9 @@ PC では `#st-metrics` を 5 列均等幅で横に並べ、スマホ（`640px` 
 
 ### 要素
 
-上部の `.row` に財務表切替 `#st-fs-tabs`（`貸借対照表` `BS` 既定・`損益計算書` `PL`・`CF計算書` `CF`）と期数選択 `#st-fs-periods`（`8期` 既定・`20期`）を置く。連結と個別の切替は置かず、常に `consolidated=auto`（連結があれば連結、連結の無い期は個別で補う）で取得する。
+上部の `.row` に財務表切替 `#st-fs-tabs`（`貸借対照表` `BS` 既定・`損益計算書` `PL`・`CF計算書` `CF`）と期数選択 `#st-fs-periods`（`8期` 既定・`20期`）を置き、続けて表の見せ方の切替 `.fs-view` を置く。列の絞り込み `#st-fs-cols`（`全期` 既定・`通期のみ`）、`PL` のときだけ出す期間の切替 `#st-fs-pq`（`累計` 既定・`3か月単独`）、行の絞り込み `#st-fs-rows`（`全科目` 既定・`直近期あり`）の 3 つで、どれも取得し直さず手元の応答から表（`#st-fs-earlier` を含む）を描き直し、銘柄・財務表をまたいで覚える。連結と個別の切替は置かず、常に `consolidated=auto`（連結があれば連結、連結の無い期は個別で補う）で取得する。
 
-右隣にはメタ表示 `#st-fs-meta` を置き、`連結`・`個別`・`連結・個別`（混在）、会計基準（`日本基準`・`IFRS`・`米国基準` を `・` でつなぐ）、`単位: 百万円（1株当たりは円）`、および `PL`・`CF` の `期首からの累計` を `" / "` で連結して表示する。
+右隣にはメタ表示 `#st-fs-meta` を置き、`連結`・`個別`・`連結・個別`（混在）、会計基準（`日本基準`・`IFRS`・`米国基準` を `・` でつなぐ）、`単位: 百万円（1株当たりは円）`、および `PL`・`CF` の `期首からの累計`（`PL` を `3か月単独` にしたときは `3か月単独（累計の差）`）を `" / "` で連結して表示する。
 
 その下に選んだ財務表の推移図 `#st-fs-chart`（自前の SVG）を置き、続けて表の印の説明 `#st-fs-legend`（列の出どころ、補った値の印、`PDFのみ`、`個別` の意味）を置く。図は表と同じ応答の `chart` だけを使い、`earlier`（前の会計基準の期）は描かない。図の上段に切替ボタン、下段に系列の凡例（チェックを外すと、その系列を図と目盛りから外す）を並べる。期にタップ（PC はマウスを乗せる）すると、その期の帯を薄く塗り、系列ごとの値（百万円、率は小数第 1 位の `%`）を浮き札 `.fsc-tip` に出す。
 
@@ -226,7 +226,8 @@ PC では `#st-metrics` を 5 列均等幅で横に並べ、スマホ（`640px` 
 |---|---|
 | 科目の並びと見出し | 行は API の `rows` の順（新しい期の書類の並びを基準に、過去期にしか無い科目は直前に現れた科目の後ろに差し込む）。どの期にも値の無い科目は行にしない。各行の見出しの道筋 `heads`（期をまたぐ「および／及び」「または／又は」などの表記ゆれは最新期の表記へ統合済み）が前の行と変わる所に、全列を束ねる `colspan` の見出し帯 `tr.fs-sec`（段ごとに `fs-sec0`〜`fs-sec5`）を差し込み、内部の `.fs-sec-lbl` を `position: sticky` で左端へ固定して長い見出しでも複数行に折り返さない。科目名セル（`td.l`）は見出しの段数と内訳の字下げ `indent` の和（最大 `6`）だけ `d1`〜`d6` で左に字下げし、内部の `.fs-lbl` で最大 2 行にクランプして全文と要素キーを `title` に持つ。セルは `vertical-align: middle` で縦位置を揃える。XBRL の科目に対応が付かなかった短信 PDF の行は `tr.pdf` にして、科目名の後ろに `PDFのみ` の印 `.qb.fs-pdf` を付ける |
 | 合計・段階利益の行強調 | 財務 3 表では偶奇の縞模様を外し、API が返す行の役割 `role` に応じて内訳行（`item`）と集計行を区別する。中区分合計・売上総利益・税引前利益・営業外／特別損益合計・CF 小計・現金増減額などの `subtotal` は `tr.fs-sub`（太字・上細線・淡色背景）、大区分合計・売上高・営業利益・経常利益・包括利益・営業／投資／財務 CF などの `total` は `tr.fs-tot`（強調太字・上下罫線・中間トーン背景）、資産合計・負債純資産合計（負債及び資本合計）・最終純利益・CF 期末現金残高の `grand` は `tr.fs-grand`（強調太字・上罫線と二重下線・濃トーン背景）で表示する |
-| 期の並びと見出し | 列は左から古い期→新しい期（右端が最新期）の順とする。見出しは 1 行目に期末 `YY.MM`（例: `25.03`）、2 行目 `.g` に期の印 `.qb`（`1Q`・`2Q`・`3Q`・`通期`）と、連結と個別が混在するときの個別の期の `個別` の印 `.qb.fs-basis`、3 行目 `.g.fs-src` に列の出どころ（`有報`・`XBRL`・`PDF`）、会計基準が 2 つ以上混ざる表だけ 4 行目に会計基準を出す。見出しの `title` に期末・期・出どころ・提出日時・書類 ID・会計基準を出す。連結と個別が切り替わる列の左に縦線 `.fs-edge` を引く。1 列目の見出しは `BS` が `科目`、`PL`・`CF` が `科目（累計）` |
+| 期の並びと見出し | 列は左から古い期→新しい期（右端が最新期）の順とする。見出しは 1 行目に期末 `YY.MM`（例: `25.03`）、2 行目 `.g` に期の印 `.qb`（`1Q`・`2Q`・`3Q`・`通期`）と、連結と個別が混在するときの個別の期の `個別` の印 `.qb.fs-basis`、3 行目 `.g.fs-src` に列の出どころ（`有報`・`XBRL`・`PDF`）、会計基準が 2 つ以上混ざる表だけ 4 行目に会計基準を出す。見出しの `title` に期末・期・出どころ・提出日時・書類 ID・会計基準を出す。連結と個別が切り替わる列の左に縦線 `.fs-edge` を引く。事業年度が切り替わる列（直前の列が通期、または `1Q` の列）の左にも月次年表の `.tl-yb` と同じ縦線 `.fs-yb` を引き、通期の列は見出しとセルを `.fs-fy` の淡いトーンで塗る（集計行の不透明な背景の上に重ねる）。`通期のみ` では通期の列だけを残し、`.fs-yb`・`.fs-fy` は付けない。1 列目の見出しは `BS` が `科目`、`PL`・`CF` が `科目（累計）`、`PL` の `3か月単独` が `科目（3か月単独）` |
+| 3か月単独と行の絞り込み | `PL` の `3か月単独` は API のセルの `quarter`（同じ事業年度の直前の四半期の累計を引いた値。`1Q` はそのまま）を出す。直前の四半期の列が無い期・1 株当たりの行は値を出さず空のセルにし、`title` に理由を出す。補完印 `.qb.fs-fill` はそのセルの累計の出どころで付ける。`直近期あり` は表に並ぶ列の右から 4 列がすべて空の内訳行（`role: "item"`）を隠し、`subtotal`・`total`・`grand` の行は常に残す。隠した行だけが属する見出し帯も出さない。科目の並び（会計順）は変えない |
 | 単位・丸め・補完印 | 金額（`unit: "money"`）は百万円単位の整数、1 株当たり（`unit: "per_share"`）は小数第 2 位の円で、科目名の後ろに `（円）` を付ける。負値（BS の控除項目、投資 CF・財務 CF のマイナスを含む）は `.loss` の `--loss` で色を変え、丸めて `-0` になる値は `0` と出す。値の無いセルは空にする。列の出どころに無い値を別の書類から補ったセルは `td.fill` にし、右寄せ数値の 1 の位が縦にずれないようセル左側に補った書類の印 `.qb.fs-fill`（`XBRL`・`PDF` など）を分離して置き、`title` に `有報 に無く、XBRL から補った値` の形で出す |
 | 出所の優先順 | 同一期末・四半期に複数の書類がある場合は有価証券報告書・半期報告書・四半期報告書（EDINET）を最優先し、報告書未提出の直近期を決算短信 XBRL（TDnet）で埋め、さらに古い期を IR BANK の PDF 変換短信で補う。四半期短信の `BS` 比較欄にある前期末実績も、その期の有報・本決算短信が無ければ補完に使う |
 
@@ -379,7 +380,7 @@ EDINET の大量保有報告書・変更報告書から大株主の顔ぶれと�
 | `GET /api/stocks/search?q=…` | 銘柄検索候補の配列 `[{code, name, market, sector33}]` を最大 20 件返す。`q` が空文字なら空配列を返す |
 | `GET /api/stock/{code}/overview` | 共通ヘッダーと概要の指標を `{code, name, market, sector33, quote, metrics, next_earnings}` で返す（任意の `today` 対応）。決算期未定時は `next_earnings` が `{"date": null, "fq": null}` になる |
 | `GET /api/stock/{code}/holders` | 大量保有者一覧 `large_holders`（`filer_edinet_code`・`filer_name`・`holding_ratio`・`holding_ratio_prev`・`obligation_date`・`file_date`・`purpose`・`history`）と自己株状況 `treasury`（`report_month`・`issued_shares`・`treasury_shares`・`treasury_ratio`・`active`）を返す（任意の `today` 対応） |
-| `GET /api/stock/{code}/financials` | 財務 3 表を `{code, name, statement, consolidated, basis, unit, accounting_standards, cumulative, periods, rows, earlier, empty, chart}` で返す。各行は `{key, label, unit, role, unmatched_pdf, heads, indent, merged_keys, cells}` を持つ。クエリは `statement`（`BS` 既定・`PL`・`CF`）、`periods`（`1`〜`20`、既定 `8`）、`consolidated`（`auto` 既定・`true`・`false`）を受け取る |
+| `GET /api/stock/{code}/financials` | 財務 3 表を `{code, name, statement, consolidated, basis, unit, accounting_standards, cumulative, periods, rows, earlier, empty, chart}` で返す。各行は `{key, label, unit, role, unmatched_pdf, heads, indent, merged_keys, cells}` を持つ。`PL` の金額行のセルは `{value, source, quarter}`（`quarter` は 3 か月単独の値。出せない期は `null`）、それ以外のセルは `{value, source}`。クエリは `statement`（`BS` 既定・`PL`・`CF`）、`periods`（`1`〜`20`、既定 `8`）、`consolidated`（`auto` 既定・`true`・`false`）を受け取る |
 | `GET /api/stock/{code}/filings` | 短信・予想修正の一覧（最大 200 件）を `{code, name, market, sector33, filings}` で返す。各要素は `source`（`"xbrl"` または `"pdf"`）と `documents` を持つ |
 | `GET /api/stock/filings/{filing_id}/documents/{seq}` | サニタイズ済み iXBRL 原文 HTML（`text/html`、CSP ヘッダー付き）を返す |
 | `GET /api/stock/pdf/{disclosure_no}` | PDF 変換短信 HTML（`tdnet_pdf_documents.status == "ok"` のみ、CSP ヘッダー付き）を返す |
