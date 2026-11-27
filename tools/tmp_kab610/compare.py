@@ -1,17 +1,22 @@
 import importlib.util
 import json
 import sys
+import os
 import time
+from pathlib import Path
 from collections import Counter
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-def load(name, path):
+def load(name, path, config=None):
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
+    if config:
+        mod.XBRL_ROW_PLACE_FIXES_PATH = Path(config) / "row_place_fixes.json"
+        mod.XBRL_ROW_MERGE_EXCLUSIONS_PATH = Path(config) / "row_merge_exclusions.json"
     return mod
 
 
@@ -30,7 +35,7 @@ def main():
     db_path, old_path, new_path, out_path = sys.argv[1:5]
     only = sys.argv[5:] or None
     old = load("three_statements_old", old_path)
-    new = load("three_statements_new", new_path)
+    new = load("three_statements_new", new_path, os.environ.get("NEW_CONFIG"))
     new_load, old_load = new.load_both, old.load_both
     engine = create_engine(f"sqlite:///file:{db_path}?mode=ro&uri=true")
     stats = Counter()

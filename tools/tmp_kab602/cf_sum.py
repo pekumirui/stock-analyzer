@@ -1,14 +1,26 @@
 import csv
+import importlib.util
+import os
 import re
 import sys
 import time
 from collections import Counter, defaultdict
 from datetime import date
+from pathlib import Path
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 import app.xbrl.three_statements as ts
+
+if os.environ.get("CF_SUM_TS"):
+    _spec = importlib.util.spec_from_file_location("three_statements_cf_sum", os.environ["CF_SUM_TS"])
+    ts = importlib.util.module_from_spec(_spec)
+    sys.modules["three_statements_cf_sum"] = ts
+    _spec.loader.exec_module(ts)
+if os.environ.get("CF_SUM_CONFIG"):
+    ts.XBRL_ROW_PLACE_FIXES_PATH = Path(os.environ["CF_SUM_CONFIG"]) / "row_place_fixes.json"
+    ts.XBRL_ROW_MERGE_EXCLUSIONS_PATH = Path(os.environ["CF_SUM_CONFIG"]) / "row_merge_exclusions.json"
 
 SECTIONS = ("op", "inv", "fin")
 SECTION_KEY_RE = {
