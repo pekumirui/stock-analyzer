@@ -5,8 +5,19 @@ import sqlite3
 from datetime import date
 from pathlib import Path
 
-from jobs.monthly.publication_claim import estimate_month, report_month
+from jobs.monthly import publication_claim
+from jobs.monthly.publication_claim import (
+    estimate_month,
+    month_from_title,
+    pdf_backfill_claim,
+    report_month,
+    titled_calendar_month,
+)
 from tools.monthly.backfill_publications import main
+
+
+_WORKMAN = "20231201_7564_ワークマン_2024年３月期 月次前年比速報に関するお知らせ.pdf"
+_WORKMAN_BODY = "2024 年３月期 月次前年比速報\n2023 年 12 月１日\n● 11 月度の概況\n"
 
 
 def test_title_month_and_45_day_window():
@@ -14,7 +25,21 @@ def test_title_month_and_45_day_window():
     assert report_month("3月期12月度", date(2026, 1, 8)) == (2025, 12)
     assert report_month("2026年7月度および2025年7月度", date(2026, 8, 5)) == (2026, 7)
     assert report_month("2026年3月期7月度", date(2026, 8, 5)) == (2026, 7)
+    assert report_month("2025年11月期 ８月度", date(2025, 9, 5)) == (2025, 8)
+    assert report_month("11 月度の概況", date(2023, 12, 1)) == (2023, 11)
     assert report_month("売上速報", date(2026, 8, 5)) is None
+    assert titled_calendar_month("2023年11月売上速報", date(2023, 12, 1)) == (2023, 11)
+    assert titled_calendar_month("2022年12月　月次の売上状況について", date(2023, 1, 5)) == (2022, 12)
+    assert titled_calendar_month("2024年3月期 月次前年比速報", date(2023, 12, 1)) is None
+    assert titled_calendar_month("2023年12月1日", date(2023, 12, 1)) is None
+    assert month_from_title("2023年11月売上速報", date(2023, 12, 1)) == (2023, 11)
+    named = pdf_backfill_claim(_WORKMAN, date(2023, 12, 1), None, _WORKMAN)
+    assert named is not None and named[0] == (2023, 11) and named[1].confidence == "estimated"
+    body = pdf_backfill_claim(_WORKMAN, date(2023, 12, 1), None, _WORKMAN, _WORKMAN_BODY)
+    assert body is not None and body[0] == (2023, 11) and body[1].confidence == "exact"
+    matsuya = "20231201_8237_松屋_2023年11月売上速報.pdf"
+    got = pdf_backfill_claim(matsuya, date(2023, 12, 1), None, matsuya)
+    assert got is not None and got[0] == (2023, 11) and got[1].confidence == "exact"
     assert estimate_month(date(2026, 8, 5)) == (2026, 7)
     assert estimate_month(date(2026, 9, 14)) == (2026, 8)
     july_end = date(2026, 7, 31)
@@ -144,6 +169,39 @@ def test_dry_run_writes_nothing_and_write_keeps_exact_apart_from_estimated(tmp_p
 
     assert main(["--db", str(db), "--dest", str(dest), "--write"]) == 0
     assert _stored(db) == got
+
+
+def test_pdf_body_month_is_exact_when_the_filename_only_names_the_fiscal_year(tmp_path: Path, monkeypatch):
+    db = tmp_path / "stock.db"
+    dest = tmp_path / "monthly"
+    _db(db)
+    folder = dest / "7564"
+    folder.mkdir(parents=True)
+    _pdf(folder, _WORKMAN)
+    _pdf(folder, "20231211_7564_ワークマン_2023年12月期11月度月次業績.pdf")
+    seen: list[str] = []
+
+    def _text(path: Path) -> str:
+        seen.append(path.name)
+        return _WORKMAN_BODY
+
+    monkeypatch.setattr(publication_claim, "pdf_page_text", _text)
+    con = sqlite3.connect(db)
+    con.execute("DELETE FROM monthly_values")
+    con.execute(
+        "INSERT INTO monthly_values VALUES (?,?,?,?,?)",
+        ("75640", 2023, "売上高", 11, 1.0),
+    )
+    con.commit()
+    con.close()
+    assert main(["--db", str(db), "--dest", str(dest), "--write"]) == 0
+    con = sqlite3.connect(db)
+    row = con.execute(
+        "SELECT published_on, confidence FROM monthly_publications WHERE code='75640' AND year=2023 AND month=11"
+    ).fetchone()
+    con.close()
+    assert seen == [_WORKMAN]
+    assert row == ("2023-12-01", "exact")
 
 
 def test_an_existing_exact_date_is_not_replaced_by_no_source(tmp_path: Path, capsys):

@@ -16,12 +16,13 @@ if str(ROOT) not in sys.path:
 from app.monthly.publications import Pub, better, dated, unknown
 from app.xbrl.codes import jq_lookup_code
 from jobs._r2common import resolve_database_url, sqlite_path_from_url
+from jobs.monthly import publication_claim
 from jobs.monthly.publication_claim import (
     html_backfill_claim,
     meta_clock,
+    month_from_title,
     pdf_backfill_claim,
     read_html,
-    report_month,
 )
 from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST
 
@@ -69,9 +70,12 @@ def scan_files(dest: Path) -> dict[str, list[tuple[tuple[int, int], Pub]]]:
                 disclosed = _ymd(path.name)
                 if disclosed is None:
                     continue
-                claim = pdf_backfill_claim(
-                    path.name, disclosed, meta_clock(path, disclosed), path.name,
-                )
+                clock = meta_clock(path, disclosed)
+                claim = pdf_backfill_claim(path.name, disclosed, clock, path.name)
+                if claim is None or claim[1].confidence != "exact":
+                    claim = pdf_backfill_claim(
+                        path.name, disclosed, clock, path.name, publication_claim.pdf_page_text(path),
+                    )
                 if claim is not None:
                     found[code5].append(claim)
                 continue
@@ -118,7 +122,7 @@ def scan_statements(con: sqlite3.Connection) -> dict[str, list[tuple[tuple[int, 
             day = date.fromisoformat(disclosed[:10])
         except ValueError:
             continue
-        ym = report_month(str(title or ""), day)
+        ym = month_from_title(str(title or ""), day)
         if ym is None:
             continue
         found[str(code)].append((

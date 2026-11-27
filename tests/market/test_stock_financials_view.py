@@ -23,6 +23,15 @@ console.log(JSON.stringify({
   mixedMeta: fs.fsMeta(JSON.parse(process.argv[4])),
   standards: fs.fsTableHtml(JSON.parse(process.argv[5])),
   deep: fs.fsTableHtml(JSON.parse(process.argv[6])),
+  deepAll: fs.fsTableHtml(JSON.parse(process.argv[6]), {all: true}),
+  sectionedAll: fs.fsTableHtml(JSON.parse(process.argv[3]), {all: true}),
+  sectionedToggled: fs.fsTableHtml(JSON.parse(process.argv[3]), {id: "BS:", open: new Map([["BS:|/h:資産:資産/h:流動資産:流動資産", false], ["BS:|/h:負債:負債", true]])}),
+  trees: Object.fromEntries(Object.entries(JSON.parse(process.argv[7])).map(([name, t]) => {
+    const out = [];
+    const walk = (n, d) => { out.push([d, n.row ? n.row.label : "[" + n.name + "]", n.basic, n.hasBasic]); n.children.forEach(c => walk(c, d + 1)); };
+    fs.fsTree(t.rows, t.statement).forEach(n => walk(n, 0));
+    return [name, out];
+  })),
   earlier: fs.fsEarlierHtml({...d, cumulative: true, earlier: [JSON.parse(process.argv[3])]}),
   noEarlier: fs.fsEarlierHtml(d),
   amounts: [fs.fsAmount(1234567890, "money"), fs.fsAmount(-2500000, "money"), fs.fsAmount(-400000, "money"),
@@ -93,9 +102,102 @@ DEEP = {**PAYLOAD, "rows": [
 ]}
 
 
+def _tree_rows(statement: str, spec: str) -> dict:
+    rows, heads = [], []
+    for line in spec.strip().splitlines():
+        line = line.strip()
+        if line.startswith("#"):
+            name = line[1:].strip()
+            heads = [] if name == "-" else name.split(" > ")
+            continue
+        label, key = line.split()
+        rows.append(_row(key, label, *heads))
+    return {"statement": statement, "rows": rows}
+
+
+TREES = {
+    "pl": _tree_rows("PL", """
+        # -
+        売上高 NetSales
+        売上原価 CostOfSales
+        売上総利益 GrossProfit
+        販売費及び一般管理費 SellingGeneralAndAdministrativeExpenses
+        営業利益 OperatingIncome
+        # 営業外収益
+        受取利息 InterestIncomeNOI
+        営業外収益合計 NonOperatingIncome
+        # 営業外費用
+        支払利息 InterestExpensesNOE
+        営業外費用合計 NonOperatingExpenses
+        # -
+        経常利益 OrdinaryIncome
+        税金等調整前当期純利益 IncomeBeforeIncomeTaxes
+        法人税、住民税及び事業税 IncomeTaxesCurrent
+        法人税等調整額 IncomeTaxesDeferred
+        法人税等合計 IncomeTaxes
+        当期純利益 ProfitLoss
+        非支配株主に帰属する当期純利益 ProfitLossAttributableToNonControllingInterests
+        親会社株主に帰属する当期純利益 ProfitLossAttributableToOwnersOfParent
+        基本的1株当たり当期利益 BasicEarningsLossPerShareIFRS
+        希薄化後1株当たり当期利益 DilutedEarningsLossPerShareIFRS
+        # その他の包括利益
+        その他有価証券評価差額金 ValuationDifferenceOnAvailableForSaleSecuritiesNetOfTaxOCI
+        その他の包括利益 OtherComprehensiveIncome
+        # -
+        包括利益 ComprehensiveIncome
+    """),
+    "cf": _tree_rows("CF", """
+        # 営業活動によるキャッシュ・フロー
+        税金等調整前当期純利益 IncomeBeforeIncomeTaxes
+        減価償却費 DepreciationAndAmortizationOpeCF
+        その他 OtherNetOpeCF
+        小計 SubtotalOpeCF
+        法人税等の支払額 IncomeTaxesPaidOpeCF
+        営業活動によるキャッシュ・フロー NetCashProvidedByUsedInOperatingActivities
+        # 投資活動によるキャッシュ・フロー
+        有形固定資産の取得による支出 PurchaseOfPropertyPlantAndEquipmentInvCF
+        投資有価証券の取得による支出 PurchaseOfInvestmentSecuritiesInvCF
+        投資活動によるキャッシュ・フロー NetCashProvidedByUsedInInvestmentActivities
+        # 財務活動によるキャッシュ・フロー
+        配当金の支払額 CashDividendsPaidFinCF
+        非支配株主への配当金の支払額 DividendsPaidToNonControllingInterestsFinCFIFRS
+        自己株式の取得による支出 PurchaseOfTreasuryStockFinCF
+        財務活動によるキャッシュ・フロー NetCashProvidedByUsedInFinancingActivities
+        # -
+        現金及び現金同等物の増減額 NetIncreaseDecreaseInCashAndCashEquivalents
+        現金及び現金同等物の期末残高 CashAndCashEquivalents
+    """),
+    "ifrs_bs": _tree_rows("BS", """
+        # 資産 > 流動資産
+        現金及び現金同等物 CashAndCashEquivalentsIFRS
+        棚卸資産 InventoriesCAIFRS
+        流動資産合計 CurrentAssetsIFRS
+        # 資産 > 非流動資産
+        持分法で会計処理されている投資 InvestmentsAccountedForUsingEquityMethodIFRS
+        # 資産 > 非流動資産 > 有形固定資産
+        土地 LandAcquisitionCostIFRS
+        有形固定資産合計 PropertyPlantAndEquipmentIFRS
+        # 資産 > 非流動資産
+        無形資産 IntangibleAssetsIFRS
+        非流動資産合計 NonCurrentAssetsIFRS
+        # 資産
+        資産合計 AssetsIFRS
+        # 資本
+        資本金 ShareCapitalIFRS
+        利益剰余金 RetainedEarningsIFRS
+        親会社の所有者に帰属する持分合計 EquityAttributableToOwnersOfParentIFRS
+        非支配持分 NonControllingInterestsIFRS
+        資本合計 EquityIFRS
+        # -
+        負債及び資本合計 LiabilitiesAndEquityIFRS
+    """),
+}
+
+
 def _run() -> dict:
     out = subprocess.run(["node", "-e", _NODE, str(ROOT / "static/js/stock-financials.js"), json.dumps(PAYLOAD),
-                          json.dumps(SECTIONED), json.dumps(MIXED), json.dumps(STANDARDS), json.dumps(DEEP)],
+                          json.dumps(SECTIONED), json.dumps(MIXED), json.dumps(STANDARDS), json.dumps(DEEP),
+                          json.dumps(TREES)],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
@@ -162,18 +264,72 @@ def test_meta_and_empty() -> None:
     assert r["empty"] == '<tr><td class="l sub" title="本表が無い">データなし</td></tr>'
 
 
-def test_section_heading_rows() -> None:
-    rows = _rows(_run()["sectioned"])
-    heads = [(r.split('"')[1], re.sub(r"<[^>]+>", "", _cells(r)[0])) for r in rows if r.startswith(' class="fs-sec')]
-    assert heads == [("fs-sec fs-sec0", "資産"), ("fs-sec fs-sec1", "流動資産"), ("fs-sec fs-sec1", "固定資産"),
-                     ("fs-sec fs-sec0", "負債"), ("fs-sec fs-sec1", "流動負債"), ("fs-sec fs-sec1", "固定負債")]
-    assert all(_cells(r)[1] == '<td colspan="3"></td>' for r in rows if r.startswith(' class="fs-sec'))
-    body = [r for r in rows if not r.startswith(' class="fs-sec')]
-    depth = [re.search(r'<td class="([^"]*)"', r).group(1) for r in body]
-    assert depth == ["l d2", "l d2", "l d2", "l d1", "l d2", "l d2", "l"]
-    order = [re.sub(r"<[^>]+>", "", _cells(r)[0]) for r in rows]
-    assert order[:4] == ["資産", "流動資産", "現金及び預金", "流動資産合計"]
-    assert order[-1] == "負債純資産合計"
+def _names(html: str) -> list[str]:
+    return [re.sub(r"<[^>]+>", "", _cells(r)[0]) for r in _rows(html)]
+
+
+def test_open_sections_put_items_above_their_total_row() -> None:
+    r = _run()
+    assert _names(r["sectioned"]) == ["現金及び預金", "▴流動資産合計", "▸固定資産", "▴資産合計", "▸負債", "負債純資産合計"]
+    rows = _rows(r["sectioned"])
+    assert re.search(r'<td class="([^"]*)"', rows[0]).group(1) == "l d2"
+    assert rows[1].startswith(' class="fs-par fs-basic"') and 'class="l d1 fs-tog"' in rows[1]
+    assert rows[2].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[2]
+    assert _cells(rows[2])[1] == '<td colspan="3"></td>'
+    assert rows[3].startswith(' class="fs-par fs-basic"') and 'class="l fs-tog"' in rows[3]
+
+
+def test_all_view_and_toggled_rows() -> None:
+    r = _run()
+    assert _names(r["sectionedAll"]) == ["現金及び預金", "▴流動資産合計", "▾固定資産", "土地", "▴資産合計", "▾負債", "▾流動負債",
+                                         "借入金", "▾固定負債", "借入金", "負債純資産合計"]
+    assert _names(r["sectionedToggled"]) == ["▸流動資産合計", "▸固定資産", "▴資産合計", "▾負債", "▸流動負債", "▸固定負債",
+                                             "負債純資産合計"]
+    assert 'data-key="BS:|/h:資産:資産/h:流動資産:流動資産" data-open="0"' in r["sectionedToggled"]
+    closed = next(row for row in _rows(r["sectionedToggled"]) if "流動資産合計" in row)
+    assert closed.startswith(' class="fs-par fs-basic"') and ">1<" in _cells(closed)[1]
+
+
+def test_pl_profit_stages_hold_what_feeds_them() -> None:
+    tree = [(d, name, basic) for d, name, basic, _ in _run()["trees"]["pl"]]
+    assert tree == [
+        (0, "売上高", True), (0, "売上総利益", True), (1, "売上原価", False),
+        (0, "営業利益", True), (1, "販売費及び一般管理費", False),
+        (0, "経常利益", True), (1, "営業外収益合計", False), (2, "受取利息", False),
+        (1, "営業外費用合計", False), (2, "支払利息", False),
+        (0, "税金等調整前当期純利益", True),
+        (0, "当期純利益", True), (1, "法人税等合計", False), (2, "法人税、住民税及び事業税", False), (2, "法人税等調整額", False),
+        (0, "親会社株主に帰属する当期純利益", True), (1, "非支配株主に帰属する当期純利益", False),
+        (0, "基本的1株当たり当期利益", True), (1, "希薄化後1株当たり当期利益", False),
+        (0, "その他の包括利益", False), (1, "その他有価証券評価差額金", False),
+        (0, "包括利益", False),
+    ]
+
+
+def test_cf_sections_and_basic_items_inside() -> None:
+    tree = _run()["trees"]["cf"]
+    assert [(d, name, basic) for d, name, basic, _ in tree] == [
+        (0, "営業活動によるキャッシュ・フロー", True), (1, "税金等調整前当期純利益", True), (1, "小計", False),
+        (2, "減価償却費", True), (2, "その他", False), (1, "法人税等の支払額", False),
+        (0, "投資活動によるキャッシュ・フロー", True), (1, "有形固定資産の取得による支出", True), (1, "投資有価証券の取得による支出", False),
+        (0, "財務活動によるキャッシュ・フロー", True), (1, "配当金の支払額", True), (1, "非支配株主への配当金の支払額", False),
+        (1, "自己株式の取得による支出", True),
+        (0, "現金及び現金同等物の増減額", True), (0, "現金及び現金同等物の期末残高", True),
+    ]
+    assert [name for _, name, _, has in tree if has] == ["営業活動によるキャッシュ・フロー", "小計",
+                                                         "投資活動によるキャッシュ・フロー", "財務活動によるキャッシュ・フロー"]
+
+
+def test_ifrs_bs_nested_sections_and_equity_subtotal() -> None:
+    tree = [(d, name, basic) for d, name, basic, _ in _run()["trees"]["ifrs_bs"]]
+    assert tree == [
+        (0, "資産合計", True), (1, "流動資産合計", True), (2, "現金及び現金同等物", True), (2, "棚卸資産", False),
+        (1, "非流動資産合計", True), (2, "持分法で会計処理されている投資", False), (2, "有形固定資産合計", False),
+        (3, "土地", False), (2, "無形資産", False),
+        (0, "資本合計", True), (1, "親会社の所有者に帰属する持分合計", True), (2, "資本金", False), (2, "利益剰余金", False),
+        (1, "非支配持分", False),
+        (0, "負債及び資本合計", False),
+    ]
 
 
 def test_flat_table_without_sections() -> None:
@@ -204,15 +360,18 @@ def test_standard_is_shown_in_the_header_only_when_columns_differ() -> None:
 
 
 def test_heading_rows_of_any_depth_and_indented_rows() -> None:
-    rows = _rows(_run()["deep"])
-    heads = [(r.split('"')[1], re.sub(r"<[^>]+>", "", _cells(r)[0])) for r in rows if r.startswith(' class="fs-sec')]
-    assert heads[:5] == [("fs-sec fs-sec0", "資産の部"), ("fs-sec fs-sec1", "固定資産"), ("fs-sec fs-sec2", "有形固定資産"),
-                         ("fs-sec fs-sec3", "鉄道事業固定資産"), ("fs-sec fs-sec1", "固定資産")]
-    assert heads[5:] == [("fs-sec fs-sec2", "無形固定資産"), ("fs-sec fs-sec3", "その他"), ("fs-sec fs-sec4", "x"),
-                         ("fs-sec fs-sec5", "y"), ("fs-sec fs-sec5", "z")]
+    r = _run()
+    assert _names(r["deep"]) == ["▸資産の部"]
+    rows = _rows(r["deepAll"])
+    assert _names(r["deepAll"]) == ["▾資産の部", "▾固定資産", "▾有形固定資産", "▾鉄道事業固定資産", "▾建物", "減価償却累計額",
+                                    "土地", "▾無形固定資産", "▾その他", "▾x", "▾y", "▾z", "ソフトウエア", "▾有形固定資産", "建物"]
+    assert _names(r["deepAll"]).index("▾建物") < _names(r["deepAll"]).index("減価償却累計額")
+    secs = [r.split('"')[1] for r in rows if r.startswith(' class="fs-sec')]
+    assert secs[:4] == ["fs-sec fs-sec0", "fs-sec fs-sec1", "fs-sec fs-sec2", "fs-sec fs-sec3"]
+    assert secs[-1] == "fs-sec fs-sec5"
     body = [r for r in rows if not r.startswith(' class="fs-sec')]
     depth = [re.search(r'<td class="([^"]*)"', r).group(1) for r in body]
-    assert depth == ["l d4", "l d5", "l d3", "l d1", "l d2", "l d6"]
+    assert depth == ["l d4 fs-tog", "l d5", "l d3", "l d6", "l d1 fs-tog", "l d2"]
 
 
 def test_tables_of_the_earlier_standard_follow_the_main_table() -> None:
