@@ -140,6 +140,7 @@ function fsGather(items, st, root){
       const take = out.splice(kind === "major" ? major : minor);
       out.push(...take.filter(isRev));
       n.children = take.filter(m => !isRev(m));
+      n.after = n.children.length > 0;
       out.push(n);
       minor = out.length;
       if(kind === "major") major = out.length;
@@ -188,6 +189,7 @@ function fsTree(rows, st){
     const rest = fsGather(items.filter((_, i) => i !== at), st, false);
     total.children = [...total.children, ...rest];
     total.path = sec.path;
+    total.sec = sec.name;
     return total;
   };
   const top = build(root, true);
@@ -220,18 +222,26 @@ function fsNameCell(n, depth, ctx, cls){
   return {open, html: `<td class="${cls}${tog ? " fs-tog" : ""}"${act} title="${fsEsc(r.key)}">${tw}${fsEsc(r.label)}${unit}${mark}</td>`};
 }
 
+function fsRowHtml(n, d, ps, edges, ctx, par){
+  const cell = fsNameCell(n, d, ctx, d ? `l d${d}` : "l");
+  if(!n.row) return {open: cell.open, html: `<tr class="fs-sec fs-sec${Math.min(d, FS_MAX_DEPTH - 1)}">${cell.html}<td colspan="${ps.length}"></td></tr>`};
+  const cls = [n.row.unmatched_pdf ? "pdf" : "", par ? "fs-par" : "", n.basic ? "fs-basic" : ""].filter(Boolean).join(" ");
+  return {open: cell.open, html: `<tr${cls ? ` class="${cls}"` : ""}>${cell.html}`
+    + ps.map((p, i) => fsCell((n.row.cells || [])[i], p, n.row.unit, edges[i])).join("") + `</tr>`};
+}
+
 function fsNodeHtml(n, depth, ps, edges, ctx){
   const d = Math.min(depth, FS_MAX_DEPTH);
-  const cell = fsNameCell(n, d, ctx, d ? `l d${d}` : "l");
-  let h;
-  if(!n.row) h = `<tr class="fs-sec fs-sec${Math.min(d, FS_MAX_DEPTH - 1)}">${cell.html}<td colspan="${ps.length}"></td></tr>`;
-  else {
-    const cls = [n.row.unmatched_pdf ? "pdf" : "", n.children.length ? "fs-par" : "", n.basic ? "fs-basic" : ""].filter(Boolean).join(" ");
-    h = `<tr${cls ? ` class="${cls}"` : ""}>${cell.html}`
-      + ps.map((p, i) => fsCell((n.row.cells || [])[i], p, n.row.unit, edges[i])).join("") + `</tr>`;
+  const kids = () => n.children.map(c => fsNodeHtml(c, depth + 1, ps, edges, ctx)).join("");
+  if(!n.children.length || !fsIsOpen(n, ctx) || !n.row || (!n.sec && !n.after)) {
+    const own = fsRowHtml(n, d, ps, edges, ctx, n.children.length > 0);
+    return own.html + (own.open ? kids() : "");
   }
-  if(cell.open) for(const c of n.children) h += fsNodeHtml(c, depth + 1, ps, edges, ctx);
-  return h;
+  if(n.sec){
+    const head = fsRowHtml({...n, row: null, name: n.sec}, d, ps, edges, ctx, false);
+    return head.html + kids() + fsRowHtml({...n, children: []}, Math.min(depth + 1, FS_MAX_DEPTH), ps, edges, ctx, true).html;
+  }
+  return kids() + fsRowHtml(n, d, ps, edges, ctx, true).html;
 }
 
 function fsTableHtml(d, ctx = {}){

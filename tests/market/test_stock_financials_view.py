@@ -268,23 +268,28 @@ def _names(html: str) -> list[str]:
     return [re.sub(r"<[^>]+>", "", _cells(r)[0]) for r in _rows(html)]
 
 
-def test_section_totals_become_parents_and_basic_ones_open_first() -> None:
+def test_open_sections_read_like_the_filing_and_closed_ones_show_the_total() -> None:
     r = _run()
-    assert _names(r["sectioned"]) == ["▾資産合計", "▾流動資産合計", "現金及び預金", "▸固定資産", "▸負債", "負債純資産合計"]
+    assert _names(r["sectioned"]) == ["▾資産", "▾流動資産", "現金及び預金", "流動資産合計", "▸固定資産", "資産合計", "▸負債",
+                                      "負債純資産合計"]
     rows = _rows(r["sectioned"])
-    assert rows[0].startswith(' class="fs-par fs-basic"') and 'class="l fs-tog"' in rows[0]
-    assert re.search(r'<td class="([^"]*)"', rows[2]).group(1) == "l d2"
-    assert rows[3].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[3]
-    assert _cells(rows[4])[1] == '<td colspan="3"></td>'
+    assert rows[0].startswith(' class="fs-sec fs-sec0"') and 'class="l fs-tog"' in rows[0]
+    assert _cells(rows[0])[1] == '<td colspan="3"></td>'
+    assert rows[3].startswith(' class="fs-par fs-basic"') and "fs-tog" not in rows[3]
+    assert re.search(r'<td class="([^"]*)"', rows[3]).group(1) == "l d2"
+    assert rows[4].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[4]
+    assert rows[5].startswith(' class="fs-par fs-basic"') and re.search(r'<td class="([^"]*)"', rows[5]).group(1) == "l d1"
 
 
 def test_all_view_and_toggled_rows() -> None:
     r = _run()
-    assert _names(r["sectionedAll"]) == ["▾資産合計", "▾流動資産合計", "現金及び預金", "▾固定資産", "土地", "▾負債",
-                                         "▾流動負債", "借入金", "▾固定負債", "借入金", "負債純資産合計"]
-    assert _names(r["sectionedToggled"]) == ["▾資産合計", "▸流動資産合計", "▸固定資産", "▾負債", "▸流動負債", "▸固定負債",
+    assert _names(r["sectionedAll"]) == ["▾資産", "▾流動資産", "現金及び預金", "流動資産合計", "▾固定資産", "土地", "資産合計",
+                                         "▾負債", "▾流動負債", "借入金", "▾固定負債", "借入金", "負債純資産合計"]
+    assert _names(r["sectionedToggled"]) == ["▾資産", "▸流動資産合計", "▸固定資産", "資産合計", "▾負債", "▸流動負債", "▸固定負債",
                                              "負債純資産合計"]
     assert 'data-key="BS:|/h:資産:資産/h:流動資産:流動資産" data-open="0"' in r["sectionedToggled"]
+    closed = next(row for row in _rows(r["sectionedToggled"]) if "流動資産合計" in row)
+    assert closed.startswith(' class="fs-par fs-basic"') and ">1<" in _cells(closed)[1]
 
 
 def test_pl_profit_stages_hold_what_feeds_them() -> None:
@@ -362,6 +367,7 @@ def test_heading_rows_of_any_depth_and_indented_rows() -> None:
     rows = _rows(r["deepAll"])
     assert _names(r["deepAll"]) == ["▾資産の部", "▾固定資産", "▾有形固定資産", "▾鉄道事業固定資産", "▾建物", "減価償却累計額",
                                     "土地", "▾無形固定資産", "▾その他", "▾x", "▾y", "▾z", "ソフトウエア", "▾有形固定資産", "建物"]
+    assert _names(r["deepAll"]).index("▾建物") < _names(r["deepAll"]).index("減価償却累計額")
     secs = [r.split('"')[1] for r in rows if r.startswith(' class="fs-sec')]
     assert secs[:4] == ["fs-sec fs-sec0", "fs-sec fs-sec1", "fs-sec fs-sec2", "fs-sec fs-sec3"]
     assert secs[-1] == "fs-sec fs-sec5"
