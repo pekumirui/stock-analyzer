@@ -414,12 +414,13 @@ function amt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${mil(v)}</span>`;
 }
-function finRate(r, k){
-  if(k!=="operating_profit" && k!=="gross_profit") return "";
+function rateAmt(r, k){
+  const v = r.values && r.values[k];
   const m = margin(r.values, k);
-  return m==null ? "" : `<span class="opm${m<0?" loss":""}">(${fmt(m,1)}%)</span>`;
+  const rate = m==null ? "" : `<span class="opm${m<0?" loss":""}">(${fmt(m,1)}%)</span>`;
+  return `${amt(v)}${rate}`;
 }
-const finAmt = (r, k) => amt(r.values[k]);
+const finAmt = (r, k) => k==="operating_profit" || k==="gross_profit" ? rateAmt(r, k) : amt(r.values[k]);
 function epsTxt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${fmt(v,1)}</span>`;
@@ -467,7 +468,7 @@ function renderFin(el, rows, d){
     const cls = [now&&"now", fc&&"fc", prev&&"prevfy", sep&&"sep"].filter(Boolean).join(" ");
     const cell = (k, txt) => {
       const g = r.growth && r.growth[k];
-      return `<td class="num${dc(k)}">${txt}<span class="g">${finRate(r, k)}${g ? gc(g) : " "}</span></td>`;
+      return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : " "}</span></td>`;
     };
     h += `<tr class="${cls}"><td class="l" title="${finTitle(r)}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
        + MET.map(([k])=>cell(k, finAmt(r, k))).join("")
@@ -530,7 +531,7 @@ function renderRev(el, rows, d){
     const cls = [now&&"now", r.kind==="actual_fy"&&"act", head&&i>0&&"sep"].filter(Boolean).join(" ");
     const cell = (k, txt) => {
       const g = r.growth && r.growth[k];
-      return `<td class="num${dc(k)}">${txt}<span class="g">${finRate(r, k)}${g ? revG(g) : " "}</span></td>`;
+      return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
     };
     const badge = `<span class="qb ${bc}">${txt}</span>`;
     const label = `${head ? r.range : "&nbsp;"}<span class="g">${badge}</span>`;
