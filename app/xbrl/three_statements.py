@@ -1783,6 +1783,9 @@ def apply_learned(
             for n, m in added.items():
                 if counts[m.key] == 1:
                     found[n] = m
+    if names:
+        for n, m in _gross_rows(bases, found, names).items():
+            found[n] = m
     if standard is not None:
         for n, m in _standard_rows(live_rows, bases, found, statement, standard, _standard_book(), names).items():
             found[n] = m
@@ -1851,6 +1854,24 @@ def _accumulated_prev(names: Sequence[str], n: int) -> int | None:
     if at < 0 or after >= len(names) or not names[after].endswith(NET_TAIL):
         return None
     return at
+
+
+def _gross_rows(bases: Sequence[str], found: Sequence[Mapped | None], names: Names) -> dict[int, Mapped]:
+    canons = [_canon_name(b) for b in bases]
+    taken = {m.key for m in found if m is not None}
+    out: dict[int, Mapped] = {}
+    for n, name in enumerate(canons):
+        at = _accumulated_prev(canons, n) if name in ACCUMULATED_NAMES else None
+        if at is None or (m := found[at]) is None:
+            continue
+        after = next(k for k in range(n + 1, len(canons)) if canons[k] not in ACCUMULATED_NAMES)
+        net = names.keys.get(bases[after]) or names.canon_keys.get(canons[after])
+        gross = names.keys.get(bases[at]) or names.canon_keys.get(canons[at])
+        if found[after] is None and net == m.key and gross is not None and gross not in taken:
+            out[at] = Mapped(gross, 1, "name")
+            out[after] = m
+            taken.add(gross)
+    return out
 
 
 def _alone(picked: Mapping[int, str]) -> dict[int, str]:
@@ -2786,9 +2807,17 @@ def _labels(filings: Sequence[Filing], learned: Sequence[Learned]) -> dict[str, 
                 if f.key.startswith("pdf:"):
                     labels[f.key] = _pdf_label(f.local)
     xbrl_labels = dict(labels)
+    owners: dict[str, set[str]] = defaultdict(set)
+    for filing in filings:
+        for f in filing.seq:
+            if name := _clean_label(f.label):
+                owners[name].add(f.key)
+    labelled = set().union(*owners.values()) if owners else set()
     for item in sorted(learned, key=lambda x: x.period_end):
         for key, local in item.pdf_names.items():
-            labels[key] = _pdf_label(local, xbrl_labels.get(key, ""))
+            name = _pdf_label(local, xbrl_labels.get(key, ""))
+            if key not in labelled or not owners.get(name, set()) - {key}:
+                labels[key] = name
     return labels
 
 
