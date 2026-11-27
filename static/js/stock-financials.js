@@ -2,6 +2,7 @@ const FS_PERIODS = [8, 20];
 const FS_PT = {Q1: ["1Q", "qb-1Q"], Q2: ["2Q", "qb-2Q"], Q3: ["3Q", "qb-3Q"], FY: ["通期", "qb-fy"]};
 const FS_STD = {JPGAAP: "日本基準", IFRS: "IFRS", USGAAP: "米国基準"};
 const FS_SOURCE = {edinet: "有報", tdnet: "XBRL", tdnet_pdf: "PDF"};
+const FS_SOURCE_NAME = {edinet: "有価証券報告書", tdnet: "短信", tdnet_pdf: "短信 PDF"};
 const FS_ROLE_CLASS = {subtotal: "fs-sub", total: "fs-tot", grand: "fs-grand"};
 const FS_RECENT = 4;
 const FS_NO_QUARTER = "3か月単独を出せない（直前の四半期の列が無い・1株当たり）";
@@ -151,6 +152,30 @@ function fsTableHtml(d){
   return h + `</tbody>`;
 }
 
+function fsLegendHtml(d){
+  const tables = [d, ...((d && d.earlier) || [])].filter(t => t && (t.periods || []).length && (t.rows || []).length);
+  const fills = new Set();
+  let pdf = false, single = false;
+  for(const t of tables){
+    const ps = t.periods;
+    if(t.consolidated == null && ps.some(p => p.consolidated === false)) single = true;
+    for(const r of t.rows){
+      if(r.unmatched_pdf) pdf = true;
+      (r.cells || []).forEach((c, i) => { if(c && !c.gap && c.source && ps[i] && c.source !== ps[i].source) fills.add(c.source); });
+    }
+  }
+  const items = [];
+  if(fills.size){
+    const srcs = [...fills];
+    const names = srcs.filter(s => FS_SOURCE_NAME[s]).map(s => `${fsSourceLabel(s)} = ${FS_SOURCE_NAME[s]}`).join("、");
+    items.push(srcs.map(s => `<span class="qb fs-fill">${fsEsc(fsSourceLabel(s))}</span>`).join("")
+      + ` = 列の出どころ（見出しの下）に無く、その書類から補った値${names ? `（${fsEsc(names)}）` : ""}`);
+  }
+  if(pdf) items.push(`<span class="qb fs-pdf">PDFのみ</span> = XBRL の科目に対応が付かなかった短信 PDF の行`);
+  if(single) items.push(`<span class="qb fs-basis">個別</span> = 連結の無い期を個別で出した列（縦線が連結との境目）`);
+  return items.map(h => `<span class="fs-lg">${h}</span>`).join("");
+}
+
 function syncStockFsButtons(){
   document.querySelectorAll("#st-fs-tabs .ftab").forEach(b => b.classList.toggle("on", b.dataset.fs === stockFsStatement));
   document.querySelectorAll("#st-fs-periods .ftab").forEach(b => b.classList.toggle("on", Number(b.dataset.periods) === stockFsPeriods));
@@ -202,8 +227,11 @@ async function renderStockFs(){
   const keepOffset = wrap && stockFsScrollKey === scrollKey && tbl.rows && tbl.rows.length > 0
     ? Math.max(0, wrap.scrollWidth - wrap.scrollLeft) : null;
   $("#st-fs-meta").textContent = has ? fsMeta(d, stockFsView) : "";
-  $("#st-fs-legend").hidden = !has;
-  tbl.innerHTML = fsTableHtml(fsView(d, stockFsView));
+  const shown = fsView(d, stockFsView);
+  const legend = has ? fsLegendHtml({...shown, earlier: (d.earlier || []).map(t => fsView({...t, statement: d.statement}, stockFsView))}) : "";
+  $("#st-fs-legend").innerHTML = legend;
+  $("#st-fs-legend").hidden = !legend;
+  tbl.innerHTML = fsTableHtml(shown);
   $("#st-fs-earlier").innerHTML = fsEarlierHtml(d, stockFsView);
   if(has && wrap){
     stockFsScrollKey = scrollKey;
@@ -231,6 +259,22 @@ document.querySelectorAll("#st-fs-periods .ftab").forEach(b => b.onclick = () =>
   renderStockFs();
 });
 
+function fsPinRow(tr){
+  if(!tr || tr.classList.contains("fs-sec")) return;
+  const on = !tr.classList.contains("on");
+  document.querySelectorAll("#st-sub-financials .fs tbody tr.on").forEach(r => r.classList.remove("on"));
+  tr.classList.toggle("on", on);
+}
+
+if(typeof document !== "undefined" && document.addEventListener){
+  document.addEventListener("click", e => {
+    const tr = e.target && e.target.closest && e.target.closest("#st-sub-financials .fs tbody tr");
+    if(!tr) return;
+    if(typeof getSelection === "function" && String(getSelection())) return;
+    fsPinRow(tr);
+  });
+}
+
 document.querySelectorAll("#st-sub-financials .fs-view .ftab").forEach(b => b.onclick = () => {
   const key = b.dataset.view, value = fsViewValue(b.dataset.value);
   if(stockFsView[key] === value) return;
@@ -239,5 +283,5 @@ document.querySelectorAll("#st-sub-financials .fs-view .ftab").forEach(b => b.on
 });
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, fsScrollLeft, fsView, FS_PERIODS};
+  module.exports = {fsLegendHtml, fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, fsScrollLeft, fsView, FS_PERIODS};
 }

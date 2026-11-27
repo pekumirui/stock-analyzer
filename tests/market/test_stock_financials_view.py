@@ -26,6 +26,8 @@ console.log(JSON.stringify({
   earlier: fs.fsEarlierHtml({...d, cumulative: true, earlier: [JSON.parse(process.argv[3])]}),
   noEarlier: fs.fsEarlierHtml(d),
   roles: fs.fsTableHtml(JSON.parse(process.argv[7])),
+  legends: [fs.fsLegendHtml(d), fs.fsLegendHtml(JSON.parse(process.argv[4])), fs.fsLegendHtml(JSON.parse(process.argv[3])),
+            fs.fsLegendHtml({...JSON.parse(process.argv[3]), earlier: [d]}), fs.fsLegendHtml({periods: [], rows: []})],
   views: Object.fromEntries(Object.entries({
     fy: {cols: "fy"}, quarter: {quarter: true}, recent: {rows: "recent"}, cumulative: {},
   }).map(([k, v]) => [k, fs.fsTableHtml(fs.fsView(JSON.parse(process.argv[8]), v))])),
@@ -284,6 +286,19 @@ def test_role_classes_and_scroll_targets() -> None:
     assert r["scrolls"] == [1400, 900, 0]
 
 
+def test_legend_explains_only_the_marks_in_the_tables() -> None:
+    plain, mixed, none, earlier, empty = _run()["legends"]
+    assert plain.count('class="fs-lg"') == 2
+    assert '<span class="qb fs-fill">XBRL</span> = 列の出どころ（見出しの下）に無く、その書類から補った値（XBRL = 短信）' in plain
+    assert "PDFのみ" in plain and "個別" not in plain and ">PDF<" not in plain
+    assert mixed.count('class="fs-lg"') == 3 and '<span class="qb fs-basis">個別</span>' in mixed
+    assert none == "" and empty == ""
+    assert earlier == plain
+
+
+def test_static_legend_starts_empty_and_hidden() -> None:
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    assert '<p id="st-fs-legend" class="sub" hidden></p>' in html
 def _texts(row: str) -> list[str]:
     return [re.sub(r"<[^>]+>", "", c) for c in _cells(row)]
 

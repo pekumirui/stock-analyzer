@@ -131,3 +131,25 @@ def test_tip_and_format():
     assert r["svg"] is True
     assert "25.09 2Q" in r["tip"] and "150 百万円" in r["tip"]
     assert r["fmt"] == ["1,235 百万円", "12.3%", "–"]
+
+
+_OPEN = r"""
+const c = require(process.argv[1]);
+const out = [c.fscLoadOpen()];
+global.matchMedia = q => ({matches: q === "(max-width:640px)"});
+out.push(c.fscLoadOpen());
+const store = {};
+global.localStorage = {getItem: k => store[k] ?? null};
+store["fs.chart.open"] = "1";
+out.push(c.fscLoadOpen());
+store["fs.chart.open"] = "0";
+global.matchMedia = () => ({matches: false});
+out.push(c.fscLoadOpen());
+console.log(JSON.stringify(out));
+"""
+
+
+def test_chart_starts_open_on_pc_closed_on_phone_and_remembers_the_choice() -> None:
+    out = subprocess.run(["node", "-e", _OPEN, str(ROOT / "static/js/stock-fs-chart.js")],
+                         capture_output=True, text=True, check=True)
+    assert json.loads(out.stdout) == [True, False, True, False]
