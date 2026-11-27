@@ -75,7 +75,7 @@ function fscBsModel(d, rate){
     const vs = get(k);
     return fscSeries(k, rate ? vs.map((v, i) => fscRatio(v, total[i])) : vs, {kind: "bar", unit: rate ? "pct" : "money"});
   });
-  return {periods, series, stacks: [assets, [...debts, "net_assets"]]};
+  return {periods, series, stacks: [[...assets].reverse(), ["net_assets", ...[...debts].reverse()]]};
 }
 
 function fscCfModel(d){
