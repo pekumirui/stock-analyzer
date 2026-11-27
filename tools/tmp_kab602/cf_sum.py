@@ -169,7 +169,8 @@ def is_subtotal(r):
     if is_non_cf(r):
         return False
     return bool("考慮前" in lab or k.startswith("CashFlowsFromOperatingActivitiesBefore") or SUBTOTAL_KEY_RE.search(k) or k.startswith("TotalOf") or IFRS_SUBTOTAL_KEY_RE.match(k)
-                or SUBTOTAL_LABEL_RE.match(lab) or (lab.endswith("計") and "キャッシュ" not in lab))
+                or SUBTOTAL_LABEL_RE.match(lab)
+                or (lab.endswith("計") and not lab.endswith("合計") and "キャッシュ" not in lab))
 
 
 def is_non_cf(r):
