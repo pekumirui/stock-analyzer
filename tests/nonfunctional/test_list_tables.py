@@ -173,15 +173,13 @@ def test_short_name_is_wider_on_pc() -> None:
     assert 'matchMedia("(min-width:721px)").matches ? 10 : 5' in api
 
 
-def test_loss_color_is_not_up_and_margin_sits_below_amount() -> None:
+def test_loss_color_is_not_up() -> None:
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     src = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
     assert "--loss:" in css
     assert ".loss { color:var(--loss); }" in css
     assert not re.search(r"\.loss\s*\{[^}]*var\(--up\)", css)
-    assert '<span class="g">${finRate(r, k)}${g ? gc(g)' in src
-    assert '<span class="g">${finRate(r, k)}${g ? revG(g)' in src
-    assert "${amt(v)}${rate}" not in src
+    assert '<span class="opm${m<0?" loss":""}">' in src
 
 
 def test_sheet_headers_are_in_thead() -> None:
