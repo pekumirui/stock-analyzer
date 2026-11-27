@@ -13,7 +13,7 @@ from typing import Any, Iterable, Mapping, Sequence
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
-from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_STANDARD_LABELS_PATH
+from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH
 
 __all__ = [
     "DEFAULT_PERIODS",
@@ -746,10 +746,41 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
                 filing.parts = {s: layout.parts for s, layout in layouts[fid].get(basis, {}).items()}
             else:
                 filing.by_statement = {s: [f for f in v if f.id not in drop] for s, v in split_xbrl(facts).items()}
+        fixes = _place_fixes().get((code, basis), {})
         for filing in by_id.values():
             filing.by_statement = {s: v for s, v in filing.by_statement.items() if v}
+            for statement, key, target in fixes.get(filing.doc_id, ()):
+                _fix_place(filing, statement, key, target)
         out[basis] = sorted(by_id.values(), key=lambda f: (f.period_end, f.submitted, f.id))
     return out
+
+
+@lru_cache(maxsize=1)
+def _place_fixes() -> dict[tuple[str, bool], dict[str, list[tuple[str, str, str | None]]]]:
+    raw = json.loads(XBRL_ROW_PLACE_FIXES_PATH.read_text(encoding="utf-8"))
+    out: dict[tuple[str, bool], dict[str, list[tuple[str, str, str | None]]]] = defaultdict(lambda: defaultdict(list))
+    for item in raw.get("fixes") or []:
+        target = item.get("as")
+        out[(str(item["code"]), bool(item["consolidated"]))][str(item["doc_id"])].append(
+            (str(item["statement"]), str(item["key"]), None if target is None else str(target)),
+        )
+    return {basis: dict(by_doc) for basis, by_doc in out.items()}
+
+
+def _fix_place(filing: Filing, statement: str, key: str, target: str | None) -> None:
+    parts = dict(filing.parts.get(statement, {}))
+    declared = parts.pop(key, None)
+    if target is not None:
+        if declared is not None:
+            parts[target] = declared
+        renamed = {f.id for f in filing.by_statement.get(statement, []) if f.key == key}
+        filing.seq = [replace(f, key=target) if f.id in renamed else f for f in filing.seq]
+        if statement in filing.by_statement:
+            filing.by_statement[statement] = [
+                replace(f, key=target) if f.id in renamed else f for f in filing.by_statement[statement]
+            ]
+    if statement in filing.parts:
+        filing.parts[statement] = parts
 
 
 @dataclass(frozen=True)

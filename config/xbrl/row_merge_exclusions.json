@@ -1,4 +1,15 @@
 {
-  "_meta": {"use": "財務3表で、規則では 1 行にまとまるが別の科目だと分かった行の組（会社の 5 桁コード・表・要素 2 つ）。この組はまとめない", "researched_at": "2026-11-16", "source": "本番の財務3表と有報・短信の原文"},
-  "pairs": []
+  "_meta": {"use": "財務3表で、規則では 1 行にまとまるが別の科目だと分かった行の組（会社の 5 桁コード・表・要素 2 つ）。この組はまとめない", "researched_at": "2026-11-26", "source": "本番の財務3表と有報・短信の原文"},
+  "pairs": [
+    {"code": "76010", "statement": "BS", "keys": ["ext:MachineryEquipmentAndVehiclesForOwnUse", "MachineryEquipmentAndVehicles"], "evidence": "KAB-591。2017-02〜2020-02 は 自社有形固定資産 の中の 機械装置及び運搬具（連結）。2021-02 からは有形固定資産の直下。まとめると旧の期の値が有形固定資産の直下に出て、自社有形固定資産の中の減価償却累計額の親が無くなる"},
+    {"code": "76010", "statement": "BS", "keys": ["ext:MachineryEquipmentAndVehiclesForOwnUseNet", "MachineryEquipmentAndVehiclesNet"], "evidence": "KAB-591。上の 機械装置及び運搬具 の純額"},
+    {"code": "76010", "statement": "BS", "keys": ["ext:LeaseAssetsForOwnUse", "LeaseAssetsPPE"], "evidence": "KAB-591。2017-02〜2020-02 は 自社有形固定資産 の中の リース資産（連結・個別）。2021-02 からは有形固定資産の直下"},
+    {"code": "76010", "statement": "BS", "keys": ["ext:LeaseAssetsForOwnUseNet", "LeaseAssetsNetPPE"], "evidence": "KAB-591。上の リース資産 の純額"},
+    {"code": "90060", "statement": "BS", "keys": ["PropertyPlantAndEquipmentIncidentalRWY", "ext:PropertyRealEstateAndLeisureFixedAsset"], "evidence": "KAB-591。個別。2017-03〜2021-03 は 付帯事業固定資産 の 有形固定資産、2022-03 からは 不動産・レジャー事業固定資産 の 有形固定資産。区分が替わった別の科目で、まとめると旧の期の値が新しい見出しの下に出る"},
+    {"code": "90060", "statement": "BS", "keys": ["PropertyPlantAndEquipmentNetIncidentalRWY", "ext:PropertyPlantAndEquipmentNetProperty"], "evidence": "KAB-591。上の 有形固定資産 の純額"},
+    {"code": "90060", "statement": "BS", "keys": ["IntangibleAssetsIncidentalRWY", "ext:IntangibleAssetsRealEstateAndLeisureFixedAsset"], "evidence": "KAB-591。上の 2 つの見出しの 無形固定資産"},
+    {"code": "90070", "statement": "BS", "keys": ["PropertyPlantAndEquipmentOtherRWY", "ext:PropertyPlantAndEquipmentNCALivingServicesRWY"], "evidence": "KAB-591。個別。2017-03〜2024-03 は その他事業固定資産 の 有形固定資産、2025-03 からは 生活サービス事業固定資産 の 有形固定資産。区分が替わった別の科目"},
+    {"code": "90070", "statement": "BS", "keys": ["ext:PropertyPlantAndEquipmentNetNCAOther", "ext:PropertyPlantAndEquipmentNetNCALivingServicesRWY"], "evidence": "KAB-591。上の 有形固定資産 の純額"},
+    {"code": "90070", "statement": "BS", "keys": ["IntangibleAssetsOtherRWY", "ext:IntangibleAssetsNCALivingServicesRWY"], "evidence": "KAB-591。上の 2 つの見出しの 無形固定資産"}
+  ]
 }
