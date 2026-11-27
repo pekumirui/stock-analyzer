@@ -489,6 +489,8 @@ python jobs/xbrl/xbrl_parse.py load-mappings
 
 ## 過去の短信 PDF
 
+短信 PDF は、短信 XBRL が手に入らない過去の短信を読むための代わりである。新しい短信は短信 XBRL（TDnet の ZIP）と有報・半期報の XBRL（EDINET）から読み、短信 PDF から財務 3 表を新しく読むことはない（新しい短信を PDF で取り込む cron は無く、同じ開示の短信 ZIP を読めば PDF の filing は外す）。短信 PDF の財務 3 表は増えない過去の決まった書類の集まりなので、読み取りの直しは過去の期の表を正しくするためだけに行い、今後の新しい書き方への備え（規則の先回り・監視）は足さない。
+
 ### 過去の短信を PDF から HTML にする
 
 TDnet の ZIP は `2026-08-10` 以降しか手元に無く、TDnet 上でも約 1 か月で消える。それ以前の原文は、IR BANK が保管する TDnet 開示 PDF（`https://api.irbank.net/api/market-files/v1/tdnet/{docID}.pdf`、認証なし、`statements.disclosure_no` ＝ TDnet docID ＝ IR BANK `doc_id` の 14 桁番号、TDnet ZIP 名は `0812`＋14 桁）から SVG ベースの HTML に変換して `tdnet_pdf_documents` に入れる（KAB-164・KAB-169）。
