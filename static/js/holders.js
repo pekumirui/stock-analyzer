@@ -74,7 +74,7 @@ function hdIssuerCell(code, name, pin){
 }
 function hdPurposeCell(text){
   const s = String(text || "–");
-  return `<td class="l" title="${hdEsc(s)}">${hdEsc(s)}</td>`;
+  return `<td class="l purpose" title="${hdEsc(s)}"><span>${hdEsc(s)}</span></td>`;
 }
 
 function drawHdChart(host, series, yFmt){

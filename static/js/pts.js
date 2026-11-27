@@ -2,7 +2,7 @@ const ptsEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;")
 const ptsMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
 const ptsName = r => {
   const raw = String(r.name||""), name = ptsEsc(raw), code = ptsEsc(r.code.slice(0,4));
-  return `<td class="l name" title="${name}"><span class="clicky" onclick="gotoChart('${ptsEsc(r.code)}')">${ptsEsc(shortName(raw))}</span>${under(`<span class="sub">${code}</span>`)}</td>`;
+  return `<td class="l name pin1" title="${name}"><span class="clicky" onclick="gotoChart('${ptsEsc(r.code)}')">${ptsEsc(shortName(raw))}</span>${under(`<span class="sub">${code}</span>`)}</td>`;
 };
 const ptsMarket = r => { const x = fmtMarket(r.market); return `<td class="l ${x.cls}">${ptsEsc(x.label)}</td>`; };
 const ptsFollow = v => v==null ? "–" : fmt(v,2);
@@ -32,17 +32,19 @@ async function loadPts(opts = {}){
   $("#pts-summary").textContent = s && s.n
     ? `翌始値あり ${s.n} 銘柄: PTS→翌始値 平均 ${s.avg_open_vs_pts_pct>0?"+":""}${fmt(s.avg_open_vs_pts_pct,2)}% / 追随率 中央値 ${ptsFollow(s.median_follow_ratio)}`
     : "";
-  let h = "<thead><tr><th>順位</th><th class='l name'>銘柄</th><th class='l'>市場</th><th>終値</th><th>PTS</th><th>終値比</th><th>PTS出来高</th>"
-        + "<th>翌始値</th><th>終値→翌始値</th><th>PTS→翌始値</th><th title='1=PTSどおり、0=終値に戻った'>追随率</th></tr></thead><tbody>";
+  const dim = d.rows.every(r => r.next_open == null) ? " dim" : "";
+  let h = "<thead><tr><th class='pin0'>順位</th><th class='l name pin1'>銘柄</th><th class='l'>市場</th><th>終値</th><th>PTS</th><th>終値比</th><th>PTS出来高</th>"
+        + `<th class="${dim}">翌始値</th><th class="${dim}">終値→翌始値</th><th class="${dim}">PTS→翌始値</th><th class="${dim}" title='1=PTSどおり、0=終値に戻った'>追随率</th></tr></thead><tbody>`;
   for(const r of d.rows){
     const nd = r.next_date && r.next_date !== next ? ` <small>${ptsMd(r.next_date)}</small>` : "";
-    h += `<tr><td class="num">${r.rank}</td>${ptsName(r)}
+    h += `<tr><td class="num pin0">${r.rank}</td>${ptsName(r)}
       ${ptsMarket(r)}<td class="num">${fmt(r.base_close,1)}</td><td class="num">${fmt(r.pts_price,1)}</td>
       <td class="num">${pct(r.pts_chg_pct)}</td><td class="num">${fmt(r.volume)}</td>
-      <td class="num">${fmt(r.next_open,1)}${nd}</td><td class="num">${pct(r.open_gap_pct)}</td><td class="num">${pct(r.open_vs_pts_pct)}</td>
-      <td class="num">${ptsFollow(r.follow_ratio)}</td></tr>`;
+      <td class="num${dim}">${fmt(r.next_open,1)}${nd}</td><td class="num${dim}">${pct(r.open_gap_pct)}</td><td class="num${dim}">${pct(r.open_vs_pts_pct)}</td>
+      <td class="num${dim}">${ptsFollow(r.follow_ratio)}</td></tr>`;
   }
   $("#pts-tbl").innerHTML = h + "</tbody>";
+  pinCols($("#pts-tbl"), 2);
 }
 
 $("#pts-date").onchange = () => loadPts();
@@ -53,5 +55,6 @@ document.querySelectorAll("#pts-ranking .ftab").forEach(b => b.onclick = () => {
   loadPts();
 });
 $("#pts-at").onchange = e => loadPts({at: e.target.value});
+new ResizeObserver(() => pinCols($("#pts-tbl"), 2)).observe($("#rk-sub-pts .tbl-wrap"));
 
 window.loadPts = loadPts;
