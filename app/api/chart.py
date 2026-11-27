@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ..db import get_session
 from ..market.chart_fund import fund_steps
 from ..models import Stock, DailyPrice, Topix, EarningsEvent, Statement
+from ..monthly.publications import visible_publication_marks
 
 
 router = APIRouter()
@@ -65,7 +66,9 @@ def chart(code: str, request: Request, db: Session = Depends(get_session)):
     fund = fund_steps(stmts, [r[0] for r in rows], [r[-1] for r in rows])
     return _etag_json(request, {"code": code, "name": stock.name if stock else code,
                                 "t": t, "o": o, "h": h, "l": lo, "c": c, "v": v, "tv": tv, "mc": mc,
-                                "earnings_dates": events, "fund": fund})
+                                "earnings_dates": events,
+                                "monthly_publications": visible_publication_marks(db, code),
+                                "fund": fund})
 
 
 @router.get("/topix")

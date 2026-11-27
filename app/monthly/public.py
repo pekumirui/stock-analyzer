@@ -37,6 +37,16 @@ def issuer_label(code: str, name: str | None) -> str:
     return f"{code4(code)} {short}".strip()
 
 
+def fmt_publication(pub: dict | None) -> tuple[str, bool, str]:
+    if not pub or not pub.get("date") or pub.get("confidence") == "unknown":
+        return "", False, ""
+    est = pub.get("confidence") == "estimated"
+    text = f"{pub['date']}頃" if est else str(pub["date"])
+    year, month = pub.get("year"), pub.get("month")
+    title = f"{year}年{month}月" if year and month else ""
+    return text, est, title
+
+
 def fmt_yoy_list(value: float | None) -> str:
     if value is None:
         return "-"
@@ -147,19 +157,23 @@ def render_top_list(issuers: list[dict]) -> str:
         ind = escape(str(r.get("industry") or "その他"))
         all_y = escape(fmt_yoy_list(r.get("all_store_yoy")))
         ex_y = escape(fmt_yoy_list(r.get("existing_store_yoy")))
+        pub_text, pub_est, pub_title = fmt_publication(r.get("latest_publication"))
+        pub_cls = "num pub-est" if pub_est else "num"
+        pub_title_attr = f' title="{escape(pub_title)}"' if pub_title else ""
         rows.append(
             f'<tr data-code="{escape(code)}">'
             f'<td class="l name"><a href="{href}">{label}</a>{neu}</td>'
             f'<td class="l">{ind}</td>'
             f'<td class="num">{all_y}</td>'
             f'<td class="num">{ex_y}</td>'
+            f'<td class="{pub_cls}"{pub_title_attr}>{escape(pub_text)}</td>'
             f"</tr>"
         )
     body = "".join(rows)
     return (
         '<table id="monthly-tbl" class="sheet"><thead><tr>'
         '<th class="l">会社名</th><th class="l">月次業種</th>'
-        "<th>全店(前年比)</th><th>既存店(前年比)</th>"
+        "<th>全店(前年比)</th><th>既存店(前年比)</th><th>公表日</th>"
         f"</tr></thead><tbody>{body}</tbody></table>"
     )
 

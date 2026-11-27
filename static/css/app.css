@@ -1,5 +1,6 @@
   :root { --bg:#ffffff; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
           --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
+          --monthly:#5b3f9a; --monthly-est:#8f7eb8;
           --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
   * { box-sizing:border-box; margin:0; }
   html { color-scheme: light; background:var(--bg); }
@@ -308,6 +309,7 @@
     max-width:none;
   }
   #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
+  #monthly-tbl td.pub-est { color:var(--sub); }
   #monthly-tbl td.name:hover { text-decoration:underline; }
   td.mkt::before {
     content:''; display:inline-block; width:.55em; height:.55em;

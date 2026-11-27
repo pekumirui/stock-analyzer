@@ -301,3 +301,50 @@ def record_manual(db, code: str, before: set[tuple[int, int]]) -> None:
     manual = unknown("manual")
     for year, month in after - before:
         note(db, code, year, month, manual)
+
+
+_VISIBLE = ("exact", "estimated")
+
+
+def _publication_payload(row) -> dict:
+    return {
+        "date": row.published_on.isoformat(),
+        "confidence": row.confidence,
+        "year": row.year,
+        "month": row.month,
+    }
+
+
+def _visible_publication_rows(db, *, code: str | None = None, codes: list[str] | None = None):
+    q = db.query(
+        MonthlyPublication.code,
+        MonthlyPublication.year,
+        MonthlyPublication.month,
+        MonthlyPublication.published_on,
+        MonthlyPublication.confidence,
+    ).filter(
+        MonthlyPublication.confidence.in_(_VISIBLE),
+        MonthlyPublication.published_on.isnot(None),
+    )
+    if code is not None:
+        q = q.filter(MonthlyPublication.code == code)
+    elif codes is not None:
+        if not codes:
+            return []
+        q = q.filter(MonthlyPublication.code.in_(codes))
+    return q.all()
+
+
+def latest_visible_publications(db, codes: list[str]) -> dict[str, dict]:
+    best = {}
+    for row in _visible_publication_rows(db, codes=codes):
+        prev = best.get(row.code)
+        if prev is None or (row.year, row.month) > (prev.year, prev.month):
+            best[row.code] = row
+    return {code: _publication_payload(row) for code, row in best.items()}
+
+
+def visible_publication_marks(db, code: str) -> list[dict]:
+    rows = _visible_publication_rows(db, code=code)
+    rows.sort(key=lambda r: (r.published_on, r.year, r.month))
+    return [_publication_payload(r) for r in rows]

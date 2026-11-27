@@ -114,31 +114,33 @@ flowchart LR
   n16[("earnings_date_pubs")]:::tbl
   n17[("earnings_events")]:::tbl
   n18[("indicators")]:::tbl
-  n19[("pts_snapshots")]:::tbl
-  n20[("statements")]:::tbl
-  n21[("topix")]:::tbl
-  n22[("xbrl_filings")]:::ext
-  n23[("xbrl_financials")]:::ext
-  n24[("xbrl_std_items")]:::ext
+  n19[("monthly_publications")]:::ext
+  n20[("pts_snapshots")]:::tbl
+  n21[("statements")]:::tbl
+  n22[("topix")]:::tbl
+  n23[("xbrl_filings")]:::ext
+  n24[("xbrl_financials")]:::ext
+  n25[("xbrl_std_items")]:::ext
   n0 -.- n14
   n0 -.- n17
-  n0 -.- n20
+  n0 -.- n19
+  n0 -.- n21
   n1 -.- n14
   n1 -.- n15
   n1 -.- n16
-  n1 -.- n19
   n1 -.- n20
-  n1 -.- n22
+  n1 -.- n21
   n1 -.- n23
   n1 -.- n24
+  n1 -.- n25
   n2 -.- n17
   n3 -.- n16
-  n3 -.- n20
+  n3 -.- n21
   n4 -.- n14
-  n4 -.- n19
+  n4 -.- n20
   n5 -.- n14
   n5 -.- n17
-  n5 -.- n21
+  n5 -.- n22
   n6 -.- n18
   n7 -.- n10
   n7 -.- n11
@@ -148,7 +150,7 @@ flowchart LR
   n8 -.- n13
   n9 -.- n14
   n9 -.- n16
-  n9 -.- n20
+  n9 -.- n21
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -157,7 +159,7 @@ flowchart LR
 
 | API | 書き込み | 読み取りだけ |
 |---|---|---|
-| `GET /api/chart/{code}` |  | `daily_prices`, `earnings_events`, `statements`, `stocks` |
+| `GET /api/chart/{code}` |  | `daily_prices`, `earnings_events`, `monthly_publications`, `statements`, `stocks` |
 | `GET /api/earnings` |  | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `pts_snapshots`, `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
 | `GET /api/earnings-performance/{code}` |  | `earnings_events` |
 | `GET /api/earnings/calendar` |  | `earnings_date_pubs`, `statements`, `stocks` |
