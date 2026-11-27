@@ -15,4 +15,3 @@
 - [本番の重い読み取りは grok bot 経由](prod-readonly-via-grok.md) — MCP は 125 秒で切れる。使い捨てブランチのスクリプトを VPS で流してもらう。全件の突き合わせは VPS でなく box（OOM でサイトが止まった）
 - [返事は日本語で](reply-in-japanese.md) — 途中経過も最後のまとめも日本語。英語になって指摘された
 - [短信の株数は分割を織り込み済み](tanshin-shares-restated-for-splits.md) — 公表前の分割は期首にさかのぼる。補正は開示日から。新旧比較は import 先も各コミットから
-- [本番 DB は読み取りなら直接つないでよい](prod-db-readonly-ok.md) — 画面確認に手元のアプリから ro で。書き込みはしない
