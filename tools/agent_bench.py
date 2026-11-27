@@ -29,7 +29,8 @@ OTHER_SERVERS = [
 ]
 KABUKPI_DENY = [
     "monthly_add_element", "monthly_delete_element", "monthly_ingest", "monthly_put_doc",
-    "monthly_put_values", "monthly_set_industry", "app_logs", "batch_logs", "nginx_logs",
+    "monthly_put_values", "monthly_set_industry", "monthly_set_publication",
+    "app_logs", "batch_logs", "nginx_logs",
     "service_status", "fs_grep", "fs_list", "fs_read", "db_stats",
 ]
 BUILTIN = ["WebSearch", "WebFetch"]

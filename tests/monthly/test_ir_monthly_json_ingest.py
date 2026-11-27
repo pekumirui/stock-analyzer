@@ -254,8 +254,10 @@ def test_ingest_body_omits_empty_months_and_year() -> None:
         _fail("ir_json must be an ingest/source via")
     payload = ingest_from_json(FIXTURE, code="7649")
     body = ingest_body(payload)
-    if set(body) != {"months", "rows", "as_of", "via"} or body["via"] != "ir_json":
+    if set(body) != {"months", "rows", "as_of", "via", "publication"} or body["via"] != "ir_json":
         _fail(f"POST keys {sorted(body)} via={body.get('via')}")
+    if body["publication"].get("basis") != "ir_page" or body["publication"].get("on") != "2026-10-15":
+        _fail(f"last_updated must be the page date: {body['publication']}")
     if "year" in body:
         _fail("year must not be sent")
     if body["as_of"] != "2026-10-15" or body["months"] != [3, 4, 5, 6, 7, 8, 9]:
@@ -289,6 +291,8 @@ def test_ingest_body_omits_empty_months_and_year() -> None:
         _fail(f"null months must be omitted {got}")
     if "4" in got or None in got.values():
         _fail(f"April null leaked {got}")
+    if sparse_body["publication"].get("basis") != "ir_page" or sparse_body["publication"].get("on") != "2026-04-15":
+        _fail(f"a mid-month as_of without a publication object is ir_page: {sparse_body['publication']}")
 
 
 def test_post_sends_ingest_body() -> None:
@@ -315,7 +319,8 @@ def test_post_sends_ingest_body() -> None:
         url, body = client.posts[0]
         if url != "http://127.0.0.1:8000/api/v1/tables/7649/ingest":
             _fail(f"POST url {url}")
-        if (set(body) != {"months", "rows", "as_of", "via"} or body["via"] != "ir_json"
+        if (set(body) != {"months", "rows", "as_of", "via", "publication"} or body["via"] != "ir_json"
+                or body.get("publication", {}).get("basis") != "ir_page"
                 or "year" in body or any(v is None for r in body["rows"] for v in r["values"].values())):
             _fail(f"POST body {body}")
         last = _last_line(text)

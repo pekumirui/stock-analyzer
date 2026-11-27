@@ -4000,6 +4000,112 @@
    ]
   },
   {
+   "name": "monthly_publications",
+   "type": "table",
+   "comment": "銘柄×暦年×月の最初の公表。セルごとでも開示の履歴でもない\n機能: 月次",
+   "columns": [
+    {
+     "name": "code",
+     "type": "VARCHAR(5)",
+     "nullable": false,
+     "default": null,
+     "comment": "→ monthly_tables.(code, year)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "year",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "暦年\n→ monthly_tables.(code, year)（宣言だけ。DB の制約なし）"
+    },
+    {
+     "name": "month",
+     "type": "INTEGER",
+     "nullable": false,
+     "default": null,
+     "comment": "1〜12"
+    },
+    {
+     "name": "published_on",
+     "type": "DATE",
+     "nullable": true,
+     "default": null,
+     "comment": "JST の公表日。分からないときは NULL で、月末や取込日を入れない"
+    },
+    {
+     "name": "published_time",
+     "type": "VARCHAR(8)",
+     "nullable": true,
+     "default": null,
+     "comment": "HH:MM:SS。TDnet の開示時刻があるときだけ。無ければ NULL"
+    },
+    {
+     "name": "basis",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "日付の出どころ。同じ日なら tdnet、ir_page、first_seen の順に確か\n値: tdnet（TDnet の開示日。時刻があれば published_time。いちばん確か）/ ir_page（IR のページ・表計算・JSON に書いてある暦日。時刻は無い）/ first_seen（ページに公表日が無く、バッチがその月を最初に見た日。観測の上限）/ unknown（公表日は分からない。published_on は NULL。unknown_reason がある）"
+    },
+    {
+     "name": "confidence",
+     "type": "VARCHAR(16)",
+     "nullable": false,
+     "default": null,
+     "comment": "exact は題名かページの暦日。estimated は45日以内の推定か取得日。unknown は日付なし\n値: exact（題名の年月かページの暦日から、その月だと特定できた）/ estimated（題名から月が読めない。月末から45日以内の開示、または取得日という上限）/ unknown（公表日は分からない。published_on は NULL）"
+    },
+    {
+     "name": "unknown_reason",
+     "type": "VARCHAR(32)",
+     "nullable": true,
+     "default": null,
+     "comment": "basis が unknown のときだけ。carried_history / manual / no_source / no_page_date / unspecified。日付がある行は NULL"
+    },
+    {
+     "name": "source_ref",
+     "type": "TEXT",
+     "nullable": true,
+     "default": null,
+     "comment": "ファイル名、開示番号、URL。日付そのものではない"
+    },
+    {
+     "name": "recorded_at",
+     "type": "DATETIME",
+     "nullable": false,
+     "default": null,
+     "comment": "この行を書いた、またはより確かだと入れ替えた時刻\nJstDateTime: 日本時間をタイムゾーンなしで持つ"
+    }
+   ],
+   "indexes": [],
+   "constraints": [
+    {
+     "name": "pk_monthly_publications",
+     "type": "PRIMARY KEY",
+     "def": "PRIMARY KEY (code, year, month)",
+     "table": "monthly_publications",
+     "columns": [
+      "code",
+      "year",
+      "month"
+     ]
+    },
+    {
+     "name": "ref_monthly_publications_code_year",
+     "type": "FOREIGN KEY",
+     "def": "宣言だけ（DB の制約なし）: (code, year) → monthly_tables (code, year)",
+     "table": "monthly_publications",
+     "referenced_table": "monthly_tables",
+     "columns": [
+      "code",
+      "year"
+     ],
+     "referenced_columns": [
+      "code",
+      "year"
+     ]
+    }
+   ]
+  },
+  {
    "name": "monthly_tables",
    "type": "table",
    "comment": "銘柄×年度の月次表 (暦月1〜12。会計月ではない)\n機能: 月次",
@@ -7576,6 +7682,20 @@
     "code"
    ],
    "def": "宣言だけ（DB の制約なし）: (code) → stocks (code)",
+   "virtual": true
+  },
+  {
+   "table": "monthly_publications",
+   "columns": [
+    "code",
+    "year"
+   ],
+   "parent_table": "monthly_tables",
+   "parent_columns": [
+    "code",
+    "year"
+   ],
+   "def": "宣言だけ（DB の制約なし）: (code, year) → monthly_tables (code, year)",
    "virtual": true
   },
   {

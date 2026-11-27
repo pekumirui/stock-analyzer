@@ -12,8 +12,9 @@ MONTHLY_TABLES = (
     "monthly_elements",
     "monthly_values",
 )
-OPTIONAL_TABLES = ("monthly_element_sources",)
+OPTIONAL_TABLES = ("monthly_element_sources", "monthly_publications")
 DELETE_ORDER = (
+    "monthly_publications",
     "monthly_element_sources",
     "monthly_values",
     "monthly_elements",

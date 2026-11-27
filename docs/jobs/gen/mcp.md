@@ -43,6 +43,8 @@
 | `monthly_put_doc` | `mcp/log_mcp.py` | `tool_monthly_put_doc` | `code`, `year`, `version`, `elements` |
 | `monthly_set_industry` | `mcp/log_mcp.py` | `tool_monthly_set_industry` | `code`, `industry` |
 | `monthly_ingest` | `mcp/log_mcp.py` | `tool_monthly_ingest` | `code`, `months`, `rows`, `as_of` |
+| `monthly_publications` | `mcp/log_mcp.py` | `tool_monthly_publications` |  |
+| `monthly_set_publication` | `mcp/log_mcp.py` | `tool_monthly_set_publication` | `code`, `year`, `month`, `date`, `source` |
 
 ## fs_list
 
@@ -369,7 +371,7 @@ VPS のメトリクス（VictoriaMetrics、127.0.0.1 だけ。読み取り専用
 
 `mcp/log_mcp.py` `tool_monthly_put_values`
 
-月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。保存形（指数）を送る。unit は無い。+100 しない。value の null は削除。新規登録は monthly_ingest。
+月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。保存形（指数）を送る。unit は無い。+100 しない。value の null は削除。新規登録は monthly_ingest。新しい月のセルを作るときも publication を付ける。省くとその月は unknown/manual。TDnet の月次を入れるときは publication を付ける。date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。time は分かれば開示時刻 HH:MM か HH:MM:SS。source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。題名からその月だと分かれば confidence は exact。publication を省くと公表日は unknown。
 
 | 引数 | 必須 | 型 | 説明 |
 |---|---|---|---|
@@ -377,6 +379,7 @@ VPS のメトリクス（VictoriaMetrics、127.0.0.1 だけ。読み取り専用
 | `year` | はい | integer | 4-digit calendar year |
 | `element` | はい | string | existing row label |
 | `values` | はい | array[object] | list of {month, value}; value null deletes the cell |
+| `publication` |  | object | TDnet の月次を入れるときは publication を付ける。date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。time は分かれば開示時刻 HH:MM か HH:MM:SS。source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。題名からその月だと分かれば confidence は exact。publication を省くと公表日は unknown。 |
 
 ## monthly_delete_element
 
@@ -405,7 +408,7 @@ VPS のメトリクス（VictoriaMetrics、127.0.0.1 だけ。読み取り専用
 
 `mcp/log_mcp.py` `tool_monthly_put_doc`
 
-monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /api/v1/tables/{code}/{year}/doc。1 トランザクション。行名は渡したまま（正規化・エイリアスを掛けない）。行の改名は was に元の名前、element に新しい名前（値はサーバーが移す）。文書に無い行は削除。was の無い新しい名前は作成（unit 必須）。values を省いた行は値をそのまま、渡した行は 12 か月を丸ごと置き換え（無い月・null は削除）。values は保存形（+100 しない）。version が GET 後に変わっていれば 409 VERSION_MISMATCH（GET からやり直す）。改名・作成・削除・unit 変更は allow_structure_change=true のときだけ（無ければ 409 STRUCTURE_CHANGED）。dry_run=true は書かずに差分（changes）を返す。木に入らない行は warnings。
+monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /api/v1/tables/{code}/{year}/doc。1 トランザクション。行名は渡したまま（正規化・エイリアスを掛けない）。行の改名は was に元の名前、element に新しい名前（値はサーバーが移す）。文書に無い行は削除。was の無い新しい名前は作成（unit 必須）。values を省いた行は値をそのまま、渡した行は 12 か月を丸ごと置き換え（無い月・null は削除）。values は保存形（+100 しない）。version が GET 後に変わっていれば 409 VERSION_MISMATCH（GET からやり直す）。改名・作成・削除・unit 変更は allow_structure_change=true のときだけ（無ければ 409 STRUCTURE_CHANGED）。dry_run=true は書かずに差分（changes）を返す。木に入らない行は warnings。新しい月の値を書くときも publication を付ける。省くとその月は unknown/manual。TDnet の月次を入れるときは publication を付ける。date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。time は分かれば開示時刻 HH:MM か HH:MM:SS。source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。題名からその月だと分かれば confidence は exact。publication を省くと公表日は unknown。
 
 | 引数 | 必須 | 型 | 説明 |
 |---|---|---|---|
@@ -415,6 +418,7 @@ monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /a
 | `elements` | はい | array[object] | all rows of the table after the edit; rows left out are deleted |
 | `allow_structure_change` |  | boolean | allow rename / create / delete / unit change |
 | `dry_run` |  | boolean | return changes without writing |
+| `publication` |  | object | TDnet の月次を入れるときは publication を付ける。date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。time は分かれば開示時刻 HH:MM か HH:MM:SS。source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。題名からその月だと分かれば confidence は exact。publication を省くと公表日は unknown。 |
 
 ## monthly_set_industry
 
@@ -431,13 +435,49 @@ monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /a
 
 `mcp/log_mcp.py` `tool_monthly_ingest`
 
-PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。dry_run=true は fy_end_month / layout / mapping と書くはずのセルを返し、DB には書かない。only_months は YYYY-MM で、mapping のあと該当列だけ書く。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。
+PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。dry_run=true は fy_end_month / layout / mapping と書くはずのセルを返し、DB には書かない。only_months は YYYY-MM で、mapping のあと該当列だけ書く。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。TDnet の月次を入れるときは publication を付ける。date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。time は分かれば開示時刻 HH:MM か HH:MM:SS。source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。題名からその月だと分かれば confidence は exact。publication を省くと公表日は unknown。
 
 | 引数 | 必須 | 型 | 説明 |
 |---|---|---|---|
 | `code` | はい | string | 4-5 character stock code (7203, 72030, 262A0) |
 | `months` | はい | array[integer] | PDF column months in left-to-right order, integers 1-12. Duplicates allowed for year-wrap (e.g. Genky 13-col Jun…Jun). |
 | `rows` | はい | array[object] | list of {element, values, unit, force?}. yoy_index and number store as-is. yoy_pct input is signed; ingest writes yoy_index and value+100. |
-| `as_of` | はい | string | disclosure date YYYY-MM-DD |
+| `as_of` | はい | string | YYYY-MM-DD used only to map columns onto calendar years. Not stored as the publication date. |
 | `dry_run` |  | boolean | true: return fy_end_month, layout, mapping, and cells that would be written. Do not write the DB. |
 | `only_months` |  | array[string] | Calendar YYYY-MM. After mapping, write only those columns. |
+| `publication` |  | object | TDnet の月次を入れるときは publication を付ける。date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。time は分かれば開示時刻 HH:MM か HH:MM:SS。source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。題名からその月だと分かれば confidence は exact。publication を省くと公表日は unknown。 |
+
+## monthly_publications
+
+`mcp/log_mcp.py` `tool_monthly_publications`
+
+exact でない月次の公表日を code, year, month の順で返す。埋め戻しのあと、estimated と unknown を調べ、本当の開示日を monthly_set_publication で入れる。localhost:8000 の GET /api/v1/tables/publications。code / year_from / year_to / confidence（estimated か unknown。省くと両方）で絞る。limit は既定 50、最大 200。offset で次のページ。next_offset が null なら終わり。各行は published_on, published_time, basis, confidence, unknown_reason, source_ref。exact は返さない。
+
+| 引数 | 必須 | 型 | 説明 |
+|---|---|---|---|
+| `code` |  | string | 4-5 character stock code. Omit for every code. |
+| `year_from` |  | integer | inclusive calendar year |
+| `year_to` |  | integer | inclusive calendar year |
+| `confidence` |  | estimated / unknown | Omit to list both estimated and unknown. |
+| `limit` |  | integer | 1-200. Default 50. |
+| `offset` |  | integer | 0-based. Use next_offset from the previous page. |
+
+## monthly_set_publication
+
+`mcp/log_mcp.py` `tool_monthly_set_publication`
+
+値は再取り込みしない。銘柄×暦年×月の公表日だけを書く。localhost:8000 の PUT /api/v1/tables/publications/{code}/{year}/{month}。date は調べた開示日 YYYY-MM-DD。source は tdnet_pdf、ir_page、ir_html、first_seen、unknown。doc_id は TDnet の開示番号。url は IR BANK や IR アーカイブの URL。filename は PDF 名。題名やページからその月だと分かれば confidence は exact。既に exact の行は override=true のときだけ上書きする。省くと exact は変えない。その月に値が無ければ 404。
+
+| 引数 | 必須 | 型 | 説明 |
+|---|---|---|---|
+| `code` | はい | string | 4-5 character stock code (7203, 72030, 262A0) |
+| `year` | はい | integer | 4-digit calendar year of the month |
+| `month` | はい | integer | 1-12 |
+| `date` | はい | string | Disclosure date YYYY-MM-DD found by research. |
+| `time` |  | string | Optional HH:MM or HH:MM:SS. |
+| `confidence` |  | exact / estimated / unknown | exact when the source names this month. |
+| `source` | はい | tdnet_pdf / tdnet / ir_page / ir_html / first_seen / unknown | tdnet_pdf for a TDnet disclosure. ir_page for an IR page date. |
+| `doc_id` |  | string | TDnet disclosure number. |
+| `filename` |  | string | PDF filename. |
+| `url` |  | string | IR BANK URL, IR archive URL, or other source page. |
+| `override` |  | boolean | Replace an existing exact row. Omit or false leaves exact rows unchanged. |

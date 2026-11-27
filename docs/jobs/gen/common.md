@@ -31,7 +31,7 @@
 `jobs/migrate.py`
 
 - 起動: cron に無い
-- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials`
 - 読み取りだけ: `stocks`
 
 引数: なし

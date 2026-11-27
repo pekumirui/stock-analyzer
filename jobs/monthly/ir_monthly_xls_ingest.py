@@ -34,6 +34,7 @@ if str(ROOT) not in sys.path:
 
 from jobs._r2common import MountDisconnected, check_r2_mount
 from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base
+from jobs.monthly.publication_claim import is_month_end, origin_pub
 from jobs.monthly.ir_monthly_r2 import DEFAULT_DEST
 from jobs.monthly.tdnet_monthly_r2 import display_code
 from app.monthly.read_xls import read_sheet, read_xlsx_sheet, xlsx_sheet_names
@@ -531,6 +532,30 @@ def last_filled_month_end(points: Sequence[MonthPoint]) -> date | None:
     return date(last.year, last.month, day)
 
 
+def resolve_as_of_origin(
+    *,
+    explicit: date | None,
+    source_url: str | None,
+    points: Sequence[MonthPoint],
+    grid: Sequence[Sequence[Any]] | None = None,
+    spec: IssuerXlsSpec | None = None,
+) -> tuple[date, str]:
+    if explicit is not None:
+        return explicit, "ir_page"
+    if source_url:
+        from_url = as_of_from_url(source_url)
+        if from_url is not None:
+            return from_url, "ir_page"
+    if grid is not None and spec is not None:
+        from_grid = as_of_from_grid(grid, spec)
+        if from_grid is not None:
+            return from_grid, "ir_page"
+    derived = last_filled_month_end(points)
+    if derived is None:
+        raise ValueError("no as_of")
+    return derived, "period"
+
+
 def resolve_as_of(
     *,
     explicit: date | None,
@@ -539,20 +564,9 @@ def resolve_as_of(
     grid: Sequence[Sequence[Any]] | None = None,
     spec: IssuerXlsSpec | None = None,
 ) -> date:
-    if explicit is not None:
-        return explicit
-    if source_url:
-        from_url = as_of_from_url(source_url)
-        if from_url is not None:
-            return from_url
-    if grid is not None and spec is not None:
-        from_grid = as_of_from_grid(grid, spec)
-        if from_grid is not None:
-            return from_grid
-    derived = last_filled_month_end(points)
-    if derived is None:
-        raise ValueError("no as_of")
-    return derived
+    return resolve_as_of_origin(
+        explicit=explicit, source_url=source_url, points=points, grid=grid, spec=spec,
+    )[0]
 
 
 def drop_trailing_empty(months: list[int], rows: list[dict[str, Any]]) -> list[int]:
@@ -611,6 +625,11 @@ def ingest_from_points(
     return {"months": months, "rows": rows, "as_of": as_of.isoformat()}
 
 
+def _with_publication(payload: dict[str, Any], pub) -> dict[str, Any]:
+    payload["publication"] = pub.as_dict()
+    return payload
+
+
 def ingest_from_grid(
     grid: Sequence[Sequence[Any]],
     *,
@@ -619,13 +638,18 @@ def ingest_from_grid(
     from_year: int = DEFAULT_FROM_YEAR,
     spec: IssuerXlsSpec | None = None,
     code: str | None = None,
+    seen: date | None = None,
+    ref: str | None = None,
 ) -> dict[str, Any]:
     resolved = spec if spec is not None else spec_for(code or CODE)
     points = month_points(grid, resolved)
-    resolved_as_of = resolve_as_of(
+    resolved_as_of, origin = resolve_as_of_origin(
         explicit=as_of, source_url=source_url, points=points, grid=grid, spec=resolved,
     )
-    return ingest_from_points(points, resolved_as_of, from_year=from_year, spec=resolved)
+    payload = ingest_from_points(points, resolved_as_of, from_year=from_year, spec=resolved)
+    return _with_publication(
+        payload, origin_pub(origin, resolved_as_of, seen, ref or source_url),
+    )
 
 
 def pick_xlsx_sheet(names: Sequence[str], how: str) -> str:
@@ -675,6 +699,7 @@ def ingest_from_xls(
     return ingest_from_grid(
         read_grid_for_spec(path, resolved),
         as_of=as_of, source_url=source_url, from_year=from_year, spec=resolved,
+        seen=filename_ymd(path), ref=path.name,
     )
 
 
@@ -703,11 +728,16 @@ def latest_xls(dest: Path, code: str = CODE) -> Path:
 
 
 def ingest_body(payload: Mapping[str, Any]) -> dict[str, Any]:
+    pub = payload.get("publication")
+    if not isinstance(pub, dict):
+        day = date.fromisoformat(str(payload["as_of"]))
+        pub = origin_pub("period" if is_month_end(day) else "ir_page", day, None, None).as_dict()
     return {
         "months": list(payload["months"]),
         "rows": list(payload["rows"]),
         "as_of": payload["as_of"],
         "via": "ir_xls",
+        "publication": pub,
     }
 
 
