@@ -2009,6 +2009,23 @@ def test_cf_rows_stay_on_their_side_of_the_subtotal_when_the_newest_period_has_n
         "IncomeBeforeIncomeTaxes", "OtherNetOpeCF", "SubtotalOpeCF", "IncomeTaxesPaidOpeCF",
         "NetCashProvidedByUsedInOperatingActivities",
     ]
+def test_cf_rows_do_not_take_items_of_other_statements_when_the_paired_filing_has_no_cf() -> None:
+    pl = [xbrl_fact(1, "NetSales", 5000), xbrl_fact(2, "InterestExpensesNOE", 77.681),
+          xbrl_fact(3, "LossOnRetirementOfNoncurrentAssetsEL", 35.333),
+          xbrl_fact(4, "ProvisionOfAllowanceForDoubtfulAccountsSGA", 40.951),
+          xbrl_fact(5, "ForeignCurrencyTranslationAdjustmentNetOfTaxOCI", -487.974),
+          xbrl_fact(6, "ShareBasedPaymentTransactionsSSIFRS", 102.13), xbrl_fact(7, "IncomeBeforeIncomeTaxes", 1098.817)]
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="Q1", period_end=date(2024, 6, 30),
+                   submitted="2024-08-10", standard="JPGAAP")
+    x.by_statement = {"PL": pl}
+    x.seq = list(pl)
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="Q1", period_end=date(2024, 6, 30),
+                     submitted="2024-08-05", standard="JPGAAP")
+    pdf.by_statement = {"CF": [pl_fact("税金等調整前四半期純利益", 1098.817), pl_fact("支払利息", 77.681),
+                               pl_fact("固定資産除却損", 35.333), pl_fact("貸倒引当金の増減額", 40.951),
+                               pl_fact("その他の流動負債の増減額", -487.974), pl_fact("株式報酬費用", 102.13)]}
+    learned = fst.learn_pair(pdf, x)
+    assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None}
 
 
 def test_bs_rows_do_not_take_income_statement_items() -> None:
