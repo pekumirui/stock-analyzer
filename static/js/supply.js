@@ -665,9 +665,18 @@ function supplyLegend(lines){
     `<span><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</span>`).join("");
 }
 
+function supplyTipCtl(){
+  return chartTip($("#supply-monthly"), () => {
+    const tip = $("#supply-tip");
+    if(tip) tip.hidden = true;
+    if(supplyChart) supplyChart.clearCrosshairPosition();
+  });
+}
+
 function supplyTip(lines, param){
-  const tip = $("#supply-tip"), month = supplyYm(param.time);
-  if(!month || !param.point){ tip.hidden = true; return; }
+  const tip = $("#supply-tip"), month = supplyYm(param.time), ctl = supplyTipCtl();
+  if(!month || !param.point){ tip.hidden = true; ctl.at = null; return; }
+  ctl.hover(month);
   tip.innerHTML = `<b>${month}</b>${lines.map(x => {
     const p = x.points.find(q => q[0] === month);
     return `<div><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}<span>${p ? fmt(p[1]) : "–"}</span></div>`;
@@ -695,6 +704,16 @@ function supplyEnsureChart(){
     localization: {priceFormatter: v => fmt(v), timeFormatter: t => supplyYm(t) || ""},
   });
   supplyChart.subscribeCrosshairMove(param => supplyTip(supplyChartLines(), param));
+  el.addEventListener("pointerdown", e => {
+    const s = supplySeries[0];
+    if(e.pointerType !== "touch" || !s) return;
+    const x = e.clientX - el.getBoundingClientRect().left;
+    const time = supplyChart.timeScale().coordinateToTime(x);
+    const bar = time == null ? null : s.data().find(d => d.time === time);
+    if(!bar) return;
+    supplyChart.setCrosshairPosition(bar.value, time, s);
+    supplyTip(supplyChartLines(), {time, point: {x, y: s.priceToCoordinate(bar.value) ?? 0}});
+  });
   if(supplyChartRO) supplyChartRO.disconnect();
   supplyChartRO = new ResizeObserver(supplyFitChart);
   supplyChartRO.observe(el);

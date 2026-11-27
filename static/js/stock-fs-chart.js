@@ -280,13 +280,12 @@ function drawFsChart(){
     const left = cx * scale < plot.clientWidth / 2 ? cx * scale + 12 : cx * scale - tip.offsetWidth - 12;
     tip.style.left = `${Math.max(0, left)}px`;
   };
+  const ctl = chartTip(host, () => { tip.hidden = true; band.setAttribute("visibility", "hidden"); });
   plot.querySelectorAll(".fsc-hit").forEach(el => {
-    el.addEventListener("pointerenter", () => show(el));
-    el.addEventListener("click", () => show(el));
+    el.addEventListener("pointerenter", e => { if(e.pointerType === "mouse" && ctl.hover(el.dataset.i)) show(el); });
+    el.addEventListener("click", e => { if(ctl.press(el.dataset.i, e)) show(el); });
   });
-  plot.addEventListener("pointerleave", e => {
-    if(e.pointerType === "mouse"){ tip.hidden = true; band.setAttribute("visibility", "hidden"); }
-  });
+  plot.addEventListener("pointerleave", e => { if(e.pointerType === "mouse") ctl.close(); });
 }
 
 function renderFsChart(d){

@@ -1260,10 +1260,17 @@ function drawMonthlyChart(tables, seriesId){
 }
 
 function monthlyBindChartTip(host){
+  const hide = () => {
+    const tip = host.querySelector(".monthly-tip");
+    const guide = host.querySelector(".monthly-guide");
+    if(tip) tip.hidden = true;
+    if(guide) guide.setAttribute("visibility", "hidden");
+  };
+  const ctl = chartTip(host, hide);
   if(host._tipBound) return;
   host._tipBound = true;
-  const show = e => {
-    const hit = e.target.closest && e.target.closest(".monthly-hit");
+  const hitOf = e => e.target.closest && e.target.closest(".monthly-hit");
+  const show = hit => {
     const st = monthlyChartState;
     if(!hit || !st) return;
     const m = Number(hit.dataset.m);
@@ -1283,15 +1290,15 @@ function monthlyBindChartTip(host){
     tip.style.left = right ? "" : `${px + 10}px`;
     tip.style.right = right ? `${svg.clientWidth - px + 10}px` : "";
   };
-  const hide = () => {
-    const tip = host.querySelector(".monthly-tip");
-    const guide = host.querySelector(".monthly-guide");
-    if(tip) tip.hidden = true;
-    if(guide) guide.setAttribute("visibility", "hidden");
-  };
-  host.addEventListener("pointerover", show);
-  host.addEventListener("click", show);
-  host.addEventListener("pointerleave", hide);
+  host.addEventListener("pointerover", e => {
+    const hit = hitOf(e);
+    if(hit && e.pointerType === "mouse" && ctl.hover(hit.dataset.m)) show(hit);
+  });
+  host.addEventListener("click", e => {
+    const hit = hitOf(e);
+    if(hit && ctl.press(hit.dataset.m, e)) show(hit);
+  });
+  host.addEventListener("pointerleave", e => { if(e.pointerType === "mouse") ctl.close(); });
 }
 
 window.matchMedia("(max-width:640px)").addEventListener("change", () => {
