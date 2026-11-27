@@ -114,6 +114,7 @@ flowchart LR
   n1 -.- n14
   n1 -.- n16
   n1 -.- n17
+  n1 -.- n18
   n1 -.- n19
   n1 -.- n20
   n2 -.- n18
@@ -164,7 +165,7 @@ flowchart LR
 | API | 書き込み | 読み取りだけ |
 |---|---|---|
 | `DELETE /api/v1/tables/{code}/{year}/elements` | `monthly_element_sources`, `monthly_elements` | `monthly_tables`, `monthly_values`, `stocks` |
-| `GET /api/v1/tables` |  | `data_versions`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `stocks` |
+| `GET /api/v1/tables` |  | `data_versions`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`, `stocks` |
 | `GET /api/v1/tables/publications` |  | `monthly_publications` |
 | `GET /api/v1/tables/{code}` |  | `monthly_tables` |
 | `GET /api/v1/tables/{code}/{year}` |  | `monthly_elements`, `monthly_tables`, `monthly_values` |
@@ -200,7 +201,7 @@ flowchart LR
 ### monthly_publications
 
 - 書き込み: `jobs/migrate.py（共通・運用）`, `jobs/monthly/ir_monthly_html_ingest.py`, `jobs/monthly/ir_monthly_json_ingest.py`, `jobs/monthly/ir_monthly_xls_ingest.py`, `jobs/monthly/tdnet_monthly_pdf_ingest.py`, `POST /api/v1/tables/{code}/ingest`, `PUT /api/v1/tables/publications/{code}/{year}/{month}`, `PUT /api/v1/tables/{code}/{year}/doc`, `PUT /api/v1/tables/{code}/{year}/values`, `PUT /api/v1/tables/{code}/{year}/values/batch`
-- 読み取りだけ: `GET /api/v1/tables/publications`
+- 読み取りだけ: `GET /api/chart/{code}（株価・決算）`, `GET /api/v1/tables`, `GET /api/v1/tables/publications`
 
 ### monthly_tables
 

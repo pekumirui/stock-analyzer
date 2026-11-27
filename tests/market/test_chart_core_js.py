@@ -128,6 +128,58 @@ def test_chart_ohlc_html_outside_plot() -> None:
         assert "MA" not in html
 
 
+_MARKS = r"""
+const c = require(process.argv[1]);
+const colors = {warn: "gold", accent: "blue", monthly: "purple", monthlyEst: "lilac"};
+const bars = {t: ["2026-06-08", "2026-06-10", "2026-06-12"]};
+const daily = {
+  earnings_dates: ["2026-06-10", "2026-06-06"],
+  monthly_publications: [
+    {date: "2026-06-07", confidence: "estimated", year: 2026, month: 4},
+    {date: "2026-06-10", confidence: "exact", year: 2026, month: 5},
+    {date: "2026-06-10", confidence: "unknown", year: 2026, month: 6},
+    {date: "2026-06-11", confidence: "estimated", year: 2026, month: 5},
+    {date: "2026-06-13", confidence: "exact", year: 2026, month: 6},
+  ],
+};
+const on = {earnings: true, monthly: true};
+const both = c.chartEventMarks(bars, daily, on, colors, "2026-06-10");
+const monthlyOff = c.chartEventMarks(bars, daily, {earnings: true, monthly: false}, colors, null);
+const week = c.chartEventMarks(
+  {t: ["2026-06-12"]}, daily, {earnings: false, monthly: true}, colors, null,
+);
+console.log(JSON.stringify({both, monthlyOff, week}));
+"""
+
+
+def test_chart_event_marks_keep_monthly_apart_from_earnings() -> None:
+    js = ROOT / "static" / "js" / "chart-core.js"
+    out = json.loads(subprocess.run(
+        ["node", "-e", _MARKS, str(js)], capture_output=True, text=True, check=True,
+    ).stdout)
+    both = out["both"]
+    marks = [(m["text"], m["shape"], m["position"], m["color"]) for m in both["markers"]]
+    assert ("決", "arrowUp", "belowBar", "blue") in marks
+    assert ("決", "arrowUp", "belowBar", "gold") in marks
+    assert ("月", "square", "aboveBar", "purple") in marks
+    assert ("頃", "square", "aboveBar", "lilac") in marks
+    assert both["tips"] == {
+        "2026-06-08": ["2026年4月頃"],
+        "2026-06-10": ["2026年5月"],
+        "2026-06-12": ["2026年5月頃"],
+    }
+    assert "2026-06-13" not in json.dumps(both)
+    assert "unknown" not in json.dumps(both)
+    off = out["monthlyOff"]["markers"]
+    assert {m["text"] for m in off} == {"決"}
+    assert out["monthlyOff"]["tips"] == {}
+    week = out["week"]
+    assert len(week["markers"]) == 1
+    assert week["markers"][0]["text"] == "月"
+    assert week["markers"][0]["color"] == "purple"
+    assert week["tips"]["2026-06-12"] == ["2026年4月頃", "2026年5月", "2026年5月頃"]
+
+
 def test_chart_ohlc_row_is_outside_plot_source() -> None:
     js = (ROOT / "static" / "js" / "chart-core.js").read_text(encoding="utf-8")
     css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")

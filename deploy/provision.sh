@@ -219,6 +219,13 @@ if ! monthly_push_apply; then
   echo "monthly_push: apply failed (rrsync key not installed; app deploy continues)" >&2
 fi
 
+# shellcheck source=prod_ro.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/prod_ro.sh"
+if ! prod_ro_apply; then
+  echo "prod_ro: apply failed (read-only key not installed; app deploy continues)" >&2
+fi
+
 if write_if_changed /etc/systemd/system/stock-analyzer.service 644 < "$APP_DIR/deploy/stock-analyzer.service"; then
   systemctl daemon-reload
 fi

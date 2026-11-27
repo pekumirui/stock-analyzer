@@ -1,5 +1,6 @@
   :root { --bg:#ffffff; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
           --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
+          --monthly:#5b3f9a; --monthly-est:#8f7eb8;
           --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
   * { box-sizing:border-box; margin:0; }
   html { color-scheme: light; background:var(--bg); }
@@ -132,9 +133,20 @@
   #st-fs-meta { font-size:12px; }
   #st-fs-legend { font-size:12px; margin:0 0 6px; }
   #st-fs-legend .qb { margin-right:3px; }
+  #st-fs-chart { margin:8px 0 12px; }
+  #st-fs-chart .fsc-ctl { gap:8px; align-items:center; flex-wrap:wrap; }
+  #st-fs-chart .fsc-ctl .sub { font-size:12px; }
+  #st-fs-chart .fsc-plot { position:relative; width:100%; max-width:960px; margin-top:6px; }
+  #st-fs-chart .fsc-plot svg { display:block; width:100%; height:auto; touch-action:pan-y; }
+  #st-fs-chart .fsc-tip { position:absolute; top:8px; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.12); pointer-events:none; white-space:nowrap; z-index:2; }
+  #st-fs-chart .fsc-tip-rows { display:grid; grid-template-columns:auto auto; gap:1px 10px; margin-top:3px; }
+  #st-fs-chart .fsc-tip .num { text-align:right; font-variant-numeric:tabular-nums; }
+  #st-fs-chart i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+  #st-fs-chart .fsc-legend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12px; margin-top:4px; }
+  #st-fs-chart .fsc-legend label { display:inline-flex; align-items:center; gap:3px; cursor:pointer; }
   #st-sub-financials .fs { width:auto; }
   #st-sub-financials .fs-earlier { margin:14px 0 4px; }
-  #st-sub-financials .fs td:first-child, #st-sub-financials .fs th:first-child { white-space:normal; width:14em; min-width:14em; box-shadow:inset -1px 0 0 var(--border); }
+  #st-sub-financials .fs td:first-child, #st-sub-financials .fs th:first-child { white-space:normal; width:12em; min-width:12em; box-shadow:inset -1px 0 0 var(--border); }
   #st-sub-financials .fs td.num { min-width:5.5em; }
   #st-sub-financials .fs .fs-src { color:var(--sub); }
   #st-sub-financials .fs tbody tr.fs-sec td { background:#f0f3f6; font-weight:600; padding-top:5px; padding-bottom:5px; }
@@ -147,9 +159,6 @@
   #st-sub-financials .fs tbody tr.fs-sec4 td:first-child, #st-sub-financials .fs td.d4 { padding-left:3.8em; }
   #st-sub-financials .fs tbody tr.fs-sec5 td:first-child, #st-sub-financials .fs td.d5 { padding-left:4.7em; }
   #st-sub-financials .fs td.d6 { padding-left:5.6em; }
-  #st-sub-financials .fs .fs-tw { display:inline-block; width:1.1em; color:var(--sub); }
-  #st-sub-financials .fs td.fs-tog { cursor:pointer; }
-  #st-sub-financials .fs tbody tr.fs-par td:first-child { font-weight:600; }
   .qb.fs-fill { color:#c2410c; margin-left:3px; }
   .qb.fs-pdf { color:#fff; background:var(--warn); margin-left:4px; }
   .qb.fs-basis { color:#475569; background:#e2e8f0; margin-left:3px; }
@@ -300,6 +309,7 @@
     max-width:none;
   }
   #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
+  #monthly-tbl td.pub-est { color:var(--sub); }
   #monthly-tbl td.name:hover { text-decoration:underline; }
   td.mkt::before {
     content:''; display:inline-block; width:.55em; height:.55em;

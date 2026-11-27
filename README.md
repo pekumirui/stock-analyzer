@@ -47,6 +47,8 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `.\run.ps1 check` / `./run.sh check` / `check 2026-08-14` | API疎通・項目マッピング確認 |
 | `.\run.ps1 reset` / `./run.sh reset` | DB削除。非対話は `./run.sh reset y` |
 | `.\run.ps1 golden` / `./run.sh golden` | ゴールデンデータで DB を作る（`tests/golden/db/` の実データの切り出し。数秒。`.env` 不要）。データの作り直しは `python tools/golden/build_golden_db.py` |
+| `./run.sh prod 6857 7203` | 本番の DB から指定した銘柄（最大 50）の行を読み取り専用で切り出し、`stock.db` を作り直す（XBRL・月次・株価なども含む。銘柄マスタ・TOPIX・為替は全件）。backfill した DB は `--force` を付けないと上書きしない。本番につなぐ鍵が要る（`deploy/README.md`「本番の読み取り」）。Linux のみ |
+| `./run.sh serve-prod` / `serve-prod 8080` | 画面は手元のブランチ、`/api` は本番へ中継して起動する（GET だけ。サーバー側の変更は確かめられない）。Linux のみ |
 | `.\run.ps1 batch` / `./run.sh batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
 | `.\run.ps1 backfill` / `./run.sh backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
 | `.\run.ps1 lint` / `./run.sh lint` | Ruff + Bandit（`requirements-dev.txt`） |

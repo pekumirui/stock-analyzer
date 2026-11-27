@@ -21,7 +21,7 @@
 
 ## データ形
 
-DB は縦持ちの 4 テーブル（`monthly_issuers`・`monthly_tables`・`monthly_elements`・`monthly_values`、詳細は [データモデル](../SCHEMA.md)）でセルを保持し、`(code, year, element, month)` で 1 つの月次セルを一意に表す。公表日は別表 `monthly_publications`（銘柄 × 暦年 × 月）にあり、この画面の GET には出さない。`month` は公表対象の暦月 `1`〜`12`、`year` はその月が属する暦年である（会計年度から暦年への変換規則は [月次の取込規則](../jobs/monthly.md) を参照する）。
+DB は縦持ちの 4 テーブル（`monthly_issuers`・`monthly_tables`・`monthly_elements`・`monthly_values`、詳細は [データモデル](../SCHEMA.md)）でセルを保持し、`(code, year, element, month)` で 1 つの月次セルを一意に表す。公表日は別表 `monthly_publications`（銘柄 × 暦年 × 月）にあり、一覧の `latest_publication` として銘柄ごとに 1 件だけ載せる。`month` は公表対象の暦月 `1`〜`12`、`year` はその月が属する暦年である（会計年度から暦年への変換規則は [月次の取込規則](../jobs/monthly.md) を参照する）。
 
 各行が持つ単位 `unit` と画面上の数値表記の対応は以下のとおりである。
 
@@ -60,23 +60,23 @@ DB は縦持ちの 4 テーブル（`monthly_issuers`・`monthly_tables`・`mont
 | 公開面（`/monthly`） | `すべて`（`__all__`）→ `新着`（`__new__`）→ 1 社以上属する `industry`（日本語ロケール順） | `すべて` を選ぶ |
 | 個人ツール（`/app`） | `新着`（`__new__`）→ 1 社以上属する `industry`（日本語ロケール順） | `is_new: true` の会社が 1 社以上あれば `新着` を選び、0 社のときは先頭の `industry` チップを選ぶ |
 
-`#monthly-tbl` は以下の 5 列で構成する。初期行順は `is_new: true` の会社が先、同じなら `latest_ym` の降順、さらに同じなら `code` の昇順である。
+`#monthly-tbl` の列は次のとおりである。公開面は会社名・月次業種・前年比 2 列・公表日。個人ツール（`/app`）は会社名の右に市場と東証 33 業種を足す。行の順は `GET /api/v1/tables` の順（コード昇順）で、列見出しでは並べ替えない。
 
-| 列名 | `data-msort` | 表示内容 |
-|---|---|---|
-| `会社名` | `code` | 4 桁コード + 半角スペース + 社名の先頭 5 文字（例: `9983 ファースト`）を 1 行で出し、`ingested_today: true` の会社には右に `NEW` バッジ（`span.badge.new`）を添える |
-| `業種` | `industry` | `monthly_issuers.industry`（未設定は `未分類`）を出す |
-| `最新月` | `latest_ym` | 値が入っている最大の `(year, month)` を `YYYY-MM` で出す（値が無ければ空欄） |
-| `全店(前年比)` | `all_store_yoy` | 全店代表行の最新値を指数（例: `103.2`）で出す。該当系列が無い会社は `-` を出す |
-| `既存店(前年比)` | `existing_store_yoy` | 既存店代表行の最新値を指数で出す。該当系列が無い会社は `-` を出す |
+| 列名 | 表示内容 |
+|---|---|
+| `会社名` | 4 桁コード + 半角スペース + 社名の先頭 5 文字（例: `9983 ファースト`）を 1 行で出し、`ingested_today: true` の会社には右に `NEW` バッジ（`span.badge.new`）を添える |
+| `市場`（`/app` のみ） | `fmtMarket` |
+| `業種`（`/app` のみ） | 東証 33 業種を `fmtSector` で出す |
+| `月次業種` | `monthly_issuers.industry`（未設定は `その他`）を出す |
+| `全店(前年比)` | 全店代表行の最新値を指数（例: `103.2`）で出す。該当系列が無い会社は `-` を出す |
+| `既存店(前年比)` | 既存店代表行の最新値を指数で出す。該当系列が無い会社は `-` を出す |
+| `公表日` | その銘柄の、`confidence` が `exact` または `estimated` で `published_on` がある行のうち、対象月 `(year, month)` がいちばん新しい行の公表日を `YYYY-MM-DD` で出す。`estimated` は末尾に `頃` を付け、セルは `td.pub-est`（`color: var(--sub)`）。`title` に対象の `{year}年{month}月` を入れる。`unknown` だけ、または日付が無い銘柄は空欄 |
 
 ### 操作
 
 `#monthly-groups` のチップを押すと、対象の発行体だけで表を即座に描き直す。
 
 検索は 1 文字ごとのインクリメンタル絞り込みを行わず、`Enter` キーまたは `検索` ボタン（フォームの `submit`）で確定する。確定した検索語がある間は選択中のチップに関わらず全発行体を対象に、NFKC 正規化・小文字化・ひらがな→カタカナ変換を通した社名部分一致またはコード部分一致（4 桁・5 桁）で絞り込む。`#monthly-q-clear`（`×`）を押すと検索語を解除してチップ絞り込みへ戻る。
-
-列見出し `th[data-msort]` を押すとソートが切り替わる。文字の列（`code`・`industry`）は昇順→降順→解除、月・数値の列（`latest_ym`・`all_store_yoy`・`existing_store_yoy`）は降順→昇順→解除の順で回り、欠損値は常に末尾へ送る。
 
 一覧の行を押すと Detail へ遷移する。公開面の行内リンク `<a href="/monthly/{code4}">` は通常クリック時に `history.pushState` で画面遷移し、`Ctrl` キーや `Cmd` キーを押しながらのクリックでは別タブで開く。
 
@@ -87,13 +87,14 @@ TOP における欠損セル・0 件・エラー時の表示は以下のとお�
 | 状態 | 表示先と文言 |
 |---|---|
 | `全店(前年比)` または `既存店(前年比)` に該当系列が無い | 該当セルに `-` を出す |
+| `公表日` に出せる日付が無い（`unknown` のみ、または行が無い） | 該当セルは空欄 |
 | 登録発行体が 0 件、選択チップの対象が 0 件、または `GET /api/v1/tables` が失敗 | 表を出さず、`#monthly-list` に `登録された月次データはありません` を出す |
 | 確定した検索語に一致する発行体が 0 件 | 表を出さず、`#monthly-list` に `該当する発行体はありません` を出す |
 | 公開面で未登録コードの `/monthly/{code4}` を直接リクエスト（`404`） | TOP 枠内に `発行体が見つかりません。` を出す |
 
 ### スマホと PC
 
-`#monthly-tbl` の `会社名` 列は PC のみ左端 `sticky` とし、スマホ（`640px` 以下）では解除して 5 列全体を横スクロールできるようにする。
+`#monthly-tbl` は内容幅で置き、スマホ（`640px` 以下）では枠内を横スクロールする。
 
 ## Detail
 
@@ -163,7 +164,7 @@ Detail における空データ・欠損値・エラー時の表示は以下の�
 
 | エンドポイント | 用途とアクセス制御 |
 |---|---|
-| `GET /api/v1/tables` | TOP 用に全発行体の要約 `{issuers: [{code, name, industry, latest_ym, is_new, ingested_today, all_store_yoy, existing_store_yoy}]}` を返す。`data_versions['monthly']` に基づく `ETag`（未変更時は `304`）を付ける |
+| `GET /api/v1/tables` | TOP 用に全発行体の配列を返す。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy, latest_publication}`。`latest_publication` は日付のある最新対象月の `{date, confidence, year, month}`、出せないときは `null`（`confidence` は `exact` か `estimated`） |
 | `GET /api/v1/tables/{code}` | 発行体の収録暦年一覧 `{code, years: [2024, 2025, …]}` を昇順で返す（4 桁・5 桁コード対応、未登録は `404`） |
 | `GET /api/v1/tables/{code}/{year}` | 1 社 1 暦年の `{code, year, elements, tree, tree_metrics}`（自動木の場合は `tree_auto` と `tree_metric_parent` を含む）を返す。各要素は `label`（`display`・`metric`・`scope`・`group`・`segment`・`country`・`channel`・`breakdown`・`series_kind` 等）と `values`（`"1"`〜`"12"` の辞書）を持つ |
 | `GET /api/v1/tables/{code}/{year}/doc` | 保存済みの開示テキストメモ `{code, year, text}` を返す（画面 JS からは呼ばず運用・MCP 用） |

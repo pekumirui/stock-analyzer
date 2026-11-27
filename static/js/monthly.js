@@ -315,6 +315,14 @@ function fmtMonthlyIssuerLabel(code, name){
   return `${monthlyCode4(code)} ${short}`;
 }
 
+function monthlyPublicationCell(pub){
+  if(!pub || !pub.date || pub.confidence === "unknown") return `<td class="num"></td>`;
+  const est = pub.confidence === "estimated";
+  const text = est ? `${pub.date}頃` : String(pub.date);
+  const title = pub.year && pub.month ? ` title="${escHtml(pub.year)}年${escHtml(pub.month)}月"` : "";
+  return `<td class="num${est ? " pub-est" : ""}"${title}>${escHtml(text)}</td>`;
+}
+
 function renderMonthlyList(){
   const issuers = filteredMonthlyIssuers();
   if(!issuers.length){
@@ -328,7 +336,7 @@ function renderMonthlyList(){
   let h = `<table id="monthly-tbl" class="sheet"><thead><tr>` +
     `<th class="l">会社名</th>` +
     (pub ? "" : `<th class="l">市場</th><th class="l">業種</th>`) +
-    `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th>` +
+    `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th><th>公表日</th>` +
     `</tr></thead><tbody>`;
   for(const r of issuers){
     const neu = r.ingested_today ? `<span class="badge new">NEW</span>` : "";
@@ -343,6 +351,7 @@ function renderMonthlyList(){
       `<td class="l">${r.industry||"その他"}</td>` +
       `<td class="num">${fmtMonthlyYoyList(r.all_store_yoy)}</td>` +
       `<td class="num">${fmtMonthlyYoyList(r.existing_store_yoy)}</td>` +
+      monthlyPublicationCell(r.latest_publication) +
       `</tr>`;
   }
   $("#monthly-list").innerHTML = h + `</tbody></table>`;
@@ -1251,10 +1260,17 @@ function drawMonthlyChart(tables, seriesId){
 }
 
 function monthlyBindChartTip(host){
+  const hide = () => {
+    const tip = host.querySelector(".monthly-tip");
+    const guide = host.querySelector(".monthly-guide");
+    if(tip) tip.hidden = true;
+    if(guide) guide.setAttribute("visibility", "hidden");
+  };
+  const ctl = chartTip(host, hide);
   if(host._tipBound) return;
   host._tipBound = true;
-  const show = e => {
-    const hit = e.target.closest && e.target.closest(".monthly-hit");
+  const hitOf = e => e.target.closest && e.target.closest(".monthly-hit");
+  const show = hit => {
     const st = monthlyChartState;
     if(!hit || !st) return;
     const m = Number(hit.dataset.m);
@@ -1274,15 +1290,15 @@ function monthlyBindChartTip(host){
     tip.style.left = right ? "" : `${px + 10}px`;
     tip.style.right = right ? `${svg.clientWidth - px + 10}px` : "";
   };
-  const hide = () => {
-    const tip = host.querySelector(".monthly-tip");
-    const guide = host.querySelector(".monthly-guide");
-    if(tip) tip.hidden = true;
-    if(guide) guide.setAttribute("visibility", "hidden");
-  };
-  host.addEventListener("pointerover", show);
-  host.addEventListener("click", show);
-  host.addEventListener("pointerleave", hide);
+  host.addEventListener("pointerover", e => {
+    const hit = hitOf(e);
+    if(hit && e.pointerType === "mouse" && ctl.hover(hit.dataset.m)) show(hit);
+  });
+  host.addEventListener("click", e => {
+    const hit = hitOf(e);
+    if(hit && ctl.press(hit.dataset.m, e)) show(hit);
+  });
+  host.addEventListener("pointerleave", e => { if(e.pointerType === "mouse") ctl.close(); });
 }
 
 window.matchMedia("(max-width:640px)").addEventListener("change", () => {
