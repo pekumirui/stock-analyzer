@@ -1039,10 +1039,10 @@ async function openMonthlyPopup(td){
         : `<td class="num"${a && heat ? ` style="${heat}"` : ""}>${fa}</td>`;
       rows += `<tr><td class="yr"><span class="sw" style="background:${monthlyYearColor(y)}"></span>${y}</td>${cells}</tr>`;
     }
-    const head = paired ? `<tr><th></th><th>金額</th><th>前年比</th></tr>` : "";
+    const head = paired ? `<thead><tr><th></th><th>金額</th><th>前年比</th></tr></thead>` : "";
     pop.innerHTML = `<div class="mpop-head"><span class="mpop-title">${escHtml(name)}</span><span class="mpop-m">${m}月</span>`
       + `<button type="button" class="mpop-x" aria-label="閉じる" onclick="closeMonthlyPopup()">×</button></div>`
-      + `<table class="sheet">${head}${rows}</table>`;
+      + `<table class="sheet">${head}<tbody>${rows}</tbody></table>`;
     // PC もスマホも押したセルの近くに出す。iOS は表が横にはみ出すと layout viewport が見える幅より
     // 広くなるので、見えている範囲（visualViewport）に収める。
     const vv = window.visualViewport;

@@ -80,8 +80,7 @@ async function loadChart(){
   for(const p of perf.slice(0, 12)){
     h += `<tr><td class="l">${p.disclosed_date}</td>${span.map(([, k]) => `<td class="num">${pct(p[`return_${k}`])}${under(pctParen(p[`alpha_${k}`]))}</td>`).join("")}</tr>`;
   }
-  h += "</tbody>";
-  $("#perf-tbl").innerHTML = h;
+  $("#perf-tbl").innerHTML = h + "</tbody>";
 }
 
 (function setupPriceControls(){

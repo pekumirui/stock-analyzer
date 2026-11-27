@@ -228,7 +228,7 @@ PC・スマホとも一覧上部の `.row` に幅 `200px` で配置する。
 
 ### 要素
 
-`#earn-tabs` で `ニュース` を選ぶと `#fin-box` を隠して `#news-wrap` を表示する。一覧枠 `#en-list` には `#en-news`（`table.sheet`、列は `日時`・`種類`・`題名` の 3 列）とメッセージ `#en-msg` を置き、行の組み立ては銘柄タブの `stockNewsRows`（[銘柄](stock.md)「ニュース」）と共有する。
+`#earn-tabs` で `ニュース` を選ぶと `#fin-box` を隠して `#news-wrap` を表示する。一覧枠 `#en-list` には `#en-news`（`table.sheet`、列は `日時`・`種類`・`題名` の 3 列）とメッセージ `#en-msg` を置き（表の枠 `.tbl-wrap` は画面の高さで縦スクロールさせ、列見出し `thead` を上端に固定する）、行の組み立ては銘柄タブの `stockNewsRows`（[銘柄](stock.md)「ニュース」）と共有する。
 
 詳細枠 `#en-detail` には戻るリンク `#en-back`（`← ニュース`）、見出し `#en-head`、PDF 変換短信の出典注記 `#en-src`（`出典: IR BANK（TDnet）。PDF から変換した原文（画像は出ません）`）、原文枠 `#en-doc`、および説明資料枠 `#en-deck` を置く。
 
