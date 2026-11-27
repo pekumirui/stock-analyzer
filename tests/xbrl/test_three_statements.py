@@ -1847,6 +1847,9 @@ def test_quarterly_report_takes_year_to_date_over_three_months() -> None:
                                              "BasicEarningsLossPerShare"]
     assert [c["value"] for c in rows(t)["NetSales"]["cells"]] == [250 * M, 390 * M, 520 * M]
     assert [c["value"] for c in rows(t)["BasicEarningsLossPerShare"]["cells"]] == [13, 20, 26]
+    assert [c["quarter"] for c in rows(t)["NetSales"]["cells"]] == [None, 140 * M, 130 * M]
+    assert all("quarter" not in c for c in rows(t)["BasicEarningsLossPerShare"]["cells"])
+    assert all("quarter" not in c for r in table(QUARTER, statement="CF")["rows"] for c in r["cells"] if c)
     assert [c["value"] for c in rows(table(QUARTER))["Assets"]["cells"]] == [40 * M, 50 * M, 60 * M]
 
 

@@ -14,7 +14,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH
-from app.xbrl.fs_chart import NET_SALES_LABELS, chart_series, element_priorities
+from app.xbrl.fs_chart import NET_SALES_LABELS, chart_series, element_priorities, quarter_value
 
 __all__ = [
     "DEFAULT_PERIODS",
@@ -609,6 +609,7 @@ def _table(
     ordered_heads = [_apply_heading_alias(parts[i][0], alias) for i in order]
     ordered_indents = [parts[i][1] for i in order]
     roles = _row_roles(statement, ordered_keys, labels, ordered_units, ordered_heads, ordered_indents)
+    where = {id(c): i for i, c in enumerate(run)}
     rows = [
         {
             "key": ordered_keys[pos],
@@ -621,7 +622,7 @@ def _table(
             "merged_keys": merged.get(ordered_keys[pos], []),
             "cells": [
                 None if ordered_keys[pos] not in column.values
-                else {"value": column.values[ordered_keys[pos]], "source": column.sources[ordered_keys[pos]]}
+                else _cell(run, where, column, ordered_keys[pos], statement == "PL" and ordered_units[pos] == "money")
                 for column in columns
             ],
         }
@@ -634,6 +635,15 @@ def _table(
         "periods": [_period(c) for c in columns],
         "rows": rows,
     }
+
+
+def _cell(
+    run: Sequence[Column], where: Mapping[int, int], column: Column, key: str, quarter: bool,
+) -> dict[str, Any]:
+    cell: dict[str, Any] = {"value": column.values[key], "source": column.sources[key]}
+    if quarter:
+        cell["quarter"] = quarter_value(run, where[id(column)], (key,)) if id(column) in where else None
+    return cell
 
 
 def _unit_kind(units: Mapping[str, str | None], key: str) -> str:

@@ -187,6 +187,9 @@
   .qb.fs-fill { float:left; color:#c2410c; margin:1px 6px 0 0; }
   .qb.fs-pdf { color:#fff; background:var(--warn); margin-left:4px; }
   .qb.fs-basis { color:#475569; background:#e2e8f0; margin-left:3px; }
+  #st-sub-financials .fs-view[hidden] { display:none; }
+  #st-sub-financials .fs .fs-fy { box-shadow:inset 0 0 0 999px rgba(59,130,246,.06); }
+  #st-sub-financials .fs .fs-yb { border-left:2px solid #9aa5b1; }
   #st-sub-financials .fs .fs-edge { border-left:2px solid #94a3b8; }
   .dk-head { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin:6px 0 2px; }
   .dk-meta { margin:0 0 8px; }

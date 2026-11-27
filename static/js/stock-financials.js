@@ -4,12 +4,15 @@ const FS_STD = {JPGAAP: "日本基準", IFRS: "IFRS", USGAAP: "米国基準"};
 const FS_SOURCE = {edinet: "有報", tdnet: "XBRL", tdnet_pdf: "PDF"};
 const FS_SOURCE_NAME = {edinet: "有価証券報告書", tdnet: "短信", tdnet_pdf: "短信 PDF"};
 const FS_ROLE_CLASS = {subtotal: "fs-sub", total: "fs-tot", grand: "fs-grand"};
+const FS_RECENT = 4;
+const FS_NO_QUARTER = "3か月単独を出せない（直前の四半期の列が無い・1株当たり）";
 const fsEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
 let stockFsStatement = "BS";
 let stockFsPeriods = FS_PERIODS[0];
 let stockFsCache = new Map();
 let stockFsScrollKey = "";
+let stockFsView = {cols: "all", quarter: false, rows: "all"};
 
 function resetStockFs(){
   stockFsCache = new Map();
@@ -30,8 +33,9 @@ function fsSourceLabel(src){
   return FS_SOURCE[src] || src || "";
 }
 
-function fsCell(cell, period, unit, edge){
-  const cls = edge ? "num fs-edge" : "num";
+function fsCell(cell, period, unit, mark){
+  const cls = mark ? `num ${mark}` : "num";
+  if(cell && cell.gap) return `<td class="${cls}" title="${fsEsc(FS_NO_QUARTER)}"></td>`;
   if(!cell) return `<td class="${cls}"></td>`;
   const txt = fsAmount(cell.value, unit);
   if(!period || cell.source === period.source) return `<td class="${cls}">${txt}</td>`;
@@ -44,37 +48,64 @@ function fsEdges(ps){
   return ps.map((p, i) => i > 0 && p.consolidated !== ps[i - 1].consolidated);
 }
 
+function fsYearStarts(ps){
+  return ps.map((p, i) => i > 0 && (ps[i - 1].period_type === "FY" || p.period_type === "Q1"));
+}
+
+function fsColMarks(ps, fyOnly){
+  const edges = fsEdges(ps), starts = fyOnly ? ps.map(() => false) : fsYearStarts(ps);
+  return ps.map((p, i) => [p.period_type === "FY" && !fyOnly ? "fs-fy" : "", starts[i] ? "fs-yb" : "",
+    edges[i] ? "fs-edge" : ""].filter(Boolean).join(" "));
+}
+
+function fsView(d, view){
+  const v = {cols: "all", quarter: false, rows: "all", ...(view || {})};
+  if(!d || !(d.periods || []).length) return d;
+  const keep = d.periods.map((p, i) => v.cols !== "fy" || p.period_type === "FY" ? i : -1).filter(i => i >= 0);
+  const quarter = v.quarter && d.statement === "PL";
+  const pick = cell => {
+    if(!cell || !quarter) return cell;
+    return cell.quarter == null ? {gap: true} : {...cell, value: cell.quarter};
+  };
+  const recent = keep.slice(-FS_RECENT);
+  const rows = (d.rows || [])
+    .filter(r => v.rows !== "recent" || (r.role && r.role !== "item") || recent.some(i => (r.cells || [])[i]))
+    .map(r => ({...r, cells: keep.map(i => pick((r.cells || [])[i]))}));
+  return {...d, periods: keep.map(i => d.periods[i]), rows, quarter, fyOnly: v.cols === "fy"};
+}
+
 function fsStdName(s){
   return FS_STD[s] || s || "";
 }
 
-function fsHeadCell(p, mixed, edge, stds){
+function fsHeadCell(p, mixed, mark, stds){
   const [pt, cls] = FS_PT[p.period_type] || [p.period_type || "", ""];
   const single = mixed && p.consolidated === false;
   const tip = [p.period_end, pt, single ? "個別" : "", `出どころ ${p.source_label || fsSourceLabel(p.source)}`,
     p.submitted_at ? `提出 ${p.submitted_at}` : "", p.doc_id || "", fsStdName(p.accounting_standard)]
     .filter(Boolean).join(" / ");
   const badge = single ? `<span class="qb fs-basis">個別</span>` : "";
-  return `<th${edge ? ' class="fs-edge"' : ""} title="${fsEsc(tip)}">${fsEsc(p.label)}<span class="g"><span class="qb ${cls}">${fsEsc(pt)}</span>${badge}</span>`
+  return `<th${mark ? ` class="${mark}"` : ""} title="${fsEsc(tip)}">${fsEsc(p.label)}<span class="g"><span class="qb ${cls}">${fsEsc(pt)}</span>${badge}</span>`
     + `<span class="g fs-src">${fsEsc(p.source_label || fsSourceLabel(p.source))}</span>`
     + (stds ? `<span class="g fs-src fs-std">${fsEsc(fsStdName(p.accounting_standard))}</span>` : "") + `</th>`;
 }
 
-function fsMeta(d){
+function fsMeta(d, view){
   const std = (d.accounting_standards || []).map(fsStdName).join("・");
   const parts = [d.basis, std, "単位: 百万円（1株当たりは円）"];
-  if(d.cumulative) parts.push("期首からの累計");
+  if(d.statement === "PL" && view && view.quarter) parts.push("3か月単独（累計の差）");
+  else if(d.cumulative) parts.push("期首からの累計");
   return parts.filter(Boolean).join(" / ");
 }
 
-function fsEarlierHtml(d){
+function fsEarlierHtml(d, view){
   return (d.earlier || []).map(t => {
     const ps = t.periods || [];
     const span = ps.length ? `${ps[0].label}〜${ps[ps.length - 1].label}` : "";
     const std = (t.accounting_standards || []).map(fsStdName).join("・");
     const meta = [std ? `${std}の期` : "前の会計基準の期", span, t.basis].filter(Boolean).join(" / ");
     return `<p class="sub fs-earlier">${fsEsc(meta)}</p>`
-      + `<div class="tbl-wrap"><table class="sheet fin fs">${fsTableHtml({...t, cumulative: d.cumulative})}</table></div>`;
+      + `<div class="tbl-wrap"><table class="sheet fin fs">${fsTableHtml(fsView({...t, statement: d.statement, cumulative: d.cumulative}, view))}</table></div>`;
   }).join("");
 }
 
@@ -96,10 +127,11 @@ function fsTableHtml(d){
   }
   const ps = d.periods;
   const mixed = d.consolidated == null;
-  const edges = fsEdges(ps);
+  const marks = fsColMarks(ps, d.fyOnly);
   const stds = new Set(ps.map(p => p.accounting_standard).filter(Boolean)).size > 1;
-  let h = `<thead><tr><th class="l">${d.cumulative ? "科目（累計）" : "科目"}</th>`
-    + `${ps.map((p, i) => fsHeadCell(p, mixed, edges[i], stds)).join("")}</tr></thead><tbody>`;
+  const head = d.quarter ? "科目（3か月単独）" : d.cumulative ? "科目（累計）" : "科目";
+  let h = `<thead><tr><th class="l">${head}</th>`
+    + `${ps.map((p, i) => fsHeadCell(p, mixed, marks[i], stds)).join("")}</tr></thead><tbody>`;
   let at = [];
   for(const r of d.rows){
     const heads = r.heads || [];
@@ -115,7 +147,7 @@ function fsTableHtml(d){
     const trCls = fsRowClass(r);
     const tip = r.label && r.label !== r.key ? `${r.label} (${r.key})` : r.key;
     h += `<tr${trCls ? ` class="${trCls}"` : ""}><td class="${cls}" title="${fsEsc(tip)}"><span class="fs-lbl">${fsEsc(r.label)}${unit}${mark}</span></td>`
-      + ps.map((p, i) => fsCell((r.cells || [])[i], p, r.unit, edges[i])).join("") + `</tr>`;
+      + ps.map((p, i) => fsCell((r.cells || [])[i], p, r.unit, marks[i])).join("") + `</tr>`;
   }
   return h + `</tbody>`;
 }
@@ -129,7 +161,7 @@ function fsLegendHtml(d){
     if(t.consolidated == null && ps.some(p => p.consolidated === false)) single = true;
     for(const r of t.rows){
       if(r.unmatched_pdf) pdf = true;
-      (r.cells || []).forEach((c, i) => { if(c && ps[i] && c.source !== ps[i].source) fills.add(c.source); });
+      (r.cells || []).forEach((c, i) => { if(c && !c.gap && c.source && ps[i] && c.source !== ps[i].source) fills.add(c.source); });
     }
   }
   const items = [];
@@ -147,6 +179,13 @@ function fsLegendHtml(d){
 function syncStockFsButtons(){
   document.querySelectorAll("#st-fs-tabs .ftab").forEach(b => b.classList.toggle("on", b.dataset.fs === stockFsStatement));
   document.querySelectorAll("#st-fs-periods .ftab").forEach(b => b.classList.toggle("on", Number(b.dataset.periods) === stockFsPeriods));
+  document.querySelectorAll("#st-sub-financials .fs-view .ftab").forEach(b => b.classList.toggle("on", stockFsView[b.dataset.view] === fsViewValue(b.dataset.value)));
+  const pq = $("#st-fs-pq");
+  if(pq) pq.hidden = stockFsStatement !== "PL";
+}
+
+function fsViewValue(v){
+  return v === "true" ? true : v === "false" ? false : v;
 }
 
 function loadStockFs(code, statement, periods){
@@ -187,12 +226,13 @@ async function renderStockFs(){
   const scrollKey = `${code}|${n}`;
   const keepOffset = wrap && stockFsScrollKey === scrollKey && tbl.rows && tbl.rows.length > 0
     ? Math.max(0, wrap.scrollWidth - wrap.scrollLeft) : null;
-  $("#st-fs-meta").textContent = has ? fsMeta(d) : "";
-  const legend = has ? fsLegendHtml(d) : "";
+  $("#st-fs-meta").textContent = has ? fsMeta(d, stockFsView) : "";
+  const shown = fsView(d, stockFsView);
+  const legend = has ? fsLegendHtml({...shown, earlier: (d.earlier || []).map(t => fsView({...t, statement: d.statement}, stockFsView))}) : "";
   $("#st-fs-legend").innerHTML = legend;
   $("#st-fs-legend").hidden = !legend;
-  tbl.innerHTML = fsTableHtml(d);
-  $("#st-fs-earlier").innerHTML = fsEarlierHtml(d);
+  tbl.innerHTML = fsTableHtml(shown);
+  $("#st-fs-earlier").innerHTML = fsEarlierHtml(d, stockFsView);
   if(has && wrap){
     stockFsScrollKey = scrollKey;
     wrap.scrollTop = 0;
@@ -235,6 +275,13 @@ if(typeof document !== "undefined" && document.addEventListener){
   });
 }
 
+document.querySelectorAll("#st-sub-financials .fs-view .ftab").forEach(b => b.onclick = () => {
+  const key = b.dataset.view, value = fsViewValue(b.dataset.value);
+  if(stockFsView[key] === value) return;
+  stockFsView = {...stockFsView, [key]: value};
+  renderStockFs();
+});
+
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {fsLegendHtml, fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, fsScrollLeft, FS_PERIODS};
+  module.exports = {fsLegendHtml, fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, fsScrollLeft, fsView, FS_PERIODS};
 }
