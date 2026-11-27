@@ -140,7 +140,6 @@ function fsGather(items, st, root){
       const take = out.splice(kind === "major" ? major : minor);
       out.push(...take.filter(isRev));
       n.children = take.filter(m => !isRev(m));
-      n.after = n.children.length > 0;
       out.push(n);
       minor = out.length;
       if(kind === "major") major = out.length;
@@ -189,7 +188,6 @@ function fsTree(rows, st){
     const rest = fsGather(items.filter((_, i) => i !== at), st, false);
     total.children = [...total.children, ...rest];
     total.path = sec.path;
-    total.after = true;
     return total;
   };
   const top = build(root, true);
@@ -212,7 +210,7 @@ function fsIsOpen(n, ctx){
 function fsNameCell(n, depth, ctx, cls){
   const tog = n.children.length > 0;
   const open = tog && fsIsOpen(n, ctx);
-  const tw = `<span class="fs-tw">${tog ? (open ? (n.after && n.row ? "▴" : "▾") : "▸") : ""}</span>`;
+  const tw = `<span class="fs-tw">${tog ? (open ? "▾" : "▸") : ""}</span>`;
   const act = tog ? ` data-key="${fsEsc(`${ctx.id || ""}|${n.key}`)}" data-open="${open ? 1 : 0}" onclick="toggleStockFsRow(this.dataset.key, this.dataset.open === '1')"` : "";
   if(!n.row) return {open, html: `<td class="l${tog ? " fs-tog" : ""}"${act} title="${fsEsc(n.name)}">${tw}${fsEsc(n.name)}</td>`};
   const r = n.row;
@@ -233,11 +231,8 @@ function fsRowHtml(n, d, ps, edges, ctx, par){
 function fsNodeHtml(n, depth, ps, edges, ctx){
   const d = Math.min(depth, FS_MAX_DEPTH);
   const kids = () => n.children.map(c => fsNodeHtml(c, depth + 1, ps, edges, ctx)).join("");
-  if(!n.children.length || !fsIsOpen(n, ctx) || !n.row || !n.after) {
-    const own = fsRowHtml(n, d, ps, edges, ctx, n.children.length > 0);
-    return own.html + (own.open ? kids() : "");
-  }
-  return kids() + fsRowHtml(n, d, ps, edges, ctx, true).html;
+  const own = fsRowHtml(n, d, ps, edges, ctx, n.children.length > 0);
+  return own.html + (own.open ? kids() : "");
 }
 
 function fsTableHtml(d, ctx = {}){
