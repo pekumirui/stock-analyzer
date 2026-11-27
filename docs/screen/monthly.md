@@ -21,7 +21,7 @@
 
 ## データ形
 
-DB は縦持ちの 4 テーブル（`monthly_issuers`・`monthly_tables`・`monthly_elements`・`monthly_values`、詳細は [データモデル](../SCHEMA.md)）で保持し、`(code, year, element, month)` で 1 つの月次セルを一意に表す。`month` は公表対象の暦月 `1`〜`12`、`year` はその月が属する暦年である（会計年度から暦年への変換規則は [月次の取込規則](../jobs/monthly.md) を参照する）。
+DB は縦持ちの 4 テーブル（`monthly_issuers`・`monthly_tables`・`monthly_elements`・`monthly_values`、詳細は [データモデル](../SCHEMA.md)）でセルを保持し、`(code, year, element, month)` で 1 つの月次セルを一意に表す。公表日は別表 `monthly_publications`（銘柄 × 暦年 × 月）にあり、この画面の GET には出さない。`month` は公表対象の暦月 `1`〜`12`、`year` はその月が属する暦年である（会計年度から暦年への変換規則は [月次の取込規則](../jobs/monthly.md) を参照する）。
 
 各行が持つ単位 `unit` と画面上の数値表記の対応は以下のとおりである。
 

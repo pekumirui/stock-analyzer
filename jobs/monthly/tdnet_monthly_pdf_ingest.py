@@ -103,6 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         registry=False,
         empty_ok=True,
         precheck=check_columns,
+        source="tdnet",
     )
 
 

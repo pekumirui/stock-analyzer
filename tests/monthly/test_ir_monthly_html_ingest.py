@@ -217,8 +217,11 @@ def test_ingest_body_keys_only() -> None:
         sha256="x",
     )
     body = ingest_body(s)
-    if set(body) != {"months", "rows", "as_of", "via"} or body["via"] != "ir_html":
+    if set(body) != {"months", "rows", "as_of", "via", "publication"} or body["via"] != "ir_html":
         _fail(f"body keys {body.keys()}")
+    pub = body["publication"]
+    if pub.get("basis") != "first_seen" or pub.get("on") != "2026-09-15" or pub.get("reason") is not None:
+        _fail(f"month-end sidecar uses the filename date as first_seen: {pub}")
     if "year" in body or "code" in body:
         _fail(f"body leaked {body}")
     if body["as_of"] != "2026-08-31" or body["months"] != [4, 5, 8]:

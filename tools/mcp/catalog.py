@@ -37,8 +37,32 @@ def load_tools(root: Path) -> list[Tool]:
     return found
 
 
+def _assigned(tree: ast.AST) -> dict[str, ast.AST]:
+    found: dict[str, ast.AST] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets = [node.target]
+            value = node.value
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                found[target.id] = value
+    return found
+
+
+def _resolve(node: ast.AST, names: dict[str, ast.AST]) -> ast.AST:
+    if isinstance(node, ast.Name) and node.id in names:
+        return _resolve(names[node.id], names)
+    return node
+
+
 def _tools_in(source: str, rel: str) -> list[Tool]:
     tree = ast.parse(source)
+    names = _assigned(tree)
     out = []
     for node in tree.body:
         value = _tools_value(node)
@@ -54,10 +78,10 @@ def _tools_in(source: str, rel: str) -> list[Tool]:
             desc, schema, handler = raw.elts
             out.append(Tool(
                 key.value,
-                _text(desc).strip(),
+                _text(desc, names).strip(),
                 _handler(handler),
                 rel,
-                tuple(_args(schema, f"{rel} {key.value}")),
+                tuple(_args(_resolve(schema, names), f"{rel} {key.value}", names)),
             ))
     return out
 
@@ -70,7 +94,11 @@ def _tools_value(node: ast.AST) -> ast.AST | None:
     return None
 
 
-def _text(node: ast.AST) -> str:
+def _text(node: ast.AST, names: dict[str, ast.AST] | None = None) -> str:
+    if names and isinstance(node, ast.Name):
+        return _text(_resolve(node, names), names)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        return _text(node.left, names) + _text(node.right, names)
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
     if isinstance(node, ast.JoinedStr):
@@ -87,7 +115,7 @@ def _text(node: ast.AST) -> str:
                 parts.append("{" + ast.unparse(value) + "}")
         return "".join(parts)
     if isinstance(node, ast.Tuple):
-        return "".join(_text(elt) for elt in node.elts)
+        return "".join(_text(elt, names) for elt in node.elts)
     raise ValueError(f"説明が文字列ではない: {ast.unparse(node)}")
 
 
@@ -110,7 +138,7 @@ def _mapping(node: ast.AST) -> dict[str, ast.AST]:
     return out
 
 
-def _args(schema: ast.AST, where: str) -> list[Arg]:
+def _args(schema: ast.AST, where: str, names: dict[str, ast.AST] | None = None) -> list[Arg]:
     try:
         fields = _mapping(schema)
     except ValueError as exc:
@@ -121,8 +149,9 @@ def _args(schema: ast.AST, where: str) -> list[Arg]:
         return []
     out = []
     for name, raw in _mapping(props).items():
-        body = _mapping(raw)
-        out.append(Arg(name, _type_of(body), name in required, _text(body["description"]).strip() if "description" in body else ""))
+        body = _mapping(_resolve(raw, names or {}))
+        description = _text(body["description"], names).strip() if "description" in body else ""
+        out.append(Arg(name, _type_of(body), name in required, description))
     return out
 
 

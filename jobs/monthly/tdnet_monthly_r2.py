@@ -35,6 +35,7 @@ from jobs._r2common import (
 )
 from app.share_paths import share_path
 from app.xbrl.codes import jq_lookup_code
+from jobs.monthly.publication_claim import write_pdf_meta
 
 DEFAULT_DEST = str(share_path("monthly"))
 PDF_BASE = tdnet_list.TDNET_BASE
@@ -291,12 +292,17 @@ def run(days: int, dest: Path) -> int:
             str(rec.get("title") or ""),
         )
         rel = path.relative_to(dest)
+        pubdate = str(rec.get("pubdate") or "")
         if already_have(path):
+            if pubdate:
+                write_pdf_meta(path, pubdate, pdf_id)
             skipped += 1
             print(f"skip exists {rel}", flush=True)
             continue
         try:
             n = download_pdf(pdf_id, path)
+            if pubdate:
+                write_pdf_meta(path, pubdate, pdf_id)
             saved += 1
             print(f"saved {rel} ({n} bytes)", flush=True)
         except Exception as e:

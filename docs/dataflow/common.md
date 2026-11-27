@@ -27,13 +27,14 @@ flowchart LR
   n12[("monthly_element_sources")]:::ext
   n13[("monthly_elements")]:::ext
   n14[("monthly_issuers")]:::ext
-  n15[("monthly_tables")]:::ext
-  n16[("monthly_values")]:::ext
-  n17[("statements")]:::ext
-  n18[("stocks")]:::ext
-  n19[("topix")]:::ext
-  n20[("xbrl_elements")]:::ext
-  n21[("xbrl_financials")]:::ext
+  n15[("monthly_publications")]:::ext
+  n16[("monthly_tables")]:::ext
+  n17[("monthly_values")]:::ext
+  n18[("statements")]:::ext
+  n19[("stocks")]:::ext
+  n20[("topix")]:::ext
+  n21[("xbrl_elements")]:::ext
+  n22[("xbrl_financials")]:::ext
   n0 --> n8
   n1 --> n4
   n1 --> n5
@@ -46,18 +47,19 @@ flowchart LR
   n1 --> n12
   n1 --> n13
   n1 --> n14
-  n1 --> n15
   n1 --> n16
   n1 --> n17
   n1 --> n18
   n1 --> n19
+  n1 --> n20
   n2 --> n12
   n2 --> n13
   n2 --> n14
   n2 --> n15
   n2 --> n16
-  n2 --> n20
+  n2 --> n17
   n2 --> n21
+  n2 --> n22
   n3 --> n4
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
@@ -69,5 +71,5 @@ flowchart LR
 |---|---|---|
 | `jobs/fx_rates.py` | `fx_rates` |  |
 | `jobs/golden_db.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `indicators`, `material_monthly`, `material_trade_country`, `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `statements`, `stocks`, `topix` |  |
-| `jobs/migrate.py` | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials` | `stocks` |
+| `jobs/migrate.py` | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`, `xbrl_elements`, `xbrl_financials` | `stocks` |
 | `jobs/ops/rebuild_daily_prices.py` | `daily_prices` |  |

@@ -9,12 +9,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
+from ...monthly.publications import value_months
 from ...monthly.store import delete_monthly_element, record_element_source, remap_monthly_elements
 from ...models import MonthlyElement, MonthlyValue
 from ...monthly.tree import MONTHLY_TREES, assign_tree_rows
 from ._common import (
     ApiError, _element_unit, _get_element, _get_table, _parse_code, _parse_value, _parse_year,
     _require_object, _require_stock, _upsert_value, forbid_proxied_monthly_write,
+    publication_from_body, stamp_new_months,
 )
 from .tables import table_year_payload
 
@@ -183,7 +185,8 @@ def _doc_plan(db: Session, code: str, year_i: int, body: dict) -> dict:
             "structural": structural, "warnings": warnings}
 
 
-def _doc_apply(db: Session, code: str, year_i: int, plan: dict) -> None:
+def _doc_apply(db: Session, code: str, year_i: int, plan: dict, pub) -> None:
+    before = value_months(db, code)
     for name in plan["deleted"]:
         delete_monthly_element(db, code, year_i, name)
     remap_monthly_elements(db, code, year_i, {
@@ -206,6 +209,7 @@ def _doc_apply(db: Session, code: str, year_i: int, plan: dict) -> None:
         if r["values"] is not None:
             for m, v in r["values"].items():
                 _upsert_value(db, code, year_i, r["element"], m, v)
+    stamp_new_months(db, code, before, pub)
     db.flush()
 
 
@@ -221,6 +225,7 @@ def put_table_doc(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
+    pub = publication_from_body(body)
     allow = body.get("allow_structure_change") is True
     dry_run = body.get("dry_run") is True
     plan = _doc_plan(db, code, year_i, body)
@@ -235,7 +240,7 @@ def put_table_doc(code: str, year: str, payload: dict | None = Body(None),
         return out
 
     def _write() -> None:
-        _doc_apply(db, code, year_i, _doc_plan(db, code, year_i, body))
+        _doc_apply(db, code, year_i, _doc_plan(db, code, year_i, body), pub)
 
     run_sqlite_write(db, _write)
     out["version"] = _doc_version(_doc_state(db, code, year_i))

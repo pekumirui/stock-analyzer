@@ -16,6 +16,23 @@ from ...monthly.ingest import (
     monthly_element_label, monthly_series_kind, parse_monthly_unit, reject_prior_period_element,
     same_yoy_element, uncovered_yoy_number_twins,
 )
+from ...monthly.publications import PublicationError, parse_publication, record_manual, record_written
+
+
+def publication_from_body(body: dict):
+    if "publication" not in body:
+        return None
+    try:
+        return parse_publication(body["publication"])
+    except PublicationError as exc:
+        raise ApiError(400, "INVALID_PARAM", exc.message) from exc
+
+
+def stamp_new_months(db: Session, code: str, before: set[tuple[int, int]], pub) -> None:
+    if pub is None:
+        record_manual(db, code, before)
+    else:
+        record_written(db, code, before, pub)
 
 
 _INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"

@@ -180,6 +180,20 @@ def unit_mark_context(html: str) -> str:
     return " ".join(parts)
 
 
+def calendar_page_date(html: str) -> date | None:
+    s = unicodedata.normalize("NFKC", html or "")
+    m = _UPDATE_RE.search(s)
+    if not m:
+        return None
+    y = int(m.group(1))
+    if y < _MIN_AS_OF_YEAR:
+        return None
+    try:
+        return date(y, int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
+
+
 def parse_as_of_text(html: str) -> str | None:
     s = unicodedata.normalize("NFKC", html or "")
     m = _UPDATE_RE.search(s)
