@@ -2812,13 +2812,17 @@ def _labels(filings: Sequence[Filing], learned: Sequence[Learned]) -> dict[str, 
         for f in filing.seq:
             if name := _clean_label(f.label):
                 owners[name].add(f.key)
-    labelled = set().union(*owners.values()) if owners else set()
     for item in sorted(learned, key=lambda x: x.period_end):
         for key, local in item.pdf_names.items():
-            name = _pdf_label(local, xbrl_labels.get(key, ""))
-            if key not in labelled or not owners.get(name, set()) - {key}:
+            own = xbrl_labels.get(key, "")
+            name = _pdf_label(local, own)
+            if not _qualified(own, name) or not owners.get(name, set()) - {key}:
                 labels[key] = name
     return labels
+
+
+def _qualified(label: str, name: str) -> bool:
+    return label.startswith(f"{name}(") and label.endswith(")")
 
 
 def _units(filings: Sequence[Filing]) -> dict[str, str | None]:
