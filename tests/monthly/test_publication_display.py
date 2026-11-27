@@ -1,4 +1,3 @@
-"""月次一覧の直近の公表日と、株価チャートの月次発表。"""
 from __future__ import annotations
 
 import json
