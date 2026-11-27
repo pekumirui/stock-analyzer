@@ -75,12 +75,12 @@ async function loadChart(){
   ch.setData(d);
   ch.showLatest();
   applyRel(signal);
-  let h = "<tr><th class='l'>発表日</th><th>+1d</th><th>α</th><th>+5d</th><th>α</th><th>+20d</th><th>α</th><th>+60d</th><th>α</th><th>現在まで</th><th>α</th></tr>";
+  const span = [["+1d", "1d"], ["+5d", "5d"], ["+20d", "20d"], ["+60d", "60d"], ["現在まで", "to_date"]];
+  let h = "<thead><tr><th class='l'>発表日</th>" + span.map(([t]) => `<th title='下段は対TOPIX超過リターン（α）'>${t}${under(`<span class="sub">(α)</span>`)}</th>`).join("") + "</tr></thead><tbody>";
   for(const p of perf.slice(0, 12)){
-    h += `<tr><td class="l">${p.disclosed_date}</td><td>${pct(p.return_1d)}</td><td>${pct(p.alpha_1d)}</td>
-      <td>${pct(p.return_5d)}</td><td>${pct(p.alpha_5d)}</td><td>${pct(p.return_20d)}</td><td>${pct(p.alpha_20d)}</td>
-      <td>${pct(p.return_60d)}</td><td>${pct(p.alpha_60d)}</td><td>${pct(p.return_to_date)}</td><td>${pct(p.alpha_to_date)}</td></tr>`;
+    h += `<tr><td class="l">${p.disclosed_date}</td>${span.map(([, k]) => `<td class="num">${pct(p[`return_${k}`])}${under(pctParen(p[`alpha_${k}`]))}</td>`).join("")}</tr>`;
   }
+  h += "</tbody>";
   $("#perf-tbl").innerHTML = h;
 }
 
