@@ -3,6 +3,8 @@ from __future__ import annotations
 import calendar
 import json
 import re
+import shutil
+import subprocess
 import unicodedata
 from datetime import date
 from pathlib import Path
@@ -11,8 +13,11 @@ from app.monthly.publications import Pub, dated, unknown
 from jobs.monthly.html_monthly import calendar_page_date
 
 _COLUMN_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
-_YEAR_MONTH_RE = re.compile(r"(\d{4})年(\d{1,2})月度")
-_FY_MONTH_RE = re.compile(r"(\d{1,2})月期(\d{1,2})月度")
+_YEAR_MONTH_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月度")
+_FY_MONTH_RE = re.compile(r"(\d{1,2})\s*月期\s*(\d{1,2})\s*月度")
+_BARE_MONTH_RE = re.compile(r"(?<!\d)(\d{1,2})\s*月度")
+_CAL_MONTH_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月(?!度|期|\s*\d)")
+_MONTH_WORD_RE = re.compile(r"月\s*度")
 _PDF_SIDECAR = ".pdf-ingest.json"
 CRAWLER_START = date(2026, 9, 1)
 ESTIMATE_DAYS = 45
@@ -48,30 +53,62 @@ def normalize_title(title: str) -> str:
     return unicodedata.normalize("NFKC", title or "")
 
 
+def _on_or_before(year: int, month: int, disclosed: date) -> tuple[int, int] | None:
+    if not 1 <= month <= 12:
+        return None
+    if date(year, month, 1) <= disclosed:
+        return year, month
+    return None
+
+
+def _inferred_year(month: int, disclosed: date) -> int:
+    return disclosed.year if month <= disclosed.month else disclosed.year - 1
+
+
 def report_month(title: str, disclosed: date) -> tuple[int, int] | None:
     s = normalize_title(title)
     found: list[tuple[int, int]] = []
     for year_s, month_s in _YEAR_MONTH_RE.findall(s):
-        month = int(month_s)
-        year = int(year_s)
-        if 1 <= month <= 12 and date(year, month, 1) <= disclosed:
-            found.append((year, month))
-    if found:
-        return max(found)
+        item = _on_or_before(int(year_s), int(month_s), disclosed)
+        if item is not None:
+            found.append(item)
     for _fy, month_s in _FY_MONTH_RE.findall(s):
         month = int(month_s)
-        if not 1 <= month <= 12:
+        item = _on_or_before(_inferred_year(month, disclosed), month, disclosed)
+        if item is not None:
+            found.append(item)
+    if found:
+        return max(found)
+    for match in _BARE_MONTH_RE.finditer(s):
+        if re.search(r"年\s*$", s[: match.start(1)]):
             continue
-        year = disclosed.year if month <= disclosed.month else disclosed.year - 1
-        if date(year, month, 1) <= disclosed:
-            found.append((year, month))
+        month = int(match.group(1))
+        item = _on_or_before(_inferred_year(month, disclosed), month, disclosed)
+        if item is not None:
+            found.append(item)
     if found:
         return max(found)
     return None
 
 
+def titled_calendar_month(title: str, disclosed: date) -> tuple[int, int] | None:
+    s = normalize_title(title)
+    found: list[tuple[int, int]] = []
+    for year_s, month_s in _CAL_MONTH_RE.findall(s):
+        item = _on_or_before(int(year_s), int(month_s), disclosed)
+        if item is not None:
+            found.append(item)
+    if not found:
+        return None
+    return max(found)
+
+
+def month_from_title(title: str, disclosed: date) -> tuple[int, int] | None:
+    return report_month(title, disclosed) or titled_calendar_month(title, disclosed)
+
+
 def title_mentions_month(title: str) -> bool:
-    return "月度" in normalize_title(title)
+    return _MONTH_WORD_RE.search(normalize_title(title)) is not None
 
 
 def estimate_month(disclosed: date) -> tuple[int, int] | None:
@@ -135,16 +172,37 @@ def ir_release(
     return ym, unknown("no_page_date", ref)
 
 
+def pdf_page_text(path: Path) -> str:
+    exe = shutil.which("pdftotext")
+    if exe is None or not path.is_file():
+        return ""
+    try:
+        proc = subprocess.run(
+            [exe, "-f", "1", "-l", "2", "-enc", "UTF-8", "-q", str(path), "-"],
+            check=False,
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.decode("utf-8", "replace")
+
+
 def pdf_backfill_claim(
     name: str,
     disclosed: date,
     clock: str | None,
     ref: str | None,
+    body: str = "",
 ) -> tuple[tuple[int, int], Pub] | None:
-    parsed = report_month(name, disclosed)
+    parsed = report_month(body, disclosed) if body else None
+    if parsed is None:
+        parsed = month_from_title(name, disclosed)
     if parsed is not None:
         return parsed, dated("tdnet", disclosed, clock, ref, confidence="exact")
-    if title_mentions_month(name):
+    if title_mentions_month(body) or title_mentions_month(name):
         return None
     estimated = estimate_month(disclosed)
     if estimated is None:
