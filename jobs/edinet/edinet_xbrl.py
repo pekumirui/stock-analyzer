@@ -6,6 +6,7 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_xbrl.py --limit 300                      # 新しい書類から 300 件（cron）
   python jobs/edinet/edinet_xbrl.py --from 2025-06-01 --to 2025-06-30
   python jobs/edinet/edinet_xbrl.py --code 72030 --reparse
+  python jobs/edinet/edinet_xbrl.py --doc-id S100W2KO --reparse       # 1 書類だけ読み直す
   python jobs/edinet/edinet_xbrl.py --retry-failed --limit 100
 
 1 書類 2〜3 秒（ダウンロード 1 秒間隔 + パース）。ZIP は残す（docs/jobs/edinet.md「書類の ZIP」）。設計は docs/jobs/edinet.md「有報・半期報の財務 XBRL」。
@@ -35,6 +36,7 @@ def main() -> int:
     ap.add_argument("--from", dest="date_from", help="file_date YYYY-MM-DD")
     ap.add_argument("--to", dest="date_to", help="file_date YYYY-MM-DD")
     ap.add_argument("--code", help="stocks.code 5 桁")
+    ap.add_argument("--doc-id", help="EDINET の書類管理番号（S100…）。この 1 件だけ")
     ap.add_argument("--no-quarterly", action="store_true", help="四半期報告書（140/150）を除く")
     ap.add_argument("--retry-failed", action="store_true")
     ap.add_argument("--reparse", action="store_true", help="取り込み済みもダウンロードし直す")
@@ -52,7 +54,7 @@ def main() -> int:
     try:
         docs = pending_documents(
             db, doc_types=doc_types, start=_d(args.date_from), end=_d(args.date_to),
-            code=args.code, retry_failed=args.retry_failed, reparse=args.reparse,
+            code=args.code, doc_id=args.doc_id, retry_failed=args.retry_failed, reparse=args.reparse,
             limit=args.limit,
         )
         print(f"edinet xbrl docs={len(docs)}", flush=True)

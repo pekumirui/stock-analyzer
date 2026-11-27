@@ -396,7 +396,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         return "error"
     fetched_at = now_jst()
     try:
-        inst = read_instance(got.content)
+        inst = read_instance(got.content, doc.doc_id)
         values = parse_document(doc.doc_type_code, inst, issuer=_is_issuer(doc))
     except Exception as exc:
         store_failed(db, doc, exc, fetched_at)

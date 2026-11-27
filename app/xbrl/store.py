@@ -172,12 +172,13 @@ def parse_zip(
     submitted_at: str,
     cache_dir: Path | None = None,
     text_max: int | None = None,
+    doc_id: str | None = None,
 ) -> ParsedPackage:
     """ZIP → ParsedPackage. No DB, so it also runs in parse workers (KAB-63)."""
     cache = Path(cache_dir or XBRL_CACHE_DIR)
     limit = XBRL_TEXT_MAX_CHARS if text_max is None else text_max
     with TemporaryDirectory(prefix="xbrl-parse-") as tmp:
-        unpacked = extract_zip(zip_path, Path(tmp) / "unpacked")
+        unpacked = extract_zip(zip_path, Path(tmp) / "unpacked", doc_id=doc_id)
         # Always resolve 本表の期末 from package contents (ignore stale column).
         return parse_package(
             unpacked,
@@ -255,6 +256,7 @@ def parse_zip_into_filing(
                 submitted_at=submitted_at,
                 cache_dir=cache_dir,
                 text_max=text_max,
+                doc_id=doc_id,
             )
         pkg = package
     except ValueError as exc:

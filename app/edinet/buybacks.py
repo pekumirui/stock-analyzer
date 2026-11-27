@@ -734,11 +734,11 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         return "error"
     fetched_at = now_jst()
     try:
-        inst = read_instance(got.content)
-        honbun = honbun_html(got.content)
+        inst = read_instance(got.content, doc.doc_id)
+        honbun = honbun_html(got.content, doc.doc_id)
         # 取得状況の章は本文 iXBRL。訂正事項は PublicDoc の非 iXBRL HTML にあることがある
         rep = parse_buyback(inst, honbun, amendment=doc.doc_type_code == AMENDMENT,
-                            texts=public_html(got.content))
+                            texts=public_html(got.content, doc.doc_id))
         fill_ratio_cumulative(db, doc, rep)
         row = report_row(doc, rep, lookup, fetched_at)
         res = resolution_rows(doc.doc_id, rep)

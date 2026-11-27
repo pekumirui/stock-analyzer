@@ -84,7 +84,7 @@ def collect_from_zips(zips_root: Path, *, cache_dir: Path | None = None) -> tupl
     for zp in iter_zip_paths(zips_root):
         try:
             with TemporaryDirectory(prefix="xbrl-bundle-") as tmp:
-                unpacked = extract_zip(zp, Path(tmp) / "unpacked")
+                unpacked = extract_zip(zp, Path(tmp) / "unpacked", doc_id=zp.stem.split("_type", 1)[0])
                 found, miss = collect_parser_taxonomy_urls(
                     unpacked,
                     cache_dir=cache_dir,
