@@ -118,7 +118,8 @@ def test_public_list_shows_exact_and_estimated(c, seeded) -> None:
     response = c.get("/monthly")
     assert response.status_code == 200
     html = response.text
-    assert "直近の公表日" in html
+    assert "<th>公表日</th>" in html
+    assert "直近の公表日" not in html
     assert 'title="2026年5月">2026-06-10' in html
     assert "2026-06-10頃" not in html
     assert 'class="num pub-est" title="2026年4月">2026-05-20頃' in html
@@ -183,7 +184,8 @@ def test_monthly_list_cells_mark_estimates() -> None:
         capture_output=True, text=True, check=True,
     )
     html = out.stdout
-    assert "直近の公表日" in html
+    assert "<th>公表日</th>" in html
+    assert "直近の公表日" not in html
     assert 'title="2026年5月">2026-06-10</td>' in html
     assert "pub-est" in html and "2026-05-20頃" in html
     assert 'data-code="11110"' in html

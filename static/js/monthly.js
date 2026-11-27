@@ -336,7 +336,7 @@ function renderMonthlyList(){
   let h = `<table id="monthly-tbl" class="sheet"><thead><tr>` +
     `<th class="l">会社名</th>` +
     (pub ? "" : `<th class="l">市場</th><th class="l">業種</th>`) +
-    `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th><th>直近の公表日</th>` +
+    `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th><th>公表日</th>` +
     `</tr></thead><tbody>`;
   for(const r of issuers){
     const neu = r.ingested_today ? `<span class="badge new">NEW</span>` : "";
