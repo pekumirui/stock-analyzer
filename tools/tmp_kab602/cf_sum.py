@@ -226,17 +226,46 @@ def is_memo(r):
 
 def continuing_parts(rows, idxs, c):
     present = [i for i in idxs if value(rows, i, c) is not None]
-    parts = []
+    lead = []
     for i in present:
-        lab = norm(rows[i]["label"])
-        if "継続事業" in lab or "ContinuingOperations" in key_of(rows[i]) or "DiscontinuedOperations" in key_of(rows[i]):
-            parts.append(i)
+        lab, k = norm(rows[i]["label"]), key_of(rows[i])
+        if start_kind(rows[i]) or "継続事業" in lab or "ContinuingOperations" in k or "DiscontinuedOperations" in k:
+            lead.append(i)
             continue
-        if parts and start_kind(rows[i]) in ("net", "pretax"):
-            total = sum(value(rows, j, c) for j in parts)
-            return (parts, i) if abs(total - value(rows, i, c)) < 1 else ([], None)
         break
+    if len(lead) < 2:
+        return [], None
+    unit = unit_of([value(rows, i, c) for i in present])
+    for t in lead:
+        others = [i for i in lead if i != t]
+        if close(sum(value(rows, i, c) for i in others), value(rows, t, c), unit, len(others)):
+            return others, t
     return [], None
+
+
+AGG_RE = re.compile(r"合計|調整項目|計$|考慮前|^(?:営業)?(?:資産(?:及び|・)負債|運転資本)(?:等|ほか)?の(?:増減|変動)|WorkingCapital$|"
+                    r"^(?!Other)\w*WorkingCapitalOpeCF|AssetsAndLiabilitiesOfOperatingActivities|AdjustmentsToReconcile|^TotalOf|"
+                    r"FromContinuingOperations")
+
+
+def aggregates(rows, idxs, c, unit):
+    present = [i for i in idxs if value(rows, i, c) is not None]
+    out = set()
+    for n, i in enumerate(present):
+        if not (AGG_RE.search(norm(rows[i]["label"])) or AGG_RE.search(key_of(rows[i]))):
+            continue
+        v = value(rows, i, c)
+        for run in (present[max(0, n - k):n] for k in range(2, n + 1)):
+            if run and not (set(run) & out) and close(sum(value(rows, j, c) for j in run), v, unit, len(run)):
+                out.add(i)
+                break
+        else:
+            for k in range(2, len(present) - n):
+                run = present[n + 1:n + 1 + k]
+                if close(sum(value(rows, j, c) for j in run), v, unit, len(run)):
+                    out.add(i)
+                    break
+    return out
 
 
 def mixed(rows, c, source):
@@ -284,7 +313,11 @@ def check_table(cf, pl_by, code, basis, out, stats, detail, shown, closings):
             if total is None:
                 continue
             idxs = [i for i in bounds[s] if i not in parts and not is_memo(rows[i])]
-            subs = [i for i in idxs if is_subtotal(rows[i]) and value(rows, i, c) is not None]
+            if start_i is not None and s == "op":
+                idxs = [i for i in idxs if i == start_i or i not in parts]
+            agg = aggregates(rows, [i for i in idxs if i != start_i], c, unit)
+            idxs = [i for i in idxs if i not in agg]
+            subs = [i for i in idxs if is_subtotal(rows[i]) and value(rows, i, c) is not None and i != start_i]
             items = [i for i in idxs if i not in subs]
             lead = [si for si in subs if not any(i < si for i in items)]
             subs = [si for si in subs if si not in lead]
@@ -344,6 +377,12 @@ def check_table(cf, pl_by, code, basis, out, stats, detail, shown, closings):
         if bounds.get("op"):
             first = start_i if start_i is not None else next(
                 (i for i in bounds["op"] if value(rows, i, c) is not None), None)
+            if start_i is not None:
+                pl_keys = set()
+                pl = pl_by.get((p["period_end"], p["period_type"]))
+                if pl is not None:
+                    pl_keys = {key_of(r) for r in pl[0] if r["cells"][pl[1]] is not None}
+                first = next((i for i in [*parts, start_i] if key_of(rows[i]) in pl_keys), start_i)
             kind = start_kind(rows[first]) if first is not None else None
             if kind is None:
                 res["start_pl"] = ("direct_or_unknown", "", "", norm(rows[first]["label"])[:30] if first is not None else "")
