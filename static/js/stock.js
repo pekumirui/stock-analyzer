@@ -313,7 +313,7 @@ async function renderStockNews(){
     return;
   }
   stockMsg("");
-  $("#st-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + rows.map(r => {
+  $("#st-news").innerHTML = "<thead><tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr></thead><tbody>" + rows.map(r => {
     const go = !!r.open;
     const amend = r.amend ? ' <span class="kind">訂正</span>' : "";
     const deck = r.open === "deck" ? ` data-open="deck" data-deck="${stockEsc(r.deckKey)}"` : "";
@@ -321,7 +321,7 @@ async function renderStockNews(){
       <td class="l">${stockEsc(stockAt(r.at))}</td>
       <td class="l"><span class="kind">${stockEsc(r.kind)}</span>${amend}</td>
       <td class="l t">${stockEsc(r.title)}</td></tr>`;
-  }).join("");
+  }).join("") + "</tbody>";
 }
 
 function openStockNewsDeck(key){

@@ -253,7 +253,7 @@ PC では `#st-metrics` を 5 列均等幅で横に並べ、スマホ（`640px` 
 
 ### 要素
 
-`#st-news-list` 内に `#st-news`（`table.sheet`）を置く。`GET /api/stock/{code}/filings`（最大 200 件）と `GET /api/stock/{code}/decks`（最大 200 件）を結合し、開示日時の新しい順で 1 行 1 件に並べる。同一の 14 桁開示番号に対して XBRL 由来の HTML 原文が存在する場合は、重複を避けるため PDF 変換短信の行を省く。
+`#st-news-list` 内に `#st-news`（`table.sheet`）を置く。`GET /api/stock/{code}/filings`（最大 200 件）と `GET /api/stock/{code}/decks`（最大 200 件）を結合し、開示日時の新しい順で 1 行 1 件に並べる。同一の 14 桁開示番号に対して XBRL 由来の HTML 原文が存在する場合は、重複を避けるため PDF 変換短信の行を省く。表の枠（`.tbl-wrap`）は画面の高さで縦スクロールさせ、列見出し（`thead`）を上端に固定する。
 
 `#st-news` の列は左から `日時`（`YY/MM/DD HH:MM`、時刻が無い書類は `YY/MM/DD`）・`種類`・`題名` の 3 列であり、行の種類とラベル `.kind` の対応は以下のとおりである。
 
@@ -314,7 +314,7 @@ EDINET の大量保有報告書・変更報告書から大株主の顔ぶれと�
 
 | 領域 ID | 表示内容 |
 |---|---|
-| `#st-holders-large` | 提出者ごとに最新の報告書を集約した大量保有者テーブル（`table.sheet`）を出す。列は `提出者`（`pin0`、`#holders/{edinet_code}` へのリンクと下段の EDINET コード）・`保有割合`（`XX.XX%`）・`差`（前回からの pt 差、正は `.pos`、負は `.neg`）・`義務発生日`（下段に提出日、`title` に詳細、異常値は `.warn`）・`保有目的`（`title` に全文）の 5 列とする。保有割合 5% 以上の提出者を先に並べ、最新報告が 5% 未満の提出者は区切り見出し行 `tr.below-h`（`5%未満`）の下に `tr.below` で淡色表示する |
+| `#st-holders-large` | 提出者ごとに最新の報告書を集約した大量保有者テーブル（`table.sheet`）を出す。列は `提出者`（`pin0`、`#holders/{edinet_code}` へのリンクと下段の EDINET コード）・`保有割合`（`XX.XX%`）・`差`（前回からの pt 差、正は `.pos`、負は `.neg`）・`義務発生日`（下段に提出日、`title` に詳細、異常値は `.warn`）・`保有目的`（`title` に全文、`td.purpose` の中の `span` は `max-width:16em` で `…` に切る）の 5 列とする。保有割合 5% 以上の提出者を先に並べ、最新報告が 5% 未満の提出者は区切り見出し行 `tr.below-h`（`5%未満`）の下に `tr.below` で淡色表示する |
 | `#st-holders-chart` | 上位最大 5 社の報告履歴 `history` を色分けした折れ線 SVG で描く |
 | `#st-holders-treasury` | 見出し `自己株` の下に最新の自己株券買付状況報告書から `発行済 X株 / 自己株 Y株（Z.ZZ%） YYYY-MM` を出し、進行中の取得枠（`active`）ごとに進捗バー `.hd-bar`・進捗率 `XX.X%`・`決議 YYYY-MM-DD 〜 YYYY-MM-DD　累計 A株 / 枠 B株` を並べる |
 
