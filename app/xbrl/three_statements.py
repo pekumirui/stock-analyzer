@@ -2539,7 +2539,7 @@ def build_columns(
 
 
 def _printed_rows(primary: Filing, statement: str) -> frozenset[str] | None:
-    if statement != "BS" or primary.is_pdf or not primary.parts.get(statement):
+    if primary.is_pdf or not primary.parts.get(statement):
         return None
     return frozenset(primary.parts[statement])
 
