@@ -172,6 +172,7 @@ flowchart LR
 | `--from` |  |  | file_date YYYY-MM-DD |
 | `--to` |  |  | file_date YYYY-MM-DD |
 | `--code` |  |  | stocks.code 5 桁 |
+| `--doc-id` |  |  | EDINET の書類管理番号（S100…）。この 1 件だけ |
 | `--no-quarterly` | フラグ |  | 四半期報告書（140/150）を除く |
 | `--retry-failed` | フラグ |  |  |
 | `--reparse` | フラグ |  | 取り込み済みもダウンロードし直す |

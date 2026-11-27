@@ -124,6 +124,14 @@ EDINET の書類 ZIP は縦覧期間（自己株は 1 年、その他は 5 年�
 | パース例外・`parse_status='failed'` | `XbrlFiling` を `parse_status='failed'` で残したうえで `errors`・`failed` に数え、終了コード `1` を返す（タクソノミ不足などの異常を監視で検知する） |
 | 取下げ・不開示（`retract`） | 該当 filing の `xbrl_financials`・`xbrl_segments`・大株主 3 テーブル・`xbrl_facts` 等のペイロードをすべて削除し、`parse_status='skipped'`・`parse_error='withdrawn'` にする |
 
+#### 1 書類だけ読み直す
+
+`--doc-id <書類管理番号> --reparse` で、その 1 件だけをダウンロードし直して読む（取得は手元の `data/edinet` → EDINET → OneDrive の順）。指紋（`raw_sha256`）は記録するだけで読み直しの判定には使わないので、`--reparse` が要る。既存の filing の行は消さずに使い、`parse_zip_into_filing` がその filing の `xbrl_facts`・`xbrl_contexts`・`xbrl_presentation_roles`・`xbrl_pdf_matches` を消して入れ直し、`normalize_filing` が `xbrl_financials`・`xbrl_segments`・大株主を作り直す。ZIP に別の書類の一式が入っている書類は、先に `config/xbrl/zip_manifest_only.json` に載せる（[XBRL の取込](xbrl.md)。KAB-592）。
+
+```bash
+python jobs/edinet/edinet_xbrl.py --doc-id S100W2KO --reparse
+```
+
 #### TDnet 短信 XBRL との住み分けと読み出し優先順
 
 TDnet 由来の短信 XBRL（`source='tdnet'`）とは上書きし合わず、同じ銘柄・同じ期でも `xbrl_filings`・`xbrl_financials`・`xbrl_segments` に別々の行として保持する。また決算速報が使う `statements` は発表直後の短信と粒度・タイミングが異なるため、EDINET からは書き換えない。

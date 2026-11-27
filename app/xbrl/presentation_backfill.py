@@ -27,6 +27,7 @@ from app.xbrl.store import (
     PRESENTATION_OK,
     store_presentation,
 )
+from app.xbrl.zip_scope import kept_names
 
 if TYPE_CHECKING:
     from app.edinet.archive import RemoteGet
@@ -172,10 +173,10 @@ def edinet_fetcher(
     return fetch
 
 
-def read_zip(content: bytes) -> list:
+def read_zip(content: bytes, doc_id: str | None = None) -> list:
     """ZIP から表示リンクを読む。ZIP として読めなければ zipfile.BadZipFile。"""
     with zipfile.ZipFile(io.BytesIO(content)) as zf, TemporaryDirectory(prefix="xbrl-pre-") as tmp:
-        for name in zf.namelist():
+        for name in kept_names(doc_id, zf.namelist(), zf.read):
             low = name.lower()
             if not low.endswith(("pre.xml", ".xsd", "lab.xml")):
                 continue
@@ -228,7 +229,7 @@ def fill_one(
         seen[got.origin] += 1
         seen[f"{got.origin}_ms"] += int((time.monotonic() - began) * 1000)
     try:
-        roles = read_zip(got.content)
+        roles = read_zip(got.content, filing.doc_id)
     except Exception as exc:
         print(f"presentation failed id={filing_id} doc_id={filing.doc_id} err={exc!r}"[:500], flush=True)
         if not redo:
