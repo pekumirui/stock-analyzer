@@ -462,7 +462,10 @@ def _peel_metric(
         if tok == src:
             return canon, None
         if len(tok) > len(src) and tok.endswith(src):
-            return canon, tok[:-len(src)]
+            rest = tok[:-len(src)]
+            if src == "売上" and rest == "総":
+                return canon, tok
+            return canon, rest
         if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
             return canon, tok[len(src):]
     return None, tok
