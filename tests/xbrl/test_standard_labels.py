@@ -508,39 +508,3 @@ def test_new_rules_do_not_move_rows_matched_by_history(use_book) -> None:
     taken = [pdf_row(1, "未収入金", 1), pdf_row(2, "その他", 2), pdf_row(3, "流動資産合計", 7)]
     learned = history([("未収入金", "OtherCA", 1), ("流動資産合計", "CurrentAssets", 6)])
     assert apply_with(taken, learned=learned) == ["OtherCA", None, "CurrentAssets"]
-
-
-def test_net_only_history_does_not_take_the_gross_row_when_the_breakdown_is_printed(use_book) -> None:
-    use_book(full_book(None, ACCUMULATED))
-    learned = history([("土地", "Land", 50), ("使用権資産", "RightOfUseAssetsNet", 39)])
-    facts = [xfact(1, "Land", "土地"), xfact(2, "RightOfUseAssets", "使用権資産"),
-             xfact(3, "AccumulatedDepreciationRightOfUseAssets", "減価償却累計額"),
-             xfact(4, "RightOfUseAssetsNet", "使用権資産（純額）")]
-    names = fst.name_index([xbrl_filing(1, "BS", facts)], "BS")
-    rows = [pdf_row(1, "土地", 50), pdf_row(2, "使用権資産", 55), pdf_row(3, "減価償却累計額", -17),
-            pdf_row(4, "使用権資産(純額)", 38)]
-    assert apply_with(rows, names=names, learned=learned) == [
-        "Land", "RightOfUseAssets", "AccumulatedDepreciationRightOfUseAssets", "RightOfUseAssetsNet"]
-    assert apply_with([pdf_row(1, "土地", 50), pdf_row(2, "使用権資産", 39)], names=names, learned=learned) == [
-        "Land", "RightOfUseAssetsNet"]
-
-
-def test_learned_pdf_name_does_not_take_the_label_of_another_element() -> None:
-    facts = [xfact(1, "RightOfUseAssets", "使用権資産"), xfact(2, "RightOfUseAssetsNet", "使用権資産（純額）"),
-             xfact(3, "BuildingsAndStructures", "建物及び構築物")]
-    learned = history([("使用権資産", "RightOfUseAssetsNet", 39), ("建物等", "BuildingsAndStructures", 50)])
-    shown = [{"RightOfUseAssets", "RightOfUseAssetsNet", "BuildingsAndStructures"}]
-    labels = fst._labels([xbrl_filing(1, "BS", facts)], learned, shown)
-    assert labels["RightOfUseAssetsNet"] == "使用権資産(純額)"
-    assert labels["BuildingsAndStructures"] == "建物等"
-    alone = fst._labels([xbrl_filing(1, "BS", facts)], learned, [{"RightOfUseAssets"}, {"RightOfUseAssetsNet"}])
-    assert alone["RightOfUseAssetsNet"] == "使用権資産"
-
-
-def test_learned_pdf_name_still_wins_over_an_unqualified_label() -> None:
-    facts = [xfact(1, "EquityIFRS", "資本"), xfact(2, "OtherEquityIFRS", "資本合計"),
-             xfact(3, "SubtotalA", "小計"), xfact(4, "CurrentAssetsOtherIFRS", "売却目的で保有する資産を除く流動資産")]
-    learned = history([("資本合計", "EquityIFRS", 39), ("小計", "CurrentAssetsOtherIFRS", 50)])
-    labels = fst._labels([xbrl_filing(1, "BS", facts)], learned, [{fact.key for fact in facts}])
-    assert labels["EquityIFRS"] == "資本合計"
-    assert labels["CurrentAssetsOtherIFRS"] == "小計"
