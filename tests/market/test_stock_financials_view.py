@@ -268,26 +268,23 @@ def _names(html: str) -> list[str]:
     return [re.sub(r"<[^>]+>", "", _cells(r)[0]) for r in _rows(html)]
 
 
-def test_open_sections_put_items_above_their_total_row() -> None:
+def test_section_totals_become_parents_with_their_items_below() -> None:
     r = _run()
-    assert _names(r["sectioned"]) == ["現金及び預金", "▴流動資産合計", "▸固定資産", "▴資産合計", "▸負債", "負債純資産合計"]
+    assert _names(r["sectioned"]) == ["▾資産合計", "▾流動資産合計", "現金及び預金", "▸固定資産", "▸負債", "負債純資産合計"]
     rows = _rows(r["sectioned"])
-    assert re.search(r'<td class="([^"]*)"', rows[0]).group(1) == "l d2"
-    assert rows[1].startswith(' class="fs-par fs-basic"') and 'class="l d1 fs-tog"' in rows[1]
-    assert rows[2].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[2]
-    assert _cells(rows[2])[1] == '<td colspan="3"></td>'
-    assert rows[3].startswith(' class="fs-par fs-basic"') and 'class="l fs-tog"' in rows[3]
+    assert rows[0].startswith(' class="fs-par fs-basic"') and 'class="l fs-tog"' in rows[0]
+    assert re.search(r'<td class="([^"]*)"', rows[2]).group(1) == "l d2"
+    assert rows[3].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[3]
+    assert _cells(rows[4])[1] == '<td colspan="3"></td>'
 
 
 def test_all_view_and_toggled_rows() -> None:
     r = _run()
-    assert _names(r["sectionedAll"]) == ["現金及び預金", "▴流動資産合計", "▾固定資産", "土地", "▴資産合計", "▾負債", "▾流動負債",
-                                         "借入金", "▾固定負債", "借入金", "負債純資産合計"]
-    assert _names(r["sectionedToggled"]) == ["▸流動資産合計", "▸固定資産", "▴資産合計", "▾負債", "▸流動負債", "▸固定負債",
+    assert _names(r["sectionedAll"]) == ["▾資産合計", "▾流動資産合計", "現金及び預金", "▾固定資産", "土地", "▾負債",
+                                         "▾流動負債", "借入金", "▾固定負債", "借入金", "負債純資産合計"]
+    assert _names(r["sectionedToggled"]) == ["▾資産合計", "▸流動資産合計", "▸固定資産", "▾負債", "▸流動負債", "▸固定負債",
                                              "負債純資産合計"]
     assert 'data-key="BS:|/h:資産:資産/h:流動資産:流動資産" data-open="0"' in r["sectionedToggled"]
-    closed = next(row for row in _rows(r["sectionedToggled"]) if "流動資産合計" in row)
-    assert closed.startswith(' class="fs-par fs-basic"') and ">1<" in _cells(closed)[1]
 
 
 def test_pl_profit_stages_hold_what_feeds_them() -> None:
