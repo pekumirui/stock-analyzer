@@ -23,6 +23,17 @@ const FSC_SERIES = {
 const FSC_PL_LINES = ["gross_profit", "operating_income", "ordinary_income", "net_income"];
 const fscEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
+const FSC_OPEN_KEY = "fs.chart.open";
+
+function fscLoadOpen(){
+  try {
+    const v = localStorage.getItem(FSC_OPEN_KEY);
+    if(v === "1" || v === "0") return v === "1";
+  } catch(e) {}
+  return !(typeof matchMedia === "function" && matchMedia("(max-width:640px)").matches);
+}
+
+let fscOpen = fscLoadOpen();
 let fscPlQuarter = true;
 let fscPlRate = false;
 let fscBsRate = false;
@@ -262,9 +273,12 @@ function drawFsChart(){
   const m = fsChartModel(d, {quarter: fscPlQuarter, rate: d.statement === "PL" ? fscPlRate : fscBsRate});
   if(!m){ host.hidden = true; host.innerHTML = ""; return; }
   host.hidden = false;
+  host.classList.toggle("closed", !fscOpen);
+  const fold = `<button type="button" class="fsc-fold" data-fsc="open" aria-expanded="${fscOpen}">${fscOpen ? "推移図を隠す" : "推移図を出す"}</button>`;
+  if(!fscOpen){ host.innerHTML = `<div class="row fsc-ctl">${fold}</div>`; return; }
   const legend = m.series.filter(s => fscHas(s.values)).map(s =>
     `<label><input type="checkbox" data-k="${s.key}"${fscOff.has(s.key) ? "" : " checked"}><i style="background:${s.color}"></i>${fscEsc(s.name)}</label>`).join("");
-  host.innerHTML = `<div class="row fsc-ctl">${fscControls(m.statement)}<span class="sub">${fscEsc(fscNote(m))}</span></div>`
+  host.innerHTML = `<div class="row fsc-ctl">${fold}${fscControls(m.statement)}<span class="sub">${fscEsc(fscNote(m))}</span></div>`
     + `<div class="fsc-plot"></div><div class="fsc-legend">${legend}</div>`;
   const plot = host.querySelector(".fsc-plot");
   plot.innerHTML = fsChartSvg(m, plot.clientWidth || 720, fscOff) + `<div class="fsc-tip" hidden></div>`;
@@ -306,6 +320,10 @@ if(typeof document !== "undefined" && document.addEventListener){
     const b = e.target.closest("[data-fsc]");
     if(!b) return;
     const v = b.dataset.v;
+    if(b.dataset.fsc === "open"){
+      fscOpen = !fscOpen;
+      try { localStorage.setItem(FSC_OPEN_KEY, fscOpen ? "1" : "0"); } catch(err) {}
+    }
     if(b.dataset.fsc === "pq") fscPlQuarter = v === "q";
     if(b.dataset.fsc === "pr") fscPlRate = v === "r";
     if(b.dataset.fsc === "br") fscBsRate = v === "r";
@@ -321,12 +339,12 @@ if(typeof document !== "undefined" && document.addEventListener){
   let fscWidth = 0;
   window.addEventListener("resize", () => {
     const host = $("#st-fs-chart");
-    if(!host || host.hidden || !fscLast || host.clientWidth === fscWidth) return;
+    if(!host || host.hidden || !fscOpen || !fscLast || host.clientWidth === fscWidth) return;
     fscWidth = host.clientWidth;
     requestAnimationFrame(drawFsChart);
   });
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {fsChartModel, fsChartAxes, fsChartSvg, fsChartTip, fsChartFmt};
+  module.exports = {fsChartModel, fsChartAxes, fsChartSvg, fsChartTip, fsChartFmt, fscLoadOpen};
 }
