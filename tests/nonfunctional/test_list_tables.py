@@ -141,8 +141,45 @@ def test_monthly_tables_use_sheet() -> None:
     src = (ROOT / "static/js/monthly.js").read_text(encoding="utf-8")
     assert 'id="monthly-tbl" class="sheet"' in src
     assert 'class="sheet monthly-tl"' in src
-    assert 'class="sheet">${head}${rows}</table>' in src
+    assert 'class="sheet">${head}<tbody>${rows}</tbody></table>' in src
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     assert "table.sheet .tl-sub { font-size:11px; }" in css
     pub = (ROOT / "app/monthly/public.py").read_text(encoding="utf-8")
     assert 'id="monthly-tbl" class="sheet"' in pub
+
+
+def test_sheet_headers_are_in_thead() -> None:
+    js = {p: (ROOT / "static/js" / p).read_text(encoding="utf-8")
+          for p in ("stock.js", "earnings.js", "stock-price.js", "monthly.js")}
+    assert "\"<thead><tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr></thead><tbody>\"" in js["stock.js"]
+    assert "\"<thead><tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr></thead><tbody>\"" in js["earnings.js"]
+    assert "let h = \"<thead><tr><th class='l'>発表日</th>" in js["stock-price.js"]
+    assert '$("#perf-tbl").innerHTML = h + "</tbody>";' in js["stock-price.js"]
+    assert "<thead><tr><th></th><th>金額</th><th>前年比</th></tr></thead>" in js["monthly.js"]
+    assert "<tbody>${rows}</tbody>" in js["monthly.js"]
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert ".monthly-pop table.sheet thead { position:static; }" in css
+
+
+def test_news_and_pts_wraps_scroll_vertically() -> None:
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    line = css.split("max-height:calc(100vh - 140px)")[0].rsplit("\n", 1)[-1]
+    for sel in ("#rk-sub-pts .tbl-wrap", "#st-news-list .tbl-wrap", "#en-list .tbl-wrap"):
+        assert sel in line
+
+
+def test_pts_pins_name_and_dims_next_session() -> None:
+    src = (ROOT / "static/js/pts.js").read_text(encoding="utf-8")
+    assert "<th class='pin0'>順位</th><th class='l name pin1'>銘柄</th>" in src
+    assert 'pinCols($("#pts-tbl"), 2)' in src
+    assert 'observe($("#rk-sub-pts .tbl-wrap"))' in src
+    assert "d.rows.every(r => r.next_open == null)" in src
+
+
+def test_holder_purpose_is_clipped_and_deck_row_head_striped() -> None:
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert "#hd-holdings td.purpose span, #st-holders-large td.purpose span { display:block; max-width:16em; overflow:hidden; text-overflow:ellipsis; }" in css
+    assert ".dk-tbl tbody tr:nth-child(even) th.dk-r { background:var(--row); }" in css
+    assert ".dk-tbl tbody tr:hover th.dk-r { background:var(--row-sel); }" in css
+    src = (ROOT / "static/js/holders.js").read_text(encoding="utf-8")
+    assert '`<td class="l purpose" title="${hdEsc(s)}"><span>' in src
