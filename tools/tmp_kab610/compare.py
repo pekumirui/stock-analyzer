@@ -23,11 +23,14 @@ def load(name, path, config=None):
 def cells(table):
     out = {}
     for t in [table, *table["earlier"]]:
+        shown = [r["key"] for r in t["rows"]]
         for c, p in enumerate(t["periods"]):
-            for r in t["rows"]:
+            present = [r for r in t["rows"] if r["cells"][c] is not None]
+            for n, r in enumerate(present):
                 cell = r["cells"][c]
-                if cell is not None:
-                    out[(p["period_end"], p["doc_id"], r["key"])] = (cell["value"], r["label"])
+                after = present[n - 1]["key"] if n else None
+                out[(p["period_end"], p["doc_id"], r["key"])] = (cell["value"], r["label"], r["indent"], after)
+        out[("rows", str(len(shown)), "")] = tuple(shown)
     return out
 
 
