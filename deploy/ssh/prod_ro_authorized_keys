@@ -1,0 +1,1 @@
+restrict,command="/home/stock/stock-analyzer/deploy/prod_ro_command.sh" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC1s9nI8rGa78Ro/vU152FHM2kZ89UbCHNYLfgXQLhaE azure-vm-prod-ro

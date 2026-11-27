@@ -7,22 +7,29 @@ HOST="${VPS_HOST:-160.251.179.50}"
 USER="${VPS_USER:-stock}"
 PORT="${VPS_PORT:-22}"
 
-if [[ -z "${VPS_SSH_KEY:-}" ]]; then
-  echo "VPS_SSH_KEY が無いので VPS SSH はスキップ"
+RO_KEY="${HOME}/.ssh/id_vps_ro"
+
+if [[ -z "${VPS_SSH_KEY:-}" && -z "${VPS_RO_KEY:-}" && ! -f "$RO_KEY" ]]; then
+  echo "VPS_SSH_KEY も VPS_RO_KEY も無いので VPS SSH はスキップ"
   exit 0
 fi
 
 mkdir -p "${HOME}/.ssh"
 chmod 700 "${HOME}/.ssh"
 
-python3 - <<'PY'
+write_key() {
+  KEY_ENV="$1" KEY_PATH="$2" python3 - <<'PY'
 import os
 from pathlib import Path
-raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
-key = Path.home() / ".ssh" / "id_vps"
+raw = os.environ[os.environ["KEY_ENV"]].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+key = Path(os.environ["KEY_PATH"])
 key.write_text(raw)
 key.chmod(0o600)
 PY
+}
+
+[[ -n "${VPS_SSH_KEY:-}" ]] && write_key VPS_SSH_KEY "${HOME}/.ssh/id_vps"
+[[ -n "${VPS_RO_KEY:-}" ]] && write_key VPS_RO_KEY "$RO_KEY"
 
 if [[ -f "$KNOWN_HOSTS" ]]; then
   grep -v '^#' "$KNOWN_HOSTS" | grep -v '^$' > "${HOME}/.ssh/known_hosts.vps" || true
@@ -41,25 +48,38 @@ fi
 CFG="${HOME}/.ssh/config"
 touch "$CFG"
 chmod 600 "$CFG"
-if ! grep -qE '^Host[[:space:]]+stock-vps[[:space:]]*$' "$CFG" 2>/dev/null; then
+
+add_host() {
+  local alias="$1" key="$2"
+  if grep -qE "^Host[[:space:]]+${alias}[[:space:]]*$" "$CFG" 2>/dev/null; then
+    return 0
+  fi
   cat >> "$CFG" <<EOF
 
-Host stock-vps
+Host ${alias}
   HostName ${HOST}
   User ${USER}
   Port ${PORT}
-  IdentityFile ~/.ssh/id_vps
+  IdentityFile ${key}
   IdentitiesOnly yes
   BatchMode yes
   StrictHostKeyChecking yes
   UserKnownHostsFile ~/.ssh/known_hosts
   ConnectTimeout 15
 EOF
+}
+
+if [[ -f "${HOME}/.ssh/id_vps" ]]; then
+  add_host stock-vps "~/.ssh/id_vps"
+  echo "VPS SSH ready: ssh stock-vps"
+  if ssh -o BatchMode=yes stock-vps 'echo ok $(hostname)' 2>/dev/null; then
+    echo "VPS SSH check: ok"
+  else
+    echo "VPS SSH check: failed (鍵が stock の authorized_keys にあるか確認)"
+  fi
 fi
 
-echo "VPS SSH ready: ssh stock-vps"
-if ssh -o BatchMode=yes stock-vps 'echo ok $(hostname)' 2>/dev/null; then
-  echo "VPS SSH check: ok"
-else
-  echo "VPS SSH check: failed (鍵が stock の authorized_keys にあるか確認)"
+if [[ -f "$RO_KEY" ]]; then
+  add_host stock-vps-ro "~/.ssh/id_vps_ro"
+  echo "本番の読み取り: ssh stock-vps-ro（slice / get だけ）"
 fi

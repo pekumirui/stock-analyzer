@@ -52,6 +52,15 @@ case "$cmd" in
   golden)
     "$python" jobs/golden_db.py
     ;;
+  prod)
+    shift
+    "$python" -m tools.prodslice.load "$@"
+    ;;
+  serve-prod)
+    port="${arg:-8000}"
+    echo "http://localhost:$port/app を開いてください（/api は本番へ中継）"
+    "$python" -m uvicorn tools.prodslice.proxy:app --port "$port"
+    ;;
   batch)
     "$python" jobs/market/check_demo.py
     if [[ -n "$arg" ]]; then
@@ -79,7 +88,7 @@ case "$cmd" in
     ;;
   reset)
     if [[ ! -f stock.db ]]; then
-      echo "DBはありません。そのまま golden / backfill できます。"
+      echo "DBはありません。そのまま golden / prod / backfill できます。"
       exit 0
     fi
     ans=""
@@ -104,7 +113,7 @@ case "$cmd" in
     "$python" -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy mcp -x app/xbrlp,.cursor,tmp,.venv
     ;;
   *)
-    echo "使い方: ./run.sh [serve|check|reset|migrate|golden|batch|backfill|lint] [引数]"
+    echo "使い方: ./run.sh [serve|serve-prod|check|reset|migrate|golden|prod|batch|backfill|lint] [引数]"
     exit 1
     ;;
 esac

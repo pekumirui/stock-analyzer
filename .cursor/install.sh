@@ -38,9 +38,17 @@ s["autoMemoryDirectory"] = str(pathlib.Path(".claude/memory").resolve())
 p.write_text(json.dumps(s, ensure_ascii=False, indent=2) + "\n")
 PY
 
-is_golden_db() {
-  [[ "$(.venv/bin/python -c 'import sqlite3; print(sqlite3.connect("stock.db").execute("PRAGMA user_version").fetchone()[0])')" == "1" ]]
+is_fixed_db() {
+  [[ "$(.venv/bin/python -c 'import sqlite3; print(sqlite3.connect("stock.db").execute("PRAGMA user_version").fetchone()[0])')" != "0" ]]
 }
+
+if [[ ! -f stock.db && "${STOCK_DB:-golden}" == "prod" ]]; then
+  echo "STOCK_DB=prod なので本番から ${STOCK_CODES:-（STOCK_CODES が空）} を切り出す"
+  if [[ -z "${STOCK_CODES:-}" ]] || ! ./run.sh prod "${STOCK_CODES}"; then
+    echo "本番から切り出せなかったのでゴールデンデータで作る" >&2
+    rm -f stock.db
+  fi
+fi
 
 if [[ ! -f stock.db ]]; then
   if [[ "${STOCK_DB:-golden}" == "full" ]]; then
@@ -54,8 +62,8 @@ if [[ ! -f stock.db ]]; then
     echo "stock.db が無いのでゴールデンデータで作る（STOCK_DB=full で backfill）"
     ./run.sh golden
   fi
-elif is_golden_db; then
-  echo "ゴールデンデータの DB なので日次 batch は回さない"
+elif is_fixed_db; then
+  echo "ゴールデンデータか本番の切り出しの DB なので日次 batch は回さない"
 elif [[ -n "${JQUANTS_API_KEY:-}" ]]; then
   echo "stock.db があるので日次 batch だけ回す"
   ./run.sh batch || echo "batch skipped"
@@ -63,6 +71,6 @@ else
   echo "JQUANTS_API_KEY が無いので stock.db は触らない"
 fi
 
-if [[ -f stock.db ]]; then
+if [[ -f stock.db && "${STOCK_DB:-golden}" != "prod" ]]; then
   bash .cursor/sync-monthly-from-vps.sh
 fi
