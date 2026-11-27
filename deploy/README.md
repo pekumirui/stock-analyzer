@@ -221,6 +221,28 @@ rsync -a --ignore-existing -e 'ssh -i ~/.ssh/vps_monthly_push -o IdentitiesOnly=
 
 失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
 
+## 本番の読み取り（prod_ro）
+
+エージェントの画面確認で本番のデータを読むための鍵（KAB-598）。`stock` の `authorized_keys` に `restrict,command="…/deploy/prod_ro_command.sh"` で載せるので、この鍵でできるのは次の 2 つだけ。シェル・書き込み・ポート転送・pty は無い。
+
+| 命令 | 動き |
+|---|---|
+| `slice 68570,72030` | `tools/prodslice/dump.py` が `stock.db` を `mode=ro` で開き、1 つの読み取りトランザクションで指定した銘柄（最大 50）の行を切り出して、gzip した SQLite を標準出力に返す。テーブルごとの扱い（全部写す・銘柄で絞る・親の行に付いてくる・参照される行だけ・写さない）は `tools/prodslice/plan.py` の `PLAN`。モデルの全テーブルが `PLAN` にあることをテストで縛っている |
+| `get /api/...` | VPS の中から `127.0.0.1:8000` のアプリに GET を 1 本投げ、1 行目に `ステータス content-type`、2 行目以降に本文を返す。パスは `/api/` で始まり、英数字と `/_.,:%=&?+~-` だけ、`..` なし、2048 文字まで |
+
+使う側:
+
+- `./run.sh prod 6857 7203`（`tools/prodslice/load.py`）: 切り出しを受け取り、手元の `stock.db` の表をブランチのモデルで作ってから、共通の列だけ入れ直す。作った DB は `PRAGMA user_version = 2` で、`install.sh` は日次 batch を回さない
+- `./run.sh serve-prod`（`tools/prodslice/proxy.py`）: `/api/*` の GET だけ `get` で本番へ、ほかは手元のアプリ。ssh は ControlMaster で 1 本を使い回す
+- ssh の行き先は `PROD_RO_SSH`、無ければ `stock-vps-ro`（読み取り用の鍵）、それも無ければ `stock-vps`（デプロイ鍵で `prod_ro_command.sh` を直接呼ぶ）
+
+鍵の置き方:
+
+- 公開鍵は `deploy/ssh/prod_ro_authorized_keys`（1 行 1 鍵）。`provision.sh` が `prod_ro.sh` で stock の `authorized_keys` に**足すだけ**（既存行は消さない・書き換えない。足し方は `monthly_push` と同じ `restricted_keys_append`）。`restrict` で始まり、`command=` がちょうど `prod_ro_command.sh` で、ほかのオプションは `from=` だけの行しか受け付けない
+- 秘密鍵は使う側だけに置く。Azure VM は `~/.ssh/id_vps_ro`。クラウドのエージェントは Secrets / 環境変数 `VPS_RO_KEY` に入れると、`.cursor/setup-vps-ssh.sh` が `~/.ssh/id_vps_ro` と `Host stock-vps-ro` を作る。リポジトリと GitHub Secrets には置かない
+- 鍵を足すときは使う側で `ssh-keygen -t ed25519 -f ~/.ssh/id_vps_ro`、公開鍵を上のファイルに `restrict,command="/home/stock/stock-analyzer/deploy/prod_ro_command.sh" ` を頭に付けて足し、デプロイする
+- 外すときは上のファイルから行を消し、VPS の `/home/stock/.ssh/authorized_keys` からも同じ行を手で消す（provision は消さない）
+
 ## ログ MCP（Grok）
 
 VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access なしで `/mcp` だけプロキシする。ポート 8010 は外に開けない。
@@ -629,6 +651,7 @@ cd /home/stock/stock-analyzer
 |---|---|
 | ログ・DB 件数・月次 ingest / 訂正 | `stock-analyzer` MCP（`https://kabukpi.com/mcp`）。ベンダーごとにコネクタ / MCP 設定で足す |
 | `--reparse` や `ir_monthly_html_ingest.py` などシェル | Secrets / 環境変数の `VPS_SSH_KEY` → `ssh stock-vps`。無ければ人がローカル PC から SSH |
+| 画面の確認に本番のデータを読む | `VPS_RO_KEY`（または `VPS_SSH_KEY`）→ `./run.sh prod` / `./run.sh serve-prod`（「本番の読み取り」） |
 
 `VPS_SSH_KEY` は GitHub Actions と同じデプロイ秘密鍵でよい（`stock` の `authorized_keys` に載っているもの）。チャットに貼らない。
 

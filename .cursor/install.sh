@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 sudo apt-get update -qq
-sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone
+sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone libatomic1
 
 # PATH で /usr/bin より先に立つラッパー。remote r2 を R2_* から定義する（鍵はディスクに書かない）。
 # AWS_CA_BUNDLE（プロキシ環境）があると S3 が LoadCustomCABundleError で落ちるので --ca-cert で渡し直す
@@ -27,6 +27,12 @@ sudo chmod 755 /usr/local/bin/rclone
 ./setup.sh
 .venv/bin/python -m pip install -q -r tools/requirements.txt -r requirements-dev.txt
 
+if compgen -G "/opt/pw-browsers/chromium-*" >/dev/null || compgen -G "${HOME}/.cache/ms-playwright/chromium-*" >/dev/null; then
+  echo "Chromium はもうあるので落とさない（shot.py が見つけて使う）"
+else
+  .venv/bin/python -m playwright install --with-deps chromium || echo "Chromium を入れられなかった（画面のスクリーンショットは撮れない）"
+fi
+
 bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
 
 # autoMemoryDirectory はコミットする .claude/settings.json では無視されるので settings.local.json に書く
@@ -38,9 +44,17 @@ s["autoMemoryDirectory"] = str(pathlib.Path(".claude/memory").resolve())
 p.write_text(json.dumps(s, ensure_ascii=False, indent=2) + "\n")
 PY
 
-is_golden_db() {
-  [[ "$(.venv/bin/python -c 'import sqlite3; print(sqlite3.connect("stock.db").execute("PRAGMA user_version").fetchone()[0])')" == "1" ]]
+is_fixed_db() {
+  [[ "$(.venv/bin/python -c 'import sqlite3; print(sqlite3.connect("stock.db").execute("PRAGMA user_version").fetchone()[0])')" != "0" ]]
 }
+
+if [[ ! -f stock.db && "${STOCK_DB:-golden}" == "prod" ]]; then
+  echo "STOCK_DB=prod なので本番から ${STOCK_CODES:-（STOCK_CODES が空）} を切り出す"
+  if [[ -z "${STOCK_CODES:-}" ]] || ! ./run.sh prod "${STOCK_CODES}"; then
+    echo "本番から切り出せなかったのでゴールデンデータで作る" >&2
+    rm -f stock.db
+  fi
+fi
 
 if [[ ! -f stock.db ]]; then
   if [[ "${STOCK_DB:-golden}" == "full" ]]; then
@@ -54,8 +68,8 @@ if [[ ! -f stock.db ]]; then
     echo "stock.db が無いのでゴールデンデータで作る（STOCK_DB=full で backfill）"
     ./run.sh golden
   fi
-elif is_golden_db; then
-  echo "ゴールデンデータの DB なので日次 batch は回さない"
+elif is_fixed_db; then
+  echo "ゴールデンデータか本番の切り出しの DB なので日次 batch は回さない"
 elif [[ -n "${JQUANTS_API_KEY:-}" ]]; then
   echo "stock.db があるので日次 batch だけ回す"
   ./run.sh batch || echo "batch skipped"
@@ -63,6 +77,6 @@ else
   echo "JQUANTS_API_KEY が無いので stock.db は触らない"
 fi
 
-if [[ -f stock.db ]]; then
+if [[ -f stock.db && "${STOCK_DB:-golden}" != "prod" ]]; then
   bash .cursor/sync-monthly-from-vps.sh
 fi

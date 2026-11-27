@@ -195,17 +195,22 @@ monthly_push_append_line() {
 monthly_push_sync_authorized_keys() {
   monthly_push_defaults
   monthly_push_validate_authorized_keys "$MONTHLY_PUSH_AUTH_SRC" || return 1
-  local dest user line existing blob existing_blob found_exact found_blob added
+  local dest
   dest="$(monthly_push_auth_dest)" || return 1
-  user="$MONTHLY_PUSH_USER"
-  monthly_push_ensure_auth_file "$dest" "$user" || return 1
+  monthly_push_ensure_auth_file "$dest" "$MONTHLY_PUSH_USER" || return 1
+  restricted_keys_append "$MONTHLY_PUSH_AUTH_SRC" "$dest" monthly_push
+}
+
+restricted_keys_append() {
+  local src="$1" dest="$2" tag="$3"
+  local line existing blob existing_blob found_exact found_blob added
   added=0
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "${line// }" || "$line" == \#* ]] && continue
     found_exact=0
     found_blob=0
     blob="$(monthly_push_pubkey_blob "$line")" || {
-      echo "monthly_push: cannot parse pubkey: ${line}" >&2
+      echo "${tag}: cannot parse pubkey: ${line}" >&2
       return 1
     }
     while IFS= read -r existing || [[ -n "$existing" ]]; do
@@ -223,15 +228,15 @@ monthly_push_sync_authorized_keys() {
       continue
     fi
     if [[ "$found_blob" -eq 1 ]]; then
-      echo "monthly_push: key already present with different options in ${dest}" >&2
+      echo "${tag}: key already present with different options in ${dest}" >&2
       return 1
     fi
     monthly_push_append_line "$dest" "$line"
     added=$((added + 1))
-    echo "monthly_push: added key to ${dest}"
-  done < "$MONTHLY_PUSH_AUTH_SRC"
+    echo "${tag}: added key to ${dest}"
+  done < "$src"
   if [[ "$added" -eq 0 ]]; then
-    echo "monthly_push: authorized_keys unchanged"
+    echo "${tag}: authorized_keys unchanged"
   fi
 }
 

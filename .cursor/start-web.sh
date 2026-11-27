@@ -11,7 +11,11 @@ if curl -sf -o /dev/null http://127.0.0.1:8000/; then
   exit 0
 fi
 
-nohup ./run.sh serve >>"$LOG" 2>&1 &
+if [[ "${WEB_API:-}" == "prod" ]]; then
+  nohup ./run.sh serve-prod >>"$LOG" 2>&1 &
+else
+  nohup ./run.sh serve >>"$LOG" 2>&1 &
+fi
 
 for _ in $(seq 1 60); do
   if curl -sf -o /dev/null http://127.0.0.1:8000/; then

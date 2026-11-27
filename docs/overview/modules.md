@@ -190,6 +190,7 @@ flowchart LR
 | `tools/monthly` | `app`, `app/api`, `app/monthly`, `app/xbrl`, `jobs`, `jobs/monthly` |
 | `tools/ops` |  |
 | `tools/overview` | `tools/dataflow`, `tools/jobs` |
+| `tools/prodslice` | `app` |
 | `tools/schema` | `app`, `tools/dataflow` |
 | `tools/screen` | `app`, `tools/dataflow` |
 | `tools/supply` | `app/supply` |
