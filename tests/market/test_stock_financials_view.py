@@ -268,24 +268,22 @@ def _names(html: str) -> list[str]:
     return [re.sub(r"<[^>]+>", "", _cells(r)[0]) for r in _rows(html)]
 
 
-def test_open_sections_read_like_the_filing_and_closed_ones_show_the_total() -> None:
+def test_open_sections_put_items_above_their_total_row() -> None:
     r = _run()
-    assert _names(r["sectioned"]) == ["▾資産", "▾流動資産", "現金及び預金", "流動資産合計", "▸固定資産", "資産合計", "▸負債",
-                                      "負債純資産合計"]
+    assert _names(r["sectioned"]) == ["現金及び預金", "▴流動資産合計", "▸固定資産", "▴資産合計", "▸負債", "負債純資産合計"]
     rows = _rows(r["sectioned"])
-    assert rows[0].startswith(' class="fs-sec fs-sec0"') and 'class="l fs-tog"' in rows[0]
-    assert _cells(rows[0])[1] == '<td colspan="3"></td>'
-    assert rows[3].startswith(' class="fs-par fs-basic"') and "fs-tog" not in rows[3]
-    assert re.search(r'<td class="([^"]*)"', rows[3]).group(1) == "l d2"
-    assert rows[4].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[4]
-    assert rows[5].startswith(' class="fs-par fs-basic"') and re.search(r'<td class="([^"]*)"', rows[5]).group(1) == "l d1"
+    assert re.search(r'<td class="([^"]*)"', rows[0]).group(1) == "l d2"
+    assert rows[1].startswith(' class="fs-par fs-basic"') and 'class="l d1 fs-tog"' in rows[1]
+    assert rows[2].startswith(' class="fs-sec fs-sec1"') and 'title="固定資産"' in rows[2]
+    assert _cells(rows[2])[1] == '<td colspan="3"></td>'
+    assert rows[3].startswith(' class="fs-par fs-basic"') and 'class="l fs-tog"' in rows[3]
 
 
 def test_all_view_and_toggled_rows() -> None:
     r = _run()
-    assert _names(r["sectionedAll"]) == ["▾資産", "▾流動資産", "現金及び預金", "流動資産合計", "▾固定資産", "土地", "資産合計",
-                                         "▾負債", "▾流動負債", "借入金", "▾固定負債", "借入金", "負債純資産合計"]
-    assert _names(r["sectionedToggled"]) == ["▾資産", "▸流動資産合計", "▸固定資産", "資産合計", "▾負債", "▸流動負債", "▸固定負債",
+    assert _names(r["sectionedAll"]) == ["現金及び預金", "▴流動資産合計", "▾固定資産", "土地", "▴資産合計", "▾負債", "▾流動負債",
+                                         "借入金", "▾固定負債", "借入金", "負債純資産合計"]
+    assert _names(r["sectionedToggled"]) == ["▸流動資産合計", "▸固定資産", "▴資産合計", "▾負債", "▸流動負債", "▸固定負債",
                                              "負債純資産合計"]
     assert 'data-key="BS:|/h:資産:資産/h:流動資産:流動資産" data-open="0"' in r["sectionedToggled"]
     closed = next(row for row in _rows(r["sectionedToggled"]) if "流動資産合計" in row)
