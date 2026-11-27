@@ -1995,6 +1995,22 @@ def test_rows_outside_bs_do_not_take_balances_of_other_statements() -> None:
     assert learned.maps["BS"]["流動負債合計"].key == "CurrentLiabilities"
 
 
+def test_cf_rows_stay_on_their_side_of_the_subtotal_when_the_newest_period_has_none() -> None:
+    def column(end: date, order: list[str]) -> fst.Column:
+        f = fst.Filing(id=end.toordinal(), doc_id=str(end), source="edinet", period_type="FY", period_end=end,
+                       submitted=str(end), standard="JPGAAP")
+        return fst.Column(f, {k: 1.0 for k in order}, order, {k: "edinet" for k in order})
+
+    old = column(date(2024, 3, 31), ["IncomeBeforeIncomeTaxes", "OtherNetOpeCF", "SubtotalOpeCF", "IncomeTaxesPaidOpeCF",
+                                     "NetCashProvidedByUsedInOperatingActivities"])
+    new = column(date(2024, 9, 30), ["IncomeBeforeIncomeTaxes", "IncomeTaxesPaidOpeCF", "OtherNetOpeCF",
+                                     "NetCashProvidedByUsedInOperatingActivities"])
+    assert fst._row_keys([old, new], "CF") == [
+        "IncomeBeforeIncomeTaxes", "OtherNetOpeCF", "SubtotalOpeCF", "IncomeTaxesPaidOpeCF",
+        "NetCashProvidedByUsedInOperatingActivities",
+    ]
+
+
 def test_bs_rows_do_not_take_income_statement_items() -> None:
     bs = [xbrl_fact(1, "CashAndDeposits", 943, instant=True), xbrl_fact(2, "CurrentAssets", 3430, instant=True),
           xbrl_fact(3, "Assets", 5587, instant=True)]

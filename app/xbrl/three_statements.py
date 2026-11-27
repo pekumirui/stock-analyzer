@@ -656,7 +656,47 @@ def _row_keys(columns: Sequence[Column], statement: str) -> list[str]:
         keys = _merge(keys, column.order)
     if statement == "CF":
         keys = [k for k in keys if not _opening_cash(k)]
+        keys = _keep_subtotal_sides(keys, columns)
     return keys
+
+
+def _operating_span(order: Sequence[str]) -> tuple[int | None, int]:
+    end = next((i for i, k in enumerate(order) if CF_SECTION_RE.match(k.removeprefix("ext:"))), len(order))
+    sub = next((i for i, k in enumerate(order[:end]) if STANDARD_SUBTOTAL_RE.match(k)), None)
+    return sub, end
+
+
+def _keep_subtotal_sides(keys: list[str], columns: Sequence[Column]) -> list[str]:
+    sides: dict[str, set[bool]] = defaultdict(set)
+    homes: dict[str, list[str]] = {}
+    for column in reversed(columns):
+        sub, end = _operating_span(column.order)
+        if sub is None:
+            continue
+        for i, key in enumerate(column.order[:end]):
+            if i != sub:
+                sides[key].add(i > sub)
+                homes.setdefault(key, column.order[:end])
+    sub, end = _operating_span(keys)
+    if sub is None:
+        return keys
+    stray = [k for i, k in enumerate(keys[:end]) if len(sides.get(k, ())) == 1 and (i > sub) not in sides[k]]
+    if not stray:
+        return keys
+    out = [k for k in keys if k not in stray]
+    for key in stray:
+        after = next(iter(sides[key]))
+        home = homes[key]
+        prev = home[:home.index(key)]
+        sub_at = next(i for i, k in enumerate(out) if STANDARD_SUBTOTAL_RE.match(k))
+        anchor = next((out.index(k) for k in reversed(prev) if k in out and (out.index(k) >= sub_at) == after
+                       and out.index(k) < _operating_span(out)[1]), sub_at if after else None)
+        if anchor is None:
+            first = next((out.index(k) for k in home[home.index(key) + 1:] if k in out and out.index(k) < sub_at), sub_at)
+            out.insert(first, key)
+        else:
+            out.insert(anchor + 1, key)
+    return out
 
 
 @lru_cache(maxsize=1)
