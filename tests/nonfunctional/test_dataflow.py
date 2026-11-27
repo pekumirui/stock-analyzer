@@ -41,7 +41,9 @@ def test_strings_comments_ctes_and_ddl_are_ignored():
 
 def test_match_route():
     assert match_route("/api/v1/tables/\x00/ingest", "/api/v1/tables/{code}/ingest")
+    assert match_route("/api/v1/tables/\x00", "/api/v1/tables/{code}")
     assert not match_route("/api/v1/tables/\x00", "/api/v1/tables/{code}/ingest")
+    assert not match_route("/api/v1/tables/\x00", "/api/v1/tables/publications")
     assert match_route("/api/v1/tables/", "/api/v1/tables")
 
 

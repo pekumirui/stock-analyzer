@@ -111,9 +111,11 @@ flowchart LR
 | `DELETE /api/v1/tables/{code}/{year}/elements` |  |
 | `GET /api/stock/filings/{filing_id}/documents/{seq}` |  |
 | `GET /api/stock/pdf/{disclosure_no}` |  |
+| `GET /api/v1/tables/publications` |  |
 | `GET /api/v1/tables/{code}/{year}/doc` |  |
 | `POST /api/v1/tables/{code}/ingest` | `jobs/monthly/ir_monthly_html_ingest.py`, `jobs/monthly/ir_monthly_json_ingest.py`, `jobs/monthly/ir_monthly_xls_ingest.py`, `jobs/monthly/tdnet_monthly_pdf_ingest.py` |
 | `POST /api/v1/tables/{code}/{year}/elements` |  |
+| `PUT /api/v1/tables/publications/{code}/{year}/{month}` |  |
 | `PUT /api/v1/tables/{code}/industry` |  |
 | `PUT /api/v1/tables/{code}/{year}/doc` |  |
 | `PUT /api/v1/tables/{code}/{year}/elements` |  |

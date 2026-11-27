@@ -147,6 +147,84 @@ def test_put_on_a_new_month_is_manual_and_clearing_the_month_drops_the_row():
     assert (2026, 7) in _rows(code)
 
 
+def test_open_publications_are_paged_and_a_researched_date_does_not_downgrade_exact():
+    c = TestClient(app)
+    code = "72041"
+    other = "72042"
+    _fy(code)
+    _fy(other)
+    first = _ingest(c, code, [7], {"basis": "tdnet", "on": "2026-08-05", "confidence": "exact", "ref": "kept.pdf"})
+    assert first.status_code == 200, first.text
+    second = _ingest(c, code, [5, 6], {"basis": "tdnet", "on": "2026-07-06", "confidence": "estimated", "ref": "guess.pdf"})
+    assert second.status_code == 200, second.text
+    third = _ingest(c, other, [1], None)
+    assert third.status_code == 200, third.text
+
+    listed = c.get("/api/v1/tables/publications", params={"code": code, "limit": 1})
+    assert listed.status_code == 200, listed.text
+    page = listed.json()
+    assert page["total"] == 2
+    assert len(page["rows"]) == 1
+    assert page["rows"][0]["confidence"] != "exact"
+    assert page["rows"][0]["unknown_reason"] in (None, "carried_history")
+    assert page["next_offset"] == 1
+    rest = c.get("/api/v1/tables/publications", params={"code": code, "offset": 1, "limit": 1}).json()
+    assert rest["next_offset"] is None
+    assert {row["month"] for row in page["rows"] + rest["rows"]} == {5, 6}
+
+    only = c.get("/api/v1/tables/publications", params={
+        "code": code, "confidence": "estimated", "year_from": 2026, "year_to": 2026,
+    })
+    assert only.status_code == 200, only.text
+    rows = only.json()["rows"]
+    assert len(rows) == 1
+    assert rows[0]["month"] == 6
+    assert rows[0]["published_on"] == "2026-07-06"
+    assert rows[0]["unknown_reason"] is None
+    assert rows[0]["confidence"] == "estimated"
+    hidden = c.get("/api/v1/tables/publications", params={"code": code, "confidence": "exact"})
+    assert hidden.status_code == 400, hidden.text
+
+    blocked = c.put(
+        f"/api/v1/tables/publications/{code}/2026/7",
+        json={"publication": {"basis": "ir_page", "on": "2026-08-01", "confidence": "exact", "ref": "https://ir.example/a"}},
+    )
+    assert blocked.status_code == 200, blocked.text
+    assert blocked.json()["status"] == "kept"
+    assert _rows(code)[2026, 7] == ("tdnet", "2026-08-05", None, None, "exact")
+
+    upgraded = c.put(
+        f"/api/v1/tables/publications/{code}/2026/6",
+        json={
+            "publication": {
+                "basis": "tdnet", "on": "2026-07-08", "time": "15:00:00",
+                "confidence": "exact", "ref": "20260708123456",
+            },
+        },
+    )
+    assert upgraded.status_code == 200, upgraded.text
+    assert upgraded.json()["status"] == "updated"
+    assert _rows(code)[2026, 6] == ("tdnet", "2026-07-08", "15:00:00", None, "exact")
+    assert upgraded.json()["source_ref"] == "20260708123456"
+
+    forced = c.put(
+        f"/api/v1/tables/publications/{code}/2026/7",
+        json={
+            "publication": {"basis": "ir_page", "on": "2026-08-01", "confidence": "exact", "ref": "https://ir.example/b"},
+            "override": True,
+        },
+    )
+    assert forced.status_code == 200, forced.text
+    assert forced.json()["status"] == "updated"
+    assert _rows(code)[2026, 7][:2] == ("ir_page", "2026-08-01")
+
+    missing = c.put(
+        f"/api/v1/tables/publications/{code}/2026/9",
+        json={"publication": {"basis": "tdnet", "on": "2026-10-05", "confidence": "exact"}},
+    )
+    assert missing.status_code == 404, missing.text
+
+
 def test_unknown_with_a_date_is_rejected():
     c = TestClient(app)
     code = "72037"

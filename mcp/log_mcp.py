@@ -207,7 +207,8 @@ MONTHLY_TAILS = frozenset({
     "", "/elements", "/values/batch", "/doc", MONTHLY_INGEST_TAIL, MONTHLY_INDUSTRY_TAIL,
 })
 MONTHLY_URL_PATH_RE = re.compile(
-    r"^/api/v1/tables(?:/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch|/doc)?|/ingest|/industry))?$"
+    r"^/api/v1/tables(?:/publications(?:/[0-9][0-9A-Z]{3}[0-9]?/\d{4}/(?:[1-9]|1[0-2]))?"
+    r"|/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch|/doc)?|/ingest|/industry))?$"
 )
 _CODE_ERR = "code must be 4-5 characters (e.g. 7203, 72030, 262A0)"
 
@@ -834,6 +835,35 @@ def monthly_ingest_url(code: str) -> str:
 def monthly_industry_url(code: str) -> str:
     """PUT /api/v1/tables/{code}/industry. No year in the path."""
     return monthly_api_url(code, tail=MONTHLY_INDUSTRY_TAIL)
+
+
+def _monthly_checked_url(path: str) -> str:
+    if ".." in path or not path.startswith(MONTHLY_PATH_PREFIX):
+        raise ValueError("invalid monthly API path")
+    if not MONTHLY_URL_PATH_RE.fullmatch(path):
+        raise ValueError("invalid monthly API path")
+    url = app_http_base() + path
+    parsed = urlparse(url)
+    if not _is_loopback_host(parsed.hostname) or parsed.path != path:
+        raise ValueError("monthly API URL must be loopback /api/v1/tables")
+    return url
+
+
+def monthly_publications_url() -> str:
+    return _monthly_checked_url(f"{MONTHLY_PATH_PREFIX}/publications")
+
+
+def monthly_publication_url(code: str, year: int, month: int) -> str:
+    safe = quote(code, safe="")
+    if safe != code or not CODE_RE.fullmatch(code):
+        raise ValueError(_CODE_ERR)
+    if not isinstance(year, int) or year < 1900 or year > 2100:
+        raise ValueError("year must be a 4-digit integer")
+    if not isinstance(month, int) or month < 1 or month > 12:
+        raise ValueError("month must be 1-12")
+    return _monthly_checked_url(
+        f"{MONTHLY_PATH_PREFIX}/publications/{safe}/{year}/{month}"
+    )
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -1774,13 +1804,88 @@ def tool_monthly_add_element(args: dict[str, Any]) -> str:
     return call_monthly_api("POST", monthly_api_url(code, year, "/elements"), body)
 
 
+_PUBLICATION_SOURCES = {
+    "tdnet_pdf": "tdnet",
+    "tdnet": "tdnet",
+    "ir_html": "ir_page",
+    "ir_page": "ir_page",
+    "first_seen": "first_seen",
+    "unknown": "unknown",
+}
+_PUBLICATION_BOT_KEYS = ("date", "source", "doc_id", "filename", "url")
+
+
+def _publication_ref(raw: dict[str, Any]) -> str | None:
+    parts: list[str] = []
+    for key in ("doc_id", "filename", "url"):
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    if not parts:
+        value = raw.get("ref")
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    if not parts:
+        return None
+    ref = " ".join(parts)
+    if len(ref) > 240:
+        raise ValueError("publication doc_id and filename together must be at most 240 characters")
+    return ref
+
+
+def publication_body(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raise ValueError("publication must be an object")
+    if not any(key in raw for key in _PUBLICATION_BOT_KEYS):
+        return raw
+    source = raw.get("source", raw.get("basis"))
+    if not isinstance(source, str) or source not in _PUBLICATION_SOURCES:
+        raise ValueError(
+            "publication.source is required: tdnet_pdf for a TDnet PDF, "
+            "or ir_page, ir_html, first_seen, unknown"
+        )
+    basis = _PUBLICATION_SOURCES[source]
+    date = raw.get("date", raw.get("on"))
+    if basis == "unknown":
+        if date not in (None, ""):
+            raise ValueError("publication.date is omitted when source is unknown")
+    elif not isinstance(date, str):
+        raise ValueError("publication.date is the disclosure date YYYY-MM-DD")
+    out: dict[str, Any] = {"basis": basis}
+    if isinstance(date, str) and date:
+        out["on"] = date
+    if raw.get("time") not in (None, ""):
+        if not isinstance(raw.get("time"), str):
+            raise ValueError("publication.time is HH:MM or HH:MM:SS")
+        out["time"] = raw["time"]
+    if raw.get("confidence") is not None:
+        if raw["confidence"] not in ("exact", "estimated", "unknown"):
+            raise ValueError("publication.confidence is exact, estimated, or unknown")
+        out["confidence"] = raw["confidence"]
+    ref = _publication_ref(raw)
+    if ref is not None:
+        out["ref"] = ref
+    if basis == "unknown":
+        reason = raw.get("reason")
+        out["reason"] = reason if isinstance(reason, str) and reason else "unspecified"
+    return out
+
+
+def _with_publication(body: dict[str, Any], args: dict[str, Any]) -> dict[str, Any]:
+    if "publication" in args:
+        body["publication"] = publication_body(args["publication"])
+    return body
+
+
 def tool_monthly_put_values(args: dict[str, Any]) -> str:
     code = parse_monthly_code(args.get("code"))
     year = parse_monthly_year(args.get("year"))
     element = args.get("element")
     if not isinstance(element, str) or not element.strip():
         raise ValueError("element is required")
-    body = {"element": element, "values": parse_monthly_values(args.get("values"))}
+    body = _with_publication(
+        {"element": element, "values": parse_monthly_values(args.get("values"))}, args,
+    )
     return call_monthly_api("PUT", monthly_api_url(code, year, "/values/batch"), body)
 
 
@@ -1815,7 +1920,7 @@ def tool_monthly_put_doc(args: dict[str, Any]) -> str:
             if not isinstance(args[flag], bool):
                 raise ValueError(f"{flag} must be a boolean")
             body[flag] = args[flag]
-    return call_monthly_api("PUT", monthly_api_url(code, year, "/doc"), body)
+    return call_monthly_api("PUT", monthly_api_url(code, year, "/doc"), _with_publication(body, args))
 
 
 def _parse_ingest_months(raw: Any) -> list[int]:
@@ -1900,12 +2005,72 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
         body["dry_run"] = args["dry_run"]
     if "only_months" in args:
         body["only_months"] = _parse_only_months(args["only_months"])
+    return call_monthly_api("POST", monthly_ingest_url(code), _with_publication(body, args))
+
+
+def _optional_int(raw: Any, name: str, lo: int, hi: int) -> int | None:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < lo or raw > hi:
+        raise ValueError(f"{name} must be an integer {lo}-{hi}")
+    return raw
+
+
+def tool_monthly_publications(args: dict[str, Any]) -> str:
+    params: dict[str, str] = {}
+    if args.get("code") not in (None, ""):
+        params["code"] = parse_monthly_code(args.get("code"))
+    year_from = _optional_int(args.get("year_from"), "year_from", 1900, 2100)
+    year_to = _optional_int(args.get("year_to"), "year_to", 1900, 2100)
+    if year_from is not None:
+        params["year_from"] = str(year_from)
+    if year_to is not None:
+        params["year_to"] = str(year_to)
+    if year_from is not None and year_to is not None and year_from > year_to:
+        raise ValueError("year_from must be <= year_to")
+    confidence = args.get("confidence")
+    if confidence not in (None, ""):
+        if confidence not in ("estimated", "unknown"):
+            raise ValueError("confidence must be estimated or unknown")
+        params["confidence"] = confidence
+    if "limit" in args:
+        limit = _optional_int(args.get("limit"), "limit", 1, 200)
+        if limit is not None:
+            params["limit"] = str(limit)
+    if "offset" in args:
+        offset = _optional_int(args.get("offset"), "offset", 0, 1000000)
+        if offset is not None:
+            params["offset"] = str(offset)
+    url = monthly_publications_url()
+    if params:
+        url = url + "?" + urlencode(params)
+    return call_monthly_api("GET", url)
+
+
+def tool_monthly_set_publication(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    month = parse_monthly_month(args.get("month"))
     if "publication" in args:
-        raw = args["publication"]
-        if not isinstance(raw, dict):
-            raise ValueError("publication must be an object")
-        body["publication"] = raw
-    return call_monthly_api("POST", monthly_ingest_url(code), body)
+        pub = publication_body(args["publication"])
+    else:
+        raw = {
+            key: args[key]
+            for key in (
+                "date", "time", "confidence", "source", "doc_id", "filename", "url",
+                "basis", "on", "reason", "ref",
+            )
+            if key in args
+        }
+        if not raw:
+            raise ValueError("date and source are required")
+        pub = publication_body(raw)
+    body: dict[str, Any] = {"publication": pub}
+    if "override" in args:
+        if not isinstance(args["override"], bool):
+            raise ValueError("override must be a boolean")
+        body["override"] = args["override"]
+    return call_monthly_api("PUT", monthly_publication_url(code, year, month), body)
 
 
 def tool_xbrl_compare(args: dict[str, Any]) -> str:
@@ -2125,6 +2290,37 @@ def tool_metrics_query(args: dict[str, Any]) -> str:
     if len(result) > METRICS_MAX_SERIES:
         lines.append(f"... {len(result) - METRICS_MAX_SERIES} more series (narrow with labels or aggregate)")
     return "\n".join(lines)
+
+
+_PUBLICATION_TEXT = (
+    "TDnet の月次を入れるときは publication を付ける。"
+    "date は開示日 YYYY-MM-DD（as_of は暦年の割当だけで、公表日にしない）。"
+    "time は分かれば開示時刻 HH:MM か HH:MM:SS。"
+    "source は tdnet_pdf。doc_id は開示番号、filename は PDF のファイル名。"
+    "題名からその月だと分かれば confidence は exact。"
+    "publication を省くと公表日は unknown。"
+)
+_PUBLICATION_SCHEMA = {
+    "type": "object",
+    "description": _PUBLICATION_TEXT,
+    "properties": {
+        "date": {"type": "string", "description": "Disclosure date YYYY-MM-DD. Not as_of."},
+        "time": {"type": "string", "description": "Optional HH:MM or HH:MM:SS."},
+        "confidence": {
+            "type": "string",
+            "enum": ["exact", "estimated", "unknown"],
+            "description": "exact when the title names the month. estimated for a 45-day window or a fetch date.",
+        },
+        "source": {
+            "type": "string",
+            "enum": ["tdnet_pdf", "tdnet", "ir_page", "ir_html", "first_seen", "unknown"],
+            "description": "tdnet_pdf for a TDnet monthly PDF.",
+        },
+        "doc_id": {"type": "string", "description": "TDnet disclosure number."},
+        "filename": {"type": "string", "description": "PDF filename."},
+        "url": {"type": "string", "description": "IR BANK URL, IR archive URL, or other source page."},
+    },
+}
 
 
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
@@ -2592,7 +2788,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_add_element,
     ),
     "monthly_put_values": (
-        "月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。保存形（指数）を送る。unit は無い。+100 しない。value の null は削除。新規登録は monthly_ingest。",
+        "月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。保存形（指数）を送る。unit は無い。+100 しない。value の null は削除。新規登録は monthly_ingest。新しい月のセルを作るときも publication を付ける。省くとその月は unknown/manual。"
+        + _PUBLICATION_TEXT,
         {
             "type": "object",
             "properties": {
@@ -2611,6 +2808,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                         "required": ["month", "value"],
                     },
                 },
+                "publication": _PUBLICATION_SCHEMA,
             },
             "required": ["code", "year", "element", "values"],
         },
@@ -2642,7 +2840,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_get_doc,
     ),
     "monthly_put_doc": (
-        "monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /api/v1/tables/{code}/{year}/doc。1 トランザクション。行名は渡したまま（正規化・エイリアスを掛けない）。行の改名は was に元の名前、element に新しい名前（値はサーバーが移す）。文書に無い行は削除。was の無い新しい名前は作成（unit 必須）。values を省いた行は値をそのまま、渡した行は 12 か月を丸ごと置き換え（無い月・null は削除）。values は保存形（+100 しない）。version が GET 後に変わっていれば 409 VERSION_MISMATCH（GET からやり直す）。改名・作成・削除・unit 変更は allow_structure_change=true のときだけ（無ければ 409 STRUCTURE_CHANGED）。dry_run=true は書かずに差分（changes）を返す。木に入らない行は warnings。",
+        "monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /api/v1/tables/{code}/{year}/doc。1 トランザクション。行名は渡したまま（正規化・エイリアスを掛けない）。行の改名は was に元の名前、element に新しい名前（値はサーバーが移す）。文書に無い行は削除。was の無い新しい名前は作成（unit 必須）。values を省いた行は値をそのまま、渡した行は 12 か月を丸ごと置き換え（無い月・null は削除）。values は保存形（+100 しない）。version が GET 後に変わっていれば 409 VERSION_MISMATCH（GET からやり直す）。改名・作成・削除・unit 変更は allow_structure_change=true のときだけ（無ければ 409 STRUCTURE_CHANGED）。dry_run=true は書かずに差分（changes）を返す。木に入らない行は warnings。新しい月の値を書くときも publication を付ける。省くとその月は unknown/manual。"
+        + _PUBLICATION_TEXT,
         {
             "type": "object",
             "properties": {
@@ -2668,6 +2867,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 },
                 "allow_structure_change": {"type": "boolean", "description": "allow rename / create / delete / unit change"},
                 "dry_run": {"type": "boolean", "description": "return changes without writing"},
+                "publication": _PUBLICATION_SCHEMA,
             },
             "required": ["code", "year", "version", "elements"],
         },
@@ -2686,7 +2886,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_set_industry,
     ),
     "monthly_ingest": (
-        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。dry_run=true は fy_end_month / layout / mapping と書くはずのセルを返し、DB には書かない。only_months は YYYY-MM で、mapping のあと該当列だけ書く。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。",
+        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。dry_run=true は fy_end_month / layout / mapping と書くはずのセルを返し、DB には書かない。only_months は YYYY-MM で、mapping のあと該当列だけ書く。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。"
+        + _PUBLICATION_TEXT,
         {
             "type": "object",
             "properties": {
@@ -2729,33 +2930,62 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                     "description": "Calendar YYYY-MM. After mapping, write only those columns.",
                     "items": {"type": "string"},
                 },
-                "publication": {
-                    "type": "object",
-                    "description": "Publication of the newly added month. Omit to store unknown/unspecified. as_of is not copied.",
-                    "properties": {
-                        "basis": {
-                            "type": "string",
-                            "enum": ["tdnet", "ir_page", "first_seen", "unknown"],
-                        },
-                        "on": {"type": "string", "description": "YYYY-MM-DD. Required unless basis is unknown."},
-                        "time": {"type": "string", "description": "HH:MM:SS when the source has a clock."},
-                        "reason": {
-                            "type": "string",
-                            "description": "Required when basis is unknown. carried_history, manual, no_source, no_page_date, unspecified.",
-                        },
-                        "ref": {"type": "string", "description": "Filename, disclosure number, or URL."},
-                        "confidence": {
-                            "type": "string",
-                            "enum": ["exact", "estimated", "unknown"],
-                            "description": "exact: title or page date identifies the month. estimated: 45-day window or fetch date. unknown: no date. Omit and the server infers exact for a dated basis, estimated for first_seen, unknown for unknown.",
-                        },
-                    },
-                    "required": ["basis"],
-                },
+                "publication": _PUBLICATION_SCHEMA,
             },
             "required": ["code", "months", "rows", "as_of"],
         },
         tool_monthly_ingest,
+    ),
+    "monthly_publications": (
+        "exact でない月次の公表日を code, year, month の順で返す。埋め戻しのあと、estimated と unknown を調べ、本当の開示日を monthly_set_publication で入れる。localhost:8000 の GET /api/v1/tables/publications。code / year_from / year_to / confidence（estimated か unknown。省くと両方）で絞る。limit は既定 50、最大 200。offset で次のページ。next_offset が null なら終わり。各行は published_on, published_time, basis, confidence, unknown_reason, source_ref。exact は返さない。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code. Omit for every code."},
+                "year_from": {"type": "integer", "description": "inclusive calendar year"},
+                "year_to": {"type": "integer", "description": "inclusive calendar year"},
+                "confidence": {
+                    "type": "string",
+                    "enum": ["estimated", "unknown"],
+                    "description": "Omit to list both estimated and unknown.",
+                },
+                "limit": {"type": "integer", "description": "1-200. Default 50."},
+                "offset": {"type": "integer", "description": "0-based. Use next_offset from the previous page."},
+            },
+        },
+        tool_monthly_publications,
+    ),
+    "monthly_set_publication": (
+        "値は再取り込みしない。銘柄×暦年×月の公表日だけを書く。localhost:8000 の PUT /api/v1/tables/publications/{code}/{year}/{month}。date は調べた開示日 YYYY-MM-DD。source は tdnet_pdf、ir_page、ir_html、first_seen、unknown。doc_id は TDnet の開示番号。url は IR BANK や IR アーカイブの URL。filename は PDF 名。題名やページからその月だと分かれば confidence は exact。既に exact の行は override=true のときだけ上書きする。省くと exact は変えない。その月に値が無ければ 404。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "year": {"type": "integer", "description": "4-digit calendar year of the month"},
+                "month": {"type": "integer", "description": "1-12"},
+                "date": {"type": "string", "description": "Disclosure date YYYY-MM-DD found by research."},
+                "time": {"type": "string", "description": "Optional HH:MM or HH:MM:SS."},
+                "confidence": {
+                    "type": "string",
+                    "enum": ["exact", "estimated", "unknown"],
+                    "description": "exact when the source names this month.",
+                },
+                "source": {
+                    "type": "string",
+                    "enum": ["tdnet_pdf", "tdnet", "ir_page", "ir_html", "first_seen", "unknown"],
+                    "description": "tdnet_pdf for a TDnet disclosure. ir_page for an IR page date.",
+                },
+                "doc_id": {"type": "string", "description": "TDnet disclosure number."},
+                "filename": {"type": "string", "description": "PDF filename."},
+                "url": {"type": "string", "description": "IR BANK URL, IR archive URL, or other source page."},
+                "override": {
+                    "type": "boolean",
+                    "description": "Replace an existing exact row. Omit or false leaves exact rows unchanged.",
+                },
+            },
+            "required": ["code", "year", "month", "date", "source"],
+        },
+        tool_monthly_set_publication,
     ),
 }
 

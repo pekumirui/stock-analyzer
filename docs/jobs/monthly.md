@@ -53,6 +53,8 @@
 
 戻せない月は `unknown` / `no_source`。後の PDF が古い月を題名に含んでいても、その月の最初の開示より遅い日付では上書きしない。
 
+埋め戻しのあと、`exact` でない月は MCP の `monthly_publications` で読む。調べた開示日は `monthly_set_publication` で、値を再取り込みせずにその月へ書く。`date` は開示日、`source` は `tdnet_pdf` か `ir_page`、`doc_id` は開示番号、`url` は IR BANK や IR アーカイブの URL。既に `exact` の行は `override: true` のときだけ上書きする。
+
 ### PDF 取込（`POST /api/v1/tables/{code}/ingest`）
 
 月次テーブルの `year` は常に暦年（1〜12 月）で保持する。新規取込 API はクライアントから `year` を受け取らず、PDF や HTML の左から右への月並び `months` と開示日 `as_of` からサーバ側で各列の暦年を決定する。年を指定する `PUT` 系エンドポイントは既存セルの訂正専用である。

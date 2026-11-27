@@ -236,7 +236,7 @@ stateDiagram-v2
 | `tdnet` | `ir_page` | 同じ確かさで、開示日より前のページ上の暦日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
 | `tdnet` | `first_seen` | 同じ確かさで、開示日より前の観測日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
 
-`exact` を `estimated` に戻す矢印は無い。取得日（`first_seen` は `estimated`）は、題名から特定した `exact` の開示日が後でも置き換わらない。
+`exact` を `estimated` に戻す矢印は無い。取得日（`first_seen` は `estimated`）は、題名から特定した `exact` の開示日が後でも置き換わらない。`assign` は、既に `exact` の行を `override` が真のときだけ、渡された公表日で上書きする。
 
 ## monthly_publications.confidence
 

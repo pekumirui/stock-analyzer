@@ -264,6 +264,37 @@ def record_written(db, code: str, before: set[tuple[int, int]], pub: Pub) -> Non
             note(db, code, year, month, history)
 
 
+class NoMonthValues(PublicationError):
+    pass
+
+
+def _has_value(db, code: str, year: int, month: int) -> bool:
+    db.flush()
+    return (
+        db.query(MonthlyValue.code)
+        .filter(
+            MonthlyValue.code == code,
+            MonthlyValue.year == year,
+            MonthlyValue.month == month,
+        )
+        .first()
+        is not None
+    )
+
+
+def assign(db, code: str, year: int, month: int, pub: Pub, *, override: bool = False) -> str:
+    check(pub)
+    if not _has_value(db, code, year, month):
+        raise NoMonthValues("その月の値がありません。")
+    row = db.get(MonthlyPublication, (code, year, month))
+    if row is not None and row.confidence == "exact" and not override:
+        return "keep"
+    if row is not None and override:
+        _write(row, check(pub), _now())
+        return "replace"
+    return note(db, code, year, month, pub)
+
+
 def record_manual(db, code: str, before: set[tuple[int, int]]) -> None:
     after = value_months(db, code)
     _drop_gone(db, code, before, after)

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
-from ...monthly.publications import record_manual, value_months
+from ...monthly.publications import value_months
 from ...monthly.store import delete_monthly_element, record_element_source, rename_monthly_element
 from ...models import MonthlyValue
 from ...monthly.ingest import (
@@ -14,7 +14,7 @@ from ._common import (
     ApiError, _canonical_element, _element_unit, _ensure_element, _get_element, _get_table,
     _ingest_error, _lookup_element, _parse_code, _parse_element, _parse_month, _parse_unit,
     _parse_value, _parse_year, _require_object, _require_stock, _upsert_value,
-    forbid_proxied_monthly_write,
+    forbid_proxied_monthly_write, publication_from_body, stamp_new_months,
 )
 
 router = APIRouter()
@@ -142,11 +142,12 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
     _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
+    pub = publication_from_body(body)
 
     def _write() -> None:
         before = value_months(db, code)
         _upsert_value(db, code, year_i, element, month, value)
-        record_manual(db, code, before)
+        stamp_new_months(db, code, before, pub)
 
     run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "updated": [month]}
@@ -179,12 +180,13 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
     _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
+    pub = publication_from_body(body)
 
     def _write() -> None:
         before = value_months(db, code)
         for month, value in ops.items():
             _upsert_value(db, code, year_i, element, month, value)
-        record_manual(db, code, before)
+        stamp_new_months(db, code, before, pub)
 
     run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "updated": list(ops.keys())}

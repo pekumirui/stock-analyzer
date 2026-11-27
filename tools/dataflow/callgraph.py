@@ -238,4 +238,4 @@ def match_route(url: str, template: str) -> bool:
     a, b = url.rstrip("/").split("/"), template.rstrip("/").split("/")
     if len(a) != len(b):
         return False
-    return all(x == y or _PLACEHOLDER in x or (y.startswith("{") and y.endswith("}")) for x, y in zip(a, b))
+    return all(x == y or (y.startswith("{") and y.endswith("}")) for x, y in zip(a, b))

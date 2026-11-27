@@ -82,9 +82,11 @@ FastAPI が公開する REST エンドポイントの応答構造・エラー規
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次行を登録する（`unit` 必須、表が無ければ作成）。トークン正規化と銘柄エイリアス適用後に保存名と完全一致する既存行があれば冪等に `200`、新規作成時は `201` を返す |
 | `PUT /api/v1/tables/{code}/{year}/elements` | 既存行の `unit` を変更し、新しい `unit` の正規名へ改名する（既に同名行があれば値を統合する） |
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 値が 1 件も入っていない空の行を削除する（表自体は残す） |
-| `PUT /api/v1/tables/{code}/{year}/values` | 単一セル `{element, month, value}` を更新または削除（`value: null`）する |
-| `PUT /api/v1/tables/{code}/{year}/values/batch` | 1 行の複数月 `values: [{month, value}, ...]` を検証後に 1 トランザクションで更新する |
-| `PUT /api/v1/tables/{code}/{year}/doc` | 文書全体 `{version, elements, allow_structure_change?, dry_run?}` を 1 トランザクションで反映する。行名には正規化やエイリアスを掛けず、`was` 指定で改名、省略行は削除、新規名は末尾追加として扱う |
+| `PUT /api/v1/tables/{code}/{year}/values` | 単一セル `{element, month, value, publication?}` を更新または削除（`value: null`）する。`publication` が無い新しい月は `unknown` / `manual` |
+| `PUT /api/v1/tables/{code}/{year}/values/batch` | 1 行の複数月 `values: [{month, value}, ...]` を検証後に 1 トランザクションで更新する。任意の `publication` は、その投入で初めて値が付いた月のうちいちばん新しい月の公表日になる |
+| `PUT /api/v1/tables/{code}/{year}/doc` | 文書全体 `{version, elements, allow_structure_change?, dry_run?, publication?}` を 1 トランザクションで反映する。行名には正規化やエイリアスを掛けず、`was` 指定で改名、省略行は削除、新規名は末尾追加として扱う。`publication` があるとその投入で初めて値が付いた月のうちいちばん新しい月の公表日になり、無いときは新しい月を `unknown` / `manual` にする |
+| `GET /api/v1/tables/publications` | `confidence` が `exact` でない公表日を `code`, `year`, `month` の順で返す。`code`・`year_from`・`year_to`・`confidence`（`estimated` か `unknown`）で絞る。`limit`（既定 50、最大 200）と `offset`。`next_offset` が `null` なら終わり |
+| `PUT /api/v1/tables/publications/{code}/{year}/{month}` | 値は書き換えず、その月の公表日だけを `{publication, override?}` で書く。その月に値が無ければ `404`。`confidence` が `exact` の行は `override: true` のときだけ上書きする |
 | `PUT /api/v1/tables/{code}/industry` | 銘柄の月次業種 `{industry}`（1〜50 文字）を更新する |
 
 ### 月次 API のエラー応答

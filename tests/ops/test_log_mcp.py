@@ -366,6 +366,8 @@ def test_http_auth_and_tools() -> None:
         "monthly_put_doc",
         "monthly_set_industry",
         "monthly_ingest",
+        "monthly_publications",
+        "monthly_set_publication",
         "earnings_day",
         "earnings_detail",
         "earnings_docs",
@@ -1593,7 +1595,10 @@ def _monthly_stub():
                 path = _urlparse(self.path).path
                 length = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(length) if length else b""
-                recorded.append({"method": method, "path": path, "host": self.headers.get("Host", ""), "body": raw})
+                recorded.append({
+                    "method": method, "path": path, "raw": self.path,
+                    "host": self.headers.get("Host", ""), "body": raw,
+                })
                 status, payload = _stub_handle(method, path, raw, store)
                 body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
                 self.send_response(status)
@@ -2989,7 +2994,105 @@ def main() -> None:
     test_fx_tools()
     test_monthly_tools()
     test_monthly_ingest_tool()
+    test_monthly_publication_tools()
     print("ok: log mcp")
+
+
+def test_monthly_publication_tools() -> None:
+    prev_http = os.environ.get("MCP_APP_HTTP")
+    try:
+        with _monthly_stub() as (port, recorded):
+            os.environ["MCP_APP_HTTP"] = f"http://127.0.0.1:{port}"
+            desc = m.TOOLS["monthly_ingest"][0]
+            if "tdnet_pdf" not in desc or "開示日" not in desc:
+                raise SystemExit(f"ingest description must tell the bot to pass the TDnet date: {desc}")
+            props = m.TOOLS["monthly_ingest"][1]["properties"]["publication"]["properties"]
+            for key in ("date", "time", "confidence", "source", "doc_id", "filename", "url"):
+                if key not in props:
+                    raise SystemExit(f"publication schema missing {key}")
+            if "monthly_publications" not in m.TOOLS or "monthly_set_publication" not in m.TOOLS:
+                raise SystemExit("publication tools are not registered")
+
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "72030",
+                    "months": [7],
+                    "rows": [{"element": "売上高", "values": {"7": 1.0}, "unit": "number"}],
+                    "as_of": "2026-08-05",
+                    "publication": {
+                        "date": "2026-08-05",
+                        "time": "15:30",
+                        "confidence": "exact",
+                        "source": "tdnet_pdf",
+                        "doc_id": "20260805456789",
+                        "filename": "20260805_7203_2026年7月度.pdf",
+                    },
+                },
+            )
+            if is_error and "404" not in text and "NOT_FOUND" not in text:
+                raise SystemExit(f"publication ingest: {text}")
+            sent = json.loads(recorded[-1]["body"].decode("utf-8"))
+            if sent.get("publication") != {
+                "basis": "tdnet",
+                "on": "2026-08-05",
+                "time": "15:30",
+                "confidence": "exact",
+                "ref": "20260805456789 20260805_7203_2026年7月度.pdf",
+            }:
+                raise SystemExit(f"publication must map onto the API body: {sent}")
+
+            before = len(recorded)
+            text, _is_error = m.call_tool(
+                "monthly_publications",
+                {"code": "7203", "year_from": 2024, "year_to": 2026, "confidence": "unknown", "limit": 50, "offset": 0},
+            )
+            if len(recorded) != before + 1:
+                raise SystemExit(f"list must hit HTTP: {recorded[before:]}")
+            got = recorded[-1]
+            if got["method"] != "GET" or got["path"] != "/api/v1/tables/publications":
+                raise SystemExit(f"list path: {got}")
+            if "code=72030" not in got["raw"] or "confidence=unknown" not in got["raw"]:
+                raise SystemExit(f"list query: {got['raw']}")
+            if "year_from=2024" not in got["raw"] or "limit=50" not in got["raw"]:
+                raise SystemExit(f"list query: {got['raw']}")
+
+            text, _is_error = m.call_tool(
+                "monthly_set_publication",
+                {
+                    "code": "72030",
+                    "year": 2026,
+                    "month": 3,
+                    "date": "2026-04-08",
+                    "time": "15:00:00",
+                    "confidence": "exact",
+                    "source": "ir_page",
+                    "url": "https://irbank.net/7203/monthly",
+                    "override": False,
+                },
+            )
+            body = json.loads(recorded[-1]["body"].decode("utf-8"))
+            if recorded[-1]["method"] != "PUT" or recorded[-1]["path"] != "/api/v1/tables/publications/72030/2026/3":
+                raise SystemExit(f"set path: {recorded[-1]}")
+            if body.get("override") is not False:
+                raise SystemExit(f"override must be forwarded: {body}")
+            if body.get("publication") != {
+                "basis": "ir_page",
+                "on": "2026-04-08",
+                "time": "15:00:00",
+                "confidence": "exact",
+                "ref": "https://irbank.net/7203/monthly",
+            }:
+                raise SystemExit(f"set body: {body}")
+
+            text, is_error = m.call_tool("monthly_set_publication", {"code": "72030", "year": 2026, "month": 3})
+            if not is_error:
+                raise SystemExit(f"set without a date must fail: {text}")
+    finally:
+        if prev_http is None:
+            os.environ.pop("MCP_APP_HTTP", None)
+        else:
+            os.environ["MCP_APP_HTTP"] = prev_http
 
 
 if __name__ == "__main__":
