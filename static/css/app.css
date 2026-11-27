@@ -138,10 +138,6 @@
   #st-fs-legend .fs-lg { margin-right:12px; }
   #st-fs-chart { margin:8px 0 12px; }
   #st-fs-chart .fsc-ctl { gap:8px; align-items:center; flex-wrap:wrap; }
-  #st-fs-chart.closed { margin:6px 0; }
-  #st-fs-chart .fsc-fold { background:transparent; border:1px solid var(--border); border-radius:8px; color:var(--sub); padding:5px 12px; cursor:pointer; font-size:13px; }
-  #st-fs-chart .fsc-fold::before { content:"▾"; margin-right:4px; }
-  #st-fs-chart .fsc-fold[aria-expanded="false"]::before { content:"▸"; }
   #st-fs-chart .fsc-ctl .sub { font-size:12px; }
   #st-fs-chart .fsc-plot { position:relative; width:100%; max-width:960px; margin-top:6px; }
   #st-fs-chart .fsc-plot svg { display:block; width:100%; height:auto; touch-action:pan-y; }
