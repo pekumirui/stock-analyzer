@@ -1487,6 +1487,13 @@ def test_auto_tree_71340() -> None:
     m = monthly_element_label("海外 米国 店舗数", "number", "99990")
     if _auto_split(m) != ("米国", "海外 店舗数"):
         _fail(f"country 海外 米国: {_auto_split(m)!r}")
+    if (m["country"], m["segment"], m["display"]) != ("海外", "米国", "海外 米国 店舗数"):
+        _fail(f"海外 米国 keeps both words: {m!r}")
+    m = monthly_element_label("米国 ボウリング 売上高", "number", "46800")
+    if _auto_split(m) != ("ボウリング", "米国 売上高"):
+        _fail(f"country 米国 ボウリング: {_auto_split(m)!r}")
+    if m["display"] != "米国 ボウリング 売上高":
+        _fail(f"米国 ボウリング name: {m['display']!r}")
     m = monthly_element_label("日本 鳥貴族 店舗数", "number", "99990")
     if _auto_split(m) != ("鳥貴族", "日本 店舗数"):
         _fail(f"country 日本 鳥貴族: {_auto_split(m)!r}")
@@ -1509,20 +1516,85 @@ def test_auto_tree_71340() -> None:
 
 def test_auto_tree_country_total_keeps_country() -> None:
     """46800 ラウンドワン: `日本 総 売上高` は `日本 売上高`。節（ボウリング …）も `日本 売上高` なので
-    会社の `日本 ` 付きの行を国なしに寄せない（寄せると国の語の無い 米国 の節の `売上高` の親になる）。
+    会社の `日本 ` 付きの行を国なしに寄せない。`米国 ボウリング 売上高` は同じボウリング節の `米国 売上高`。
+    `米国 総` は全体の直下。米国だけの業態は `米国` を節名に残さない。
     """
-    from app.monthly.tree import build_auto_tree
+    from app.monthly.tree import auto_tree_payload, build_auto_tree
 
     months = {2025: [
-        ("日本 ボウリング 売上高", "number"), ("日本 カラオケ 売上高", "number"), ("日本 総 売上高", "number"),
-        ("米国 ボウリング 売上高", "number"), ("米国 総 売上高", "number"),
+        ("日本 ボウリング 売上高", "number"), ("日本 ボウリング 既存 売上高(前年比)", "yoy_index"),
+        ("日本 カラオケ 売上高", "number"), ("日本 総 売上高", "number"),
+        ("日本 総 既存 売上高(前年比)", "yoy_index"),
+        ("米国 ボウリング 売上高", "number"), ("米国 ボウリング 既存 売上高(前年比)", "yoy_index"),
+        ("米国 飲食・パーティー等 売上高", "number"),
+        ("米国 総 売上高", "number"), ("米国 総 既存 売上高(前年比)", "yoy_index"),
     ]}
-    rows = build_auto_tree("46800", months).rows
-    if (rows["日本 総 売上高"]["path"], rows["日本 総 売上高"]["metric"]) != (["全体"], "日本 売上高"):
-        _fail(f"46800 日本 総: {rows['日本 総 売上高']!r}")
-    if (rows["日本 ボウリング 売上高"]["path"], rows["日本 ボウリング 売上高"]["metric"]) \
-            != (["全体", "ボウリング"], "日本 売上高"):
-        _fail(f"46800 日本 ボウリング: {rows['日本 ボウリング 売上高']!r}")
+    auto = build_auto_tree("46800", months)
+    rows = auto.rows
+    want = {
+        "日本 総 売上高": (["全体"], "日本 売上高"),
+        "日本 総 既存 売上高(前年比)": (["全体"], "日本 既存 売上高"),
+        "日本 ボウリング 売上高": (["全体", "ボウリング"], "日本 売上高"),
+        "日本 ボウリング 既存 売上高(前年比)": (["全体", "ボウリング"], "日本 既存 売上高"),
+        "日本 カラオケ 売上高": (["全体", "カラオケ"], "日本 売上高"),
+        "米国 ボウリング 売上高": (["全体", "ボウリング"], "米国 売上高"),
+        "米国 ボウリング 既存 売上高(前年比)": (["全体", "ボウリング"], "米国 既存 売上高"),
+        "米国 飲食・パーティー等 売上高": (["全体", "飲食・パーティー等"], "米国 売上高"),
+        "米国 総 売上高": (["全体"], "米国 売上高"),
+        "米国 総 既存 売上高(前年比)": (["全体"], "米国 既存 売上高"),
+    }
+    got = {k: (v["path"], v["metric"]) for k, v in rows.items()}
+    if got != want:
+        _fail(f"46800 country tree: {got!r}")
+    if auto.metric_parent.get("米国 売上高") in ("売上高", "日本 売上高"):
+        _fail(f"46800 米国 売上高 must not fold onto 日本 or bare 売上高: {auto.metric_parent!r}")
+    if auto.metric_parent.get("日本 売上高") == "売上高":
+        _fail(f"46800 日本 売上高 must keep its country: {auto.metric_parent!r}")
+    pay = auto_tree_payload(auto, [e for e, _ in months[2025]])
+    kids = {c["name"]: c for c in pay["tree"][0]["children"]}
+    if "米国" in kids or "米国 ボウリング" in kids:
+        _fail(f"46800 must not keep a 米国 section: {sorted(kids)!r}")
+    if "米国 ボウリング 売上高" not in kids["ボウリング"]["elements"]:
+        _fail(f"46800 ボウリング rows: {kids['ボウリング']!r}")
+    if "日本 ボウリング 売上高" not in kids["ボウリング"]["elements"]:
+        _fail(f"46800 ボウリング must still hold 日本: {kids['ボウリング']!r}")
+    if "米国 総 売上高" not in pay["tree"][0]["elements"]:
+        _fail(f"46800 米国 総 must sit on 全体: {pay['tree'][0]['elements']!r}")
+
+
+def test_auto_tree_26950() -> None:
+    from app.monthly.tree import auto_tree_payload, build_auto_tree
+
+    months = {2026: [
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("既存 売上高(前年比)", "yoy_index"),
+        ("日本 店舗数", "number"),
+        ("米国 店舗数", "number"),
+        ("アジア 店舗数", "number"),
+        ("店舗数", "number"),
+    ]}
+    auto = build_auto_tree("26950", months)
+    got = {k: (v["path"], v["metric"]) for k, v in auto.rows.items()}
+    want = {
+        "全店 売上高(前年比)": (["全体"], "全店 売上高"),
+        "既存 売上高(前年比)": (["全体"], "既存 売上高"),
+        "日本 店舗数": (["全体"], "日本 店舗数"),
+        "米国 店舗数": (["全体"], "米国 店舗数"),
+        "アジア 店舗数": (["全体", "アジア"], "店舗数"),
+        "店舗数": (["全体"], "店舗数"),
+    }
+    if got != want:
+        _fail(f"26950 tree: {got!r}")
+    if auto.metric_parent.get("米国 店舗数") != "店舗数":
+        _fail(f"26950 米国 店舗数 parent: {auto.metric_parent!r}")
+    if auto.metric_parent.get("日本 店舗数") != "店舗数":
+        _fail(f"26950 日本 店舗数 parent: {auto.metric_parent!r}")
+    pay = auto_tree_payload(auto, [e for e, _ in months[2026]])
+    kids = [c["name"] for c in pay["tree"][0]["children"]]
+    if kids != ["アジア"]:
+        _fail(f"26950 children: {kids!r}")
+    if "米国 店舗数" not in pay["tree"][0]["elements"]:
+        _fail(f"26950 米国 店舗数 must sit on 全体: {pay['tree'][0]['elements']!r}")
 
 
 def test_auto_tree_76850() -> None:
