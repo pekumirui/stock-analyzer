@@ -306,7 +306,7 @@ def test_pl_profit_stages_hold_what_feeds_them() -> None:
 def test_cf_sections_and_basic_items_inside() -> None:
     tree = _run()["trees"]["cf"]
     assert [(d, name, basic) for d, name, basic, _ in tree] == [
-        (0, "営業活動によるキャッシュ・フロー", True), (1, "小計", False), (2, "税金等調整前当期純利益", False),
+        (0, "営業活動によるキャッシュ・フロー", True), (1, "税金等調整前当期純利益", True), (1, "小計", False),
         (2, "減価償却費", True), (2, "その他", False), (1, "法人税等の支払額", False),
         (0, "投資活動によるキャッシュ・フロー", True), (1, "有形固定資産の取得による支出", True), (1, "投資有価証券の取得による支出", False),
         (0, "財務活動によるキャッシュ・フロー", True), (1, "配当金の支払額", True), (1, "非支配株主への配当金の支払額", False),

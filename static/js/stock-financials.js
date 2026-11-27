@@ -102,6 +102,8 @@ const FS_REVENUE = new Set(["NetSales", "NetSalesIFRS", "SalesIFRS", "Revenue", 
   "OperatingRevenueELE", "OperatingRevenueSEC", "OperatingRevenuesSE", "OperatingRevenuesSpecific",
   "OperatingRevenuesREIT", "NetSalesOfCompletedConstructionContracts", "NetSalesOfCompletedConstructionContractsCNS",
   "NetSalesAndOperatingRevenues", "NetSalesUS", "OperatingRevenuesUS", "RevenuesUS", "TotalRevenuesUS"]);
+const FS_CF_START = new Set(["IncomeBeforeIncomeTaxes", "ProfitLossBeforeTaxIFRS", "ProfitLoss", "ProfitLossIFRS"]);
+const FS_LEAD = {PL: FS_REVENUE, CF: FS_CF_START};
 const FS_BASIC_RE = {
   CF: [/^Depreciation\w*OpeCF(IFRS)?$/, /^PurchaseOfPropertyPlantAndEquipment\w*InvCF(IFRS)?$/,
     /^(Cash)?DividendsPaid(FinCF)?(IFRS)?$/, /^(PurchaseOf|PaymentsForPurchaseOf)Treasury(Stock|Shares)FinCF(IFRS)?$/],
@@ -111,7 +113,7 @@ const FS_TOTAL_RE = /^(NetCashProvidedByUsedIn\w+Activities|OtherComprehensiveIn
 
 function fsIsBasic(key, st){
   if(!key || /^(ext|pdf):/.test(key)) return false;
-  if(FS_REVENUE.has(key) && st === "PL") return true;
+  if(FS_LEAD[st] && FS_LEAD[st].has(key)) return true;
   return (FS_BASIC[st] || new Set()).has(key) || (FS_BASIC_RE[st] || []).some(re => re.test(key));
 }
 
@@ -130,7 +132,8 @@ function fsGatherKind(n, st, root){
 function fsGather(items, st, root){
   const out = [];
   let minor = 0, major = 0;
-  const isRev = m => !!m.row && FS_REVENUE.has(m.row.key);
+  const lead = FS_LEAD[st] || new Set();
+  const isRev = m => !!m.row && lead.has(m.row.key);
   for(const n of items){
     const kind = fsGatherKind(n, st, root);
     if(kind){
