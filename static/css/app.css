@@ -132,6 +132,17 @@
   #st-fs-meta { font-size:12px; }
   #st-fs-legend { font-size:12px; margin:0 0 6px; }
   #st-fs-legend .qb { margin-right:3px; }
+  #st-fs-chart { margin:8px 0 12px; }
+  #st-fs-chart .fsc-ctl { gap:8px; align-items:center; flex-wrap:wrap; }
+  #st-fs-chart .fsc-ctl .sub { font-size:12px; }
+  #st-fs-chart .fsc-plot { position:relative; width:100%; max-width:960px; margin-top:6px; }
+  #st-fs-chart .fsc-plot svg { display:block; width:100%; height:auto; touch-action:pan-y; }
+  #st-fs-chart .fsc-tip { position:absolute; top:8px; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:12px; box-shadow:0 2px 8px rgba(0,0,0,.12); pointer-events:none; white-space:nowrap; z-index:2; }
+  #st-fs-chart .fsc-tip-rows { display:grid; grid-template-columns:auto auto; gap:1px 10px; margin-top:3px; }
+  #st-fs-chart .fsc-tip .num { text-align:right; font-variant-numeric:tabular-nums; }
+  #st-fs-chart i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+  #st-fs-chart .fsc-legend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:12px; margin-top:4px; }
+  #st-fs-chart .fsc-legend label { display:inline-flex; align-items:center; gap:3px; cursor:pointer; }
   #st-sub-financials .fs { width:auto; }
   #st-sub-financials .fs-earlier { margin:14px 0 4px; }
   #st-sub-financials .fs td:first-child, #st-sub-financials .fs th:first-child { white-space:normal; width:12em; min-width:12em; box-shadow:inset -1px 0 0 var(--border); }

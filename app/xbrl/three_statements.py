@@ -14,6 +14,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH
+from app.xbrl.fs_chart import chart_series
 
 __all__ = [
     "DEFAULT_PERIODS",
@@ -408,11 +409,13 @@ def financial_table(
         units = {**other_units, **units}
     shown = {id(c) for c in columns[-periods:]}
     tables: list[dict[str, Any]] = []
+    chart: dict[str, Any] = {"series": {}}
     for run in _standard_runs(columns):
         visible = [c for c in run if id(c) in shown]
         if visible:
             merged = merge_split_rows(run, statement, labels, units, excluded)
             tables.append(_table(run, visible, merged, statement, labels, units))
+            chart = chart_series(run, visible, statement, labels)
     empty = None
     if not tables:
         tables.append(_table([], [], {}, statement, labels, units, consolidated))
@@ -428,6 +431,7 @@ def financial_table(
         **tables[-1],
         "earlier": tables[-2::-1],
         "empty": empty,
+        "chart": chart,
     }
 
 

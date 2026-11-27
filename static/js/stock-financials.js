@@ -12,6 +12,7 @@ function resetStockFs(){
   stockFsCache = new Map();
   $("#st-fs-tbl").innerHTML = "";
   $("#st-fs-meta").textContent = "";
+  clearFsChart();
 }
 
 function fsAmount(v, unit){
@@ -136,6 +137,7 @@ async function renderStockFs(){
     $("#st-fs-legend").hidden = true;
     $("#st-fs-tbl").innerHTML = `<tr><td class="l sub">読み込めませんでした。</td></tr>`;
     $("#st-fs-earlier").innerHTML = "";
+    clearFsChart();
     return;
   }
   if(!current()) return;
@@ -144,6 +146,7 @@ async function renderStockFs(){
   $("#st-fs-legend").hidden = !has;
   $("#st-fs-tbl").innerHTML = fsTableHtml(d);
   $("#st-fs-earlier").innerHTML = fsEarlierHtml(d);
+  renderFsChart(d);
 }
 
 document.querySelectorAll("#st-fs-tabs .ftab").forEach(b => b.onclick = () => {
