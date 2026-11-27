@@ -615,6 +615,8 @@ def test_canonicalize_element_label() -> None:
         _fail("売上変化 is not 売上高")
     if canonicalize_element_label("全店売上", "yoy_index") != "全店 売上高(前年比)":
         _fail("全店売上 endswith 売上")
+    if canonicalize_element_label("日本 総売上", "number") != "日本 総売上 売上高":
+        _fail("総売上 must stay one word")
     if canonicalize_element_label("既存店 単月売上", "yoy_pct") != "既存 売上高(前年比)":
         _fail("単月売上 drops 単月 time-axis")
     if canonicalize_element_label("全店 単月売上", "yoy_pct") != "全店 売上高(前年比)":
@@ -920,6 +922,72 @@ def test_canonicalize_element_label() -> None:
         ("72030", 2024, "売上高", ["売上高(前年比)"]),
     ]:
         _fail(f"plan_yoy_duplicate_merges: {planned!r}")
+
+
+def test_total_sales_token_is_not_split() -> None:
+    cases = (
+        ("日本 総売上", "number", "日本 総売上 売上高"),
+        ("米国 総売上", "number", "米国 総売上 売上高"),
+        ("総売上", "number", "総売上 売上高"),
+        ("ボウリング 総売上", "number", "ボウリング 総売上 売上高"),
+        ("日本 ボウリング 総売上", "number", "日本 ボウリング 総売上 売上高"),
+        ("日本 総売上", "yoy_index", "日本 総売上 売上高(前年比)"),
+        ("日本 総売上 既存", "yoy_index", "日本 総売上 既存 売上高(前年比)"),
+        ("米国 総売上 既存", "yoy_index", "米国 総売上 既存 売上高(前年比)"),
+        ("日本 既存 総売上", "yoy_index", "日本 総売上 既存 売上高(前年比)"),
+        ("米国 既存店 総売上", "yoy_index", "米国 総売上 既存 売上高(前年比)"),
+        ("日本 総 売上高", "number", "日本 総 売上高"),
+        ("米国 総 売上高", "number", "米国 総 売上高"),
+        ("日本 総 既存 売上高(前年比)", "yoy_index", "日本 総 既存 売上高(前年比)"),
+        ("米国 総 既存 売上高(前年比)", "yoy_index", "米国 総 既存 売上高(前年比)"),
+        ("総売上高", "number", "総 売上高"),
+        ("総売上高", "yoy_index", "総 売上高(前年比)"),
+        ("連結総売上高", "number", "連結総 売上高"),
+        ("全店売上", "number", "全店 売上高"),
+        ("全店売上", "yoy_index", "全店 売上高(前年比)"),
+        ("既存店売上", "number", "既存 売上高"),
+        ("既存店売上", "yoy_index", "既存 売上高(前年比)"),
+        ("既存店売上高", "number", "既存 売上高"),
+        ("既存店売上高", "yoy_index", "既存 売上高(前年比)"),
+        ("全店売上高", "number", "全店 売上高"),
+        ("全店売上高", "yoy_index", "全店 売上高(前年比)"),
+        ("売上総利益", "number", "売上総利益"),
+        ("売上総利益", "yoy_index", "売上総利益(前年比)"),
+        ("百貨店事業 総額 売上高", "number", "百貨店事業 総額 売上高"),
+        ("総額 売上高", "number", "総額 売上高"),
+        ("売上変化", "yoy_pct", "売上変化(前年比)"),
+        ("国内総売上", "number", "国内総 売上高"),
+        ("総客数", "number", "総 客数"),
+    )
+    for src, unit, want in cases:
+        got = canonicalize_element_label(src, unit)
+        if got != want:
+            _fail(f"label {src!r} {unit} → {got!r}, want {want!r}")
+        if canonicalize_element_label(got, unit) != got:
+            _fail(f"not idempotent {src!r} → {got!r}")
+    lab = monthly_element_label("日本 総売上", "number", "46800")
+    if (
+        lab["country"] != "日本"
+        or lab["segment"] != "総売上"
+        or "総" in lab["segment"].split()
+        or lab["metric"] != "売上高"
+        or lab["metric_kind"] != "sales"
+        or lab["display"] != "日本 総売上 売上高"
+    ):
+        _fail(f"日本 総売上 layers: {lab!r}")
+    lab_y = monthly_element_label("米国 総売上 既存", "yoy_index", "46800")
+    if (
+        lab_y["country"] != "米国"
+        or lab_y["segment"] != "総売上"
+        or lab_y["scope"] != "既存"
+        or lab_y["metric"] != "売上高"
+        or lab_y["metric_kind"] != "sales"
+        or lab_y["display"] != "米国 総売上 既存 売上高(前年比)"
+    ):
+        _fail(f"米国 総売上 既存 layers: {lab_y!r}")
+    stored = monthly_element_label("日本 総 売上高", "number", "46800")
+    if stored["segment"] != "総" or stored["display"] != "日本 総 売上高":
+        _fail(f"stored 日本 総 売上高 must stay: {stored!r}")
 
 
 def test_issuer_alias_cases() -> None:
@@ -3666,6 +3734,7 @@ def test_81980_put_values_and_ingest_keep_renamed_rows() -> None:
 
 def main() -> None:
     test_canonicalize_element_label()
+    test_total_sales_token_is_not_split()
     test_union_orders_country_then_channel()
     test_current_vocab_and_issuer_configs_load()
     with tempfile.TemporaryDirectory() as d:
