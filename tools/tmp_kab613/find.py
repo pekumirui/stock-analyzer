@@ -35,9 +35,10 @@ def main():
             both = ts.load_both(db, code)
             ts_load, ts.load_both = ts.load_both, (lambda _db, _code, b=both: b)
             try:
-                indented = {basis: {r["key"] for t in (lambda x: [x, *x["earlier"]])(
-                    ts.financial_table(db, code, statement="CF", periods=10**6, consolidated=basis))
-                    for r in t["rows"] if r["indent"]} for basis in (True, False)}
+                indented = {}
+                for basis in (True, False):
+                    table = ts.financial_table(db, code, statement="CF", periods=10**6, consolidated=basis)
+                    indented[basis] = {r["key"] for t in [table, *table["earlier"]] for r in t["rows"] if r["indent"]}
             except Exception:
                 indented = {True: set(), False: set()}
             finally:

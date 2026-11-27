@@ -1,8 +1,9 @@
 import json
 import sys
+from pathlib import Path
 
 fixes, pairs, seen = [], [], set()
-for line in open(sys.argv[1]):
+for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
     d = json.loads(line)
     if d["kind"] == "child":
         for key in d["keys"]:
