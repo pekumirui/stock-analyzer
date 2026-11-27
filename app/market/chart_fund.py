@@ -13,6 +13,7 @@ from ..config import EARNINGS_PARAMS as EP
 from ..models import Statement
 from .analytics import ORDER, find_statement, is_after_close, shift_year, single_from
 from .forecasts import CORRECTION, REPORT, REVISION, Withdrawn, forecast_points
+from .reported import ProfitPerShare
 from .withdrawals import withdrawn_items
 
 
@@ -78,23 +79,26 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float],
         if not hasattr(s, "gross_profit"):
             s.gross_profit = None  # find_statement は売上総利益も見る（決算速報は XBRL から付ける）。ここでは使わない
     hist: list[Statement] = []
+    per_share = ProfitPerShare()
     op_q = op_ttm = None
     out: dict[str, list] = {"t": [], "eps": [], "op_q": [], "op_ttm": []}
     for p in forecast_points(stmts, withdrawn):
         s = p.statement
         hist.append(s)
+        per_share.add(s, p.raw)
         if p.role in (REPORT, CORRECTION):
             q = single_from(hist, s, tol)
             op_q = q["operating_profit"] if q else None
             op_ttm = _ttm_op(hist, s, tol)
-        elif p.role != REVISION or "eps" not in p.touched:
+        elif p.role != REVISION or not p.touched & {"eps", "profit"}:
             continue
-        eps = p.values["eps"]
+        exact = per_share.eps(p.values["profit"])
         start = _starts(s.disclosed_date, s.disclosed_time, days).isoformat()
         if out["t"] and start < out["t"][-1]:
             start = out["t"][-1]  # 引け後の開示の翌営業日より前に、休日付けの開示が来たとき
         prev_eps = next((x for x in reversed(out["eps"]) if x is not None), None)
-        adj_eps = adjust_per_share(eps.value, eps.disclosed_date, days, factors, prev_eps)
+        eps = exact or p.values["eps"]
+        adj_eps = adjust_per_share(eps.value, eps.disclosed_date, days, factors, None if exact else prev_eps)
         row = (adj_eps, op_q, op_ttm)
         if out["t"] and out["t"][-1] == start:
             for k, v in zip(("eps", "op_q", "op_ttm"), row):

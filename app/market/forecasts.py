@@ -57,8 +57,13 @@ def report_shares(raw: dict) -> float | None:
     profit, eps = num(raw, "NP"), num(raw, "EPS")
     if profit and eps and profit / eps > 0:
         return profit / eps
+    return outstanding_shares(raw)
+
+
+def outstanding_shares(raw: dict) -> float | None:
     issued, treasury = num(raw, "ShOutFY"), num(raw, "TrShFY")
-    return issued - (treasury or 0) if issued else None
+    shares = issued - (treasury or 0) if issued else None
+    return shares if shares and shares > 0 else None
 
 
 def eps_or_from_profit(eps: float | None, profit: float | None, shares: float | None) -> float | None:
