@@ -322,15 +322,95 @@ def _railways(s: Seeder) -> None:
         _railway(s, code, 5972 + 2 * n, "2025-03-31", new, (22585, -10922, 11663, 16))
 
 
+PROVISION_HEAD = """
+LiabilitiesAbstract=負債の部
+  NoncurrentLiabilitiesAbstract=固定負債
+    LongTermLoansPayable
+    ProvisionNCLAbstract=引当金
+      ProvisionForDirectorsRetirementBenefits
+      ext:ProvisionForExecutiveRetirementBenefitsNCL
+      ProvisionNCL
+    NoncurrentLiabilities
+  Liabilities
+"""
+PROVISION_FLAT = """
+LiabilitiesAbstract=負債の部
+  NoncurrentLiabilitiesAbstract=固定負債
+    LongTermLoansPayable
+    {key}
+    NoncurrentLiabilities
+  Liabilities
+"""
+PPE_ROWS = ("BuildingsNet", "EquipmentPPESEC", "Land", "LeaseAssetsNetPPE", "ConstructionInProgress")
+PPE_FLAT = """
+AssetsAbstract=資産の部
+  NoncurrentAssetsAbstract=固定資産
+    PropertyPlantAndEquipment
+{rows}
+    IntangibleAssets
+    NoncurrentAssets
+  Assets
+"""
+PROVISION_LABELS = {
+    "ProvisionForDirectorsRetirementBenefits": "役員退職慰労引当金", "ProvisionNCL": "引当金",
+    "ProvisionForExecutiveRetirementBenefitsNCL": "役員退職給付引当金",
+}
+
+
+def _provision(s: Seeder) -> None:
+    s.stock("93060", "役員退職慰労引当金を 2023-03 から引当金の外に宣言")
+    _filing(s, 5981, "S100LNGO", "93060", "FY", "2021-03-31", "2021-06-25 15:00:00", [
+        x("LongTermLoansPayable", "i", 9700.6), x("ProvisionForDirectorsRetirementBenefits", "i", 28.5),
+        ext("ProvisionForExecutiveRetirementBenefitsNCL", "i", 1.66), x("ProvisionNCL", "i", 30.16),
+        x("NoncurrentLiabilities", "i", 9730.76), x("Liabilities", "i", 9730.76),
+    ], PROVISION_HEAD)
+    _filing(s, 5982, "S100O8P9", "93060", "FY", "2022-03-31", "2022-06-28 15:00:00", [
+        x("LongTermLoansPayable", "i", 10317.0), x("ProvisionForDirectorsRetirementBenefits", "i", 28.5),
+        x("ProvisionNCL", "i", 28.5), x("NoncurrentLiabilities", "i", 10345.5), x("Liabilities", "i", 10345.5),
+    ], PROVISION_HEAD)
+    _filing(s, 5983, "S100Y9SP", "93060", "FY", "2026-03-31", "2026-06-22 15:00:00", [
+        x("LongTermLoansPayable", "i", 9856), x("ProvisionForDirectorsRetirementBenefits", "i", 28.5),
+        x("NoncurrentLiabilities", "i", 9884.5), x("Liabilities", "i", 9884.5),
+    ], PROVISION_FLAT.format(key="ProvisionForDirectorsRetirementBenefits"))
+    _filing(s, 5984, "S100ZE35", "93060", "Q2", "2026-09-30", "2026-11-12 15:00:00", [
+        x("LongTermLoansPayable", "i", 9414), x("ProvisionNCL", "i", 3.6), x("NoncurrentLiabilities", "i", 9417.6),
+        x("Liabilities", "i", 9417.6),
+    ], PROVISION_FLAT.format(key="ProvisionNCL"))
+
+
+def _ppe_tree(depth: int) -> str:
+    return PPE_FLAT.format(rows="\n".join("  " * depth + k for k in PPE_ROWS))
+
+
+def _construction(s: Seeder) -> None:
+    s.stock("86090", "有形固定資産の内訳を直下に並べた古い有報の建設仮勘定")
+    _filing(s, 5991, "S100LUXD", "86090", "FY", "2021-03-31", "2021-06-30 15:00:00", [
+        x("PropertyPlantAndEquipment", "i", 18000), x("BuildingsNet", "i", 5300), x("EquipmentPPESEC", "i", 1100),
+        x("Land", "i", 10772), x("LeaseAssetsNetPPE", "i", 828), x("ConstructionInProgress", "i", 0),
+        x("IntangibleAssets", "i", 4000), x("NoncurrentAssets", "i", 22000), x("Assets", "i", 22000),
+    ], _ppe_tree(2))
+    _filing(s, 5992, "S100TUTH", "86090", "FY", "2022-03-31", "2024-06-27 15:00:00", [
+        x("PropertyPlantAndEquipment", "i", 18071), x("BuildingsNet", "i", 5189), x("EquipmentPPESEC", "i", 1186),
+        x("Land", "i", 10772), x("LeaseAssetsNetPPE", "i", 785), x("ConstructionInProgress", "i", 137),
+        x("IntangibleAssets", "i", 4098), x("NoncurrentAssets", "i", 22169), x("Assets", "i", 22169),
+    ], _ppe_tree(2))
+    _filing(s, 5993, "S100TUXF", "86090", "FY", "2023-03-31", "2024-06-27 15:00:00", [
+        x("PropertyPlantAndEquipment", "i", 16991), x("BuildingsNet", "i", 4781), x("EquipmentPPESEC", "i", 1075),
+        x("Land", "i", 10623), x("LeaseAssetsNetPPE", "i", 512), x("IntangibleAssets", "i", 9224),
+        x("NoncurrentAssets", "i", 26215), x("Assets", "i", 26215),
+    ], _ppe_tree(3))
+
+
 def _labels(s: Seeder) -> None:
-    for local, label in LABELS.items():
+    for local, label in {**LABELS, **PROVISION_LABELS}.items():
         s.db.execute(text("UPDATE xbrl_elements SET label_ja = :l WHERE local_name = :n"), {"l": label, "n": local})
 
 
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
     s = Seeder()
-    for seed in (_allowance, _insurer_tax, _other_ia, _goodwill, _relocation, _own_use, _railways, _labels):
+    for seed in (_allowance, _insurer_tax, _other_ia, _goodwill, _relocation, _own_use, _railways, _provision,
+                 _construction, _labels):
         seed(s)
     s.close()
 
@@ -490,3 +570,34 @@ def test_merge_exclusions_are_well_formed() -> None:
     for item in raw["pairs"]:
         assert len(item["code"]) == 5 and item["statement"] in fst.STATEMENTS and item["evidence"]
         assert len(set(item["keys"])) == 2
+
+
+def test_directors_retirement_of_the_older_reports_stays_inside_the_provisions(monkeypatch) -> None:
+    t = table("93060")
+    got = rows(t)
+    inside = got["ProvisionForDirectorsRetirementBenefits#ProvisionNCL"]
+    assert inside["label"] == "役員退職慰労引当金" and cells(inside) == [28.5 * M, 28.5 * M, None, None]
+    assert place(inside) == (("負債の部", "固定負債", "引当金"), 0)
+    direct = got["ProvisionForDirectorsRetirementBenefits"]
+    assert cells(direct) == [None, None, 28.5 * M, None] and direct["merged_keys"] == []
+    assert place(direct) == place(got["ProvisionNCL"]) == (("負債の部", "固定負債"), 0)
+    top = [r for r in section(t, "固定負債") if r["key"] != "NoncurrentLiabilities"]
+    heading = section(t, "引当金")
+    for n, (ncl, provision) in enumerate(zip(cells(got["NoncurrentLiabilities"]), cells(got["ProvisionNCL"]))):
+        assert total(top, n) == pytest.approx(ncl)
+        if n < 2:
+            assert total(heading, n) == pytest.approx(provision)
+    _no_fixes(monkeypatch)
+    assert cells(rows(table("93060"))["ProvisionForDirectorsRetirementBenefits"]) == [28.5 * M, 28.5 * M, 28.5 * M, None]
+
+
+def test_construction_in_progress_of_the_flat_reports_is_a_child_of_ppe(monkeypatch) -> None:
+    t = table("86090")
+    got = rows(t)
+    assert place(got["ConstructionInProgress"]) == place(got["LeaseAssetsNetPPE"]) == (("資産の部", "固定資産"), 1)
+    under = children(t, "PropertyPlantAndEquipment")
+    assert [r["key"] for r in under] == list(PPE_ROWS)
+    for n, ppe in enumerate(cells(got["PropertyPlantAndEquipment"])):
+        assert abs(total(under, n) - ppe) <= 2 * M
+    _no_fixes(monkeypatch)
+    assert place(rows(table("86090"))["ConstructionInProgress"]) == (("資産の部", "固定資産"), 0)
