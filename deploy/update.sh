@@ -227,7 +227,7 @@ chmod +x "$APP_DIR/deploy/provision.sh"
 sudo --preserve-env=APP_DIR \
   "$APP_DIR/deploy/provision.sh" --sudoers-only
 # shutdown -r +1 はヘルスチェックのあと。ここだと pip / migrate が 1 分で切れる。
-sudo --preserve-env=APP_DIR,VPS_DOMAIN,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA,SLACK_WEBHOOK_URL_QUIET \
+sudo --preserve-env=APP_DIR,VPS_DOMAIN,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA,SLACK_WEBHOOK_URL_QUIET,TAILSCALE_AUTHKEY \
   "$APP_DIR/deploy/provision.sh" --defer-reboot
 
 install_venv() {

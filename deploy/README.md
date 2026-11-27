@@ -27,6 +27,8 @@ clone が鍵未登録で落ちたら、出した公開鍵を入れてから `ena
 
 sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd.sh` を実行する**。通常の再デプロイでも足りる。`update.sh` はフルの `sudo provision.sh` の前に `provision.sh --sudoers-only` で `/etc/sudoers.d` を入れ、新しい `env_keep` を同じデプロイの `--preserve-env` で渡せる。
 
+`TAILSCALE_AUTHKEY` は 2 回目の `sudo --preserve-env` にだけ載せる。1 回目は `APP_DIR` だけ（enable-cicd 以降、live sudoers が許可している）で `--sudoers-only` を実行し、repo の sudoers を先に入れる。この名前を 1 回目に足すと、VPS の sudoers がまだ `env_keep` していないので sudo が拒否し、sudoers を更新する前にデプロイが落ちる。初回デプロイの前に VPS へ入って sudoers を手で直す必要はない。
+
 ## GitHub Secrets
 
 | Name | 必須 | 内容 |
@@ -46,6 +48,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `VPS_DOMAIN` | 任意 | 未設定なら `160.251.179.50.sslip.io` |
 | `VPS_HOST` / `VPS_USER` / `VPS_PORT` | 任意 | 未設定なら `160.251.179.50` / `stock` / `22` |
 | `CERTBOT_EMAIL` | 任意 | 無いと certbot は `--register-unsafely-without-email` |
+| `TAILSCALE_AUTHKEY` | 任意 | Tailscale の auth key。未設定・空・空白だけなら tailnet 参加を飛ばし、デプロイは成功する。あるとき、未参加なら hostname `stock-vps` で参加する。参加済み（`Running` / `Starting` / `Stopped` / `NeedsMachineAuth`）なら `tailscale up` しない。`.env` には書かない。`--ssh`、exit node、subnet routes は使わない。公開の SSH・nginx・ufw・アプリ・DB は変えない |
 
 GitHub Variables（秘密ではない）:
 
@@ -61,7 +64,7 @@ GitHub Variables（秘密ではない）:
 
 1. GitHub SSH（deploy key）を冪等に揃えてから、同じ作業ツリーの git ロック（`git rev-parse --git-path deploy-git.lock`。`DEPLOY_GIT_LOCK` でパスを変えられる）を取り、`git fetch origin main` のあと `git merge --ff-only refs/remotes/origin/main` で `main` を合わせる。`git pull` は使わない（`FETCH_HEAD` をマージしない）。ロックが取れなければ 60 秒待つ（秒数は `DEPLOY_GIT_LOCK_WAIT`）。それでも取れなければ標準エラーに `git lock busy: waited 60s for <path>; another git operation is using this worktree` を出して終了コード 1。`git fetch` が ref のロック競合だけで落ちたときは、そのロックを持ったまま最大 8 回やり直す
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
-3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh --defer-reboot`（apt のセキュリティ更新、`linux-image-generic` と `linux-headers-generic` だけの `--only-upgrade`、CVE-2026-98432 の nftables 緩和、パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない。この段では再起動しない
+3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh --defer-reboot`（apt のセキュリティ更新、`linux-image-generic` と `linux-headers-generic` だけの `--only-upgrade`、CVE-2026-98432 の nftables 緩和、パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit、Tailscale。Slack webhook と `TAILSCALE_AUTHKEY` は 2 回目の `--preserve-env`。auth key が空なら参加だけ飛ばす。参加済みなら `tailscale up` しない）。Webhook が空なら fluent-bit は enable のみで start しない。この段では再起動しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック。成功したあと `sudo provision.sh --kernel-reboot-only`。`/var/run/reboot-required` があり、`/home/stock/jobs/*/pid` の生きているプロセスも `deploy/cron-run.sh` も無ければ `shutdown -r +1`。ジョブが動いていれば再起動せず `reboot pending`。ヘルスチェックが失敗したデプロイは再起動しない
 

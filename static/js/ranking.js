@@ -4,7 +4,6 @@ const rkMonth = ym => ym ? `${ym.slice(0,4)}年${+ym.slice(5,7)}月` : "";
 const rkSession = s => s === "intraday"
   ? `<span class="qb qb-1Q">場中</span>` : `<span class="qb">引け後</span>`;
 const rkSessionTxt = s => s === "intraday" ? "場中" : "引け後";
-const rkPctParen = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">(${v>0?'+':''}${fmt(v,1)}%)</span>`;
 const rkName = r => {
   const raw = String(r.name||""), name = rkEsc(raw), code = rkEsc(r.code.slice(0,4));
   return `<td class="l name pin1" title="${name}"><span class="clicky" onclick="gotoChart('${rkEsc(r.code)}')">${rkEsc(shortName(raw))}</span>${under(`<span class="sub">${code}</span>`)}</td>`;
@@ -77,7 +76,7 @@ function rkPaint(){
   for(const r of view){
     h += `<tr><td class="num pin0">${r.rank}</td>${rkName(r)}
       ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>
-      <td class="num grp">${pct(r.return_to_next)}${under(rkPctParen(r.alpha_to_next))}</td>
+      <td class="num grp">${pct(r.return_to_next)}${under(pctParen(r.alpha_to_next))}</td>
       <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
       <td class="num">${rkElapsed(r)}</td></tr>`;
   }

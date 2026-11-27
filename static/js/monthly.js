@@ -113,7 +113,7 @@ const MONTHLY_BREAKDOWN_RANK = {
   呉服関連:1, アパレル雑貨:2, その他:3,
   管理テナント数:1, 取引店舗数:2, 増加:3, 減少:4,
 };
-const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2};
+const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2, 米国:3};
 const MONTHLY_CHANNEL_RANK = {"直営+FC":0, 直営:1, FC:2, "":3};
 
 function monthlyRowScopeRank(label){
@@ -166,7 +166,7 @@ function monthlyRowOrder(tables, code){
       items.push({
         element: L.display, unit: e.unit || "number", label: L,
         segment: L.group,
-        country: MONTHLY_COUNTRY_RANK[L.country] ?? 3,
+        country: MONTHLY_COUNTRY_RANK[L.country] ?? 4,
         scope: monthlyRowScopeRank(L),
         channel: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
         slot: MONTHLY_METRIC_RANK[L.metric_kind],
@@ -956,10 +956,12 @@ function renderMonthlyTimeline(tables, opts){
   }
   let maxNumLen = 0;
   let head = `<th class="tl-corner"></th>`;
-  for(const c of cols){
-    const yb = c === cols[0] || c.m === 1 ? ` class="tl-yb"` : "";
-    head += `<th${yb}><span class="tl-hy">${c.y}年</span>${c.m}月</th>`;
-  }
+  cols.forEach((c, i) => {
+    const yb = i === 0 || c.m === 1 ? ` class="tl-yb"` : "";
+    const end = i > 0 && i === cols.length - 1 && c.m > 2;
+    const hy = end || c.m === 1 || (i === 0 && !(cols[1] && cols[1].m === 1)) ? `${c.y}年` : "";
+    head += `<th${yb}><span class="tl-hy${end ? " tl-hy-end" : ""}">${hy}</span>${c.m}月</th>`;
+  });
   const cellsFor = rec => {
     let cells = "";
     for(const c of cols){
@@ -1037,10 +1039,10 @@ async function openMonthlyPopup(td){
         : `<td class="num"${a && heat ? ` style="${heat}"` : ""}>${fa}</td>`;
       rows += `<tr><td class="yr"><span class="sw" style="background:${monthlyYearColor(y)}"></span>${y}</td>${cells}</tr>`;
     }
-    const head = paired ? `<tr><th></th><th>金額</th><th>前年比</th></tr>` : "";
+    const head = paired ? `<thead><tr><th></th><th>金額</th><th>前年比</th></tr></thead>` : "";
     pop.innerHTML = `<div class="mpop-head"><span class="mpop-title">${escHtml(name)}</span><span class="mpop-m">${m}月</span>`
       + `<button type="button" class="mpop-x" aria-label="閉じる" onclick="closeMonthlyPopup()">×</button></div>`
-      + `<table class="sheet">${head}${rows}</table>`;
+      + `<table class="sheet">${head}<tbody>${rows}</tbody></table>`;
     // PC もスマホも押したセルの近くに出す。iOS は表が横にはみ出すと layout viewport が見える幅より
     // 広くなるので、見えている範囲（visualViewport）に収める。
     const vv = window.visualViewport;

@@ -342,6 +342,7 @@ jobs:
       SLACK_WEBHOOK_URL_QUIET: ${{ secrets.SLACK_WEBHOOK_URL_QUIET }}
       VPS_DOMAIN: ${{ secrets.VPS_DOMAIN }}
       CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
+      TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
     steps:
       - name: Skip if no SSH key
         if: env.VPS_SSH_KEY == ''
@@ -410,6 +411,7 @@ jobs:
               "SLACK_WEBHOOK_URL_BATCH",
               "SLACK_WEBHOOK_URL_INFRA",
               "SLACK_WEBHOOK_URL_QUIET",
+              "TAILSCALE_AUTHKEY",
           ]
           print("set -euo pipefail")
           for k in keys:

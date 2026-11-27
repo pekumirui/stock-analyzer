@@ -242,6 +242,9 @@ _FOOTNOTE_CIRCLED_RE = re.compile(r"[①-⑳]")
 _FY_NENDO_RE = re.compile(r"\d{4}\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
 _TIME_AXIS_TOKS = frozenset(_VOCAB["time_axis"])
 _COUNTRY_CANON: dict[str, str] = dict(_VOCAB["country"])
+COUNTRY_VALUES: tuple[str, ...] = tuple(dict.fromkeys(_COUNTRY_CANON.values()))
+COUNTRY_RANK: dict[str, int] = {"": 0, **{name: i for i, name in enumerate(COUNTRY_VALUES, start=1)}}
+COUNTRY_RANK_OTHER = len(COUNTRY_VALUES) + 1
 _CHANNEL_CANON: dict[str, str] = dict(_VOCAB["channel"])
 _SCOPE_CANON: dict[str, str] = dict(_VOCAB["scope"])
 _SCOPE_STICKY = next(
@@ -336,7 +339,6 @@ _METRIC_STARTSWITH = frozenset(
     str(item["word"]) for item in _VOCAB["metrics"] if item.get("prefix")
 )
 _METRIC_KIND: dict[str, str] = dict(_VOCAB["metric_kind"])
-_COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
 _FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
 _METRIC_SHARD_PAIRS: tuple[tuple[str, str], ...] = (
@@ -460,7 +462,10 @@ def _peel_metric(
         if tok == src:
             return canon, None
         if len(tok) > len(src) and tok.endswith(src):
-            return canon, tok[:-len(src)]
+            rest = tok[:-len(src)]
+            if src == "売上" and rest == "総":
+                return canon, tok
+            return canon, rest
         if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
             return canon, tok[len(src):]
     return None, tok
@@ -674,6 +679,7 @@ def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, 
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。
 
     code があれば、その銘柄の件数・率指標の語も指標にする。
+    国の語は最初の1つだけ。2つ目以降はセグメントに残す（`海外 米国 店舗数`）。
     """
     count_metrics = issuer_count_metrics(code)
     country = ""
@@ -709,7 +715,10 @@ def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, 
                 leftover.append(rest)
             continue
         if tok in _COUNTRY_CANON:
-            country = _COUNTRY_CANON[tok]
+            if country:
+                leftover.append(tok)
+            else:
+                country = _COUNTRY_CANON[tok]
             continue
         mapped_ch = _CHANNEL_CANON.get(tok)
         if mapped_ch or _FC_TOKEN_RE.fullmatch(tok):
@@ -1257,7 +1266,7 @@ def monthly_row_scope_rank(element: str, code: str | None = None) -> int:
 
 def _row_country_rank(element: str) -> int:
     country = _layers_of(element)["country"]
-    return _COUNTRY_RANK.get(country, 3)
+    return COUNTRY_RANK.get(country, COUNTRY_RANK_OTHER)
 
 
 def _row_channel_rank(element: str) -> int:
@@ -1272,7 +1281,7 @@ def union_monthly_elements(
 ) -> list[dict[str, str]]:
     """発行体の年をまたいだ行順。キーは表示名。
 
-    国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
+    国なしのあと、語彙の国（日本 → 海外 → 米国）。セグメント無しが先、名前付きは新しい年の初出順。
     segment_tail（monthly_row_order.json）は非 tail の後。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
     売上高（実数の親→内訳、そのあと前年比の親→内訳）→ 客数 → 客単価 →

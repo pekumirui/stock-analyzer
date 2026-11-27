@@ -131,3 +131,4 @@ def test_tip_and_format():
     assert r["svg"] is True
     assert "25.09 2Q" in r["tip"] and "150 百万円" in r["tip"]
     assert r["fmt"] == ["1,235 百万円", "12.3%", "–"]
+

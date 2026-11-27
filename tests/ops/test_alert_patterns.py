@@ -788,6 +788,17 @@ def test_secret_contract() -> None:
     for name in webhook_secrets:
         if name not in full["env"].split(","):
             _fail(f"update.sh full --preserve-env must list {name}")
+    authkey = "TAILSCALE_AUTHKEY"
+    if f"{authkey}: ${{{{ secrets.{authkey} }}}}" not in cicd:
+        _fail("cicd.yml deploy env must include TAILSCALE_AUTHKEY")
+    if f'"{authkey}"' not in cicd:
+        _fail("cicd.yml export keys must include TAILSCALE_AUTHKEY")
+    if f"upsert_env {authkey}" in update:
+        _fail("update.sh must not upsert TAILSCALE_AUTHKEY into the app .env")
+    if authkey not in full["env"].split(","):
+        _fail("update.sh full --preserve-env must list TAILSCALE_AUTHKEY")
+    if authkey in refresh["env"].split(","):
+        _fail("sudoers-only --preserve-env must not list TAILSCALE_AUTHKEY")
     # Pre-#373 live sudoers. First preserve-env must work before /etc/sudoers.d is replaced.
     old_keep = {
         "APP_DIR",
@@ -806,6 +817,8 @@ def test_secret_contract() -> None:
     for name in webhook_secrets:
         if name not in sudoers:
             _fail(f"deploy/sudoers must env_keep {name}")
+    if "TAILSCALE_AUTHKEY" not in sudoers:
+        _fail("deploy/sudoers must env_keep TAILSCALE_AUTHKEY")
     visudo_bin = shutil.which("visudo", path=os.pathsep.join(
         [os.environ.get("PATH", ""), "/usr/sbin", "/sbin"]))
     if visudo_bin is None:
@@ -867,6 +880,22 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
         "CERTBOT_EMAIL SLACK_WEBHOOK_URL"
     )
     keep.write_text(old_keep + "\n", encoding="utf-8")
+    parser = tmp_path / "parse_sudoers.py"
+    parser.write_text(
+        """\
+import pathlib, re, sys
+text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+pattern = r'env_keep\\s*\\+=\\s*"([^"]*)"'
+match = re.search(pattern, text)
+names = match.group(1) if match else ""
+dest = pathlib.Path(sys.argv[2])
+dest.write_text(names + "\\n", encoding="utf-8")
+if not names:
+    raise SystemExit("env_keep not found")
+""",
+        encoding="utf-8",
+    )
+    sudoers = ROOT / "deploy" / "sudoers"
     sudo = fake_bin / "sudo"
     sudo.write_text(
         "#!/usr/bin/env bash\n"
@@ -892,9 +921,8 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
         "  exit 1\n"
         "fi\n"
         'if [[ " $* " == *" --sudoers-only "* ]]; then\n'
-        f"  printf '%s %s\\n' \"$keep\" "
-        f"{' '.join(CHANNEL_WEBHOOK_SECRETS)!r} "
-        f"> {keep.as_posix()!r}\n"
+        "  python3 "
+        f"{parser.as_posix()!r} {sudoers.as_posix()!r} {keep.as_posix()!r}\n"
         "fi\n"
         "exit 0\n",
         encoding="utf-8",
@@ -944,6 +972,18 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
         _fail("post-#374 sudoers must reject SLACK_WEBHOOK_URL_QUIET until sudoers-only")
     if "SLACK_WEBHOOK_URL_QUIET" not in post374.stderr or "not allowed" not in post374.stderr:
         _fail(f"expected QUIET sudo env rejection, got {post374.stderr!r}")
+    keep.write_text(old_keep + "\n", encoding="utf-8")
+    before = subprocess.run(
+        ["sudo", "--preserve-env=APP_DIR,TAILSCALE_AUTHKEY", "provision.sh"],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if before.returncode == 0:
+        _fail("pre-refresh sudoers must reject TAILSCALE_AUTHKEY")
+    if "TAILSCALE_AUTHKEY" not in before.stderr or "not allowed" not in before.stderr:
+        _fail(f"expected TAILSCALE_AUTHKEY sudo rejection, got {before.stderr!r}")
     keep.write_text(old_keep + "\n", encoding="utf-8")
     for call in calls:
         cmd = call["cmd"].replace('"', "").split()
