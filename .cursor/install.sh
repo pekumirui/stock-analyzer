@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 sudo apt-get update -qq
-sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone
+sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone libatomic1
 
 # PATH で /usr/bin より先に立つラッパー。remote r2 を R2_* から定義する（鍵はディスクに書かない）。
 # AWS_CA_BUNDLE（プロキシ環境）があると S3 が LoadCustomCABundleError で落ちるので --ca-cert で渡し直す
@@ -26,6 +26,12 @@ sudo chmod 755 /usr/local/bin/rclone
 
 ./setup.sh
 .venv/bin/python -m pip install -q -r tools/requirements.txt -r requirements-dev.txt
+
+if compgen -G "/opt/pw-browsers/chromium-*" >/dev/null || compgen -G "${HOME}/.cache/ms-playwright/chromium-*" >/dev/null; then
+  echo "Chromium はもうあるので落とさない（shot.py が見つけて使う）"
+else
+  .venv/bin/python -m playwright install --with-deps chromium || echo "Chromium を入れられなかった（画面のスクリーンショットは撮れない）"
+fi
 
 bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
 

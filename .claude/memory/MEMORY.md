@@ -7,7 +7,7 @@
 - [IR Bank の研究開発費・設備投資は範囲が違う](irbank-rd-capex-scope.md) — 販管費だけ・CF 寄りの会社あり。自己資本比率は計算値。EPS は一致
 - [信用残はあとで DB に入る](margin-balance-later.md) — 取込も画面もまだ作らない。株主タブでも対象外のまま
 - [文書に容量を書かない](no-sizes-in-docs.md) — ○GB・○MB は md に書かない。すぐ古くなる
-- [Azure VM のスクショ](azure-vm-screenshots.md) — playwright は使い捨て venv に入れ、キャッシュの chromium を executable_path で使う
+- [Azure VM のスクショ](azure-vm-screenshots.md) — shot.py で撮る。Chromium はキャッシュのもの、libatomic1 が要る
 - [エージェント比較は agent-bench へ](agent-bench-onedrive.md) — onedrive:agent-bench/<コード>-<会社名>/。deck-reader に混ぜない
 - [期首残高は計算で作らない](no-derived-opening-cash.md) — XBRL の期に埋めない。短信 PDF の行を出さない（KAB-458）
 - [コメント禁止・文書は生成](no-comments-generate-docs.md) — コメントも docstring も足さない。制約はテスト・名前・型、文書と図はコードから
