@@ -30,6 +30,7 @@ from app.market.period_fixes import (
     default_value_fixes,
     load_dropped_disclosures,
     load_period_fixes,
+    load_period_dates,
     load_period_months,
     load_value_fixes,
     next_year,
@@ -86,7 +87,7 @@ def db():
 
 def test_real_config() -> None:
     fixes = load_period_fixes()
-    assert len(fixes) == 26
+    assert len(fixes) == 28
     assert fixes["20240508585107"] == date(2023, 3, 31)
     assert fixes["20260513530259"] == date(2025, 3, 31)
     for no in ("20260731505749", "20231213502556", "20240215537950", "20250720517365",
@@ -340,7 +341,7 @@ def test_fix_tool(db) -> None:
     db.commit()
     before_other = {c.key: getattr(db.get(Statement, "F1"), c.key) for c in Statement.__table__.columns}
     planned = {p.disclosure_no: p for p in plan(db)}
-    assert len(planned) == 48
+    assert len(planned) == 50
     assert planned["20240508585107"].status == "changed"
     assert "period_end=2023-03-31->2024-03-31" in planned["20240508585107"].line()
     assert planned["20260513530259"].status == "mismatch"
@@ -411,3 +412,101 @@ def test_fix_tool_drop_keeps_event_with_other_disclosure(db) -> None:
     db.commit()
     assert write(db, plan(db)) == 1
     assert db.query(EarningsEvent).count() == 1
+
+
+GLOE_1Q = {
+    "DiscDate": "2026-03-12", "DiscTime": "15:30", "Code": "95650", "DiscNo": "20260312580514",
+    "DocType": "1QFinancialStatements_Consolidated_JP", "CurPerType": "1Q",
+    "CurPerSt": "2025-11-01", "CurPerEn": "2026-06-30", "CurFYSt": "2025-11-01", "CurFYEn": "2026-06-30",
+    "NxtFYSt": "", "Sales": "781000000",
+}
+GLOE_2Q = {
+    "DiscDate": "2026-06-12", "DiscTime": "15:30", "Code": "95650", "DiscNo": "20260612569470",
+    "DocType": "2QFinancialStatements_Consolidated_JP", "CurPerType": "2Q",
+    "CurPerSt": "2025-11-01", "CurPerEn": "2026-04-30", "CurFYSt": "2025-11-01", "CurFYEn": "2026-10-31",
+    "NxtFYSt": "", "Sales": "1544000000",
+}
+
+
+def test_dates_config(tmp_path: Path) -> None:
+    path = tmp_path / "fixes.json"
+    exact = {"disclosure_no": "3", "period_end": "2026-06-30", "dates": {"period_end": "2026-01-31"}}
+    path.write_text(json.dumps({"fixes": [exact]}), encoding="utf-8")
+    assert load_period_fixes(path) == {"3": date(2026, 6, 30)}
+    assert load_period_dates(path) == {"3": {"period_end": date(2026, 1, 31)}}
+    assert load_period_months(path) == {}
+    for bad in ({**exact, "dates": {}}, {**exact, "dates": {"eps": "2026-01-31"}}, {**exact, "months": -6}):
+        path.write_text(json.dumps({"fixes": [bad]}), encoding="utf-8")
+        with pytest.raises(ValueError):
+            load_period_fixes(path)
+    assert load_period_dates() == {"20260312580514": {"period_end": date(2026, 1, 31)},
+                                   "20260612569470": {"fiscal_year_end": date(2026, 6, 30)}}
+
+
+def test_dates_fix_sets_only_listed_columns() -> None:
+    q1, q2 = _statement_row(dict(GLOE_1Q)), _statement_row(dict(GLOE_2Q))
+    assert [q1[c] for c in ("period_start", "period_end", "fiscal_year_start", "fiscal_year_end")] == [
+        date(2025, 11, 1), date(2026, 1, 31), date(2025, 11, 1), date(2026, 6, 30)]
+    assert [q2[c] for c in ("period_start", "period_end", "fiscal_year_start", "fiscal_year_end")] == [
+        date(2025, 11, 1), date(2026, 4, 30), date(2025, 11, 1), date(2026, 6, 30)]
+    assert json.loads(q1["raw_json"]) == GLOE_1Q
+
+
+def test_dates_fix_waits_for_recorded_period_end(capsys) -> None:
+    fixed = {**GLOE_1Q, "CurPerEn": "2026-01-31"}
+    assert _statement_row(dict(fixed)) == _statement_row(dict(fixed), {})
+    assert "period-fix-mismatch disclosure_no=20260312580514" in capsys.readouterr().out
+
+
+def test_fix_tool_dates(db) -> None:
+    for raw in (GLOE_1Q, GLOE_2Q):
+        row = _statement_row(dict(raw), {})
+        db.add(Statement(**{k: row[k] for k in ("disclosure_no", "code", "disclosed_date", "period_start",
+                                                "period_end", "fiscal_year_start", "fiscal_year_end",
+                                                "raw_json")}))
+    db.commit()
+    by_no = {p.disclosure_no: p for p in plan(db)}
+    assert by_no["20260312580514"].line() == (
+        "changed disclosure_no=20260312580514 code=95650 period_end=2026-06-30->2026-01-31")
+    assert by_no["20260612569470"].line() == (
+        "changed disclosure_no=20260612569470 code=95650 fiscal_year_end=2026-10-31->2026-06-30")
+    write(db, plan(db))
+    db.expire_all()
+    assert db.get(Statement, "20260312580514").period_end == date(2026, 1, 31)
+    assert db.get(Statement, "20260612569470").fiscal_year_end == date(2026, 6, 30)
+    assert {p.disclosure_no: p.status for p in plan(db) if p.code == "95650"} == {
+        "20260312580514": "unchanged", "20260612569470": "unchanged"}
+UNLISTED_1Q = {**GLOE_1Q, "DiscNo": "20260312999999"}
+FORECAST_AHEAD = {
+    "DiscDate": "2026-02-09", "Code": "95650", "DiscNo": "20260206549827", "DocType": "EarnForecastRevision",
+    "CurPerType": "FY", "CurPerSt": "2025-11-01", "CurPerEn": "2026-06-30", "CurFYSt": "2025-11-01",
+    "CurFYEn": "2026-06-30",
+}
+
+
+def test_future_candidate(db) -> None:
+    reit = {**REIT_3281, "DiscNo": "R1"}
+    items = [(_statement_row(dict(UNLISTED_1Q)), None), (_statement_row(dict(GLOE_1Q)), None),
+             (_statement_row(reit), date(2026, 3, 1)),
+             (_statement_row(dict(REIT_3281)), date(2026, 3, 1)), (_statement_row(dict(FORECAST_AHEAD)), None)]
+    found = period_candidates(db, items)
+    assert [(c.rule, c.disclosure_no) for c in found] == [("future", "20260312999999"), ("future", "R1")]
+    assert "period_end=2026-06-30 disclosed=2026-03-12 fy_end=2026-06-30" in found[0].line()
+    for c in found:
+        assert any(re.search(p.regex, c.line()) for p in ALERT_PATTERNS if p.source == "batch")
+
+
+def test_future_rows_warn_every_day_until_listed(db, capsys) -> None:
+    upsert_statements(db, [_statement_row(dict(UNLISTED_1Q)), _statement_row(dict(GLOE_1Q)),
+                           _statement_row(dict(FORECAST_AHEAD)), _statement_row(dict(REIT_3281))])
+    for _ in range(2):
+        ingest_statements_for_date(db, _JQ([]), "2026-11-26", warn=True)
+        out = capsys.readouterr().out
+        assert out.count("period-candidate") == 1 and "rule=future code=95650 disclosure_no=20260312999999" in out
+    ingest_statements_for_date(db, _JQ([dict(UNLISTED_1Q)]), "2026-03-12", warn=True)
+    assert capsys.readouterr().out.count("period-candidate") == 1
+    ingest_statements_for_date(db, _JQ([]), "2026-11-26")
+    assert "period-candidate" not in capsys.readouterr().out
+    assert [c.disclosure_no for c in scan_candidates(db)] == ["20260312999999"]
+    listed = {"20260312999999": date(2026, 6, 30)}
+    assert scan_candidates(db, fixes=listed) == []
