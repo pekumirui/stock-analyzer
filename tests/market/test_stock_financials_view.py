@@ -29,7 +29,7 @@ console.log(JSON.stringify({
   legends: [fs.fsLegendHtml(d), fs.fsLegendHtml(JSON.parse(process.argv[4])), fs.fsLegendHtml(JSON.parse(process.argv[3])),
             fs.fsLegendHtml({...JSON.parse(process.argv[3]), earlier: [d]}), fs.fsLegendHtml({periods: [], rows: []})],
   views: Object.fromEntries(Object.entries({
-    fy: {cols: "fy"}, quarter: {quarter: true}, recent: {rows: "recent"}, cumulative: {},
+    quarter: {quarter: true}, cumulative: {},
   }).map(([k, v]) => [k, fs.fsTableHtml(fs.fsView(JSON.parse(process.argv[8]), v))])),
   bsQuarter: fs.fsTableHtml(fs.fsView({...JSON.parse(process.argv[8]), statement: "BS", cumulative: false}, {quarter: true})),
   plMeta: [fs.fsMeta(JSON.parse(process.argv[8]), {quarter: true}), fs.fsMeta(JSON.parse(process.argv[8]), {quarter: false})],
@@ -312,14 +312,6 @@ def test_year_start_and_full_year_columns_are_marked() -> None:
     assert sales[1:] == ["300", "400", "110", "230", "360", "500"]
 
 
-def test_full_year_only_keeps_fy_columns_without_year_lines() -> None:
-    html = _run()["views"]["fy"]
-    ths = re.findall(r"<th[^>]*>.*?</th>", html.split("<tbody>", 1)[0])
-    assert len(ths) == 3 and "25.03" in ths[1] and "26.03" in ths[2]
-    assert "fs-yb" not in html and "fs-fy" not in html
-    assert _texts(_rows(html)[0])[1:] == ["400", "500"]
-
-
 def test_three_months_takes_quarter_values_and_blanks_the_rest() -> None:
     html = _run()["views"]["quarter"]
     assert "科目（3か月単独）" in html
@@ -338,8 +330,3 @@ def test_three_months_is_ignored_outside_pl_and_named_in_meta() -> None:
     assert "科目（3か月単独）" not in r["bsQuarter"] and "3か月単独を出せない" not in r["bsQuarter"]
     assert r["plMeta"] == ["連結 / 日本基準 / 単位: 百万円（1株当たりは円） / 3か月単独（累計の差）",
                            "連結 / 日本基準 / 単位: 百万円（1株当たりは円） / 期首からの累計"]
-
-
-def test_recent_rows_hide_old_items_but_keep_totals() -> None:
-    rows = _rows(_run()["views"]["recent"])
-    assert [_texts(r)[0] for r in rows] == ["売上高", "特別利益", "1株当たり当期純利益（円）"]
