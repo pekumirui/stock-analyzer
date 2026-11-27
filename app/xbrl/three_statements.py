@@ -659,8 +659,40 @@ def _row_keys(columns: Sequence[Column], statement: str) -> list[str]:
         keys = _merge(keys, column.order)
     if statement == "CF":
         keys = [k for k in keys if not _opening_cash(k)]
-        keys = _keep_subtotal_sides(keys, columns)
+        keys = _keep_subtotal_sides(_keep_sections(keys, columns), columns)
     return keys
+
+
+CF_SECTION_RANK = {"Operating": 0, "Investment": 1, "Investing": 1, "Financing": 2}
+
+
+def _section_ranks(order: Sequence[str]) -> dict[str, float]:
+    totals = [(i, CF_SECTION_RANK[m.group(1)]) for i, k in enumerate(order)
+              if (m := CF_SECTION_RE.match(k.removeprefix("ext:")))]
+    ranks: dict[str, float] = {}
+    for i, key in enumerate(order):
+        here = next((r for at, r in totals if at == i), None)
+        if here is not None:
+            ranks[key] = here + 0.5
+            continue
+        ranks[key] = next((r for at, r in totals if at > i), len(CF_SECTION_RANK))
+    return ranks if totals else {}
+
+
+def _keep_sections(keys: list[str], columns: Sequence[Column]) -> list[str]:
+    votes: dict[str, Counter] = defaultdict(Counter)
+    for column in reversed(columns):
+        for key, rank in _section_ranks(column.order).items():
+            votes[key][rank] += 1
+    if not votes:
+        return keys
+    ranks: list[float] = []
+    for key in keys:
+        found = votes.get(key)
+        ranks.append(found.most_common(1)[0][0] if found else (ranks[-1] if ranks else 0))
+    if all(a <= b for a, b in zip(ranks, ranks[1:])):
+        return keys
+    return [key for _, key in sorted(zip(ranks, keys), key=lambda t: t[0])]
 
 
 def _operating_span(order: Sequence[str]) -> tuple[int | None, int]:

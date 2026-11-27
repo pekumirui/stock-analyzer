@@ -2056,6 +2056,24 @@ def test_cf_rows_do_not_take_items_of_other_statements_when_the_paired_filing_ha
     assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None}
 
 
+def test_cf_sections_keep_their_order_when_periods_lack_different_sections() -> None:
+    def column(end: date, order: list[str]) -> fst.Column:
+        f = fst.Filing(id=end.toordinal(), doc_id=str(end), source="edinet", period_type="FY", period_end=end,
+                       submitted=str(end), standard="JPGAAP")
+        return fst.Column(f, {k: 1.0 for k in order}, order, {k: "edinet" for k in order})
+
+    op = ["IncomeBeforeIncomeTaxes", "NetCashProvidedByUsedInOperatingActivities"]
+    without_inv = column(date(2026, 3, 31), [*op, "CashDividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities",
+                                             "NetIncreaseDecreaseInCashAndCashEquivalents"])
+    without_fin = column(date(2026, 9, 30), [*op, "PurchaseOfPropertyPlantAndEquipmentInvCF",
+                                             "NetCashProvidedByUsedInInvestmentActivities",
+                                             "NetIncreaseDecreaseInCashAndCashEquivalents"])
+    assert fst._row_keys([without_inv, without_fin], "CF") == [
+        *op, "PurchaseOfPropertyPlantAndEquipmentInvCF", "NetCashProvidedByUsedInInvestmentActivities",
+        "CashDividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities", "NetIncreaseDecreaseInCashAndCashEquivalents",
+    ]
+
+
 def test_bs_rows_do_not_take_income_statement_items() -> None:
     bs = [xbrl_fact(1, "CashAndDeposits", 943, instant=True), xbrl_fact(2, "CurrentAssets", 3430, instant=True),
           xbrl_fact(3, "Assets", 5587, instant=True)]
