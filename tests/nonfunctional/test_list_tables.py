@@ -1,6 +1,7 @@
 """一覧表（決算速報・スクリーナー・ランキング・大量保有報告書）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197 / KAB-270）。"""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -146,3 +147,14 @@ def test_monthly_tables_use_sheet() -> None:
     assert "table.sheet .tl-sub { font-size:11px; }" in css
     pub = (ROOT / "app/monthly/public.py").read_text(encoding="utf-8")
     assert 'id="monthly-tbl" class="sheet"' in pub
+
+
+def test_loss_color_is_not_up_and_margin_sits_below_amount() -> None:
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    src = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
+    assert "--loss:" in css
+    assert ".loss { color:var(--loss); }" in css
+    assert not re.search(r"\.loss\s*\{[^}]*var\(--up\)", css)
+    assert '<span class="g">${finRate(r, k)}${g ? gc(g)' in src
+    assert '<span class="g">${finRate(r, k)}${g ? revG(g)' in src
+    assert "${amt(v)}${rate}" not in src

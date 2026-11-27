@@ -1,5 +1,5 @@
   :root { --bg:#ffffff; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
-          --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
+          --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --loss:#8a3b4c; --warn:#e6a100;
           --monthly:#5b3f9a; --monthly-est:#8f7eb8;
           --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
   * { box-sizing:border-box; margin:0; }
@@ -237,11 +237,11 @@
   table.sheet td.name, table.sheet th.name { width:1%; white-space:nowrap; }
   table.sheet .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
   table.sheet .tl-sub { font-size:11px; }
-  table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); }
+  table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); margin-right:4px; }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; white-space:nowrap; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
   #st-sub-financials .fs .g .qb + .qb { margin-left:3px; }
-  #earn-tbl .loss { color:var(--up); }
+  #earn-tbl .loss { color:var(--loss); }
   table.sheet .pin0, table.sheet .pin1, table.sheet .pin2 { position:sticky; z-index:1; }
   table.sheet .pin0 { left:var(--pin0, 0); }
   table.sheet .pin1 { left:var(--pin1, 0); }
@@ -278,7 +278,7 @@
   table.fin th { letter-spacing:.02em; }
   table.fin td { padding:7px 8px; vertical-align:top; }
   table.fin td.num { font-weight:500; }
-  table.fin .opm.loss { color:var(--up); }
+  table.fin .opm.loss { color:var(--loss); }
   table.fin .g { display:block; font-weight:400; line-height:1.35; min-height:1.35em; }
   table.fin tbody tr:nth-child(even) td { background:var(--row); }
   table.fin tbody tr:hover td { background:var(--row-sel); }
@@ -292,7 +292,7 @@
   table.fin.rev tbody tr.act td { background:var(--row); }
   table.fin.rev tbody tr:hover td { background:var(--row-sel); }
   table.fin tr.act td.num { font-weight:600; }
-  table.fin .loss { color:var(--up); }
+  table.fin .loss { color:var(--loss); }
   #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.more { border-style:dashed; }
