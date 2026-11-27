@@ -2,14 +2,17 @@ const FS_PERIODS = [8, 20];
 const FS_PT = {Q1: ["1Q", "qb-1Q"], Q2: ["2Q", "qb-2Q"], Q3: ["3Q", "qb-3Q"], FY: ["通期", "qb-fy"]};
 const FS_STD = {JPGAAP: "日本基準", IFRS: "IFRS", USGAAP: "米国基準"};
 const FS_SOURCE = {edinet: "有報", tdnet: "XBRL", tdnet_pdf: "PDF"};
+const FS_ROLE_CLASS = {subtotal: "fs-sub", total: "fs-tot", grand: "fs-grand"};
 const fsEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
 let stockFsStatement = "BS";
 let stockFsPeriods = FS_PERIODS[0];
 let stockFsCache = new Map();
+let stockFsScrollKey = "";
 
 function resetStockFs(){
   stockFsCache = new Map();
+  stockFsScrollKey = "";
   $("#st-fs-tbl").innerHTML = "";
   $("#st-fs-meta").textContent = "";
   clearFsChart();
@@ -33,7 +36,7 @@ function fsCell(cell, period, unit, edge){
   if(!period || cell.source === period.source) return `<td class="${cls}">${txt}</td>`;
   const from = fsSourceLabel(cell.source), main = fsSourceLabel(period.source);
   const tip = `${main} に無く、${from} から補った値`;
-  return `<td class="${cls} fill" title="${fsEsc(tip)}">${txt}<span class="qb fs-fill">${fsEsc(from)}</span></td>`;
+  return `<td class="${cls} fill" title="${fsEsc(tip)}"><span class="qb fs-fill">${fsEsc(from)}</span>${txt}</td>`;
 }
 
 function fsEdges(ps){
@@ -77,7 +80,12 @@ function fsEarlierHtml(d){
 const FS_MAX_DEPTH = 6;
 
 function fsSecRow(name, level, span){
-  return `<tr class="fs-sec fs-sec${Math.min(level, FS_MAX_DEPTH - 1)}"><td class="l">${fsEsc(name)}</td><td colspan="${span}"></td></tr>`;
+  const esc = fsEsc(name);
+  return `<tr class="fs-sec fs-sec${Math.min(level, FS_MAX_DEPTH - 1)}"><td class="l" colspan="${span + 1}" title="${esc}"><span class="fs-sec-lbl">${esc}</span></td></tr>`;
+}
+
+function fsRowClass(r){
+  return [FS_ROLE_CLASS[r.role], r.unmatched_pdf ? "pdf" : ""].filter(Boolean).join(" ");
 }
 
 function fsTableHtml(d){
@@ -103,7 +111,9 @@ function fsTableHtml(d){
       ? `<span class="qb fs-pdf" title="XBRL の科目に対応が付かなかった短信 PDF の行">PDFのみ</span>` : "";
     const unit = r.unit === "per_share" ? `<span class="sub">（円）</span>` : "";
     const cls = depth ? `l d${depth}` : "l";
-    h += `<tr${r.unmatched_pdf ? ' class="pdf"' : ""}><td class="${cls}" title="${fsEsc(r.key)}">${fsEsc(r.label)}${unit}${mark}</td>`
+    const trCls = fsRowClass(r);
+    const tip = r.label && r.label !== r.key ? `${r.label} (${r.key})` : r.key;
+    h += `<tr${trCls ? ` class="${trCls}"` : ""}><td class="${cls}" title="${fsEsc(tip)}"><span class="fs-lbl">${fsEsc(r.label)}${unit}${mark}</span></td>`
       + ps.map((p, i) => fsCell((r.cells || [])[i], p, r.unit, edges[i])).join("") + `</tr>`;
   }
   return h + `</tbody>`;
@@ -124,6 +134,11 @@ function loadStockFs(code, statement, periods){
   return req;
 }
 
+function fsScrollLeft(keepOffset, nextScrollWidth){
+  if(keepOffset == null) return nextScrollWidth;
+  return Math.max(0, nextScrollWidth - keepOffset);
+}
+
 async function renderStockFs(){
   syncStockFsButtons();
   const code = stockCode, st = stockFsStatement, n = stockFsPeriods;
@@ -142,10 +157,26 @@ async function renderStockFs(){
   }
   if(!current()) return;
   const has = (d.periods || []).length > 0;
+  const tbl = $("#st-fs-tbl");
+  const wrap = tbl && tbl.parentElement;
+  const scrollKey = `${code}|${n}`;
+  const keepOffset = wrap && stockFsScrollKey === scrollKey && tbl.rows && tbl.rows.length > 0
+    ? Math.max(0, wrap.scrollWidth - wrap.scrollLeft) : null;
   $("#st-fs-meta").textContent = has ? fsMeta(d) : "";
   $("#st-fs-legend").hidden = !has;
-  $("#st-fs-tbl").innerHTML = fsTableHtml(d);
+  tbl.innerHTML = fsTableHtml(d);
   $("#st-fs-earlier").innerHTML = fsEarlierHtml(d);
+  if(has && wrap){
+    stockFsScrollKey = scrollKey;
+    wrap.scrollTop = 0;
+    wrap.scrollLeft = fsScrollLeft(keepOffset, wrap.scrollWidth);
+    const applyScroll = () => {
+      if(!current()) return;
+      wrap.scrollLeft = fsScrollLeft(keepOffset, wrap.scrollWidth);
+      document.querySelectorAll("#st-fs-earlier .tbl-wrap").forEach(w => { w.scrollLeft = w.scrollWidth; });
+    };
+    if(typeof requestAnimationFrame === "function") requestAnimationFrame(applyScroll);
+  }
   renderFsChart(d);
 }
 
@@ -162,5 +193,5 @@ document.querySelectorAll("#st-fs-periods .ftab").forEach(b => b.onclick = () =>
 });
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, FS_PERIODS};
+  module.exports = {fsAmount, fsCell, fsTableHtml, fsEarlierHtml, fsMeta, fsScrollLeft, FS_PERIODS};
 }
