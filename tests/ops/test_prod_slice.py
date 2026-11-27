@@ -6,6 +6,7 @@ import os
 import sqlite3
 import stat
 import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -22,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 COMMAND = ROOT / "deploy" / "prod_ro_command.sh"
 PROD_RO_SH = ROOT / "deploy" / "prod_ro.sh"
 KEYS = ROOT / "deploy" / "ssh" / "prod_ro_authorized_keys"
-PYTHON = ROOT / ".venv" / "bin" / "python"
+PYTHON = Path(sys.executable)
 
 
 def _dummy(col):

@@ -60,7 +60,7 @@ Host ${alias}
   HostName ${HOST}
   User ${USER}
   Port ${PORT}
-  IdentityFile ${key}
+  IdentityFile ~/.ssh/${key}
   IdentitiesOnly yes
   BatchMode yes
   StrictHostKeyChecking yes
@@ -70,7 +70,7 @@ EOF
 }
 
 if [[ -f "${HOME}/.ssh/id_vps" ]]; then
-  add_host stock-vps "~/.ssh/id_vps"
+  add_host stock-vps id_vps
   echo "VPS SSH ready: ssh stock-vps"
   if ssh -o BatchMode=yes stock-vps 'echo ok $(hostname)' 2>/dev/null; then
     echo "VPS SSH check: ok"
@@ -80,6 +80,6 @@ if [[ -f "${HOME}/.ssh/id_vps" ]]; then
 fi
 
 if [[ -f "$RO_KEY" ]]; then
-  add_host stock-vps-ro "~/.ssh/id_vps_ro"
+  add_host stock-vps-ro id_vps_ro
   echo "本番の読み取り: ssh stock-vps-ro（slice / get だけ）"
 fi
