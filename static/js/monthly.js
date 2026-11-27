@@ -956,10 +956,12 @@ function renderMonthlyTimeline(tables, opts){
   }
   let maxNumLen = 0;
   let head = `<th class="tl-corner"></th>`;
-  for(const c of cols){
-    const yb = c === cols[0] || c.m === 1 ? ` class="tl-yb"` : "";
-    head += `<th${yb}><span class="tl-hy">${c.y}年</span>${c.m}月</th>`;
-  }
+  cols.forEach((c, i) => {
+    const yb = i === 0 || c.m === 1 ? ` class="tl-yb"` : "";
+    const end = i > 0 && i === cols.length - 1 && c.m > 2;
+    const hy = end || c.m === 1 || (i === 0 && !(cols[1] && cols[1].m === 1)) ? `${c.y}年` : "";
+    head += `<th${yb}><span class="tl-hy${end ? " tl-hy-end" : ""}">${hy}</span>${c.m}月</th>`;
+  });
   const cellsFor = rec => {
     let cells = "";
     for(const c of cols){

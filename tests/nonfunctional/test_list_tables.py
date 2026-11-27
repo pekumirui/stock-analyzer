@@ -149,6 +149,30 @@ def test_monthly_tables_use_sheet() -> None:
     assert 'id="monthly-tbl" class="sheet"' in pub
 
 
+def test_perf_tbl_stacks_alpha_under_return() -> None:
+    src = (ROOT / "static/js/stock-price.js").read_text(encoding="utf-8")
+    assert "<th>α</th>" not in src
+    assert "under(pctParen(p[`alpha_${k}`]))" in src
+    for label in ("+1d", "+5d", "+20d", "+60d", "現在まで"):
+        assert f'"{label}"' in src
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert "#perf-tbl.sheet" in css
+
+
+def test_monthly_timeline_year_label_and_row_hover() -> None:
+    src = (ROOT / "static/js/monthly.js").read_text(encoding="utf-8")
+    assert '<span class="tl-hy">${c.y}年</span>' not in src
+    assert "tl-hy-end" in src
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert "table.monthly-tl tbody tr[data-series]:hover td { background:#fff; }" not in css
+    assert "table.monthly-tl tbody tr[data-series]:hover td," in css
+
+
+def test_short_name_is_wider_on_pc() -> None:
+    api = (ROOT / "static/js/api.js").read_text(encoding="utf-8")
+    assert 'matchMedia("(min-width:721px)").matches ? 10 : 5' in api
+
+
 def test_loss_color_is_not_up_and_margin_sits_below_amount() -> None:
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     src = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
