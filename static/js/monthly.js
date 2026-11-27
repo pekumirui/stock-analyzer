@@ -113,7 +113,7 @@ const MONTHLY_BREAKDOWN_RANK = {
   呉服関連:1, アパレル雑貨:2, その他:3,
   管理テナント数:1, 取引店舗数:2, 増加:3, 減少:4,
 };
-const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2};
+const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2, 米国:3};
 const MONTHLY_CHANNEL_RANK = {"直営+FC":0, 直営:1, FC:2, "":3};
 
 function monthlyRowScopeRank(label){
@@ -166,7 +166,7 @@ function monthlyRowOrder(tables, code){
       items.push({
         element: L.display, unit: e.unit || "number", label: L,
         segment: L.group,
-        country: MONTHLY_COUNTRY_RANK[L.country] ?? 3,
+        country: MONTHLY_COUNTRY_RANK[L.country] ?? 4,
         scope: monthlyRowScopeRank(L),
         channel: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
         slot: MONTHLY_METRIC_RANK[L.metric_kind],

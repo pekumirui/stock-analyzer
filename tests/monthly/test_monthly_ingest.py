@@ -212,9 +212,15 @@ def test_union_orders_country_then_channel() -> None:
                  "elements": [{"element": n, "unit": "yoy_index"} for n in names]}
         return [row["element"] for row in union_monthly_elements([table])]
 
-    got = order(["海外 全店 売上高(前年比)", "国内 全店 売上高(前年比)", "全店 売上高(前年比)"])
-    if got != ["全店 売上高(前年比)", "日本 全店 売上高(前年比)", "海外 全店 売上高(前年比)"]:
-        _fail(f"country order (none → 日本 → 海外): {got}")
+    got = order([
+        "米国 全店 売上高(前年比)", "海外 全店 売上高(前年比)",
+        "国内 全店 売上高(前年比)", "全店 売上高(前年比)",
+    ])
+    if got != [
+        "全店 売上高(前年比)", "日本 全店 売上高(前年比)",
+        "海外 全店 売上高(前年比)", "米国 全店 売上高(前年比)",
+    ]:
+        _fail(f"country order (none → 日本 → 海外 → 米国): {got}")
     got = order(["FC 売上高(前年比)", "直営 売上高(前年比)", "直営+FC 売上高(前年比)"])
     if got != ["直営+FC 売上高(前年比)", "直営 売上高(前年比)", "FC 売上高(前年比)"]:
         _fail(f"channel order (直営+FC → 直営 → FC): {got}")
@@ -231,6 +237,31 @@ def test_canonicalize_element_label() -> None:
         _fail("strip leftover 前年対比; do not invent 全店 売上高")
     if canonicalize_element_label("米国子会社 前年対比", "yoy_index") != "米国子会社(前年比)":
         _fail("strip leftover 前年対比 from 米国子会社")
+    if canonicalize_element_label("米国子会社", "number") != "米国子会社":
+        _fail("米国子会社 stays one word")
+    if canonicalize_element_label("米国子会社 売上高", "number") != "米国子会社 売上高":
+        _fail("米国子会社 売上高 stays one word")
+    sub = parse_element_layers("米国子会社 売上高")
+    if (sub["country"], sub["segment"], sub["metric"]) != ("", "米国子会社", "売上高"):
+        _fail(f"米国子会社 is not a country token: {sub!r}")
+    if canonicalize_element_label("海外 米国 店舗数", "number") != "海外 米国 店舗数":
+        _fail("second country word stays in the name")
+    if canonicalize_element_label("海外 米国 店舗数", "number", "31930") != "海外 米国 店舗数":
+        _fail("31930 海外 米国 店舗数 name is unchanged")
+    both = parse_element_layers("海外 米国 店舗数")
+    if (both["country"], both["segment"], both["metric"]) != ("海外", "米国", "店舗数"):
+        _fail(f"first country only: {both!r}")
+    aliased = canonicalize_element_label(
+        apply_issuer_aliases(
+            "31930", canonicalize_element_label("海外 米国", "number", "31930"), year=2026,
+        ),
+        "number",
+        "31930",
+    )
+    if aliased != "海外 米国 店舗数":
+        _fail(f"31930 alias 海外 米国 must stay 海外 米国 店舗数: {aliased!r}")
+    if canonicalize_element_label("米国 ボウリング 売上高", "number") != "米国 ボウリング 売上高":
+        _fail("米国 row name stays")
     if canonicalize_element_label("売上高前期対比", "yoy_pct") != "売上高(前年比)":
         _fail("strip 前期対比 + suffix")
     if canonicalize_element_label("売上高前年同期対比", "yoy_index") != "売上高(前年比)":
