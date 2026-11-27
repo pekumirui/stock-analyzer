@@ -41,7 +41,7 @@ flowchart LR
 
 - 起動: 毎日 10:30<br>毎日 16:30（`--ledger /var/log/app/html_ingest_ledger.json`）
 - 呼ぶ API: `GET /api/v1/tables/{code}`, `POST /api/v1/tables/{code}/ingest`
-- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`
 - 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
@@ -78,7 +78,7 @@ flowchart LR
 
 - 起動: 毎日 10:30<br>毎日 16:30
 - 呼ぶ API: `POST /api/v1/tables/{code}/ingest`
-- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`
 - 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
@@ -110,7 +110,7 @@ flowchart LR
 
 - 起動: 毎日 10:40<br>毎日 16:40（`--all --post`）
 - 呼ぶ API: `GET /api/v1/tables/{code}/{year}`, `POST /api/v1/tables/{code}/ingest`
-- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`
 - 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |
@@ -144,7 +144,7 @@ flowchart LR
 
 - 起動: 毎日 18:30<br>毎日 21:30（`--ledger /var/log/app/pdf_ingest_ledger.json`）
 - 呼ぶ API: `GET /api/v1/tables/{code}`, `POST /api/v1/tables/{code}/ingest`
-- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`
+- 書き込み: `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`
 - 読み取りだけ: `statements`, `stocks`
 
 | 引数 | 種類 | 既定 | 説明 |

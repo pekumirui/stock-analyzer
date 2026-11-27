@@ -78,7 +78,7 @@ FastAPI が公開する REST エンドポイントの応答構造・エラー規
 
 | エンドポイント | 動作 |
 |---|---|
-| `POST /api/v1/tables/{code}/ingest` | 資料の列順と `as_of` 時点の決算期から暦年を割り当てて一括投入する（`dry_run: true` は書かずに割当結果とセルを返し、`only_months` は `YYYY-MM` で対象月を絞る）。銘柄エイリアスで同じ保存名に寄る行は 1 行に統合する |
+| `POST /api/v1/tables/{code}/ingest` | 資料の列順と `as_of` 時点の決算期から暦年を割り当てて一括投入する（`dry_run: true` は書かずに割当結果とセルを返し、`only_months` は `YYYY-MM` で対象月を絞る）。銘柄エイリアスで同じ保存名に寄る行は 1 行に統合する。任意の `publication`（`basis` / `on` / `time` / `reason` / `ref`）は、その投入で初めて値が付いた月のうちいちばん新しい月の公表日になる。省略すると `unknown` / `unspecified` で、`as_of` は公表日にコピーしない |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次行を登録する（`unit` 必須、表が無ければ作成）。トークン正規化と銘柄エイリアス適用後に保存名と完全一致する既存行があれば冪等に `200`、新規作成時は `201` を返す |
 | `PUT /api/v1/tables/{code}/{year}/elements` | 既存行の `unit` を変更し、新しい `unit` の正規名へ改名する（既に同名行があれば値を統合する） |
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 値が 1 件も入っていない空の行を削除する（表自体は残す） |

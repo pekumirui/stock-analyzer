@@ -201,5 +201,65 @@ def test_sync_monthly_from_vps() -> None:
     print("ok: sync_monthly_from_vps")
 
 
+def test_sync_copies_publications_and_clears_a_dest_only_table() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_p = Path(tmp)
+        src = tmp_p / "prod.db"
+        dest = tmp_p / "local.db"
+        slice_path = tmp_p / "slice.sqlite"
+        _make_src(src)
+        _make_dest(dest)
+        for path, row in (
+            (src, ("262A0", 2026, 7, "2026-08-05", "tdnet", "20260805_262A.pdf")),
+            (dest, ("99990", 2020, 1, None, "unknown", None)),
+        ):
+            con = sqlite3.connect(path)
+            con.execute(
+                "CREATE TABLE monthly_publications ("
+                "code TEXT, year INTEGER, month INTEGER, published_on TEXT, "
+                "basis TEXT, source_ref TEXT, PRIMARY KEY (code, year, month))"
+            )
+            con.execute(
+                "INSERT INTO monthly_publications VALUES (?,?,?,?,?,?)", row,
+            )
+            con.commit()
+            con.close()
+        dump_monthly_slice(src, slice_path)
+        replace_monthly(dest, slice_path)
+        dest_con = sqlite3.connect(dest)
+        got = dest_con.execute(
+            "SELECT code, published_on, basis FROM monthly_publications"
+        ).fetchall()
+        dest_con.close()
+        if got != [("262A0", "2026-08-05", "tdnet")]:
+            _fail(f"publication slice: {got}")
+
+        bare = tmp_p / "bare.db"
+        dest2 = tmp_p / "local2.db"
+        slice2 = tmp_p / "slice2.sqlite"
+        _make_src(bare)
+        _make_dest(dest2)
+        con = sqlite3.connect(dest2)
+        con.execute(
+            "CREATE TABLE monthly_publications ("
+            "code TEXT, year INTEGER, month INTEGER, PRIMARY KEY (code, year, month))"
+        )
+        con.execute(
+            "INSERT INTO monthly_publications VALUES (?,?,?)", ("99990", 2020, 1),
+        )
+        con.commit()
+        con.close()
+        dump_monthly_slice(bare, slice2)
+        replace_monthly(dest2, slice2)
+        dest_con = sqlite3.connect(dest2)
+        left = dest_con.execute("SELECT COUNT(*) FROM monthly_publications").fetchone()[0]
+        values = dest_con.execute("SELECT COUNT(*) FROM monthly_values").fetchone()[0]
+        dest_con.close()
+        if left != 0 or values != 1:
+            _fail(f"dest-only publications must be cleared, values kept: {left} {values}")
+    print("ok: sync publications")
+
+
 if __name__ == "__main__":
     test_sync_monthly_from_vps()
+    test_sync_copies_publications_and_clears_a_dest_only_table()

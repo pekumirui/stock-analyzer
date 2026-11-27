@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
+from ...monthly.publications import record_manual, value_months
 from ...monthly.store import delete_monthly_element, record_element_source, remap_monthly_elements
 from ...models import MonthlyElement, MonthlyValue
 from ...monthly.tree import MONTHLY_TREES, assign_tree_rows
@@ -184,6 +185,7 @@ def _doc_plan(db: Session, code: str, year_i: int, body: dict) -> dict:
 
 
 def _doc_apply(db: Session, code: str, year_i: int, plan: dict) -> None:
+    before = value_months(db, code)
     for name in plan["deleted"]:
         delete_monthly_element(db, code, year_i, name)
     remap_monthly_elements(db, code, year_i, {
@@ -206,6 +208,7 @@ def _doc_apply(db: Session, code: str, year_i: int, plan: dict) -> None:
         if r["values"] is not None:
             for m, v in r["values"].items():
                 _upsert_value(db, code, year_i, r["element"], m, v)
+    record_manual(db, code, before)
     db.flush()
 
 

@@ -197,6 +197,74 @@ stateDiagram-v2
 | `failed` | `missing` | `--retry-failed` で再び取りに行き 404 のとき | `jobs/xbrl/tdnet_pdf_ingest.py` `_mark`<br>`jobs/xbrl/tdnet_pdf_ingest.py` `targets` |
 | `missing` | `ok` | 取り込みは `missing` を取り直さない。`put_html` とゴールデンの投入だけが、既存行を `ok` で上書きする | `tools/tdnet_pdf/verify_financials.py` `put_html`<br>`tools/tdnet_pdf/golden_check.py` `_seed_and_sync` |
 
+## monthly_publications.basis
+
+銘柄 × 暦年 × 月の最初の公表日が、どの出どころの日付かを表す。同じ月をあとから訂正しても、より遅い日付では置き換えない。日付がある行を `unknown` に戻すことはない。値が全部消えて行を消すのは状態遷移ではない（`app/monthly/publications.py` の `drop`）。
+
+```mermaid
+---
+config:
+  layout: elk
+---
+stateDiagram-v2
+  [*] --> tdnet: 新規の月
+  [*] --> ir_page: 新規の月
+  [*] --> first_seen: 新規の月
+  [*] --> unknown: 新規の月
+  unknown --> tdnet: 日付が付く
+  unknown --> ir_page: 日付が付く
+  unknown --> first_seen: 日付が付く
+  first_seen --> tdnet: 同じ日かより前
+  first_seen --> ir_page: 同じ日かより前
+  ir_page --> tdnet: 同じ日かより前
+  tdnet --> ir_page: より前のページ日付
+  tdnet --> first_seen: 同じ確かさでより前
+```
+
+| 元 | 先 | 条件 | 根拠 |
+|---|---|---|---|
+| `[*]` | `tdnet` | その月の最初の行を TDnet の開示日で作る | `app/monthly/publications.py` `note` |
+| `[*]` | `ir_page` | その月の最初の行をページ・URL・表計算・JSON の暦日で作る | `app/monthly/publications.py` `note` |
+| `[*]` | `first_seen` | その月の最初の行を、バッチが月を最初に見た日で作る | `app/monthly/publications.py` `note` |
+| `[*]` | `unknown` | その月の最初の行を、日付が無い理由付きで作る | `app/monthly/publications.py` `note` |
+| `unknown` | `tdnet` | 日付の無い行に、TDnet の開示日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `unknown` | `ir_page` | 日付の無い行に、ページ上の暦日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `unknown` | `first_seen` | 日付の無い行に、最初に見た日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `first_seen` | `tdnet` | より確かな開示日、または同じ確かさで同じ日かより前の開示日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `first_seen` | `ir_page` | より確かなページの暦日、または同じ確かさで同じ日かより前の暦日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `ir_page` | `tdnet` | 同じ確かさで、同じ日かより前の TDnet 開示日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `tdnet` | `ir_page` | 同じ確かさで、開示日より前のページ上の暦日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `tdnet` | `first_seen` | 同じ確かさで、開示日より前の観測日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+
+`exact` を `estimated` に戻す矢印は無い。取得日（`first_seen` は `estimated`）は、題名から特定した `exact` の開示日が後でも置き換わらない。
+
+## monthly_publications.confidence
+
+その日付を、どの確かさでその月に結び付けたかを表す。`exact` は題名の年月かページの暦日、`estimated` は月末から 45 日以内の開示か取得日、`unknown` は日付が無い。より低い確かさへは戻さない。
+
+```mermaid
+---
+config:
+  layout: elk
+---
+stateDiagram-v2
+  [*] --> exact: 新規の月
+  [*] --> estimated: 新規の月
+  [*] --> unknown: 新規の月
+  unknown --> exact: 題名かページの暦日
+  unknown --> estimated: 推定か取得日
+  estimated --> exact: 題名かページの暦日
+```
+
+| 元 | 先 | 条件 | 根拠 |
+|---|---|---|---|
+| `[*]` | `exact` | 題名の年月かページの暦日で行を作る | `app/monthly/publications.py` `note` |
+| `[*]` | `estimated` | 45 日以内の開示、または取得日で行を作る | `app/monthly/publications.py` `note` |
+| `[*]` | `unknown` | 日付の無い行を作る | `app/monthly/publications.py` `note` |
+| `unknown` | `exact` | 日付の無い行に、題名かページの暦日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `unknown` | `estimated` | 日付の無い行に、推定か取得日が来る | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+| `estimated` | `exact` | 推定や取得日の行に、題名かページの暦日が来る。推定の方が早くても `exact` が勝つ | `app/monthly/publications.py` `note`<br>`app/monthly/publications.py` `better` |
+
 ## 状態遷移図に含めない列
 
 以下の列は、取り込みのたびに計算し直す値で、前回の状態から遷移する列ではない。

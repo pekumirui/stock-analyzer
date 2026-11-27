@@ -9,6 +9,7 @@ from ...models import Statement
 from ...monthly.ingest import (
     MonthlyIngestError, map_pdf_columns, parse_as_of, serialize_column_mapping,
 )
+from ...monthly.publications import PublicationError, parse_publication, record_written, value_months
 from ...monthly.store import record_element_source
 from ._common import (
     ApiError, _ensure_element, _ingest_error, _parse_code, _parse_dry_run, _parse_ingest_rows,
@@ -42,6 +43,10 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
     via = body.get("via", "api")
     if not isinstance(via, str) or via not in INGEST_VIAS:
         raise ApiError(400, "INVALID_PARAM", f"via は {' / '.join(sorted(INGEST_VIAS))} です。")
+    try:
+        publication = parse_publication(body["publication"]) if "publication" in body else parse_publication(None)
+    except PublicationError as exc:
+        raise ApiError(400, "INVALID_PARAM", exc.message) from exc
     rows = _parse_ingest_rows(body.get("rows"), months, code, as_of=as_of)
     fy_end_rows = [
         (disclosed, fy_end)
@@ -64,6 +69,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         nonlocal updated, changed
         updated = []
         changed = False
+        before = value_months(db, code)
         for element, force, unit, values_by_col, sources in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
             names: dict[int, str] = {}
@@ -83,8 +89,10 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
                 updated.append({"year": year_i, "element": names[year_i], "months": by_year[year_i]})
-        if not dry_run and changed:
-            _touch_monthly_issuer(db, code)
+        if not dry_run:
+            record_written(db, code, before, publication)
+            if changed:
+                _touch_monthly_issuer(db, code)
 
     try:
         if dry_run:

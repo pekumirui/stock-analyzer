@@ -1900,6 +1900,11 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
         body["dry_run"] = args["dry_run"]
     if "only_months" in args:
         body["only_months"] = _parse_only_months(args["only_months"])
+    if "publication" in args:
+        raw = args["publication"]
+        if not isinstance(raw, dict):
+            raise ValueError("publication must be an object")
+        body["publication"] = raw
     return call_monthly_api("POST", monthly_ingest_url(code), body)
 
 
@@ -2711,7 +2716,10 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                         "required": ["element", "values", "unit"],
                     },
                 },
-                "as_of": {"type": "string", "description": "disclosure date YYYY-MM-DD"},
+                "as_of": {
+                    "type": "string",
+                    "description": "YYYY-MM-DD used only to map columns onto calendar years. Not stored as the publication date.",
+                },
                 "dry_run": {
                     "type": "boolean",
                     "description": "true: return fy_end_month, layout, mapping, and cells that would be written. Do not write the DB.",
@@ -2720,6 +2728,29 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                     "type": "array",
                     "description": "Calendar YYYY-MM. After mapping, write only those columns.",
                     "items": {"type": "string"},
+                },
+                "publication": {
+                    "type": "object",
+                    "description": "Publication of the newly added month. Omit to store unknown/unspecified. as_of is not copied.",
+                    "properties": {
+                        "basis": {
+                            "type": "string",
+                            "enum": ["tdnet", "ir_page", "first_seen", "unknown"],
+                        },
+                        "on": {"type": "string", "description": "YYYY-MM-DD. Required unless basis is unknown."},
+                        "time": {"type": "string", "description": "HH:MM:SS when the source has a clock."},
+                        "reason": {
+                            "type": "string",
+                            "description": "Required when basis is unknown. carried_history, manual, no_source, no_page_date, unspecified.",
+                        },
+                        "ref": {"type": "string", "description": "Filename, disclosure number, or URL."},
+                        "confidence": {
+                            "type": "string",
+                            "enum": ["exact", "estimated", "unknown"],
+                            "description": "exact: title or page date identifies the month. estimated: 45-day window or fetch date. unknown: no date. Omit and the server infers exact for a dated basis, estimated for first_seen, unknown for unknown.",
+                        },
+                    },
+                    "required": ["basis"],
                 },
             },
             "required": ["code", "months", "rows", "as_of"],

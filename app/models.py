@@ -471,6 +471,56 @@ class MonthlyValue(Base):
     value = Column(Float, nullable=False, comment="数値のみ (単位・カンマ付き文字列は拒否)")
 
 
+class MonthlyPublication(Base):
+    __tablename__ = "monthly_publications"
+    __table_args__ = ({
+        "info": {"ref": {"code, year": "monthly_tables.code, year"}},
+        "comment": "銘柄×暦年×月の最初の公表。セルごとでも開示の履歴でもない",
+    },)
+    code = Column(String(5), primary_key=True)
+    year = Column(Integer, primary_key=True, comment="暦年")
+    month = Column(Integer, primary_key=True, comment="1〜12")
+    published_on = Column(
+        Date, nullable=True,
+        comment="JST の公表日。分からないときは NULL で、月末や取込日を入れない",
+    )
+    published_time = Column(
+        String(8), nullable=True,
+        comment="HH:MM:SS。TDnet の開示時刻があるときだけ。無ければ NULL",
+    )
+    basis = Column(
+        _one_of(
+            {"tdnet": "TDnet の開示日。時刻があれば published_time。いちばん確か"},
+            {"ir_page": "IR のページ・表計算・JSON に書いてある暦日。時刻は無い"},
+            {"first_seen": "ページに公表日が無く、バッチがその月を最初に見た日。観測の上限"},
+            {"unknown": "公表日は分からない。published_on は NULL。unknown_reason がある"},
+            length=16,
+        ),
+        nullable=False,
+        comment="日付の出どころ。同じ日なら tdnet、ir_page、first_seen の順に確か",
+    )
+    confidence = Column(
+        _one_of(
+            {"exact": "題名の年月かページの暦日から、その月だと特定できた"},
+            {"estimated": "題名から月が読めない。月末から45日以内の開示、または取得日という上限"},
+            {"unknown": "公表日は分からない。published_on は NULL"},
+            length=16,
+        ),
+        nullable=False,
+        comment="exact は題名かページの暦日。estimated は45日以内の推定か取得日。unknown は日付なし",
+    )
+    unknown_reason = Column(
+        String(32), nullable=True,
+        comment="basis が unknown のときだけ。carried_history / manual / no_source / "
+                "no_page_date / unspecified。日付がある行は NULL",
+    )
+    source_ref = Column(
+        Text, nullable=True,
+        comment="ファイル名、開示番号、URL。日付そのものではない",
+    )
+    recorded_at = Column(JstDateTime, nullable=False, comment="この行を書いた、またはより確かだと入れ替えた時刻")
+
+
 class DataVersion(Base):
     __tablename__ = "data_versions"
     __table_args__ = ({"comment": "読み取り結果を使い回すための版。対象表のトリガーが version を +1 する"},)

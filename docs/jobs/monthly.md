@@ -14,6 +14,44 @@
 - 行がまだ無い初期状態では版番号を `0` とする。値が変わらない再投入など `last_ingested_at` を更新しない書き込みもあるため、`last_ingested_at` は版の判定に使わない。
 - 一覧の `is_new` は `last_ingested_at` の JST 暦日が当日・前日・前々日の直近 3 日間に入るときに真となる。`ingested_today` は `last_ingested_at` の JST 暦日が当日のときに真となる。
 - `is_new` と `ingested_today` はどちらも暦日の切り替えで変化するため、ワーカーのメモリキャッシュは `(version, JST の今日)` をキーにして使い回す。別プロセスが DB に書き込んだ場合は、次の読み取り時に版番号の変化を検知してキャッシュを再構築する。
+- `monthly_publications` はこの版の監視対象に入れない。公表日の埋め戻しで一覧キャッシュを進めない。
+
+### 公表日（`monthly_publications`）
+
+1 か月の最初の公表を、銘柄 × 暦年 × 月に 1 行で持つ。セルごとには持たない。同じ月をあとから訂正しても日付は動かさない。その月の値が全部消えたら行も消す。`as_of` は列の暦年割当にだけ使い、公表日にはしない。`monthly_element_sources.first_seen_at` は取り込み時刻であり、公表日にはしない。
+
+| 列 | 意味 |
+|---|---|
+| `published_on` | JST の公表日。分からないときは `NULL`。月末や取り込み日を入れない |
+| `published_time` | `HH:MM:SS`。出どころに時刻があるときだけ。無ければ `NULL` |
+| `basis` | `tdnet`（開示日）/ `ir_page`（ページ・URL・表計算・JSON に書いてある暦日）/ `first_seen`（ページに日付が無く、バッチがその月を最初に見た日。観測の上限）/ `unknown` |
+| `unknown_reason` | `basis` が `unknown` のときだけ。`carried_history` / `manual` / `no_source` / `no_page_date` / `unspecified` |
+| `confidence` | `exact`（題名の年月かページの暦日からその月だと特定できた）/ `estimated`（題名から月が読めず、月末から 45 日以内の開示、または取得日という上限）/ `unknown`（日付なし） |
+| `source_ref` | ファイル名、開示番号、URL |
+
+同じ月に複数の候補が来たときは、`exact` が `estimated` に勝ち、`estimated` が `unknown` に勝つ。確かさが同じなら、より早い日付が勝ち、同じ日なら `tdnet`、`ir_page`、`first_seen` の順、さらに時刻がある方が勝つ。`exact` を `estimated` や `unknown` に戻さない。
+
+| 経路 | 記録 |
+|---|---|
+| TDnet の月次 PDF | ファイル名の `YYYYMMDD` を `tdnet`。時刻は隣の `.pdf.meta.json` の `pubdate` がその日と一致するときだけ。`via` は `ir_html` のまま |
+| IR HTML | ページの「更新・公表・発表・開示・掲載・確定・現在・時点」の隣の暦日が `as_of` と同じ年なら `ir_page`。`as_of` が月末でなければその日を `ir_page`。`as_of` が月末ならファイル名の日付を `first_seen`。それも無ければ `unknown` / `no_page_date` |
+| IR の表計算 | 明示の日付、URL の日付、セルの日付は `ir_page`。最終月の月末へのフォールバックは、ファイル名があれば `first_seen`、無ければ `unknown` / `no_page_date` |
+| IR の JSON | 明示の日付か `last_updated` は `ir_page`。月の 1 日へのプレースホルダは、ライブ取得のときだけその日の `first_seen`。保存した JSON の再生では `unknown` / `no_page_date` |
+| API・MCP が `publication` を付けない | `unknown` / `unspecified` |
+| `PUT` の値・文書で新しい月ができる | `unknown` / `manual` |
+
+1 回の投入で複数の月が初めて値を持つときは、いちばん新しい月だけにその資料の日付を付ける。それより前の月は `unknown` / `carried_history` にする。後の資料が古い月を載せているだけでは、その古い月の日付にしない。
+
+過去分は `python tools/monthly/backfill_publications.py` が dry-run で数える。`--write` で `monthly_publications` に書く。本番の DB には向けない。`monthly_element_sources.first_seen_at` は見ない。
+
+| 出どころ | 月の決め方 | `confidence` |
+|---|---|---|
+| TDnet PDF のファイル名 | 先頭の `YYYYMMDD` が開示日。題名（全角は半角に揃える）の `○年○月度` か `○月期○月度` が指す月。1 ファイル 1 月で、開示日以前のうちいちばん新しい月 | `exact` |
+| 題名に `月度` が無い TDnet PDF | 同じファイルの開示日が、その月の月末の翌日から 45 日以内にあるとき。入る月が複数ならいちばん新しい月。`月度` があるのに読めない題名は推定しない | `estimated` |
+| `statements` の表題 | PDF と同じ `○年○月度` / `○月期○月度` が読めたときだけ。読めなければ使わない | `exact` |
+| IR HTML | ページの更新・公表などの隣の暦日、または月末でない `as_of` は `ir_page`。`as_of` が表の最終月の月末だけのときは公表日にしない。ファイル名は取得日なので、2026-09 以降に取得した 2026-09 以降の月だけ `first_seen`。それより前の IR だけの月は戻さない | ページの暦日は `exact`。取得日は `estimated` |
+
+戻せない月は `unknown` / `no_source`。後の PDF が古い月を題名に含んでいても、その月の最初の開示より遅い日付では上書きしない。
 
 ### PDF 取込（`POST /api/v1/tables/{code}/ingest`）
 
@@ -81,7 +119,7 @@
 
 - 新規取込（`ingest`）、要素追加（`POST .../elements`）、値・文書の訂正 `PUT`、業種設定（`PUT .../industry`）はすべて最初に `db.get(Stock, code)` を検査し、存在しなければ `404 NOT_IN_MASTER` を返す。
 - 既存テーブルへ後から外部キー制約を足せないため、`stocks` への FK は張らず `PRAGMA foreign_keys` も有効化しない。
-- デプロイ時に走る `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が、`stocks` に存在しないコードの月次行を `monthly_values` → `monthly_element_sources` → `monthly_elements` → `monthly_tables` → `monthly_issuers` の順で冪等に `DELETE` する。
+- デプロイ時に走る `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が、`stocks` に存在しないコードの月次行を `monthly_publications` → `monthly_values` → `monthly_element_sources` → `monthly_elements` → `monthly_tables` → `monthly_issuers` の順で冪等に `DELETE` する。
 - アプリ起動時や各バッチの `init_db` ではこの削除を行わない（名証単独上場の `30320`・`30660` などを起動処理で触らないため）。
 
 ### unit

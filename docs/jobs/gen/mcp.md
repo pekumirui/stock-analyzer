@@ -438,6 +438,7 @@ PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tab
 | `code` | はい | string | 4-5 character stock code (7203, 72030, 262A0) |
 | `months` | はい | array[integer] | PDF column months in left-to-right order, integers 1-12. Duplicates allowed for year-wrap (e.g. Genky 13-col Jun…Jun). |
 | `rows` | はい | array[object] | list of {element, values, unit, force?}. yoy_index and number store as-is. yoy_pct input is signed; ingest writes yoy_index and value+100. |
-| `as_of` | はい | string | disclosure date YYYY-MM-DD |
+| `as_of` | はい | string | YYYY-MM-DD used only to map columns onto calendar years. Not stored as the publication date. |
 | `dry_run` |  | boolean | true: return fy_end_month, layout, mapping, and cells that would be written. Do not write the DB. |
 | `only_months` |  | array[string] | Calendar YYYY-MM. After mapping, write only those columns. |
+| `publication` |  | object | Publication of the newly added month. Omit to store unknown/unspecified. as_of is not copied. |

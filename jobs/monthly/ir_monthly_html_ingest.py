@@ -42,8 +42,17 @@ from jobs._r2common import (
     jst_today,
     with_mount_retry,
 )
+from app.monthly.publications import unknown
 from jobs.monthly.html_monthly import _is_prior_year_absolute
 from jobs.monthly.ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, sha256_bytes
+from jobs.monthly.publication_claim import (
+    html_sibling,
+    ir_release,
+    meta_clock,
+    pdf_for_sidecar,
+    read_html,
+    tdnet_release,
+)
 from jobs.monthly.tdnet_monthly_r2 import display_code
 
 DEFAULT_LEDGER = Path("/tmp/html_ingest_ledger.json")
@@ -186,11 +195,24 @@ def select_latest_per_code(sidecars: Sequence[Sidecar]) -> dict[str, Sidecar]:
     return chosen
 
 
+def publication_for(s: Sidecar, source: str = "ir_html"):
+    if source == "tdnet":
+        if s.filename_date == date.min:
+            return unknown("unspecified", s.path.name)
+        clock = meta_clock(pdf_for_sidecar(s.path), s.filename_date)
+        _ym, pub = tdnet_release(s.filename_date, s.columns, clock, s.path.name)
+        return pub
+    seen = None if s.filename_date == date.min else s.filename_date
+    _ym, pub = ir_release(s.as_of, seen, read_html(html_sibling(s.path)), s.path.name)
+    return pub
+
+
 def ingest_body(
     s: Sidecar,
     *,
     force: bool = False,
     months: frozenset[tuple[int, int]] | None = None,
+    source: str = "ir_html",
 ) -> dict[str, Any]:
     # force は reparse 後の unit 訂正（伸び率→yoy_pct 等）を人が通すときだけ。
     # cron で常に付けると UNIT_CONFLICT / ELEMENT_SIMILAR_EXISTS / YOY_NUMBER_CONFLICT が効かない。
@@ -207,6 +229,7 @@ def ingest_body(
         "rows": rows,
         "as_of": s.as_of.isoformat(),
         "via": "ir_html",
+        "publication": publication_for(s, source).as_dict(),
     }
     if months:
         body["only_months"] = [f"{year:04d}-{month:02d}" for year, month in sorted(months)]
@@ -479,8 +502,12 @@ def post_ingest(
     *,
     force: bool = False,
     months: frozenset[tuple[int, int]] | None = None,
+    source: str = "ir_html",
 ) -> PostOk | PostErr:
-    return post_body(client, origin, s.code, ingest_body(s, force=force, months=months))
+    return post_body(
+        client, origin, s.code,
+        ingest_body(s, force=force, months=months, source=source),
+    )
 
 
 def _check_only_months(code: str, updated: Sequence[Mapping[str, Any]], keep: frozenset[tuple[int, int]]) -> bool:
@@ -633,6 +660,7 @@ def run(
     precheck: Callable[[HttpClient, str, Sidecar], str | None] | None = None,
     sleep: Callable[[float], None] = time.sleep,
     listdir: Callable[[str], list[str]] | None = None,
+    source: str = "ir_html",
 ) -> int:
     """pattern / label / registry / empty_ok / precheck は TDnet PDF の sidecar 用
     （jobs/monthly/tdnet_monthly_pdf_ingest.py）。precheck が文字列を返したら POST しない。"""
@@ -780,7 +808,9 @@ def run(
                 }, force=force, months=month_filter))
                 continue
         try:
-            result = post_ingest(http, origin, s, force=force, months=month_filter)
+            result = post_ingest(
+                http, origin, s, force=force, months=month_filter, source=source,
+            )
         except MappingMismatch as e:
             failed += 1
             print(f"fail mapping {s.code}: {e}", flush=True)

@@ -29,8 +29,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from jobs._r2common import jst_today
 from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base
 from jobs.monthly.ir_monthly_r2 import http_get
+from jobs.monthly.publication_claim import is_month_end, origin_pub
 from jobs.monthly.tdnet_monthly_r2 import display_code
 
 CODE = "7649"
@@ -285,22 +287,31 @@ def drop_trailing_empty(months: list[int], rows: list[dict[str, Any]]) -> list[i
     return months[: last + 1]
 
 
+def resolve_as_of_origin(
+    payload: Mapping[str, Any],
+    points: Sequence[MonthPoint],
+    *,
+    explicit: date | None = None,
+) -> tuple[date, str]:
+    if explicit is not None:
+        return explicit, "ir_page"
+    from_last = parse_as_of(payload.get("last_updated"))
+    if from_last is not None:
+        return from_last, "ir_page"
+    filled = [p for p in points if p.values]
+    if not filled:
+        raise ValueError("no as_of")
+    last = filled[-1]
+    return date(last.year, last.month, 1), "period"
+
+
 def resolve_as_of(
     payload: Mapping[str, Any],
     points: Sequence[MonthPoint],
     *,
     explicit: date | None = None,
 ) -> date:
-    if explicit is not None:
-        return explicit
-    from_last = parse_as_of(payload.get("last_updated"))
-    if from_last is not None:
-        return from_last
-    filled = [p for p in points if p.values]
-    if not filled:
-        raise ValueError("no as_of")
-    last = filled[-1]
-    return date(last.year, last.month, 1)
+    return resolve_as_of_origin(payload, points, explicit=explicit)[0]
 
 
 def ingest_from_points(
@@ -331,13 +342,16 @@ def ingest_from_payload(
     as_of: date | None = None,
     spec: IssuerJsonSpec | None = None,
     code: str = CODE,
+    seen: date | None = None,
 ) -> dict[str, Any]:
     resolved = spec if spec is not None else spec_for(code)
     if not isinstance(payload, Mapping):
         raise ValueError("payload must be an object")
     points = month_points(payload, resolved)
-    resolved_as_of = resolve_as_of(payload, points, explicit=as_of)
-    return ingest_from_points(points, resolved_as_of, resolved)
+    resolved_as_of, origin = resolve_as_of_origin(payload, points, explicit=as_of)
+    out = ingest_from_points(points, resolved_as_of, resolved)
+    out["publication"] = origin_pub(origin, resolved_as_of, seen, resolved.url).as_dict()
+    return out
 
 
 def ingest_from_json(
@@ -381,6 +395,15 @@ def _row_values_without_nulls(months: Sequence[int], values_raw: Any) -> dict[st
     }
 
 
+def _publication(payload: Mapping[str, Any]) -> dict[str, Any]:
+    raw = payload.get("publication")
+    if isinstance(raw, dict):
+        return dict(raw)
+    day = date.fromisoformat(str(payload["as_of"]))
+    origin = "period" if is_month_end(day) else "ir_page"
+    return origin_pub(origin, day, None, None).as_dict()
+
+
 def ingest_body(payload: Mapping[str, Any]) -> dict[str, Any]:
     months = list(payload["months"])
     rows: list[dict[str, Any]] = []
@@ -401,6 +424,7 @@ def ingest_body(payload: Mapping[str, Any]) -> dict[str, Any]:
         "rows": rows,
         "as_of": payload["as_of"],
         "via": "ir_json",
+        "publication": _publication(payload),
     }
 
 
@@ -443,6 +467,7 @@ def run(
         else:
             payload = ingest_from_payload(
                 fetch_payload(spec.url, getter=getter), as_of=as_of, spec=spec,
+                seen=jst_today(),
             )
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         if dry_run:

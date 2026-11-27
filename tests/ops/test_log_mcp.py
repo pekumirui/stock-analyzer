@@ -2091,6 +2091,8 @@ def test_monthly_ingest_tool() -> None:
                     raise SystemExit(f"omit dry_run/only_months must not send them: {payload}")
                 if "months" not in payload or "rows" not in payload:
                     raise SystemExit(f"ingest body missing months/rows: {payload}")
+                if "publication" in payload:
+                    raise SystemExit(f"omitted publication must not be sent: {payload}")
                 if rec["path"] == "/api/v1/tables/92790/ingest":
                     row0 = payload["rows"][0]
                     if row0.get("unit") != "yoy_index":
@@ -2170,6 +2172,25 @@ def test_monthly_ingest_tool() -> None:
                 "monthly_ingest",
                 {
                     "code": "92790",
+                    "months": [7],
+                    "rows": [{"element": "全店", "values": {"7": 1.0}, "unit": "number"}],
+                    "as_of": "2026-08-05",
+                    "publication": {"basis": "tdnet", "on": "2026-08-05", "time": "15:00"},
+                },
+            )
+            if is_error:
+                raise SystemExit(f"publication ingest: {text}")
+            sent = json.loads(recorded[-1]["body"].decode("utf-8"))
+            if sent.get("publication") != {
+                "basis": "tdnet", "on": "2026-08-05", "time": "15:00",
+            }:
+                raise SystemExit(f"publication must be forwarded as given: {sent}")
+
+            before_bad_dry = len(recorded)
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
                     "months": [7, 8],
                     "rows": [{"element": "全店", "values": {"7": 1.0}, "unit": "number"}],
                     "as_of": "2026-08-05",
@@ -2178,7 +2199,7 @@ def test_monthly_ingest_tool() -> None:
             )
             if not is_error or "dry_run must be a boolean" not in text:
                 raise SystemExit(f"bad dry_run: {text}")
-            if len(recorded) != before_dry + 1:
+            if len(recorded) != before_bad_dry:
                 raise SystemExit("bad dry_run must not hit HTTP")
     finally:
         if prev_http is None:

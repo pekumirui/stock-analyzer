@@ -307,6 +307,7 @@
     "monthly_element_sources": "W",
     "monthly_elements": "W",
     "monthly_issuers": "W",
+    "monthly_publications": "W",
     "monthly_tables": "W",
     "monthly_values": "W",
     "stocks": "R",
@@ -323,6 +324,7 @@
     "monthly_element_sources": "W",
     "monthly_elements": "W",
     "monthly_issuers": "W",
+    "monthly_publications": "W",
     "monthly_tables": "W",
     "monthly_values": "W",
     "statements": "R",
@@ -350,6 +352,7 @@
     "monthly_element_sources": "W",
     "monthly_elements": "W",
     "monthly_issuers": "W",
+    "monthly_publications": "W",
     "monthly_tables": "W",
     "monthly_values": "W",
     "statements": "R",
@@ -376,6 +379,7 @@
     "monthly_element_sources": "W",
     "monthly_elements": "W",
     "monthly_issuers": "W",
+    "monthly_publications": "W",
     "monthly_tables": "W",
     "monthly_values": "W",
     "statements": "R",
@@ -405,6 +409,7 @@
     "monthly_element_sources": "W",
     "monthly_elements": "W",
     "monthly_issuers": "W",
+    "monthly_publications": "W",
     "monthly_tables": "W",
     "monthly_values": "W",
     "statements": "R",
@@ -863,6 +868,7 @@
     "monthly_element_sources": "W",
     "monthly_elements": "W",
     "monthly_issuers": "W",
+    "monthly_publications": "W",
     "monthly_tables": "W",
     "monthly_values": "W",
     "statements": "R",
@@ -900,6 +906,7 @@
    "rw": {
     "monthly_element_sources": "W",
     "monthly_elements": "W",
+    "monthly_publications": "W",
     "monthly_tables": "R",
     "monthly_values": "W",
     "stocks": "R"
@@ -925,6 +932,7 @@
    "domain": "monthly",
    "rw": {
     "monthly_elements": "R",
+    "monthly_publications": "W",
     "monthly_tables": "R",
     "monthly_values": "W",
     "stocks": "R"
@@ -937,6 +945,7 @@
    "domain": "monthly",
    "rw": {
     "monthly_elements": "R",
+    "monthly_publications": "W",
     "monthly_tables": "R",
     "monthly_values": "W",
     "stocks": "R"

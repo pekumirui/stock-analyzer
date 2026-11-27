@@ -4,6 +4,7 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
+from ...monthly.publications import record_manual, value_months
 from ...monthly.store import delete_monthly_element, record_element_source, rename_monthly_element
 from ...models import MonthlyValue
 from ...monthly.ingest import (
@@ -143,7 +144,9 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
     _get_element(db, code, year_i, element)
 
     def _write() -> None:
+        before = value_months(db, code)
         _upsert_value(db, code, year_i, element, month, value)
+        record_manual(db, code, before)
 
     run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "updated": [month]}
@@ -178,8 +181,10 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
     _get_element(db, code, year_i, element)
 
     def _write() -> None:
+        before = value_months(db, code)
         for month, value in ops.items():
             _upsert_value(db, code, year_i, element, month, value)
+        record_manual(db, code, before)
 
     run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "updated": list(ops.keys())}
