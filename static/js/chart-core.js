@@ -249,7 +249,8 @@ function chartTheme(){
   const s = getComputedStyle(document.documentElement);
   const v = n => s.getPropertyValue(n).trim();
   return {text: v("--sub"), grid: v("--grid"), border: v("--border"),
-          up: v("--up"), down: v("--down"), accent: v("--accent"), warn: v("--warn")};
+          up: v("--up"), down: v("--down"), accent: v("--accent"), warn: v("--warn"),
+          monthly: v("--monthly"), monthlyEst: v("--monthly-est")};
 }
 const CHART_VOL_COLOR = "#aab4bf";
 const CHART_VOL_SHARE = 0.2;     // 出来高の棒はローソク足の段の下からこの割合
@@ -261,8 +262,67 @@ const CHART_HL_PX = 80;          // 高安値のラベルをおよそこの幅�
 const CHART_EXTRA_PANE_PX = 120;  // 業績の段を出すと高くする
 const CHART_FUND_NAMES = {op: "営業利益", per: "予想PER", mcop: "時価総額÷営業利益"};
 
+const CHART_EVT_EARNINGS = {position: "belowBar", shape: "arrowUp", text: "決"};
+const CHART_EVT_MONTHLY = {position: "aboveBar", shape: "square", text: "月", textEst: "頃"};
+
+function chartEventMarks(bars, daily, on, colors, mark){
+  const t = (bars && bars.t) || [];
+  const byKey = new Map();
+  const tips = {};
+  const snap = iso => {
+    if(!iso || !t.length) return null;
+    const i = lowerBound(t, String(iso).slice(0, 10));
+    return i < t.length ? t[i] : null;
+  };
+  const put = (at, spec) => {
+    const key = at + "\0" + spec.position;
+    const prev = byKey.get(key);
+    const rank = spec.locked ? 9 : (spec.rank || 0);
+    if(prev && (prev.locked || rank < prev.rank)) return;
+    byKey.set(key, {
+      time: chartTs(at), position: spec.position, color: spec.color,
+      shape: spec.shape, text: spec.text, rank, locked: !!spec.locked,
+    });
+  };
+  if(on && on.earnings){
+    for(const d of (daily && daily.earnings_dates) || []){
+      const at = snap(d);
+      if(at) put(at, {...CHART_EVT_EARNINGS, color: colors.warn, rank: 1});
+    }
+  }
+  if(on && on.monthly){
+    for(const row of (daily && daily.monthly_publications) || []){
+      if(!row || !row.date || row.confidence === "unknown") continue;
+      const at = snap(row.date);
+      if(!at) continue;
+      const est = row.confidence === "estimated";
+      put(at, {
+        position: CHART_EVT_MONTHLY.position,
+        shape: CHART_EVT_MONTHLY.shape,
+        color: est ? colors.monthlyEst : colors.monthly,
+        text: est ? CHART_EVT_MONTHLY.textEst : CHART_EVT_MONTHLY.text,
+        rank: est ? 1 : 2,
+      });
+      const y = +row.year, m = +row.month;
+      if(!y || !m) continue;
+      const label = `${y}年${m}月${est ? "頃" : ""}`;
+      const list = tips[at] || (tips[at] = []);
+      if(!list.includes(label)) list.push(label);
+    }
+  }
+  if(mark){
+    const at = snap(mark);
+    if(at) put(at, {...CHART_EVT_EARNINGS, color: colors.accent, locked: true});
+  }
+  const markers = [...byKey.values()].map(m => ({
+    time: m.time, position: m.position, color: m.color, shape: m.shape, text: m.text,
+  })).sort((a, b) => a.time - b.time || (a.position < b.position ? -1 : a.position > b.position ? 1 : 0));
+  return {markers, tips};
+}
+
 const EVENT_LAYERS = [
-  {id: "earnings", label: "決算発表", color: "warn", text: "決", key: "earnings_dates"},
+  {id: "earnings", label: "決算発表", color: "warn", text: CHART_EVT_EARNINGS.text, key: "earnings_dates", shape: CHART_EVT_EARNINGS.shape},
+  {id: "monthly", label: "月次発表", color: "monthly", text: CHART_EVT_MONTHLY.text, key: "monthly_publications", shape: CHART_EVT_MONTHLY.shape},
 ];
 function loadEvtOn(){
   const base = {};
@@ -282,10 +342,11 @@ function refreshEventMarkers(){
   chartViews.forEach(v => v.refreshMarkers());
 }
 function fillEventToggles(){
-  const html = `<span class="evt-cap">イベント</span>` + EVENT_LAYERS.map(l =>
-    `<label class="evt-label"><input type="checkbox" data-evt="${l.id}"${evtOn[l.id] ? " checked" : ""}>
-       <span class="swatch" style="background:var(--${l.color})"></span>${l.label}</label>`
-  ).join("");
+  const html = `<span class="evt-cap">イベント</span>` + EVENT_LAYERS.map(l => {
+    const radius = l.shape === "square" ? "1px" : "50%";
+    return `<label class="evt-label"><input type="checkbox" data-evt="${l.id}"${evtOn[l.id] ? " checked" : ""}>
+       <span class="swatch" style="background:var(--${l.color});border-radius:${radius}"></span>${l.label}</label>`;
+  }).join("");
   document.querySelectorAll(".evt-toggles").forEach(el => {
     el.innerHTML = html;
     el.addEventListener("change", e => {
@@ -351,24 +412,12 @@ function createStockChart(el, opt = {}){
 
   function drawMarkers(){
     if(!st.bars) return;
-    const t = st.bars.t;
-    const snap = iso => { const i = lowerBound(t, iso); return i < t.length ? t[i] : null; };
-    const byTime = new Map();
-    const put = (raw, color, text) => {
-      const at = snap(raw);
-      if(!at) return;
-      const prev = byTime.get(at);
-      if(!prev || color === th.accent)
-        byTime.set(at, {time: chartTs(at), position: "belowBar", color, shape: "arrowUp", text});
-    };
-    for(const layer of EVENT_LAYERS){
-      if(!evtOn[layer.id]) continue;
-      for(const d of (st.daily[layer.key] || [])) put(d, th[layer.color] || th.warn, layer.text);
-    }
-    if(st.mark) put(st.mark, th.accent, "決");
-    const list = [...byTime.values(), ...hlMarkers()].sort((a, b) => a.time - b.time);
+    const marks = chartEventMarks(st.bars, st.daily || {}, evtOn, th, st.mark);
+    st.eventTips = marks.tips;
+    const list = [...marks.markers, ...hlMarkers()].sort((a, b) => a.time - b.time);
     if(markers) markers.setMarkers(list);
     else markers = LW.createSeriesMarkers(candle, list);
+    if(st.legendI != null) drawLegend(st.legendI);
   }
 
   function hlMarkers(){
@@ -522,6 +571,7 @@ function createStockChart(el, opt = {}){
       return;
     }
     if(i == null || i < 0 || i >= b.t.length) i = b.t.length - 1;
+    st.legendI = i;
     const t = b.t[i];
     ohlc.innerHTML = chartOhlcHtml(b, i);
     let price = (st.maVals || []).map(m => sw(m.color, `MA${m.w} ${chartPrice(m.vals[i])}`)).join(" ");
@@ -536,6 +586,8 @@ function createStockChart(el, opt = {}){
     }
     const vol = st.sub === "tv" ? `売買代金 ${chartQty(b.tv[i], "円")}` : `出来高 ${chartQty(b.v[i], "株")}`;
     price = price ? price + "<br>" + vol : vol;
+    const monthLine = ((st.eventTips || {})[t] || []).join("・");
+    if(monthLine) price += "<br>" + sw(th.monthly, `月次 ${monthLine}`);
     const texts = {price, fund: legendFund(t)};
     const panes = chart.panes(), kinds = st.panes || ["price"];
     const axisW = chart.priceScale("right", 0).width();
@@ -756,5 +808,5 @@ function createStockChart(el, opt = {}){
 
 if(typeof module !== "undefined" && module.exports){
   module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartCompare, chartStepJumps, chartBandColors,
-                    chartLatestSpan, chartSpanAround, chartInitialSpan, chartInitialCount, chartPrice, chartQty, chartAxisUnit, chartOhlcHtml};
+                    chartLatestSpan, chartSpanAround, chartInitialSpan, chartInitialCount, chartPrice, chartQty, chartAxisUnit, chartOhlcHtml, chartEventMarks};
 }

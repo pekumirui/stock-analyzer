@@ -17,11 +17,13 @@ flowchart LR
   n2["GET /api/topix"]:::api
   n3[("daily_prices")]:::tbl
   n4[("earnings_events")]:::tbl
-  n5[("statements")]:::tbl
+  n5[("monthly_publications")]:::tbl
+  n6[("statements")]:::tbl
   n0 --> n1
   n1 -.- n3
   n1 -.- n4
   n1 -.- n5
+  n1 -.- n6
   n0 --> n2
   classDef js fill:#f3e8ff,stroke:#7048e8
   classDef api fill:#e6f7ec,stroke:#2b8a3e
@@ -30,7 +32,7 @@ flowchart LR
 
 | API | 呼ぶ JS | 書き込み | 読み取りだけ |
 |---|---|---|---|
-| `GET /api/chart/{code}` | `chart-core.js` |  | `daily_prices`, `earnings_events`, `statements`, `stocks` |
+| `GET /api/chart/{code}` | `chart-core.js` |  | `daily_prices`, `earnings_events`, `monthly_publications`, `statements`, `stocks` |
 | `GET /api/topix` | `chart-core.js` |  |  |
 
 ## API の引数
