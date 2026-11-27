@@ -553,6 +553,7 @@ const el = {
   addEventListener() {},
 };
 const sandbox = {
+  chartTip: () => ({at: null, hover: () => true, tap: () => true, press: () => true, close() {}}),
   console,
   fetch: async () => ({ ok: false, json: async () => ({}) }),
   $: () => el,
@@ -1223,6 +1224,7 @@ const el = {
   addEventListener() {},
 };
 const sandbox = {
+  chartTip: () => ({at: null, hover: () => true, tap: () => true, press: () => true, close() {}}),
   console, fetch: async () => ({ ok: false, json: async () => ({}) }),
   $: () => el,
   document: { querySelector: () => el, querySelectorAll: () => [], documentElement: { clientWidth: 720 } },
@@ -1459,6 +1461,7 @@ function $(sel){
 }
 const fetched = [];
 const sandbox = {
+  chartTip: () => ({at: null, hover: () => true, tap: () => true, press: () => true, close() {}}),
   console,
   fetch: async (url) => { fetched.push(String(url)); return { ok: false, json: async () => ({}) }; },
   api: async () => rows,
