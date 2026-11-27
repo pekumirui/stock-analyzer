@@ -475,6 +475,11 @@ if ! monitoring_apply; then
   echo "monitoring: apply failed (metrics/alerts incomplete; app deploy continues)" >&2
 fi
 
+# shellcheck source=tailscale.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/tailscale.sh"
+tailscale_apply
+
 if [[ "$defer_reboot" -eq 0 ]]; then
   kernel_maybe_reboot
 else

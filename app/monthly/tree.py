@@ -13,6 +13,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 from app.config import MONTHLY_ROW_ORDER_PATH
 from app.monthly.ingest import (
+    COUNTRY_RANK, COUNTRY_RANK_OTHER, COUNTRY_VALUES,
     canonicalize_element_label, issuer_segment_tail, monthly_element_label,
     monthly_row_breakdown_rank, monthly_row_slot, monthly_row_unit_rank, strip_yoy_fragments, union_monthly_elements,
 )
@@ -228,15 +229,16 @@ _YOY_RATE_SUFFIX = "増減率"
 _INNER_MARKS = ("内訳：", "内訳:", "内訳", "うち")
 _GLUED_INNERS = ("現物", "信用")
 _SECTION_SCOPE_PREFIXES = ("全店 ", "全社 ")
-_FOLD_SKIP_GROUPS = _COMPANY_GROUPS | _TOTAL_TOKENS | frozenset({
-    "全社", "全店", "既存", "直営", "FC", "直営+FC", "日本", "海外", "日本+海外",
+_FOLD_SKIP_GROUPS = _COMPANY_GROUPS | _TOTAL_TOKENS | frozenset(COUNTRY_VALUES) | frozenset({
+    "全社", "全店", "既存", "直営", "FC", "直営+FC", "日本+海外",
     "休業", "休業中", "（従来基準）", "(従来基準)", "（全業態）", "(全業態)",
     "＊M&A除く", "M&A除く",
 })
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
-_AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
+_AUTO_COUNTRY_RANK = {**COUNTRY_RANK, "日本+海外": 0}
 _AUTO_SCOPE_RANK = {"既存": 0, "全店": 1, "全社": 1, "": 1}
-_AUTO_COUNTRIES = frozenset({"日本", "海外", "日本+海外"})
+_AUTO_COUNTRIES = frozenset((*COUNTRY_VALUES, "日本+海外"))
+_COUNTRY_PREFIXES = tuple(sorted(COUNTRY_VALUES, key=len, reverse=True))
 _AUTO_PART_CHANNELS = frozenset({"直営", "FC"})
 
 
@@ -249,13 +251,14 @@ def monthly_display_years(years: Sequence[int]) -> list[int]:
 def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
     """(節にする group, 葉)。行名全体が group（指標の無い行）と会社全体の合計は節にしない。
     group の中の合計の語は節からも葉からも外し、指標の語とチャネルの語は節から外して葉の頭に残す。内訳はこのあと葉から外す。
-    国の語（`日本` / `海外`）が group の前に出る行（31930 `日本 鳥貴族 店舗数`、7134 `海外 アップガレージ 店舗数`）は
+    国の語（語彙の `日本` / `海外` / `米国`）が group の前に出る行（31930 `日本 鳥貴族 店舗数`、
+    7134 `海外 アップガレージ 店舗数`、46800 `米国 ボウリング 売上高`）は
     国の語を剥がして group に当て、国の語は葉の頭に残す（#590）。括弧で始まる group（43430 `(曜日調整前)`、
     82550 `（従来基準）`）は節にしない（#590 / #591）
     """
     s = str(label["display"])
     g = str(label["group"] or "")
-    country = next((c for c in ("日本", "海外") if s.startswith(c + " ")), "")
+    country = next((c for c in _COUNTRY_PREFIXES if s.startswith(c + " ")), "")
     if g and country and not g.startswith("(") and not g.startswith("（") and s.startswith(f"{country} {g} "):
         s = s[len(country) + 1:]
     else:
@@ -307,7 +310,7 @@ def _metric_parts(metric: str) -> tuple[str, str, tuple[str, ...]]:
 
 
 def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) -> dict[str, str]:
-    """直営 / FC の指標は 直営+FC（無ければ無印）の子、日本 / 海外 の指標は国なしの子。
+    """直営 / FC の指標は 直営+FC（無ければ無印）の子、語彙の国（日本 / 海外 / 米国）の指標は国なしの子。
     国付きの 直営 / FC は、同じ国の合計が無ければ国なしの同じチャネルの子。
     domestic は国内の 直営+FC を先に探す指標。
     """
@@ -321,7 +324,7 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
         if channel in _AUTO_PART_CHANNELS:
             cands = [join("日本", "直営+FC", r)] if m in dom else []
             cands += [join(country, "直営+FC", r), join(country, r), join(channel, r)]
-        elif country in ("日本", "海外"):
+        elif country in COUNTRY_VALUES:
             cands = [join(channel, r), join("直営+FC", r), r]
         else:
             continue
@@ -580,7 +583,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             sales.setdefault(path, []).append((str(L["channel"]), str(L["scope"]), str(L["country"]), metric))
         key = (
             _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
-            _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),
+            _AUTO_COUNTRY_RANK.get(str(L["country"]), COUNTRY_RANK_OTHER),
             _AUTO_SCOPE_RANK.get(str(L["scope"]), 2),
             monthly_row_slot(canon, unit, code),
             idx,

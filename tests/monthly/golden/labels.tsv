@@ -843,7 +843,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26950	2024	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 26950	2024	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 26950	2024	5	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-26950	2024	6	legacy	number	米国 店舗数	米国 店舗数	number	米国 店舗数	stores	米国		店舗数	全体 > 米国	店舗数
+26950	2024	6	legacy	number	米国 店舗数	米国 店舗数	number	米国 店舗数	stores			店舗数	全体	米国 店舗数
 26950	2024	7	legacy	number	アジア 店舗数	アジア 店舗数	number	アジア 店舗数	stores	アジア		店舗数	全体 > アジア	店舗数
 26950	2024	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 26950	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
@@ -851,7 +851,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26950	2025	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 26950	2025	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 26950	2025	5	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-26950	2025	6	legacy	number	米国 店舗数	米国 店舗数	number	米国 店舗数	stores	米国		店舗数	全体 > 米国	店舗数
+26950	2025	6	legacy	number	米国 店舗数	米国 店舗数	number	米国 店舗数	stores			店舗数	全体	米国 店舗数
 26950	2025	7	legacy	number	アジア 店舗数	アジア 店舗数	number	アジア 店舗数	stores	アジア		店舗数	全体 > アジア	店舗数
 26950	2025	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 26950	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
@@ -859,7 +859,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26950	2026	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 26950	2026	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 26950	2026	5	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-26950	2026	6	legacy	number	米国 店舗数	米国 店舗数	number	米国 店舗数	stores	米国		店舗数	全体 > 米国	店舗数
+26950	2026	6	legacy	number	米国 店舗数	米国 店舗数	number	米国 店舗数	stores			店舗数	全体	米国 店舗数
 26950	2026	7	legacy	number	アジア 店舗数	アジア 店舗数	number	アジア 店舗数	stores	アジア		店舗数	全体 > アジア	店舗数
 26950	2026	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 26980	2023	1	legacy	yoy_index	直営 既存 売上高(前年比)	直営 既存 売上高(前年比)	yoy_index	直営 既存 売上高(前年比)	sales		既存	売上高	全体	直営 既存 売上高
@@ -3737,16 +3737,16 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 46800	2024	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 既存 売上高
 46800	2024	13	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 46800	2024	14	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
-46800	2024	15	legacy	number	米国 ボウリング 売上高	米国 ボウリング 売上高	number	米国 ボウリング 売上高	sales	米国 ボウリング		売上高	全体 > 米国 ボウリング	売上高
-46800	2024	16	legacy	yoy_index	米国 ボウリング 既存 売上高(前年比)	米国 ボウリング 既存 売上高(前年比)	yoy_index	米国 ボウリング 既存 売上高(前年比)	sales	米国 ボウリング	既存	売上高	全体 > 米国 ボウリング	既存 売上高
-46800	2024	17	legacy	number	米国 アミューズメント 売上高	米国 アミューズメント 売上高	number	米国 アミューズメント 売上高	sales	米国 アミューズメント		売上高	全体 > 米国 アミューズメント	売上高
-46800	2024	18	legacy	yoy_index	米国 アミューズメント 既存 売上高(前年比)	米国 アミューズメント 既存 売上高(前年比)	yoy_index	米国 アミューズメント 既存 売上高(前年比)	sales	米国 アミューズメント	既存	売上高	全体 > 米国 アミューズメント	既存 売上高
-46800	2024	19	legacy	number	米国 飲食・パーティー等 売上高	米国 飲食・パーティー等 売上高	number	米国 飲食・パーティー等 売上高	sales	米国 飲食・パーティー等		売上高	全体 > 米国 飲食・パーティー等	売上高
-46800	2024	20	legacy	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	米国 飲食・パーティー等 既存 売上高(前年比)	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	sales	米国 飲食・パーティー等	既存	売上高	全体 > 米国 飲食・パーティー等	既存 売上高
-46800	2024	21	legacy	number	米国 スポッチャ 売上高	米国 スポッチャ 売上高	number	米国 スポッチャ 売上高	sales	米国 スポッチャ		売上高	全体 > 米国 スポッチャ	売上高
-46800	2024	22	legacy	yoy_index	米国 スポッチャ 既存 売上高(前年比)	米国 スポッチャ 既存 売上高(前年比)	yoy_index	米国 スポッチャ 既存 売上高(前年比)	sales	米国 スポッチャ	既存	売上高	全体 > 米国 スポッチャ	既存 売上高
-46800	2024	23	legacy	number	米国 総 売上高	米国 総 売上高	number	米国 総 売上高	sales	米国 総		売上高	全体 > 米国	売上高
-46800	2024	24	legacy	yoy_index	米国 総 既存 売上高(前年比)	米国 総 既存 売上高(前年比)	yoy_index	米国 総 既存 売上高(前年比)	sales	米国 総	既存	売上高	全体 > 米国	既存 売上高
+46800	2024	15	legacy	number	米国 ボウリング 売上高	米国 ボウリング 売上高	number	米国 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	米国 売上高
+46800	2024	16	legacy	yoy_index	米国 ボウリング 既存 売上高(前年比)	米国 ボウリング 既存 売上高(前年比)	yoy_index	米国 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	米国 既存 売上高
+46800	2024	17	legacy	number	米国 アミューズメント 売上高	米国 アミューズメント 売上高	number	米国 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	米国 売上高
+46800	2024	18	legacy	yoy_index	米国 アミューズメント 既存 売上高(前年比)	米国 アミューズメント 既存 売上高(前年比)	yoy_index	米国 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体 > アミューズメント	米国 既存 売上高
+46800	2024	19	legacy	number	米国 飲食・パーティー等 売上高	米国 飲食・パーティー等 売上高	number	米国 飲食・パーティー等 売上高	sales	飲食・パーティー等		売上高	全体 > 飲食・パーティー等	米国 売上高
+46800	2024	20	legacy	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	米国 飲食・パーティー等 既存 売上高(前年比)	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	sales	飲食・パーティー等	既存	売上高	全体 > 飲食・パーティー等	米国 既存 売上高
+46800	2024	21	legacy	number	米国 スポッチャ 売上高	米国 スポッチャ 売上高	number	米国 スポッチャ 売上高	sales	スポッチャ		売上高	全体 > スポッチャ	米国 売上高
+46800	2024	22	legacy	yoy_index	米国 スポッチャ 既存 売上高(前年比)	米国 スポッチャ 既存 売上高(前年比)	yoy_index	米国 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体 > スポッチャ	米国 既存 売上高
+46800	2024	23	legacy	number	米国 総 売上高	米国 総 売上高	number	米国 総 売上高	sales	総		売上高	全体	米国 売上高
+46800	2024	24	legacy	yoy_index	米国 総 既存 売上高(前年比)	米国 総 既存 売上高(前年比)	yoy_index	米国 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	米国 既存 売上高
 46800	2025	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	日本 売上高
 46800	2025	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	日本 既存 売上高
 46800	2025	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	日本 売上高
@@ -3761,16 +3761,16 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 46800	2025	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 既存 売上高
 46800	2025	13	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 46800	2025	14	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
-46800	2025	15	legacy	number	米国 ボウリング 売上高	米国 ボウリング 売上高	number	米国 ボウリング 売上高	sales	米国 ボウリング		売上高	全体 > 米国 ボウリング	売上高
-46800	2025	16	legacy	yoy_index	米国 ボウリング 既存 売上高(前年比)	米国 ボウリング 既存 売上高(前年比)	yoy_index	米国 ボウリング 既存 売上高(前年比)	sales	米国 ボウリング	既存	売上高	全体 > 米国 ボウリング	既存 売上高
-46800	2025	17	legacy	number	米国 アミューズメント 売上高	米国 アミューズメント 売上高	number	米国 アミューズメント 売上高	sales	米国 アミューズメント		売上高	全体 > 米国 アミューズメント	売上高
-46800	2025	18	legacy	yoy_index	米国 アミューズメント 既存 売上高(前年比)	米国 アミューズメント 既存 売上高(前年比)	yoy_index	米国 アミューズメント 既存 売上高(前年比)	sales	米国 アミューズメント	既存	売上高	全体 > 米国 アミューズメント	既存 売上高
-46800	2025	19	legacy	number	米国 飲食・パーティー等 売上高	米国 飲食・パーティー等 売上高	number	米国 飲食・パーティー等 売上高	sales	米国 飲食・パーティー等		売上高	全体 > 米国 飲食・パーティー等	売上高
-46800	2025	20	legacy	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	米国 飲食・パーティー等 既存 売上高(前年比)	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	sales	米国 飲食・パーティー等	既存	売上高	全体 > 米国 飲食・パーティー等	既存 売上高
-46800	2025	21	legacy	number	米国 スポッチャ 売上高	米国 スポッチャ 売上高	number	米国 スポッチャ 売上高	sales	米国 スポッチャ		売上高	全体 > 米国 スポッチャ	売上高
-46800	2025	22	legacy	yoy_index	米国 スポッチャ 既存 売上高(前年比)	米国 スポッチャ 既存 売上高(前年比)	yoy_index	米国 スポッチャ 既存 売上高(前年比)	sales	米国 スポッチャ	既存	売上高	全体 > 米国 スポッチャ	既存 売上高
-46800	2025	23	legacy	number	米国 総 売上高	米国 総 売上高	number	米国 総 売上高	sales	米国 総		売上高	全体 > 米国	売上高
-46800	2025	24	legacy	yoy_index	米国 総 既存 売上高(前年比)	米国 総 既存 売上高(前年比)	yoy_index	米国 総 既存 売上高(前年比)	sales	米国 総	既存	売上高	全体 > 米国	既存 売上高
+46800	2025	15	legacy	number	米国 ボウリング 売上高	米国 ボウリング 売上高	number	米国 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	米国 売上高
+46800	2025	16	legacy	yoy_index	米国 ボウリング 既存 売上高(前年比)	米国 ボウリング 既存 売上高(前年比)	yoy_index	米国 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	米国 既存 売上高
+46800	2025	17	legacy	number	米国 アミューズメント 売上高	米国 アミューズメント 売上高	number	米国 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	米国 売上高
+46800	2025	18	legacy	yoy_index	米国 アミューズメント 既存 売上高(前年比)	米国 アミューズメント 既存 売上高(前年比)	yoy_index	米国 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体 > アミューズメント	米国 既存 売上高
+46800	2025	19	legacy	number	米国 飲食・パーティー等 売上高	米国 飲食・パーティー等 売上高	number	米国 飲食・パーティー等 売上高	sales	飲食・パーティー等		売上高	全体 > 飲食・パーティー等	米国 売上高
+46800	2025	20	legacy	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	米国 飲食・パーティー等 既存 売上高(前年比)	yoy_index	米国 飲食・パーティー等 既存 売上高(前年比)	sales	飲食・パーティー等	既存	売上高	全体 > 飲食・パーティー等	米国 既存 売上高
+46800	2025	21	legacy	number	米国 スポッチャ 売上高	米国 スポッチャ 売上高	number	米国 スポッチャ 売上高	sales	スポッチャ		売上高	全体 > スポッチャ	米国 売上高
+46800	2025	22	legacy	yoy_index	米国 スポッチャ 既存 売上高(前年比)	米国 スポッチャ 既存 売上高(前年比)	yoy_index	米国 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体 > スポッチャ	米国 既存 売上高
+46800	2025	23	legacy	number	米国 総 売上高	米国 総 売上高	number	米国 総 売上高	sales	総		売上高	全体	米国 売上高
+46800	2025	24	legacy	yoy_index	米国 総 既存 売上高(前年比)	米国 総 既存 売上高(前年比)	yoy_index	米国 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	米国 既存 売上高
 46800	2026	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	日本 売上高
 46800	2026	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	日本 既存 売上高
 46800	2026	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	日本 売上高

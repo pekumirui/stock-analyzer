@@ -302,7 +302,7 @@ def test_spa_holders_tab() -> None:
     assert "#tab-holders .tbl-wrap" in css
     assert "#hd-activity" not in css and "#hd-note" not in css
     assert "pinCols" in js and "hdHolderCell" in js and "hdPurposeCell" in js
-    assert 'return `<td class="l" title="${hdEsc(s)}">${hdEsc(s)}</td>`;' in js
+    assert 'return `<td class="l purpose" title="${hdEsc(s)}"><span>${hdEsc(s)}</span></td>`;' in js
     assert "shortName(raw)" in js
     assert "table.sheet" in js
     assert "hdFileDateCell" in js

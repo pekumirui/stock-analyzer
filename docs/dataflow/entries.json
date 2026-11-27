@@ -574,6 +574,7 @@
    "rw": {
     "daily_prices": "R",
     "earnings_events": "R",
+    "monthly_publications": "R",
     "statements": "R",
     "stocks": "R"
    },
@@ -823,6 +824,7 @@
     "data_versions": "R",
     "monthly_elements": "R",
     "monthly_issuers": "R",
+    "monthly_publications": "R",
     "monthly_tables": "R",
     "monthly_values": "R",
     "stocks": "R"

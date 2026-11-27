@@ -39,11 +39,11 @@ FastAPI が公開する REST エンドポイントの応答構造・エラー規
 | エンドポイント | 応答の要点 | 詳細仕様 |
 |---|---|---|
 | `GET /api/stocks/search?q=…` | 銘柄名（NFKC 正規化とひらがな→カタカナ変換を含む部分一致）とコード前方一致で最大 20 件返す。対象は株券（`'011'`・`'021'`）のみで、ETF・REIT・出資証券は出さない（`product_category` 未投入 DB では全銘柄） | [銘柄](stock.md) |
-| `GET /api/chart/{code}` | 日足と業績階段データを列配列 `{code, name, t, o, h, l, c, v, tv, mc, earnings_dates, fund}` で返す。`o`〜`c` と `v` は調整後（欠損時は調整前）、`tv` は売買代金（円）、`mc` は時価総額（百万円）、`fund` は `{t, eps, op_q, op_ttm}`。株価が無ければ `404` | [銘柄](stock.md) |
+| `GET /api/chart/{code}` | 日足と業績階段データを列配列 `{code, name, t, o, h, l, c, v, tv, mc, earnings_dates, monthly_publications, fund}` で返す。`o`〜`c` と `v` は調整後（欠損時は調整前）、`tv` は売買代金（円）、`mc` は時価総額（百万円）、`fund` は `{t, eps, op_q, op_ttm}`。`monthly_publications` は日付のある月次の `{date, confidence, year, month}` を公表日順に並べた配列（`exact` と `estimated`。`unknown` は入れない）。株価が無ければ `404` | [銘柄](stock.md) |
 | `GET /api/topix` | TOPIX の日足終値を列配列 `{t, c}` で返す | [銘柄](stock.md) |
 | `GET /api/earnings-performance/{code}` | 指定銘柄の決算発表後リターンと対 TOPIX 超過リターン（`earnings_events`）を返す | [銘柄](stock.md) |
 | `GET /api/stock/{code}/overview` | 銘柄ヘッダーと概要タブ用の株価・時価総額・次回決算予定日・バリュエーション指標（予想 PER、実績 PBR、予想配当利回り、実績 ROE、自己資本比率）を返す | [銘柄](stock.md) |
-| `GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto` | 有報・短信 XBRL・短信 PDF を統合した財務 3 表（`BS`・`PL`・`CF`、最大 20 期）を科目×決算期で返す。会計基準が変わった銘柄は旧基準分を `earlier` に分けて返す。`chart` は推移図の系列で、`series`（標準科目 → 期ごとの値。`PL`・`CF` は累計）と、`PL` だけ `quarter`（直前の四半期の累計を引いた 3 か月の値。引けない期は `null`）を `periods` と同じ並びで返す。標準科目は `config/xbrl/mappings` の要素から優先順に拾い、売上高は会社独自の要素でもラベル（`営業収益合計` など）で拾う | [銘柄](stock.md)、[XBRL 規則](../jobs/xbrl.md) |
+| `GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto` | 有報・短信 XBRL・短信 PDF を統合した財務 3 表（`BS`・`PL`・`CF`、最大 20 期）を科目×決算期で返す（各行は集計上の役割 `role: "item" \| "subtotal" \| "total" \| "grand"` を持つ）。`PL` の金額行のセルは `quarter`（直前の四半期の累計を引いた 3 か月単独の値。`1Q` はそのまま、直前の四半期の列が無い・連結と個別が変わる期は `null`）も持つ。会計基準が変わった銘柄は旧基準分を `earlier` に分けて返す。`chart` は推移図の系列で、`series`（標準科目 → 期ごとの値。`PL`・`CF` は累計）と、`PL` だけ `quarter`（直前の四半期の累計を引いた 3 か月の値。引けない期は `null`）を `periods` と同じ並びで返す。標準科目は `config/xbrl/mappings` の要素から優先順に拾い、売上高は会社独自の要素でもラベル（`営業収益合計` など）で拾う | [銘柄](stock.md)、[XBRL 規則](../jobs/xbrl.md) |
 | `GET /api/stock/{code}/filings` | TDnet の決算短信・予想修正 XBRL と、PDF から変換した過去短信の一覧を返す | [銘柄](stock.md) |
 | `GET /api/stock/filings/{filing_id}/documents/{seq}` | 短信の iXBRL 原文からスクリプトや外部通信要素を除去したサニタイズ済み HTML（`text/html`、CSP 付き）を返す | [銘柄](stock.md) |
 | `GET /api/stock/pdf/{disclosure_no}` | IR BANK の PDF から変換した短信 HTML（`tdnet_pdf_documents.status = 'ok'` の行のみ、それ以外は `404`）を同じ CSP ヘッダー付きで返す | [銘柄](stock.md) |
@@ -69,7 +69,7 @@ FastAPI が公開する REST エンドポイントの応答構造・エラー規
 
 | エンドポイント | 応答の要点 |
 |---|---|
-| `GET /api/v1/tables` | 月次表を持つ銘柄一覧をコード昇順で返す。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}` で、`industry` 未設定時は `"その他"` を返す |
+| `GET /api/v1/tables` | 月次表を持つ銘柄一覧をコード昇順で返す。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy, latest_publication}` で、`industry` 未設定時は `"その他"` を返す。`latest_publication` は、`confidence` が `exact` または `estimated` で公表日がある行のうち対象月が最新の `{date, confidence, year, month}`。該当が無ければ `null`。公表日だけの更新でも、一覧キャッシュを待たずにこの項目は最新になる |
 | `GET /api/v1/tables/{code}` | 指定銘柄に存在する暦年の一覧を返す |
 | `GET /api/v1/tables/{code}/{year}` | 指定年の月次表を返す（1 年を通じて値が無い行は除外し、表が無ければ `404`）。各行は `{element, unit, label, values, tree?}` で、`values` は `1`〜`12` 月の値（欠損は `null`、`0` は実ゼロ）。`config/monthly/monthly_row_order.json` に定義があればその木、無ければ自動構築した木（`tree_auto: true`）から `tree` と `tree_metrics` を付与する |
 | `GET /api/v1/tables/{code}/{year}/doc` | `PUT /doc` 用の編集元文書 `{code, year, version, elements}` を `sort_order` 順で返す（値が空の行も含む）。`version` は行名・`unit`・並び・値のハッシュである |

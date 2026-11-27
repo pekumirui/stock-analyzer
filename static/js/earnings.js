@@ -607,14 +607,14 @@ async function loadNews(code){
   newsFilings = fs;
   const rows = stockNewsRows(fs, decks);
   if(!rows.length){ newsMsg("ニュースがありません。"); return; }
-  $("#en-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + rows.map(r => {
+  $("#en-news").innerHTML = "<thead><tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr></thead><tbody>" + rows.map(r => {
     const amend = r.amend ? ' <span class="kind">訂正</span>' : "";
     const open = r.open === "deck" ? ` data-deck="${stockEsc(r.deckKey)}"` : "";
     return `<tr${r.open ? ` class="go" data-id="${stockEsc(r.key)}"${open}` : ""}>
       <td class="l">${stockEsc(stockAt(r.at))}</td>
       <td class="l"><span class="kind">${stockEsc(r.kind)}</span>${amend}</td>
       <td class="l t">${stockEsc(r.title)}</td></tr>`;
-  }).join("");
+  }).join("") + "</tbody>";
 }
 function showNewsDetail(){
   $("#en-list").hidden = true;

@@ -56,6 +56,19 @@ def test_broad_rule_is_caught() -> None:
         _fail(f"broad 新規→出店 must show non-store rows: {sorted(hit)[:10]!r}")
 
 
+def test_sales_suffix_rows_keep_stored_names() -> None:
+    changed = []
+    for r in snap.read_tsv(snap.GOLDEN):
+        base = r["source_label"].replace("(前年比)", "").replace("（前年比）", "").strip()
+        if not (base.endswith("売上") or base.endswith("売上高")):
+            continue
+        got = snap.resolve(r["code"], int(r["year"]), r["source_label"], r["unit"], r["via"])
+        if got != r["element"]:
+            changed.append((r["code"], r["source_label"], r["element"], got))
+    if changed:
+        _fail("売上で終わる行名が変わった: " + repr(changed[:20]))
+
+
 def test_sales_kind_has_metric() -> None:
     """売上・客数・客単価の行は label に指標語がある（KAB-126）。
 
@@ -82,6 +95,7 @@ def test_known_inputs_are_in_snapshot() -> None:
 
 def main() -> None:
     test_snapshot_has_no_diff()
+    test_sales_suffix_rows_keep_stored_names()
     test_sales_kind_has_metric()
     test_known_inputs_are_in_snapshot()
     test_broad_rule_is_caught()

@@ -97,14 +97,16 @@ def test_pl_cumulative_rate_divides_each_profit_by_sales():
 
 def test_bs_stacks_assets_against_liabilities_and_equity():
     r = _run()
-    assert r["bs"]["stacks"] == [["current_assets", "noncurrent_assets"],
-                                 ["current_liabilities", "noncurrent_liabilities", "net_assets"]]
+    assert r["bs"]["stacks"] == [["noncurrent_assets", "current_assets"],
+                                 ["net_assets", "noncurrent_liabilities", "current_liabilities"]]
+    assert list(r["bs"]["series"]) == ["current_assets", "noncurrent_assets", "current_liabilities",
+                                       "noncurrent_liabilities", "net_assets"]
     assert r["bsr"]["series"]["current_assets"]["values"] == [60, 70]
     assert r["bsr"]["series"]["net_assets"]["unit"] == "pct"
 
 
 def test_bs_without_current_split_uses_totals():
-    assert _run()["bank"]["stacks"] == [["total_assets"], ["total_liabilities", "net_assets"]]
+    assert _run()["bank"]["stacks"] == [["total_assets"], ["net_assets", "total_liabilities"]]
 
 
 def test_cf_keeps_only_periods_with_cash_flows_and_adds_free_cash_flow():
@@ -129,3 +131,4 @@ def test_tip_and_format():
     assert r["svg"] is True
     assert "25.09 2Q" in r["tip"] and "150 百万円" in r["tip"]
     assert r["fmt"] == ["1,235 百万円", "12.3%", "–"]
+

@@ -26,20 +26,22 @@ flowchart LR
   n4[("data_versions")]:::tbl
   n5[("monthly_elements")]:::tbl
   n6[("monthly_issuers")]:::tbl
-  n7[("monthly_tables")]:::tbl
-  n8[("monthly_values")]:::tbl
+  n7[("monthly_publications")]:::tbl
+  n8[("monthly_tables")]:::tbl
+  n9[("monthly_values")]:::tbl
   n0 --> n1
   n1 -.- n4
   n1 -.- n5
   n1 -.- n6
   n1 -.- n7
   n1 -.- n8
+  n1 -.- n9
   n0 --> n2
-  n2 -.- n7
+  n2 -.- n8
   n0 --> n3
   n3 -.- n5
-  n3 -.- n7
   n3 -.- n8
+  n3 -.- n9
   classDef js fill:#f3e8ff,stroke:#7048e8
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -47,7 +49,7 @@ flowchart LR
 
 | API | 呼ぶ JS | 書き込み | 読み取りだけ |
 |---|---|---|---|
-| `GET /api/v1/tables` | `monthly.js` |  | `data_versions`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `stocks` |
+| `GET /api/v1/tables` | `monthly.js` |  | `data_versions`, `monthly_elements`, `monthly_issuers`, `monthly_publications`, `monthly_tables`, `monthly_values`, `stocks` |
 | `GET /api/v1/tables/{code}` | `monthly.js` |  | `monthly_tables` |
 | `GET /api/v1/tables/{code}/{year}` | `monthly.js` |  | `monthly_elements`, `monthly_tables`, `monthly_values` |
 

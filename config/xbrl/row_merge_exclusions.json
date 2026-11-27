@@ -10,6 +10,7 @@
     {"code": "90060", "statement": "BS", "keys": ["IntangibleAssetsIncidentalRWY", "ext:IntangibleAssetsRealEstateAndLeisureFixedAsset"], "evidence": "KAB-591。上の 2 つの見出しの 無形固定資産"},
     {"code": "90070", "statement": "BS", "keys": ["PropertyPlantAndEquipmentOtherRWY", "ext:PropertyPlantAndEquipmentNCALivingServicesRWY"], "evidence": "KAB-591。個別。2017-03〜2024-03 は その他事業固定資産 の 有形固定資産、2025-03 からは 生活サービス事業固定資産 の 有形固定資産。区分が替わった別の科目"},
     {"code": "90070", "statement": "BS", "keys": ["ext:PropertyPlantAndEquipmentNetNCAOther", "ext:PropertyPlantAndEquipmentNetNCALivingServicesRWY"], "evidence": "KAB-591。上の 有形固定資産 の純額"},
-    {"code": "90070", "statement": "BS", "keys": ["IntangibleAssetsOtherRWY", "ext:IntangibleAssetsNCALivingServicesRWY"], "evidence": "KAB-591。上の 2 つの見出しの 無形固定資産"}
+    {"code": "90070", "statement": "BS", "keys": ["IntangibleAssetsOtherRWY", "ext:IntangibleAssetsNCALivingServicesRWY"], "evidence": "KAB-591。上の 2 つの見出しの 無形固定資産"},
+    {"code": "93060", "statement": "BS", "keys": ["ProvisionForDirectorsRetirementBenefits#ProvisionNCL", "ProvisionForDirectorsRetirementBenefits"], "evidence": "KAB-591。2017-03〜2022-03 の有報の役員退職慰労引当金（引当金の見出しの中。row_place_fixes.json で #ProvisionNCL の行に出す）と、2023-03 以降の固定負債の直下の役員退職慰労引当金。行名と区分が同じでまとまり、まとめると旧の期の値が直下に戻る"}
   ]
 }

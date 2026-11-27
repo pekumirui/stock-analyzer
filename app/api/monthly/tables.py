@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ...db import get_session, monthly_list_version, run_sqlite_write
 from ...models import Stock, MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue
 from ...monthly import list_cache
+from ...monthly.publications import latest_visible_publications
 from ...monthly.tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years,
     tree_payload,
@@ -53,13 +54,24 @@ def list_tables_payload(db: Session, only_code: str | None = None) -> list[dict]
 
     全銘柄の結果は (版, JST の今日) でこのプロセスに置く。is_new / ingested_today は日付で変わる。
     呼び元は返したリストを書き換えない。only_code は、全銘柄の結果が既にあればそこから取る。
+    公表日は版の対象外なので、キャッシュの外で銘柄分を 1 回読んで載せる。
     """
     if only_code is None:
-        return _cached_tables(db)
-    cached = _cached_tables(db, store=False)
-    if cached is not None:
-        return [row for row in cached if row["code"] == only_code]
-    return _build_tables(db, only_code)
+        rows = _cached_tables(db)
+    else:
+        cached = _cached_tables(db, store=False)
+        if cached is not None:
+            rows = [row for row in cached if row["code"] == only_code]
+        else:
+            rows = _build_tables(db, only_code)
+    _attach_latest_publications(db, rows)
+    return rows
+
+
+def _attach_latest_publications(db: Session, rows: list[dict]) -> None:
+    pubs = latest_visible_publications(db, [row["code"] for row in rows])
+    for row in rows:
+        row["latest_publication"] = pubs.get(row["code"])
 
 
 def _cached_tables(db: Session, *, store: bool = True) -> list[dict] | None:
