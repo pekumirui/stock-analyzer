@@ -248,7 +248,7 @@
   table.sheet td.name, table.sheet th.name { width:1%; white-space:nowrap; }
   table.sheet .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
   table.sheet .tl-sub { font-size:11px; }
-  table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); margin-right:4px; }
+  table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; white-space:nowrap; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
   #st-sub-financials .fs .g .qb + .qb { margin-left:3px; }
