@@ -138,6 +138,23 @@ def _ups(path: Path) -> list[str]:
     return [line for line in _lines(path) if line.startswith("up ")]
 
 
+def _path_without_tailscale(shadow: Path) -> list[str]:
+    out: list[str] = []
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry:
+            continue
+        if (Path(entry) / "tailscale").exists():
+            shadow.mkdir(exist_ok=True)
+            for tool in Path(entry).iterdir():
+                link = shadow / tool.name
+                if tool.name != "tailscale" and not os.path.lexists(link):
+                    link.symlink_to(tool)
+            entry = str(shadow)
+        if entry not in out:
+            out.append(entry)
+    return out
+
+
 def _world(
     tmp_path: Path,
     *,
@@ -159,12 +176,8 @@ def _world(
         "VERSION_CODENAME=noble\n",
         encoding="utf-8",
     )
-    base = os.environ.get("PATH", "")
-    cleaned = os.pathsep.join(
-        p for p in base.split(os.pathsep) if p and not (Path(p) / "tailscale").exists()
-    )
     env = os.environ.copy()
-    env["PATH"] = f"{bin_dir}{os.pathsep}{cleaned}"
+    env["PATH"] = os.pathsep.join([str(bin_dir), *_path_without_tailscale(tmp_path / "system")])
     env["TAILSCALE_STATE"] = str(tmp_path / "state")
     env["TAILSCALE_HOSTNAME"] = str(tmp_path / "hostname")
     env["TAILSCALE_LOG"] = str(tmp_path / "tailscale.log")
