@@ -529,15 +529,18 @@ def test_learned_pdf_name_does_not_take_the_label_of_another_element() -> None:
     facts = [xfact(1, "RightOfUseAssets", "使用権資産"), xfact(2, "RightOfUseAssetsNet", "使用権資産（純額）"),
              xfact(3, "BuildingsAndStructures", "建物及び構築物")]
     learned = history([("使用権資産", "RightOfUseAssetsNet", 39), ("建物等", "BuildingsAndStructures", 50)])
-    labels = fst._labels([xbrl_filing(1, "BS", facts)], learned)
+    shown = [{"RightOfUseAssets", "RightOfUseAssetsNet", "BuildingsAndStructures"}]
+    labels = fst._labels([xbrl_filing(1, "BS", facts)], learned, shown)
     assert labels["RightOfUseAssetsNet"] == "使用権資産(純額)"
     assert labels["BuildingsAndStructures"] == "建物等"
+    alone = fst._labels([xbrl_filing(1, "BS", facts)], learned, [{"RightOfUseAssets"}, {"RightOfUseAssetsNet"}])
+    assert alone["RightOfUseAssetsNet"] == "使用権資産"
 
 
 def test_learned_pdf_name_still_wins_over_an_unqualified_label() -> None:
     facts = [xfact(1, "EquityIFRS", "資本"), xfact(2, "OtherEquityIFRS", "資本合計"),
              xfact(3, "SubtotalA", "小計"), xfact(4, "CurrentAssetsOtherIFRS", "売却目的で保有する資産を除く流動資産")]
     learned = history([("資本合計", "EquityIFRS", 39), ("小計", "CurrentAssetsOtherIFRS", 50)])
-    labels = fst._labels([xbrl_filing(1, "BS", facts)], learned)
+    labels = fst._labels([xbrl_filing(1, "BS", facts)], learned, [{fact.key for fact in facts}])
     assert labels["EquityIFRS"] == "資本合計"
     assert labels["CurrentAssetsOtherIFRS"] == "小計"

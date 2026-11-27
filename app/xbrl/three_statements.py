@@ -775,7 +775,7 @@ def _basis_columns(
 ) -> tuple[list[Column], dict[str, str], dict[str, str | None]]:
     learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
     columns = build_columns(filings, learned, statement, excluded)
-    labels = _labels(filings, learned)
+    labels = _labels(filings, learned, [set(column.values) for column in columns])
     for column in columns:
         column.consolidated = consolidated
         for key in column.values:
@@ -2797,7 +2797,9 @@ def _pdf_label(local: str, xbrl_label: str = "") -> str:
     return name
 
 
-def _labels(filings: Sequence[Filing], learned: Sequence[Learned]) -> dict[str, str]:
+def _labels(
+    filings: Sequence[Filing], learned: Sequence[Learned], columns: Sequence[set[str]] = (),
+) -> dict[str, str]:
     labels: dict[str, str] = {}
     for filing in filings:
         for f in filing.seq:
@@ -2816,13 +2818,10 @@ def _labels(filings: Sequence[Filing], learned: Sequence[Learned]) -> dict[str, 
         for key, local in item.pdf_names.items():
             own = xbrl_labels.get(key, "")
             name = _pdf_label(local, own)
-            if not _qualified(own, name) or not owners.get(name, set()) - {key}:
+            others = owners.get(name, set()) - {key}
+            if own != f"{name}(純額)" or not any(key in keys and others & keys for keys in columns):
                 labels[key] = name
     return labels
-
-
-def _qualified(label: str, name: str) -> bool:
-    return label.startswith(f"{name}(") and label.endswith(")")
 
 
 def _units(filings: Sequence[Filing]) -> dict[str, str | None]:
