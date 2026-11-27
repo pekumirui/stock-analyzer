@@ -4,7 +4,6 @@ const FS_STD = {JPGAAP: "日本基準", IFRS: "IFRS", USGAAP: "米国基準"};
 const FS_SOURCE = {edinet: "有報", tdnet: "XBRL", tdnet_pdf: "PDF"};
 const FS_SOURCE_NAME = {edinet: "有価証券報告書", tdnet: "短信", tdnet_pdf: "短信 PDF"};
 const FS_ROLE_CLASS = {subtotal: "fs-sub", total: "fs-tot", grand: "fs-grand"};
-const FS_RECENT = 4;
 const FS_NO_QUARTER = "3か月単独を出せない（直前の四半期の列が無い・1株当たり）";
 const fsEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
@@ -12,7 +11,7 @@ let stockFsStatement = "BS";
 let stockFsPeriods = FS_PERIODS[0];
 let stockFsCache = new Map();
 let stockFsScrollKey = "";
-let stockFsView = {cols: "all", quarter: false, rows: "all"};
+let stockFsView = {quarter: false};
 
 function resetStockFs(){
   stockFsCache = new Map();
@@ -52,26 +51,22 @@ function fsYearStarts(ps){
   return ps.map((p, i) => i > 0 && (ps[i - 1].period_type === "FY" || p.period_type === "Q1"));
 }
 
-function fsColMarks(ps, fyOnly){
-  const edges = fsEdges(ps), starts = fyOnly ? ps.map(() => false) : fsYearStarts(ps);
-  return ps.map((p, i) => [p.period_type === "FY" && !fyOnly ? "fs-fy" : "", starts[i] ? "fs-yb" : "",
+function fsColMarks(ps){
+  const edges = fsEdges(ps), starts = fsYearStarts(ps);
+  return ps.map((p, i) => [p.period_type === "FY" ? "fs-fy" : "", starts[i] ? "fs-yb" : "",
     edges[i] ? "fs-edge" : ""].filter(Boolean).join(" "));
 }
 
 function fsView(d, view){
-  const v = {cols: "all", quarter: false, rows: "all", ...(view || {})};
+  const v = {quarter: false, ...(view || {})};
   if(!d || !(d.periods || []).length) return d;
-  const keep = d.periods.map((p, i) => v.cols !== "fy" || p.period_type === "FY" ? i : -1).filter(i => i >= 0);
   const quarter = v.quarter && d.statement === "PL";
   const pick = cell => {
     if(!cell || !quarter) return cell;
     return cell.quarter == null ? {gap: true} : {...cell, value: cell.quarter};
   };
-  const recent = keep.slice(-FS_RECENT);
-  const rows = (d.rows || [])
-    .filter(r => v.rows !== "recent" || (r.role && r.role !== "item") || recent.some(i => (r.cells || [])[i]))
-    .map(r => ({...r, cells: keep.map(i => pick((r.cells || [])[i]))}));
-  return {...d, periods: keep.map(i => d.periods[i]), rows, quarter, fyOnly: v.cols === "fy"};
+  const rows = (d.rows || []).map(r => ({...r, cells: d.periods.map((p, i) => pick((r.cells || [])[i]))}));
+  return {...d, rows, quarter};
 }
 
 function fsStdName(s){
@@ -127,7 +122,7 @@ function fsTableHtml(d){
   }
   const ps = d.periods;
   const mixed = d.consolidated == null;
-  const marks = fsColMarks(ps, d.fyOnly);
+  const marks = fsColMarks(ps);
   const stds = new Set(ps.map(p => p.accounting_standard).filter(Boolean)).size > 1;
   const head = d.quarter ? "科目（3か月単独）" : d.cumulative ? "科目（累計）" : "科目";
   let h = `<thead><tr><th class="l">${head}</th>`
