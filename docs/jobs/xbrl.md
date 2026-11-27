@@ -46,7 +46,7 @@
 
 以下の事項は本設計のスコープ外とする。
 
-- `AuditDoc/` 配下の監査報告書はパースしない。
+- `AuditDoc/` 配下の監査報告書は、ファイルの走査（`find_ixbrl_files`）では拾わない。ただし manifest を 1 つだけ拾う `find_manifest` が `AuditDoc/` の manifest を先に拾うと、そこに載った監査報告書の iXBRL も和に入る（下の「解析対象の iXBRL ファイル」の 2）。
 - セグメント軸付き fact は `xbrl_financials` には入れない（KAB-77 で別テーブル `xbrl_segments` に格納している。「セグメント注記」を参照）。
 - `statements` 全体の全面置換や自動突合による既存 J-Quants 行の削除は行わない。
 - インフラファンド専用の勘定科目体系は持たない。
@@ -216,7 +216,7 @@ ZIP を一時ディレクトリへ展開したあと、以下の順序で解析�
 
 1. `Summary/` 配下を先頭に置き、ZIP 内の `*.htm`・`*.html`・`*.ixbrl` のうち `ix:nonFraction` または `ix:nonNumeric` を含むファイルを列挙する（`find_ixbrl_files`）。
 2. `*manifest*.xml` が存在し `<ixbrl>` 要素を列挙していれば追加する（`Attachment` の manifest しか無い場合でも `Summary` 側のファイルを捨てない、KAB-48）。
-3. `AuditDoc/` など監査関連のパスは除外する。
+3. 1 の走査では `AuditDoc/` など監査関連のパスを除外する。2 の manifest は `find_manifest` が ZIP 内で最初に見つけた 1 つだけを読むので、それが `AuditDoc/` の manifest なら監査報告書の iXBRL が和に入り、`PublicDoc/` の manifest は読まれない（`PublicDoc/` の iXBRL は 1 の走査で拾う）。
    - ZIP に別の書類の iXBRL・xsd・リンクベースが一緒に入っている書類は `config/xbrl/zip_manifest_only.json`（パスは `app/config.py` の `XBRL_ZIP_MANIFEST_ONLY_PATH`）に書類の番号で載せ、規則で自動に見分けない。載せた書類だけは、manifest のあるフォルダで manifest の `instance` の `preferredFilename` の名前を含まない iXBRL・xsd・xml・xbrl を読まない（`app/xbrl/zip_scope.py`。展開した直後に `extract_zip` が消すので `parse_package`・タクソノミの走査・表示リンクも同じものを読む。メモリで ZIP を読む表示リンクの埋め直し `read_zip`・原文 `read_documents`・EDINET のテキストブロックも同じ一覧に従う）。一覧に無い書類は今までどおり和を読む（`5233` の訂正有報 `S100W2KO`［2020-03 期］の ZIP に同じ日に出した 2024-03 期の訂正有報の一式が入り、2024-03 の値が 2020-03 の文脈に束ねられた。KAB-592）。
 4. 対象 iXBRL が 0 件だった場合（従来の `.xbrl` インスタンスのみの ZIP を含む）は、`parse_status='skipped'`・`parse_error='no-ixbrl'` として記録する。
 

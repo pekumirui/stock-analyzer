@@ -106,18 +106,18 @@ EDINET の書類 ZIP は縦覧期間（自己株は 1 年、その他は 5 年�
 
 対象ジョブは [`edinet/edinet_xbrl`](gen/edinet.md#edinetedinet_xbrl)（`jobs/edinet/edinet_xbrl.py`）、表示画面は [銘柄詳細](../screen/stock.md) である。
 
-`edinet_documents` のうち `doc_type_code` が `120`〜`170` であり、`xbrl_flag = True`・`code IS NOT NULL`・`withdrawal_status != '2'`・`disclosure_status = '0'`・`doc_info_edit_status != '1'` を満たし、まだ `xbrl_filings`（`source='edinet'`）に行が無い書類を古い `file_date` 順に処理する（`--retry-failed` 指定時は `parse_status='failed'` も再試行する）。
+`edinet_documents` のうち `doc_type_code` が `120`〜`170` であり、`xbrl_flag = True`・`code IS NOT NULL`・`withdrawal_status != '2'`・`disclosure_status = '0'`・`doc_info_edit_status != '1'` を満たし、まだ `xbrl_filings`（`source='edinet'`）に行が無い書類を新しい `file_date` 順に処理する（`--retry-failed` 指定時は `parse_status='failed'` も再試行する）。
 
 #### パース・メタデータ・異常時の扱い
 
-`type=1` の ZIP を `fetch_zip` で取得し、`XBRL/PublicDoc/` 配下の XBRL 一式を `app/xbrlp` で読んで `xbrl_filings`（`source='edinet'`・`doc_id` に EDINET 書類管理番号）・`xbrl_documents`・`xbrl_contexts`・`xbrl_facts`・`xbrl_presentation_roles` に入れ、続けて `xbrl_financials`・`xbrl_segments` と大株主テーブル（`normalize_shareholders` および末尾の `refresh_versions`）へ正規化する。実行統計は毎回 `xbrl_job_runs`（`job_name='edinet_xbrl'`）に記録する。
+`type=1` の ZIP を `fetch_zip` で取得し、`XBRL/PublicDoc/` 配下の XBRL 一式を `app/xbrlp` で読んで `xbrl_filings`（`source='edinet'`・`doc_id` に EDINET 書類管理番号）・`xbrl_contexts`・`xbrl_facts`・`xbrl_presentation_roles` に入れ、続けて `xbrl_financials`・`xbrl_segments` と大株主テーブル（`normalize_shareholders` および末尾の `refresh_versions`）へ正規化する。実行統計は毎回 `xbrl_job_runs`（`job_name='edinet_xbrl'`）に記録する。
 
 メタデータの変換とエラー時の扱いは次のとおりである。
 
 | 項目 | 規則 |
 |---|---|
 | `doc_type`・`is_amendment` | `120`・`130` は `annual`、`140`・`150` は `quarterly`、`160`・`170` は `semiannual` にし、`130`・`150`・`170` を `is_amendment = True` にする |
-| `period_type` | 有報は `FY`、半期報は `H1`、四半期報は `doc_description` の `第([123])四半期` から `Q1`〜`Q3` を抜く（「第138期」のような期数を `Q1` と誤認するのを避ける） |
+| `period_type` | 有報は `FY`、半期報は `Q2`、四半期報は `doc_description` の `第([123])四半期` から `Q1`〜`Q3` を抜く（「第138期」のような期数を `Q1` と誤認するのを避ける） |
 | `accounting_standard`・`fiscal_year_end` | DEI の `AccountingStandardsDEI` を `'JPGAAP'`・`'IFRS'`・`'USGAAP'` に正規化して格納し、期末日は `CurrentFiscalYearEndDateDEI`（無ければ `period_end`）を使う |
 | 取得時の HTTP `404` | 縦覧期間切れや非公開とみなし、`XbrlFiling` を `parse_status='failed'` で作って `missing` に数える。次回以降は飛ばし、終了コードは `0` のままにする |
 | 取得時の `5xx`・タイムアウト・アーカイブ失敗 | `XbrlFiling` を作らずに `errors` に数え、終了コード `1` を返して次回の再取得に回す |
