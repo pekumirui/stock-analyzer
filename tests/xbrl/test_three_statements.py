@@ -549,6 +549,7 @@ SPLIT_HEAD = "49410"
 AOCI_HEAD = "49430"
 TAIL_HEAD = "49440"
 BREAKDOWN = "49420"
+KANA_HEAD = "49450"
 OLD_EXPENSES = """
 ext:ExpenseOldAbstract=費用
   ImpairmentLossesPL
@@ -595,6 +596,28 @@ ext:CiBreakAbstract=（内訳）
   ComprehensiveIncomeAttributableToOwnersOfTheParent
   ComprehensiveIncomeAttributableToNonControllingInterests
 """
+OLD_KANA_HEAD = """
+LiabilitiesAndEquityIFRSAbstract=負債および資本
+  LiabilitiesIFRSAbstract=負債
+    CurrentLiabilitiesIFRSAbstract=流動負債
+      BorrowingsCLIFRS
+      TotalCurrentLiabilitiesIFRS
+    NonCurrentLiabilitiesIFRSAbstract=非流動負債
+      BorrowingsNCLIFRS
+      NonCurrentLabilitiesIFRS
+  LiabilitiesAndEquityIFRS
+"""
+NEW_KANA_HEAD = """
+LiabilitiesAndEquityIFRSAbstract=負債及び資本
+  LiabilitiesIFRSAbstract=負債
+    CurrentLiabilitiesIFRSAbstract=流動負債
+      TradeAndOtherPayablesCLIFRS
+      TotalCurrentLiabilitiesIFRS
+    NonCurrentLiabilitiesIFRSAbstract=非流動負債
+      BondsPayableNCLIFRS
+      NonCurrentLabilitiesIFRS
+  LiabilitiesAndEquityIFRS
+"""
 
 
 def _same_name_headings(s: Seeder) -> None:
@@ -640,6 +663,21 @@ def _same_name_headings(s: Seeder) -> None:
         x("ComprehensiveIncomeAttributableToNonControllingInterests", "d", 20),
     ], start="2025-04-01")
     s.roles(911, [("rol_StatementOfIncome", "PL", True, False, _tree_items(BOTH_BREAKDOWNS))])
+    s.stock(KANA_HEAD, "負債および資本と負債及び資本")
+    s.filing(941, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", standard="IFRS", code=KANA_HEAD)
+    s.facts(941, "2025-03-31", [
+        x("BorrowingsCLIFRS", "i", 3, "jpigp_cor"), x("TotalCurrentLiabilitiesIFRS", "i", 3, "jpigp_cor"),
+        x("BorrowingsNCLIFRS", "i", 4, "jpigp_cor"), x("NonCurrentLabilitiesIFRS", "i", 4, "jpigp_cor"),
+        x("LiabilitiesAndEquityIFRS", "i", 7, "jpigp_cor"),
+    ])
+    s.roles(941, [("rol_StatementOfFinancialPositionIFRS", "BS", True, True, _tree_items(OLD_KANA_HEAD, ifrs=True))])
+    s.filing(942, "edinet", "FY", "2026-03-31", "2026-06-20 15:00:00", standard="IFRS", code=KANA_HEAD)
+    s.facts(942, "2026-03-31", [
+        x("TradeAndOtherPayablesCLIFRS", "i", 5, "jpigp_cor"), x("TotalCurrentLiabilitiesIFRS", "i", 5, "jpigp_cor"),
+        x("BondsPayableNCLIFRS", "i", 6, "jpigp_cor"), x("NonCurrentLabilitiesIFRS", "i", 6, "jpigp_cor"),
+        x("LiabilitiesAndEquityIFRS", "i", 11, "jpigp_cor"),
+    ])
+    s.roles(942, [("rol_StatementOfFinancialPositionIFRS", "BS", True, True, _tree_items(NEW_KANA_HEAD, ifrs=True))])
 
 
 PRINTED = "71170"
@@ -1352,14 +1390,15 @@ def test_parts_cf_and_pl() -> None:
     assert declared(["AssetsAbstract", "CashAndDeposits"], "PL") == {"CashAndDeposits": (None, None)}
 
 
-def _tree_items(text: str) -> list[list]:
+def _tree_items(text: str, ifrs: bool = False) -> list[list]:
     """1 行 1 要素。字下げ 2 つで 1 段。見出しは `要素=表示名` で表示名を付ける。"""
     out = []
     for line in text.strip("\n").splitlines():
         name, _, label = line.strip().partition("=")
         depth = (len(line) - len(line.lstrip())) // 2
         custom = name.startswith("ext:")
-        out.append(["x" if custom else "jppfs_cor", name[4:] if custom else name, int(custom), None, depth, label or None])
+        ns = "x" if custom else ("jpigp_cor" if ifrs else "jppfs_cor")
+        out.append([ns, name[4:] if custom else name, int(custom), None, depth, label or None])
     return out
 
 
@@ -3126,3 +3165,109 @@ def test_heading_order_diff_counts_changed_values_and_merged_breakdowns() -> Non
         [{"code": "1", "error": "x"}], [{"code": "1", "basis": "consolidated", "statement": "PL", "which": 0, "rows": []}],
     )
     assert failed["failed"] == 1
+
+
+def test_kana_heading_variants_merge_into_latest_section_without_duplicating_subheadings() -> None:
+    bs = table(KANA_HEAD, "BS")
+    assert [r["key"] for r in bs["rows"]] == [
+        "BorrowingsCLIFRS", "TradeAndOtherPayablesCLIFRS", "TotalCurrentLiabilitiesIFRS",
+        "BorrowingsNCLIFRS", "BondsPayableNCLIFRS", "NonCurrentLabilitiesIFRS",
+        "LiabilitiesAndEquityIFRS",
+    ]
+    assert emitted_heading_names(bs["rows"]) == ["負債及び資本", "負債", "流動負債", "非流動負債"]
+    assert rows(bs)["BorrowingsCLIFRS"]["heads"][0] == {
+        "key": "LiabilitiesAndEquityIFRSAbstract", "name": "負債及び資本",
+    }
+    assert rows(bs)["BorrowingsNCLIFRS"]["heads"][0] == {
+        "key": "LiabilitiesAndEquityIFRSAbstract", "name": "負債及び資本",
+    }
+
+
+def test_row_roles_distinguish_items_subtotals_totals_and_grand_totals() -> None:
+    bs_keys = [
+        "CashAndDeposits", "CurrentAssets", "BuildingsAndStructures", "PropertyPlantAndEquipment",
+        "NoncurrentAssets", "Assets", "CurrentAssetsOtherThanAssetsHeldForSaleCAIFRS",
+        "PropertyPlantAndEquipmentIFRS", "ShareholdersEquity", "NetAssets", "LiabilitiesAndNetAssets",
+    ]
+    bs_labels = {
+        "CashAndDeposits": "現金預金", "CurrentAssets": "流動資産合計",
+        "BuildingsAndStructures": "建物・構築物", "PropertyPlantAndEquipment": "有形固定資産合計",
+        "NoncurrentAssets": "固定資産合計", "Assets": "資産合計",
+        "CurrentAssetsOtherThanAssetsHeldForSaleCAIFRS": "(小計)",
+        "PropertyPlantAndEquipmentIFRS": "有形固定資産", "ShareholdersEquity": "株主資本合計",
+        "NetAssets": "純資産合計", "LiabilitiesAndNetAssets": "負債純資産合計",
+    }
+    bs_roles = fst._row_roles("BS", bs_keys, bs_labels, ["money"] * len(bs_keys), [[] for _ in bs_keys], [0] * len(bs_keys))
+    assert dict(zip(bs_keys, bs_roles)) == {
+        "CashAndDeposits": "item",
+        "CurrentAssets": "total",
+        "BuildingsAndStructures": "item",
+        "PropertyPlantAndEquipment": "subtotal",
+        "NoncurrentAssets": "total",
+        "Assets": "grand",
+        "CurrentAssetsOtherThanAssetsHeldForSaleCAIFRS": "subtotal",
+        "PropertyPlantAndEquipmentIFRS": "item",
+        "ShareholdersEquity": "subtotal",
+        "NetAssets": "total",
+        "LiabilitiesAndNetAssets": "grand",
+    }
+
+    pl_jpgaap_keys = [
+        "NetSales", "CostOfSales", "GrossProfit", "OperatingIncome", "NonOperatingIncome", "OrdinaryIncome",
+        "IncomeBeforeIncomeTaxes", "IncomeTaxes", "ProfitLoss",
+        "ProfitLossAttributableToNonControllingInterests", "ProfitLossAttributableToOwnersOfParent",
+        "OtherComprehensiveIncome", "ComprehensiveIncome", "BasicEarningsLossPerShare",
+    ]
+    pl_jpgaap_units = ["money"] * (len(pl_jpgaap_keys) - 1) + ["per_share"]
+    pl_jpgaap_heads = [
+        [], [], [], [], [{"key": "h:noi", "name": "営業外収益"}], [],
+        [], [], [], [], [], [{"key": "h:oci", "name": "その他の包括利益"}], [], [],
+    ]
+    pl_jpgaap_roles = fst._row_roles(
+        "PL", pl_jpgaap_keys, {}, pl_jpgaap_units, pl_jpgaap_heads, [0] * len(pl_jpgaap_keys),
+    )
+    assert dict(zip(pl_jpgaap_keys, pl_jpgaap_roles)) == {
+        "NetSales": "total",
+        "CostOfSales": "item",
+        "GrossProfit": "subtotal",
+        "OperatingIncome": "total",
+        "NonOperatingIncome": "subtotal",
+        "OrdinaryIncome": "total",
+        "IncomeBeforeIncomeTaxes": "subtotal",
+        "IncomeTaxes": "subtotal",
+        "ProfitLoss": "total",
+        "ProfitLossAttributableToNonControllingInterests": "item",
+        "ProfitLossAttributableToOwnersOfParent": "grand",
+        "OtherComprehensiveIncome": "subtotal",
+        "ComprehensiveIncome": "total",
+        "BasicEarningsLossPerShare": "item",
+    }
+
+    pl_breakdown = table(BREAKDOWN, "PL")
+    assert {r["key"]: r["role"] for r in pl_breakdown["rows"]} == {
+        "ProfitLoss": "grand",
+        "ProfitLossAttributableToOwnersOfParent": "item",
+        "ProfitLossAttributableToNonControllingInterests": "item",
+        "ComprehensiveIncome": "total",
+        "ComprehensiveIncomeAttributableToOwnersOfTheParent": "item",
+        "ComprehensiveIncomeAttributableToNonControllingInterests": "item",
+    }
+
+    cf_keys = [
+        "IncomeBeforeIncomeTaxes", "SubtotalOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInInvestmentActivities", "NetCashProvidedByUsedInFinancingActivities",
+        "NetIncreaseDecreaseInCashAndCashEquivalents", "CashAndCashEquivalents",
+    ]
+    cf_heads = [[{"key": "h:ope", "name": "営業CF"}]] * 3 + [[{"key": "h:inv", "name": "投資CF"}]] + [
+        [{"key": "h:fin", "name": "財務CF"}], [], [],
+    ]
+    cf_roles = fst._row_roles("CF", cf_keys, {}, ["money"] * len(cf_keys), cf_heads, [0] * len(cf_keys))
+    assert dict(zip(cf_keys, cf_roles)) == {
+        "IncomeBeforeIncomeTaxes": "item",
+        "SubtotalOpeCF": "subtotal",
+        "NetCashProvidedByUsedInOperatingActivities": "total",
+        "NetCashProvidedByUsedInInvestmentActivities": "total",
+        "NetCashProvidedByUsedInFinancingActivities": "total",
+        "NetIncreaseDecreaseInCashAndCashEquivalents": "subtotal",
+        "CashAndCashEquivalents": "grand",
+    }

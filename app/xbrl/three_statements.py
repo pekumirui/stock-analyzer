@@ -14,7 +14,7 @@ from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH
-from app.xbrl.fs_chart import chart_series
+from app.xbrl.fs_chart import NET_SALES_LABELS, chart_series, element_priorities
 
 __all__ = [
     "DEFAULT_PERIODS",
@@ -461,6 +461,135 @@ def _standard_runs(columns: Sequence[Column]) -> list[list[Column]]:
     return [run for _, run in runs]
 
 
+ROLE_TOTAL_LABEL_RE = re.compile(
+    r"(?:合計|小計|総計|(?:資産|負債|資本|純資産|利益|損失|収益|費用|原価|キャッシュ・フロー|持分|剰余金|差額等|累計額|税金|法人税等)計)$"
+    r"|^[（(]?小計[）)]?$"
+)
+BS_GRAND_KEYS = frozenset({
+    "Assets", "AssetsIFRS", "TotalAssets", "LiabilitiesAndNetAssets", "LiabilitiesAndEquityIFRS",
+})
+BS_GRAND_LABELS = frozenset({
+    "資産合計", "資産の部合計", "負債純資産合計", "負債及び純資産合計", "負債・純資産合計", "負債及び資本合計", "負債および資本合計",
+})
+BS_TOTAL_KEYS = frozenset({
+    "CurrentAssets", "CurrentAssetsIFRS", "NoncurrentAssets", "NonCurrentAssetsIFRS",
+    "CurrentLiabilities", "TotalCurrentLiabilitiesIFRS", "CurrentLiabilitiesIFRS",
+    "NoncurrentLiabilities", "NonCurrentLabilitiesIFRS", "NonCurrentLiabilitiesIFRS",
+    "Liabilities", "LiabilitiesIFRS", "TotalLiabilities", "NetAssets", "EquityIFRS",
+})
+BS_SUBTOTAL_SECTION_KEYS = frozenset({
+    "PropertyPlantAndEquipment", "IntangibleAssets", "InvestmentsAndOtherAssets", "ValuationAndTranslationAdjustments",
+})
+BS_SUBTOTAL_KEYS = frozenset({"ShareholdersEquity", "EquityAttributableToOwnersOfParentIFRS"})
+PL_OWNER_NET_INCOME_KEYS = frozenset({
+    "ProfitLossAttributableToOwnersOfParent", "ProfitLossAttributableToOwnersOfParentIFRS", "NetIncome",
+})
+PL_GRAND_LABELS = frozenset({
+    "親会社株主に帰属する当期純利益", "親会社株主に帰属する中間純利益", "親会社株主に帰属する四半期純利益",
+    "親会社株主に帰属する当期純損失", "親会社株主に帰属する中間純損失", "親会社株主に帰属する四半期純損失",
+})
+PL_STAGE_TOTAL_KEYS = frozenset({
+    "OperatingIncome", "OperatingProfitLossIFRS", "OperatingIncomeLoss", "OrdinaryIncome",
+    "ProfitLoss", "ProfitLossIFRS", "ComprehensiveIncome", "ComprehensiveIncomeIFRS",
+})
+PL_STAGE_TOTAL_LABELS = frozenset({
+    "営業利益", "営業損失", "事業利益", "経常利益", "経常損失",
+    "当期純利益", "当期純損失", "当期利益", "当期損失", "中間純利益", "四半期純利益",
+    "包括利益", "当期包括利益", "中間包括利益", "四半期包括利益",
+})
+PL_SUBTOTAL_KEYS = frozenset({
+    "GrossProfit", "GrossProfitIFRS", "GrossProfitOnCompletedConstructionContractsCNS", "OperatingGrossProfit",
+    "IncomeBeforeIncomeTaxes", "IncomeBeforeMinorityInterests", "ProfitLossBeforeTaxIFRS",
+    "ProfitLossFromContinuingOperationsBeforeTaxIFRS",
+    "NonOperatingIncome", "NonOperatingExpenses", "ExtraordinaryIncome", "ExtraordinaryLoss",
+    "IncomeTaxes", "OtherComprehensiveIncome", "OtherComprehensiveIncomeIFRS",
+})
+PL_SUBTOTAL_PREFIXES = ("売上総利益", "売上総損失", "完成工事総利益", "完成工事総損失", "営業総利益", "税金等調整前", "税引前")
+CF_TOTAL_LABELS = frozenset({
+    "営業活動によるキャッシュ・フロー", "投資活動によるキャッシュ・フロー", "財務活動によるキャッシュ・フロー",
+})
+
+
+def _row_roles(
+    statement: str,
+    keys: Sequence[str],
+    labels: Mapping[str, str],
+    units: Sequence[str],
+    heads_list: Sequence[list[dict[str, str]]],
+    indents: Sequence[int],
+) -> list[str]:
+    revenue_keys = frozenset(element_priorities().get("net_sales", ())) if statement == "PL" else frozenset()
+    has_top_owner_ni = statement == "PL" and any(
+        keys[j] in PL_OWNER_NET_INCOME_KEYS and not heads_list[j] and units[j] == "money"
+        for j in range(len(keys))
+    )
+    out: list[str] = []
+    for idx, key in enumerate(keys):
+        if units[idx] != "money":
+            out.append("item")
+            continue
+        label = labels.get(key, key).strip()
+        heads = heads_list[idx]
+        if statement == "BS":
+            has_child = idx + 1 < len(indents) and indents[idx + 1] > indents[idx]
+            if key in BS_GRAND_KEYS or label in BS_GRAND_LABELS:
+                out.append("grand")
+            elif key in BS_TOTAL_KEYS or (key == "DeferredAssets" and ROLE_TOTAL_LABEL_RE.search(label)):
+                out.append("total")
+            elif (
+                key in BS_SUBTOTAL_KEYS
+                or (key in BS_SUBTOTAL_SECTION_KEYS and (bool(ROLE_TOTAL_LABEL_RE.search(label)) or has_child))
+                or STANDARD_SUBTOTAL_RE.match(key)
+                or ROLE_TOTAL_LABEL_RE.search(label)
+            ):
+                out.append("subtotal")
+            else:
+                out.append("item")
+        elif statement == "PL":
+            if not heads and (
+                key in PL_OWNER_NET_INCOME_KEYS
+                or (not has_top_owner_ni and key in {"ProfitLoss", "ProfitLossIFRS"})
+                or label in PL_GRAND_LABELS
+            ):
+                out.append("grand")
+            elif not heads and (
+                key in revenue_keys
+                or label in NET_SALES_LABELS
+                or key in PL_STAGE_TOTAL_KEYS
+                or label in PL_STAGE_TOTAL_LABELS
+            ):
+                out.append("total")
+            elif (
+                key in PL_SUBTOTAL_KEYS
+                or (not heads and label.startswith(PL_SUBTOTAL_PREFIXES))
+                or STANDARD_SUBTOTAL_RE.match(key)
+                or ROLE_TOTAL_LABEL_RE.search(label)
+            ):
+                out.append("subtotal")
+            else:
+                out.append("item")
+        elif statement == "CF":
+            if (
+                not heads
+                and (CF_CASH_RE.match(key) or CLOSING_CASH_RE.match(label))
+                and not OPENING_CASH_RE.match(label)
+            ):
+                out.append("grand")
+            elif CF_SECTION_RE.match(key) or CF_TOTAL_RE.match(key) or label in CF_TOTAL_LABELS:
+                out.append("total")
+            elif (
+                key.startswith("NetIncreaseDecreaseInCashAndCashEquivalents")
+                or STANDARD_SUBTOTAL_RE.match(key)
+                or ROLE_TOTAL_LABEL_RE.search(label)
+            ):
+                out.append("subtotal")
+            else:
+                out.append("item")
+        else:
+            out.append("item")
+    return out
+
+
 def _table(
     run: Sequence[Column], columns: Sequence[Column], merged: Mapping[str, list[str]], statement: str,
     labels: Mapping[str, str], units: Mapping[str, str | None], consolidated: bool = True,
@@ -475,22 +604,28 @@ def _table(
     order = gather_heads(
         keys, [tuple((h["key"], h["name"]) for h in heads) for heads, _ in parts], labels, alias,
     )
+    ordered_keys = [keys[i] for i in order]
+    ordered_units = [_unit_kind(units, key) for key in ordered_keys]
+    ordered_heads = [_apply_heading_alias(parts[i][0], alias) for i in order]
+    ordered_indents = [parts[i][1] for i in order]
+    roles = _row_roles(statement, ordered_keys, labels, ordered_units, ordered_heads, ordered_indents)
     rows = [
         {
-            "key": keys[i],
-            "label": labels.get(keys[i], keys[i]),
-            "unit": _unit_kind(units, keys[i]),
-            "unmatched_pdf": keys[i].startswith("pdf:"),
-            "heads": _apply_heading_alias(parts[i][0], alias),
-            "indent": parts[i][1],
-            "merged_keys": merged.get(keys[i], []),
+            "key": ordered_keys[pos],
+            "label": labels.get(ordered_keys[pos], ordered_keys[pos]),
+            "unit": ordered_units[pos],
+            "role": roles[pos],
+            "unmatched_pdf": ordered_keys[pos].startswith("pdf:"),
+            "heads": ordered_heads[pos],
+            "indent": ordered_indents[pos],
+            "merged_keys": merged.get(ordered_keys[pos], []),
             "cells": [
-                None if keys[i] not in column.values
-                else {"value": column.values[keys[i]], "source": column.sources[keys[i]]}
+                None if ordered_keys[pos] not in column.values
+                else {"value": column.values[ordered_keys[pos]], "source": column.sources[ordered_keys[pos]]}
                 for column in columns
             ],
         }
-        for i in order
+        for pos in range(len(order))
     ]
     return {
         "consolidated": None if mixed else consolidated,
@@ -2412,88 +2547,106 @@ def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | Non
     return out
 
 
+def _norm_head_name(name: str) -> str:
+    return unicodedata.normalize("NFKC", name).strip().replace("および", "及び").replace("または", "又は")
+
+
 def _heading_alias(
     columns: Sequence[Column], shown: Sequence[tuple[list[dict[str, str]], int]],
-) -> dict[tuple[str, str], str]:
-    by_name: dict[str, set[str]] = defaultdict(set)
-    together: dict[str, list[set[str]]] = defaultdict(list)
-    for column in columns:
-        grouped: dict[str, set[str]] = defaultdict(set)
+) -> dict[tuple[str, str], tuple[str, str]]:
+    by_norm: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    together: dict[str, list[set[tuple[str, str]]]] = defaultdict(list)
+    last_seen: dict[tuple[str, str], int] = {}
+    for col_idx, column in enumerate(columns):
+        grouped: dict[str, set[tuple[str, str]]] = defaultdict(set)
         for part in column.parts.values():
             if not part.heads:
                 continue
             for key, name in part.heads:
                 if not name:
                     continue
-                grouped[name].add(key)
-                by_name[name].add(key)
-        for name, group in grouped.items():
+                norm = _norm_head_name(name)
+                pair = (key, name)
+                grouped[norm].add(pair)
+                by_norm[norm].add(pair)
+                last_seen[pair] = col_idx
+        for norm, group in grouped.items():
             if len(group) > 1:
-                together[name].append(group)
+                together[norm].append(group)
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for heads, _indent in shown:
         for head in heads:
             counts[(head["key"], head["name"])] += 1
-    alias: dict[tuple[str, str], str] = {}
-    for name, keys in by_name.items():
-        root = {key: key for key in keys}
+    alias: dict[tuple[str, str], tuple[str, str]] = {}
+    for norm, pairs in by_norm.items():
+        root = {pair: pair for pair in pairs}
 
-        def find(key: str, root: dict[str, str] = root) -> str:
-            while root[key] != key:
-                root[key] = root[root[key]]
-                key = root[key]
-            return key
+        def find(pair: tuple[str, str], root: dict[tuple[str, str], tuple[str, str]] = root) -> tuple[str, str]:
+            while root[pair] != pair:
+                root[pair] = root[root[pair]]
+                pair = root[pair]
+            return pair
 
-        def union(left: str, right: str, root: dict[str, str] = root) -> None:
+        def union(
+            left: tuple[str, str], right: tuple[str, str], root: dict[tuple[str, str], tuple[str, str]] = root,
+        ) -> None:
             left, right = find(left), find(right)
             if left != right:
                 root[right] = left
 
-        for group in together.get(name, ()):
+        for group in together.get(norm, ()):
             first = next(iter(group))
-            for key in group:
-                union(first, key)
+            for pair in group:
+                union(first, pair)
         alone = [
-            members[0] for members in _components_of(keys, find).values() if len(members) == 1
+            members[0] for members in _components_of(pairs, find).values() if len(members) == 1
         ]
         if len(alone) < 2:
             continue
-        canon = min(alone, key=lambda key: (-counts[(key, name)], key))
-        for key in alone:
-            if key != canon:
-                alias[(key, name)] = canon
+        canon = min(alone, key=lambda pair: (-last_seen.get(pair, -1), -counts[pair], pair))
+        for pair in alone:
+            if pair != canon:
+                alias[pair] = canon
     return alias
 
 
-def _components_of(keys: set[str], find) -> dict[str, list[str]]:
-    components: dict[str, list[str]] = defaultdict(list)
+def _components_of(keys: set[Any], find) -> dict[Any, list[Any]]:
+    components: dict[Any, list[Any]] = defaultdict(list)
     for key in keys:
         components[find(key)].append(key)
     return components
 
 
 def _apply_heading_alias(
-    heads: list[dict[str, str]], alias: Mapping[tuple[str, str], str],
+    heads: list[dict[str, str]], alias: Mapping[tuple[str, str], str | tuple[str, str]],
 ) -> list[dict[str, str]]:
     if not alias or not any((head["key"], head["name"]) in alias for head in heads):
         return heads
-    return [
-        {**head, "key": alias[(head["key"], head["name"])]} if (head["key"], head["name"]) in alias else head
-        for head in heads
-    ]
+    out: list[dict[str, str]] = []
+    for head in heads:
+        target = alias.get((head["key"], head["name"]))
+        if target is None:
+            out.append(head)
+        elif isinstance(target, tuple):
+            out.append({**head, "key": target[0], "name": target[1]})
+        else:
+            out.append({**head, "key": target})
+    return out
 
 
 def gather_heads(
     keys: Sequence[str], paths: Sequence[tuple], labels: Mapping[str, str],
-    alias: Mapping[tuple, str] | None = None,
+    alias: Mapping[tuple, str | tuple[str, str]] | None = None,
 ) -> list[int]:
     renamed = alias or {}
 
     def canon(head: tuple | None) -> tuple | None:
         if head is None:
             return None
-        key = renamed.get(head, head[0])
-        return head if key == head[0] else (key, head[1])
+        target = renamed.get(head)
+        if target is None:
+            return head
+        return target if isinstance(target, tuple) else (target, head[1])
 
     def total(i: int, head: tuple, depth: int) -> bool:
         if len(paths[i]) != depth + 1:
