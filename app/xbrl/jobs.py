@@ -128,7 +128,9 @@ def _plan_row(
     return _ParsePlan(doc_id=doc_id, code5=code5, rel=rel, sha=sha, zip_path=zip_path)
 
 
-def _parse_in_worker(zip_path: Path, title: str, submitted_at: str, cache_dir: Path) -> ParsedPackage | BaseException:
+def _parse_in_worker(
+    zip_path: Path, title: str, submitted_at: str, cache_dir: Path, doc_id: str | None = None,
+) -> ParsedPackage | BaseException:
     """Pool target. Exceptions come back as values so the parent records them like a serial parse."""
     try:
         return parse_zip(
@@ -137,6 +139,7 @@ def _parse_in_worker(zip_path: Path, title: str, submitted_at: str, cache_dir: P
             submitted_at=submitted_at,
             cache_dir=cache_dir,
             text_max=XBRL_TEXT_MAX_CHARS,
+            doc_id=doc_id,
         )
     except Exception as exc:
         return exc
@@ -253,6 +256,7 @@ def _iter_packages(
                             str(row.get("title") or ""),
                             str(row.get("pubdate") or ""),
                             cache,
+                            plan.doc_id,
                         )
                     except BrokenProcessPool:
                         pass

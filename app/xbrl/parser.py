@@ -372,10 +372,13 @@ def find_ixbrl_files(root: Path) -> list[Path]:
     return summary_first + found
 
 
-def extract_zip(zip_path: Path, dest: Path) -> Path:
+def extract_zip(zip_path: Path, dest: Path, *, doc_id: str | None = None) -> Path:
+    from app.xbrl.zip_scope import drop_foreign_files
+
     dest.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path) as zf:
         zf.extractall(dest)
+    drop_foreign_files(dest, doc_id)
     return dest
 
 

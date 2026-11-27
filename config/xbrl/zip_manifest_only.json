@@ -1,0 +1,6 @@
+{
+  "_meta": {"use": "書類の ZIP に、別の書類の iXBRL・xsd・リンクベースが一緒に入っている書類（出どころ・書類・会社の 5 桁コード）。この書類では、manifest に載っている書類（instance の preferredFilename の名前を含むファイル）だけを読み、manifest のあるフォルダのほかの iXBRL・xsd・xml・xbrl は読まない。一覧に無い書類は、manifest の iXBRL とフォルダで見つけた iXBRL の和を読む（KAB-48）", "researched_at": "2026-11-27", "source": "EDINET の書類の ZIP（type=1）の中身と manifest、本番の xbrl_facts"},
+  "filings": [
+    {"source": "edinet", "doc_id": "S100W2KO", "code": "52330", "evidence": "KAB-592。訂正有報 第22期（2020-03-31）、2025-06-24 提出。ZIP の XBRL/PublicDoc にこの書類の jpcrp030000-asr-001_E01130-000_2020-03-31_02_2025-06-24 の iXBRL 23 本・xsd・リンクベース・.xbrl と、同じ日に出した第26期（2024-03-31）の訂正有報 S100W1RP の jpcrp030000-asr-001_E01130-000_2024-03-31_02_2025-06-24 の iXBRL 23 本・xsd・リンクベースが両方入り、AuditDoc にも 2024-03-31 の監査報告書が入っている。manifest_PublicDoc.xml・manifest_AuditDoc.xml に載っているのは 2020-03-31 だけ。和で読むと 2024 側の文脈（CurrentYearInstant など）が 2020-03-31 に束ねられ、本番の xbrl_facts（filing 13206）は jppfs_cor:Assets が 2019-11-01 版の 1,032,923 百万円（正）と 2023-12-01 版の 1,338,251 百万円（2024-03 の値）の 2 つ。業績詳細の BS の 2020/3 の列に 2024/3 の科目（受取手形、売掛金及び契約資産 167,848 など）が混ざった。EDINET・短信の全 129,608 件の filing で、1 つの書類に同じ名前空間キーの版が 2 つあるのはこの 1 件だけ"}
+  ]
+}

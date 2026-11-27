@@ -84,6 +84,7 @@ def pending_documents(
     start: date | None = None,
     end: date | None = None,
     code: str | None = None,
+    doc_id: str | None = None,
     retry_failed: bool = False,
     reparse: bool = False,
     limit: int | None = None,
@@ -106,6 +107,8 @@ def pending_documents(
         q = q.where(T.file_date <= end)
     if code:
         q = q.where(T.code == code)
+    if doc_id:
+        q = q.where(T.doc_id == doc_id)
     docs = db.scalars(q).all()
     status = dict(db.execute(
         select(XbrlFiling.doc_id, XbrlFiling.parse_status).where(XbrlFiling.source == SOURCE)

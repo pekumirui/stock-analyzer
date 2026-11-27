@@ -18,6 +18,7 @@ from sqlalchemy import delete, exists
 from sqlalchemy.orm import Session
 
 from app.models import XbrlDocument, XbrlFiling
+from app.xbrl.zip_scope import kept_names
 
 
 def _now() -> datetime:
@@ -44,9 +45,9 @@ def pick_documents(names: list[str]) -> list[tuple[str, str]]:
     return out
 
 
-def read_documents(zip_path: Path) -> list[dict]:
+def read_documents(zip_path: Path, doc_id: str | None = None) -> list[dict]:
     with zipfile.ZipFile(zip_path) as zf:
-        picked = pick_documents(zf.namelist())
+        picked = pick_documents(kept_names(doc_id, zf.namelist(), zf.read))
         return [
             {"seq": i, "part": part, "file_name": name.rsplit("/", 1)[-1], "html": zf.read(name)}
             for i, (part, name) in enumerate(picked)
@@ -58,7 +59,7 @@ def store_documents(db: Session, filing: XbrlFiling, zip_path: Path) -> int:
 
     0 件なら filing.documents_status='empty' にして、毎時の埋め直しで読み直さない。
     """
-    docs = read_documents(zip_path)
+    docs = read_documents(zip_path, filing.doc_id)
     db.execute(delete(XbrlDocument).where(XbrlDocument.filing_id == filing.id))
     filing.documents_status = "stored" if docs else "empty"
     now = _now()
