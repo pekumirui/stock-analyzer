@@ -35,6 +35,12 @@ PRETAX_KEYS = ("IncomeBeforeIncomeTaxes", "ProfitLossBeforeTaxIFRS", "IncomeLoss
 NET_KEYS = ("ProfitLoss", "ProfitLossIFRS", "NetIncomeLoss")
 PRETAX_LABEL_RE = re.compile(r"税引前|税金等調整前")
 NET_LABEL_RE = re.compile(r"^(?:四半期|中間)?当?(?:期)?(?:純)?(?:利益|損失)|^(?:四半期|中間)?(?:純)?(?:利益|損失)")
+NON_CF_KEY_RE = re.compile(r"(NOI|NOE|EI|EL|SGA|OCI|SS|COS|CGS)(IFRS)?$")
+NON_CF_KEYS = frozenset({"NonOperatingIncome", "NonOperatingExpenses", "ExtraordinaryIncome", "ExtraordinaryLoss",
+                         "OrdinaryIncome", "OperatingIncome", "GrossProfit", "NetSales", "CostOfSales",
+                         "OperatingProfitLossIFRS", "ProfitLossBeforeTaxIFRS", "RevenueIFRS", "GrossProfitIFRS",
+                         "PurchaseOfTreasuryStock", "DisposalOfTreasuryStock", "DividendsFromSurplus"})
+IFRS_SUBTOTAL_KEY_RE = re.compile(r"^(MovementsInWorkingCapital|AdjustmentsToReconcileProfit|TotalAdjustments)")
 MEMO_KEY_RE = re.compile(r"FreeCashFlow|OperatingActivitiesAnd")
 MEMO_LABEL_RE = re.compile(r"フリー・?キャッシュ・?フロー|^営業活動及び")
 CHECKS = ("op_sub", "op_after_sub", "op", "inv", "fin", "change", "closing", "start_pl", "core")
@@ -160,8 +166,44 @@ def layout(rows):
 
 def is_subtotal(r):
     k, lab = key_of(r), norm(r["label"])
-    return bool(SUBTOTAL_KEY_RE.search(k) or k.startswith("TotalOf") or SUBTOTAL_LABEL_RE.match(lab)
-                or (lab.endswith("計") and not lab.endswith("合計") and "キャッシュ" not in lab))
+    if is_non_cf(r):
+        return False
+    return bool("考慮前" in lab or k.startswith("CashFlowsFromOperatingActivitiesBefore") or SUBTOTAL_KEY_RE.search(k) or k.startswith("TotalOf") or IFRS_SUBTOTAL_KEY_RE.match(k)
+                or SUBTOTAL_LABEL_RE.match(lab) or (lab.endswith("計") and "キャッシュ" not in lab))
+
+
+def is_non_cf(r):
+    k = key_of(r)
+    return k in NON_CF_KEYS or bool(NON_CF_KEY_RE.search(k))
+
+
+def why(rows, use, diff, tol, c, source, mix):
+    non_cf = [i for i in use[1:] if is_non_cf(rows[i])]
+    if non_cf and abs(sum(value(rows, i, c) for i in non_cf) - diff) <= tol:
+        return "non_cf_element:" + "+".join(key_of(rows[i]) for i in non_cf)[:120]
+    filled = [i for i in use if (rows[i]["cells"][c].get("source") or source) != source]
+    if filled and abs(sum(value(rows, i, c) for i in filled) - diff) <= tol:
+        return "filled_from_other_source:" + "+".join(key_of(rows[i]) for i in filled)[:120]
+    one = next((i for i in use if abs(value(rows, i, c) - diff) <= tol), None)
+    if one is not None:
+        tag = "non_cf_element" if is_non_cf(rows[one]) else "one_extra_row"
+        return f"{tag}:{key_of(rows[one])}"[:140]
+    kids = [i for i in range(len(rows)) if (rows[i]["indent"] or 0) > 0 and value(rows, i, c) is not None
+            and i not in use and min(use, default=-1) < i < max(use, default=-1)]
+    if kids and (abs(sum(value(rows, i, c) for i in kids) + diff) <= tol
+                 or any(abs(value(rows, i, c) + diff) <= tol for i in kids)):
+        return "indent_not_child:" + "+".join(key_of(rows[i]) for i in kids)[:120]
+    labels = Counter(norm(rows[i]["label"]) for i in use)
+    dup = [i for i in use if labels[norm(rows[i]["label"])] > 1]
+    if dup and abs(sum(value(rows, i, c) for i in dup) / 2 - diff) <= tol:
+        return "dup_label:" + "+".join(key_of(rows[i]) for i in dup)[:120]
+    if non_cf:
+        return "non_cf_partial:" + "+".join(key_of(rows[i]) for i in non_cf)[:120]
+    if source == "tdnet_pdf":
+        return "pdf_missing_or_extra"
+    if mix:
+        return "mixed_unexplained"
+    return "unexplained"
 
 
 def is_memo(r):
@@ -177,7 +219,7 @@ def continuing_parts(rows, idxs, c):
         if "継続事業" in lab or "ContinuingOperations" in key_of(rows[i]) or "DiscontinuedOperations" in key_of(rows[i]):
             parts.append(i)
             continue
-        if parts and start_kind(rows[i]) == "net":
+        if parts and start_kind(rows[i]) in ("net", "pretax"):
             total = sum(value(rows, j, c) for j in parts)
             return (parts, i) if abs(total - value(rows, i, c)) < 1 else ([], None)
         break
@@ -231,17 +273,26 @@ def check_table(cf, pl_by, code, basis, out, stats, detail, shown, closings):
             idxs = [i for i in bounds[s] if i not in parts and not is_memo(rows[i])]
             subs = [i for i in idxs if is_subtotal(rows[i]) and value(rows, i, c) is not None]
             items = [i for i in idxs if i not in subs]
+            lead = [si for si in subs if not any(i < si for i in items)]
+            subs = [si for si in subs if si not in lead]
+            items = sorted(items + lead)
             for si in subs:
-                a, n = sum_of(rows, [i for i in items if i < si], c)
-                res[f"{s}_sub"] = ("OK" if close(a, value(rows, si, c), unit, n) else "NG", a, value(rows, si, c),
-                                   f"{n}:{norm(rows[si]['label'])[:20]}")
-                if res[f"{s}_sub"][0] == "NG":
+                pre = counted(rows, [i for i in items if i < si], c)
+                a = sum(value(rows, i, c) for i in pre)
+                sv = value(rows, si, c)
+                if close(a, sv, unit, len(pre)):
+                    res[f"{s}_sub"] = ("OK", a, sv, len(pre))
+                else:
+                    res[f"{s}_sub"] = ("NG", a, sv, why(rows, pre, a - sv, unit * max(len(pre), 1), c, p["source"], mix))
                     break
-            a, n = sum_of(rows, items, c)
-            if n == 0:
-                res[s] = ("no_items", a, total, n)
+            use = counted(rows, items, c)
+            a = sum(value(rows, i, c) for i in use)
+            if not use:
+                res[s] = ("no_items", a, total, 0)
+            elif close(a, total, unit, len(use)):
+                res[s] = ("OK", a, total, len(use))
             else:
-                res[s] = ("OK" if close(a, total, unit, n) else "NG", a, total, n)
+                res[s] = ("NG", a, total, why(rows, use, a - total, unit * len(use), c, p["source"], mix))
         if change_i is not None and not missing:
             change = value(rows, change_i, c)
             three = sum(value(rows, tot[s], c) or 0.0 for s in SECTIONS)
