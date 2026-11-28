@@ -243,7 +243,7 @@ def continuing_parts(rows, idxs, c):
     return [], None
 
 
-AGG_RE = re.compile(r"合計|調整項目|計$|考慮前|^(?:営業)?(?:資産(?:及び|・)負債|運転資本)(?:等|ほか)?の(?:増減|変動)|WorkingCapital$|"
+AGG_RE = re.compile(r"合計|調整項目|計$|考慮前|WorkingCapital$|"
                     r"^(?!Other)\w*WorkingCapitalOpeCF|AssetsAndLiabilitiesOfOperatingActivities|AdjustmentsToReconcile|^TotalOf|"
                     r"FromContinuingOperations")
 
@@ -253,6 +253,8 @@ def aggregates(rows, idxs, c, unit):
     out = set()
     for n, i in enumerate(present):
         if not (AGG_RE.search(norm(rows[i]["label"])) or AGG_RE.search(key_of(rows[i]))):
+            continue
+        if n + 1 < len(present) and (rows[present[n + 1]]["indent"] or 0) > (rows[i]["indent"] or 0):
             continue
         v = value(rows, i, c)
         for run in (present[max(0, n - k):n] for k in range(2, n + 1)):
@@ -360,9 +362,10 @@ def check_table(cf, pl_by, code, basis, out, stats, detail, shown, closings):
                 res["closing"] = ("no_prior_fy", "", value(rows, closing_is[0], c), str(start or ""))
             else:
                 best = None
-                for ci in closing_is:
+                tries = [(ci, False) for ci in closing_is] + [(ci, True) for ci in closing_is[1:]]
+                for ci, take_closing in tries:
                     adj = [i for i in after if change_i < i < ci and value(rows, i, c) is not None
-                           and kinds[i] != "closing" and not is_memo(rows[i])]
+                           and (take_closing or kinds[i] != "closing") and not is_memo(rows[i])]
                     implied = value(rows, ci, c) - value(rows, change_i, c) - sum(value(rows, i, c) for i in adj)
                     for o in openings:
                         if close(implied, o, unit, 2 + len(adj)):
