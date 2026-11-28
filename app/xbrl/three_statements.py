@@ -8,13 +8,14 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import lru_cache
+from itertools import combinations
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
 from app.config import (
-    XBRL_PDF_ROW_FIXES_PATH, XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH,
+    XBRL_PDF_ROW_FIXES_PATH, XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_MERGE_FIXES_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH,
 )
 from app.xbrl.fs_chart import NET_SALES_LABELS, chart_series, element_priorities, quarter_value
 
@@ -420,7 +421,7 @@ def financial_table(
     for run in _standard_runs(columns):
         visible = [c for c in run if id(c) in shown]
         if visible:
-            merged = merge_split_rows(run, statement, labels, units, excluded)
+            merged = merge_split_rows(run, statement, labels, units, excluded, _merge_fixes().get((code, statement), ()))
             tables.append(_table(run, visible, merged, statement, labels, units))
             chart = chart_series(run, visible, statement, labels)
     empty = None
@@ -747,6 +748,15 @@ def _merge_exclusions() -> dict[tuple[str, str], set[frozenset[str]]]:
     return dict(out)
 
 
+@lru_cache(maxsize=1)
+def _merge_fixes() -> dict[tuple[str, str], tuple[tuple[str, ...], ...]]:
+    raw = json.loads(XBRL_ROW_MERGE_FIXES_PATH.read_text(encoding="utf-8"))
+    out: dict[tuple[str, str], list[tuple[str, ...]]] = defaultdict(list)
+    for item in raw.get("groups") or []:
+        out[(str(item["code"]), str(item["statement"]))].append(tuple(str(k) for k in item["keys"]))
+    return {k: tuple(v) for k, v in out.items()}
+
+
 def standard_book(raw: Mapping[str, Any]) -> StandardBook:
     labels: dict[tuple[str, str, str], StandardLabel] = {}
     for standard, statements in (raw.get("labels") or {}).items():
@@ -796,7 +806,7 @@ def _between_gross_and_net(label: str, around: tuple[str, str] | None) -> tuple[
 
 def merge_split_rows(
     columns: Sequence[Column], statement: str, labels: Mapping[str, str], units: Mapping[str, str | None],
-    excluded: Iterable[frozenset[str]] = (),
+    excluded: Iterable[frozenset[str]] = (), listed: Iterable[Sequence[str]] = (),
 ) -> dict[str, list[str]]:
     """同じ区分・同じ行名・同じ単位で値の期が 1 つも重ならない XBRL の行を 1 行にまとめる（columns を書き換える）。
 
@@ -805,7 +815,40 @@ def merge_split_rows(
     skip = set(excluded)
     out = _merge_groups(columns, statement, labels, units, skip, _by_label)
     out.update(_merge_groups(columns, statement, labels, units, skip, _between_gross_and_net))
+    for group in listed:
+        for keep, rest in _merge_listed(columns, statement, units, group, out).items():
+            folded = [r for k in rest for r in out.pop(k, [])]
+            out[keep] = [*out.get(keep, []), *rest, *folded]
     return out
+
+
+def _merge_listed(
+    columns: Sequence[Column], statement: str, units: Mapping[str, str | None], group: Sequence[str],
+    merged: Mapping[str, list[str]],
+) -> dict[str, list[str]]:
+    home = {r: k for k, rest in merged.items() for r in rest}
+    members = list(dict.fromkeys(home.get(k, k) for k in group))
+    seen = {k: frozenset(i for i, c in enumerate(columns) if k in c.values) for k in members}
+    keys = set(_row_keys(columns, statement))
+    present = [k for k in members if seen[k] and k in keys]
+    if len(present) < 2 or len({_unit_kind(units, k) for k in present}) > 1:
+        return {}
+    if any(seen[a] & seen[b] for a, b in combinations(present, 2)):
+        return {}
+    ranked = sorted(present, key=lambda k: max(seen[k]), reverse=True)
+    _fold(columns, ranked[0], ranked[1:])
+    return {ranked[0]: ranked[1:]}
+
+
+def _fold(columns: Sequence[Column], keep: str, rest: Sequence[str]) -> None:
+    for column in columns:
+        for key in rest:
+            if key in column.values:
+                column.values[keep] = column.values.pop(key)
+                column.sources[keep] = column.sources.pop(key)
+                if key in column.parts:
+                    column.parts[keep] = column.parts.pop(key)
+                column.order = [keep if k == key else k for k in column.order]
 
 
 def _merge_groups(
@@ -837,14 +880,7 @@ def _merge_groups(
                 continue
             ranked = sorted(part, key=lambda k: max(seen[k]), reverse=True)
             keep, rest = ranked[0], ranked[1:]
-            for column in columns:
-                for key in rest:
-                    if key in column.values:
-                        column.values[keep] = column.values.pop(key)
-                        column.sources[keep] = column.sources.pop(key)
-                        if key in column.parts:
-                            column.parts[keep] = column.parts.pop(key)
-                        column.order = [keep if k == key else k for k in column.order]
+            _fold(columns, keep, rest)
             out[keep] = rest
     return out
 
