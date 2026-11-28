@@ -14,7 +14,7 @@ from app.models import Statement
 from app.xbrl.context import ParsedContext, assign_relative_periods, shift_years
 from app.xbrl.normalize import ALLOWED_MEMBERS, PDF_SUMMARY_NS
 from app.xbrl.parser import ParsedFact, ParsedPackage
-from app.xbrl.pdf._layout import _FURNITURE_TOP, Line, Page, PdfLayoutError, grid, split_amounts
+from app.xbrl.pdf._layout import COL_TOL, _FURNITURE_TOP, Line, Page, PdfLayoutError, Word, grid, split_amounts
 
 DisclosureNo = NewType("DisclosureNo", str)
 _DISCLOSURE_NO = re.compile(r"\d{14}")
@@ -50,6 +50,7 @@ _LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
 _HEADING_LEAD = re.compile(r"^(?:[①-⑳]|\(\d+\)|\d+\.)+")
 _HINTS = re.compile(r"\([△▲][^)]*\)")
 _BREAKDOWN_LEAD = re.compile(r"^[（(]内訳[)）]")
+_TRAILING_NOTE_REF = re.compile(r"(?:\(\d+\)\([a-z]\))+$")
 # 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
 _CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
@@ -65,7 +66,7 @@ _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _DIV_SLOT_SUFFIX = re.compile(r"(第[123]四半期末|中間期末|期末|(年間)?合計)$")
 _NUMERIC_ITEM = re.compile(r"\d")
 _ONE_YEAR_LEAD = re.compile(r"^1年以?内")
-_TERM_IN_LABEL = re.compile(r"\d+(?:[ヶケかカ箇]月|年)(?:超|以内|以上|内|未満)|第\d+条")
+_TERM_IN_LABEL = re.compile(r"\d+(?:[ヶケヵかカ箇]月|年)(?:超|以内|以上|内|未満)|第\d+条")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
     r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想|前回予想|今回予想"
@@ -74,7 +75,7 @@ _HEADER_ROLE = re.compile(
     r"|第[123]四半期|中間期|上期|通期"
 )
 # 数値の無い CF の区分見出し（KAB-216）。金額がある合計行は残す。
-_CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ・フロー$")
+_CF_CLASS = re.compile(r"^(?:[IVX]+\.?|\d+\.)?(営業|投資|財務)活動によるキャッシュ・フロー(への調整)?$")
 # 数値の無い BS の区分見出し。hanging が「資産流動資産現金及び預金」にしない。
 _BS_CLASS = re.compile(
     r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
@@ -89,6 +90,15 @@ _BS_ONLY_HEAD = re.compile(
 _BS_DASH = frozenset({"─", "‐"})
 _BS_NOTE_PREFIX = re.compile(r"^注\d+\.")
 _BS_GRAND_TOTAL = re.compile(r"^負債(及び|・)?(純資産|資本)(の部)?(合計|計)$")
+_BS_MARK = "※"
+_BS_MARKED_AMOUNT = re.compile(r"^※\s*(△?\s*\d[\d,]*)$")
+_BS_AMOUNT_WORD = re.compile(r"^△?\s*\d[\d,]*$")
+_BS_MARKED_PEERS = 2
+_BS_NOTE_SUFFIX = re.compile(r"\s+\d{1,2}(?:\s*[,、]\s*\d{1,2})+$")
+_BS_NOTE_COLUMN = "注記"
+_BS_OMITTED = re.compile(r"^[(（]中略[)）]$")
+_BS_CORR_BEFORE = re.compile(r"^[〈<《【\[(（]*訂正前[)）】\]》>〉]*$")
+_BS_CORR_AFTER = re.compile(r"^[〈<《【\[(（]*訂正後[)）】\]》>〉]*$")
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
 # 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
@@ -99,6 +109,8 @@ _ATTR_ITEM = re.compile(r"に帰属する")
 _BREAKDOWN = re.compile(r"^[（(]内訳[)）]$")
 # CF の現金残高。期間ではなく時点（KAB-263。EDINET / TDnet ZIP の CashAndCashEquivalents に合わせる）。
 _CASH_BALANCE = re.compile(r"現金及び現金同等物.*(期首|期末)残高")
+_CASH_CLOSING = re.compile(r"現金及び現金同等物.*末残高")
+_CF_NOTE_LIST = re.compile(r"(?<=[^\d,])\d{1,2}(?:,\d{1,2})+$")
 # 訂正短信の「（訂正前）」ブロック（KAB-212）。drop_pre_correction はこれだけ。
 _CORR_BEFORE = re.compile(r"^[【\[(（]*訂正前[)）】\]]*$")
 _CORR_AFTER = re.compile(r"^[【\[(（]*訂正後[)）】\]]*$")
@@ -386,7 +398,7 @@ class Role:
 ROLE_WORDS: tuple[tuple[re.Pattern[str], dict], ...] = (
     (_h(r"増減率|増減|対前期"), {"skip": True}),
     # 本表の比率の列（売上収益比・前年同期比・構成比）。
-    (_h(r"[%％]$|^[%％]|収益比|売上比|同期比|構成比|前年比"), {"skip_rows": True}),
+    (_h(r"[%％]$|^[%％]|収益比|売上比|同期比|構成比|前年比|^比較$"), {"skip_rows": True}),
     (_h(r"前回発表予想|前回予想|前回予定|\(A\)"), {"add": frozenset({"ForecastMember", "PreviousMember"})}),
     (_h(r"今回修正予想|今回発表予想|今回予想|今回予定|今回決定|\(B\)"), {"add": frozenset({"ForecastMember", "CurrentMember"})}),
     (_h(r"第1四半期末"), {"add": frozenset({"FirstQuarterMember"})}),
@@ -453,18 +465,19 @@ def _compact(raw: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or ""))
 
 
-def drop_pre_correction(pages: list[Page]) -> list[Page]:
+def drop_pre_correction(pages: list[Page], *, bs: bool = False) -> list[Page]:
     """「（訂正前）」から「（訂正後）」の手前までを捨てる（KAB-212）。"""
+    before, after = (_BS_CORR_BEFORE, _BS_CORR_AFTER) if bs else (_CORR_BEFORE, _CORR_AFTER)
     dropping = False
     out: list[Page] = []
     for page in pages:
         kept: list[Line] = []
         for line in page.lines:
             compact = _compact(line.text)
-            if _CORR_BEFORE.fullmatch(compact):
+            if before.fullmatch(compact):
                 dropping = True
                 continue
-            if _CORR_AFTER.fullmatch(compact):
+            if after.fullmatch(compact):
                 dropping = False
                 continue
             if not dropping:
@@ -498,6 +511,7 @@ def label_key(raw: str) -> str:
         text = _LEADING.sub("", text)
         text = _HINTS.sub("", text)
         text = _BREAKDOWN_LEAD.sub("", text)
+        text = _TRAILING_NOTE_REF.sub("", text)
     # 「営業利益又は営業損失(△)」は前半の名前。符号は印字の △ のまま。
     # 「又は損失の帰属親会社の所有者」はの帰属を残し、_OWNERS_PROFIT に渡す（KAB-240）。
     head = _ALTERNATIVE.sub("", text)
@@ -719,6 +733,16 @@ def _split_item_headers(headers: tuple[str, ...]) -> tuple[str, tuple[str, ...]]
     return first, tuple(roles)
 
 
+def _skipped_column(norm: tuple[str, ...], spec: SectionSpec) -> bool:
+    for text in norm:
+        for pattern, patch in ROLE_WORDS:
+            if patch.get("skip") and pattern.search(text):
+                return True
+            if patch.get("skip_rows") and spec.axis is Axis.ITEM_ROWS and pattern.search(text):
+                return True
+    return False
+
+
 def role_of(
     texts: tuple[str, ...],
     spec: SectionSpec,
@@ -728,12 +752,8 @@ def role_of(
     hint: PeriodHint | None = None,
 ) -> Role | None:
     norm = tuple(_compact(text) for text in texts if text and _compact(text))
-    for text in norm:
-        for pattern, patch in ROLE_WORDS:
-            if patch.get("skip") and pattern.search(text):
-                return None
-            if patch.get("skip_rows") and spec.axis is Axis.ITEM_ROWS and pattern.search(text):
-                return None
+    if _skipped_column(norm, spec):
+        return None
     if spec.axis is Axis.ITEM_ROWS and spec.shape is Shape.DURATION and any(_QUARTER_ONLY.search(t) for t in norm):
         return None
     members: set[str] = set(spec.base_members)
@@ -1023,7 +1043,7 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         body = lines[index + 1:end]
         if spec.name in _STATEMENTS:
             body = _statement_body(body)
-        candidates.append((spec, _table_lines(body, bs=spec.namespace is NS_BS), consolidated, text))
+        candidates.append((spec, _table_lines(body, bs=spec.namespace is NS_BS, dash=spec.namespace in (NS_BS, NS_CF)), consolidated, text))
     blocks: list[tuple[SectionSpec, list[Line], bool, str]] = []
     taken: set[str] = set()
     has_income_pl = any(
@@ -1095,14 +1115,44 @@ def _bs_dash_cells(line: Line) -> Line:
     ))
 
 
-def _table_lines(lines: list[Line], *, bs: bool = False) -> list[Line]:
+def _bs_marked_amounts(lines: list[Line]) -> list[Line]:
+    edges = [amount.x1 for line in lines for amount in split_amounts(line)[1]]
+
+    def column_cell(word: Word) -> bool:
+        return sum(1 for x1 in edges if abs(x1 - word.x1) <= COL_TOL) >= _BS_MARKED_PEERS
+
+    def split_mark(words: tuple[Word, ...], n: int) -> bool:
+        return (
+            words[n].text.strip() == _BS_MARK and n + 1 < len(words)
+            and bool(_BS_AMOUNT_WORD.fullmatch(words[n + 1].text.strip())) and column_cell(words[n + 1])
+        )
+
+    out: list[Line] = []
+    for line in lines:
+        words: list[Word] = []
+        for n, word in enumerate(line.words):
+            if split_mark(line.words, n):
+                continue
+            found = _BS_MARKED_AMOUNT.fullmatch(word.text.strip())
+            if found and column_cell(word):
+                word = replace(word, text=re.sub(r"\s+", "", found.group(1)))
+            words.append(word)
+        out.append(line if tuple(words) == line.words else replace(line, words=tuple(words)))
+    return out
+
+
+def _table_lines(lines: list[Line], *, bs: bool = False, dash: bool = False) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
-    if bs:
+    if dash:
         lines = [_bs_dash_cells(line) for line in lines]
+    if bs:
+        lines = _bs_marked_amounts(lines)
     kept: list[Line] = []
     for index, line in enumerate(lines):
         compact = _compact(line.text)
         if not compact:
+            continue
+        if bs and _BS_OMITTED.fullmatch(compact):
             continue
         if _CLASS_HEAD.search(compact):
             continue
@@ -1187,16 +1237,23 @@ def _statement_roles(table, spec: SectionSpec, d: PdfDisclosure) -> list[Role | 
         any(row.cells[index] is not None and row.cells[index].value is not None for row in table.rows)
         for index in range(count)
     ]
-    last = max((index for index in range(count) if filled[index]), default=count - 1)
-    for index, column in enumerate(table.columns):
+    headers_of = [() if _mixed_periods(column.headers, spec, d) else column.headers for column in table.columns]
+    priced = [
+        filled[index] and not _skipped_column(tuple(_compact(text) for text in headers if text and _compact(text)), spec)
+        for index, headers in enumerate(headers_of)
+    ]
+    last = max(
+        (index for index in range(count) if priced[index]),
+        default=max((index for index in range(count) if filled[index]), default=count - 1),
+    )
+    for index in range(count):
         if not filled[index]:
             # ダッシュだけの列。役割を付けると値のある列と重なって両方捨てることになる。
             roles.append(None)
             explicit.append(False)
             continue
-        headers = () if _mixed_periods(column.headers, spec, d) else column.headers
-        right = role_of(headers, spec, d, rightmost=True)
-        left = role_of(headers, spec, d, rightmost=False)
+        right = role_of(headers_of[index], spec, d, rightmost=True)
+        left = role_of(headers_of[index], spec, d, rightmost=False)
         role = right if index == last else left
         if role is not None and "ForecastMember" in role.members:
             role = None
@@ -1244,7 +1301,21 @@ def sides(role: Role, amount) -> list[tuple[Role, Decimal]]:
     return [(low, amount.value), (high, amount.upper)]
 
 
-def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
+def _with_bs_blocks(
+    blocks: list[tuple[SectionSpec, list[Line], bool, str]], bs_blocks: list[tuple[SectionSpec, list[Line], bool, str]],
+) -> list[tuple[SectionSpec, list[Line], bool, str]]:
+    fresh = [block for block in bs_blocks if block[0].namespace is NS_BS]
+    out: list[tuple[SectionSpec, list[Line], bool, str]] = []
+    for block in blocks:
+        if block[0].namespace is not NS_BS:
+            out.append(block)
+        elif fresh:
+            out.extend(fresh)
+            fresh = []
+    return out + fresh
+
+
+def package(pages: list[Page], d: PdfDisclosure, bs_pages: list[Page] | None = None) -> ParsedPackage:
     contexts: dict[str, ParsedContext] = {}
     facts: list[ParsedFact] = []
     labels: dict[tuple[str, str], dict[str, str]] = {}
@@ -1260,6 +1331,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
         labels.setdefault((fact.namespace_key, fact.local_name), {"label_ja": label})
 
     blocks = _blocks(pages, d)
+    if bs_pages is not None and bs_pages != pages:
+        blocks = _with_bs_blocks(blocks, _blocks(bs_pages, d))
     # 業績予想の修正は表ごとに見出しの期（「(1)第2四半期（累計）…（9月1日～2月28日）」）を使う。
     # 見出しに期が無ければ題名（最初の見出し）。どちらにも無ければ今までどおり通期（KAB-228）。
     title_hint = next(
@@ -1274,16 +1347,23 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
             hint = heading_hint(heading, d, spec)
             if hint.empty:
                 hint = title_hint
+        cf_closed = False
         for chunk in _split_grids(lines):
+            if cf_closed:
+                break
             try:
                 table = grid(chunk, label_below=spec.namespace is NS_BS)
             except PdfLayoutError:
                 continue
+            cf_closed = spec.namespace is NS_CF and any(_CASH_CLOSING.search(label_key(row.label)) for row in table.rows)
             # サマリーの表は表ごとにためる。同じ科目・同じ期に違う値が 2 つ出たら、どの行が正しいか
             # 分からない（期の読み違い）ので、どちらも入れない。
             pending: list[tuple[ParsedFact, str]] = []
             closed = False
             column_roles = _statement_roles(table, spec, d) if spec.axis is Axis.ITEM_ROWS else None
+            note_column = spec.namespace is NS_BS and any(
+                _BS_NOTE_COLUMN in _compact(header) for column in table.columns for header in column.headers
+            )
             per_share_above = False
             for row in table.rows:
                 row_label = _compact(row.label)
@@ -1299,7 +1379,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         continue
                     slot_only = False
                     if column_roles is not None:
-                        item_text = row.label
+                        item_text = _BS_NOTE_SUFFIX.sub("", row.label) if note_column else row.label
                         role_texts = column.headers
                         role = column_roles[index]
                     else:
@@ -1324,6 +1404,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     base_local = label_key(item_text)
                     if spec.namespace is NS_BS:
                         base_local = _BS_NOTE_PREFIX.sub("", base_local)
+                    if spec.namespace is NS_CF:
+                        base_local = _CF_NOTE_LIST.sub("", base_local)
                     if spec.namespace is NS_SUMMARY:
                         base_local = re.sub(r"^(連結|個別)", "", base_local)
                     if not base_local:
@@ -1332,7 +1414,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
                     numeric_base = _ONE_YEAR_LEAD.sub("", base_local)
-                    if spec.namespace is NS_BS:
+                    if spec.namespace in (NS_BS, NS_CF):
                         numeric_base = _TERM_IN_LABEL.sub("", numeric_base)
                     if _NUMERIC_ITEM.search(numeric_base) and "株" not in base_local:
                         continue

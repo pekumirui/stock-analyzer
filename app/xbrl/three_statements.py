@@ -13,7 +13,9 @@ from typing import Any, Iterable, Mapping, Sequence
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
 
-from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH
+from app.config import (
+    XBRL_PDF_ROW_FIXES_PATH, XBRL_ROW_MERGE_EXCLUSIONS_PATH, XBRL_ROW_PLACE_FIXES_PATH, XBRL_STANDARD_LABELS_PATH,
+)
 from app.xbrl.fs_chart import NET_SALES_LABELS, chart_series, element_priorities, quarter_value
 
 __all__ = [
@@ -291,6 +293,7 @@ class Filing:
     by_statement: dict[str, list[Fact]] = field(default_factory=dict)
     seq: list[Fact] = field(default_factory=list)
     parts: dict[str, dict[str, Part]] = field(default_factory=dict)
+    row_fixes: dict[tuple[str, str], Mapped] = field(default_factory=dict)
 
     @property
     def is_pdf(self) -> bool:
@@ -410,6 +413,7 @@ def financial_table(
         columns = _stitch(columns, other)
         labels = {**other_labels, **labels}
         units = {**other_units, **units}
+    labels.update(_label_fixes().get(code, {}))
     shown = {id(c) for c in columns[-periods:]}
     tables: list[dict[str, Any]] = []
     chart: dict[str, Any] = {"series": {}}
@@ -899,10 +903,13 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
             else:
                 filing.by_statement = {s: [f for f in v if f.id not in drop] for s, v in split_xbrl(facts).items()}
         fixes = _place_fixes().get((code, basis), {})
+        row_fixes = _pdf_row_fixes().get((code, basis), {})
         for filing in by_id.values():
             filing.by_statement = {s: v for s, v in filing.by_statement.items() if v}
             for statement, key, target in fixes.get(filing.doc_id, ()):
                 _fix_place(filing, statement, key, target)
+            if filing.is_pdf:
+                filing.row_fixes = row_fixes.get(filing.doc_id, {})
         out[basis] = sorted(by_id.values(), key=lambda f: (f.period_end, f.submitted, f.id))
     return out
 
@@ -917,6 +924,41 @@ def _place_fixes() -> dict[tuple[str, bool], dict[str, list[tuple[str, str, str 
             (str(item["statement"]), str(item["key"]), None if target is None else str(target)),
         )
     return {basis: dict(by_doc) for basis, by_doc in out.items()}
+
+
+@lru_cache(maxsize=1)
+def _pdf_row_fixes_raw() -> dict[str, Any]:
+    return json.loads(XBRL_PDF_ROW_FIXES_PATH.read_text(encoding="utf-8"))
+
+
+def _pdf_row_fixes() -> dict[tuple[str, bool], dict[str, dict[tuple[str, str], Mapped]]]:
+    out: dict[tuple[str, bool], dict[str, dict[tuple[str, str], Mapped]]] = defaultdict(lambda: defaultdict(dict))
+    for item in _pdf_row_fixes_raw().get("rows") or []:
+        out[(str(item["code"]), bool(item["consolidated"]))][str(item["doc_id"])][
+            (str(item["statement"]), str(item["row"]))
+        ] = Mapped(str(item["key"]), int(item.get("sign", 1)), "fix")
+    return {basis: dict(by_doc) for basis, by_doc in out.items()}
+
+
+def _label_fixes() -> dict[str, dict[str, str]]:
+    out: dict[str, dict[str, str]] = defaultdict(dict)
+    for item in _pdf_row_fixes_raw().get("labels") or []:
+        out[str(item["code"])][str(item["key"])] = str(item["label"])
+    return dict(out)
+
+
+def _with_row_fixes(
+    filing: Filing, statement: str, applied: Sequence[tuple[Fact, Mapped | None]],
+) -> list[tuple[Fact, Mapped | None]]:
+    fixed = {k: m for (s, k), m in filing.row_fixes.items() if s == statement}
+    if not fixed:
+        return list(applied)
+    taken = {m.key for m in fixed.values()}
+    return [
+        (fact, fixed[fact.local]) if fact.local in fixed
+        else (fact, None if mapped is not None and mapped.key in taken else mapped)
+        for fact, mapped in applied
+    ]
 
 
 def _fix_place(filing: Filing, statement: str, key: str, target: str | None) -> None:
@@ -1522,7 +1564,10 @@ def _revised(
     for filing in revisions:
         facts = filing.by_statement.get(statement, [])
         copies = pdf_rows(facts, statement, printed_twice(pool, statement, names)).copies
-        for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, filing.cls, names)):
+        applied = _with_row_fixes(
+            filing, statement, apply_learned(facts, pool, statement, period_end, filing.cls, names),
+        )
+        for n, (fact, mapped) in enumerate(applied):
             if n in copies:
                 continue
             if mapped is not None:
@@ -2406,9 +2451,9 @@ def pdf_only_matches(db: Session, code: str) -> list[PdfMatch]:
                 pool, scoped_names = _scoped_for_pdf(
                     filing, filings, learned, statement, names, names_by_std, excluded,
                 )
-                for fact, mapped in apply_learned(
+                for fact, mapped in _with_row_fixes(filing, statement, apply_learned(
                     facts, pool, statement, filing.period_end, filing.cls, scoped_names, filing.standard,
-                ):
+                )):
                     if statement == "CF" and mapped is None and _opening_cash(fact.key):
                         continue
                     out.append(PdfMatch(filing, basis, statement, fact, mapped))
@@ -2460,7 +2505,9 @@ def build_columns(
                 copies = pdf_rows(facts, statement, printed_twice(pool, statement, by_name)).copies
                 revised, later = _revised(revisions, pool, statement, period_end, by_name)
                 standard = filing.standard if filing is primary else None
-                applied = apply_learned(facts, pool, statement, period_end, cls, by_name, standard)
+                applied = _with_row_fixes(
+                    filing, statement, apply_learned(facts, pool, statement, period_end, cls, by_name, standard),
+                )
                 homes = _section_homes([None if m is None else m.key for _, m in applied], statement)
                 for n, (fact, mapped) in enumerate(applied):
                     if n in copies:

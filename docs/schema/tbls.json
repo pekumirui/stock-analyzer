@@ -6274,7 +6274,7 @@
      "type": "VARCHAR(8)",
      "nullable": true,
      "default": null,
-     "comment": "付かなければ NULL\n値: value / name / standard"
+     "comment": "付かなければ NULL\n値: value / name / standard / fix"
     },
     {
      "name": "generated_at",
