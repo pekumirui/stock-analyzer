@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import lru_cache
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
@@ -782,6 +782,18 @@ def _never_merged(label: str) -> bool:
     return name in NEVER_MERGED_LABELS or name.startswith(NEVER_MERGED_PREFIXES)
 
 
+def _accumulated(label: str) -> bool:
+    return label.removesuffix("(純額)").startswith(NEVER_MERGED_PREFIXES)
+
+
+def _by_label(label: str, parent: str | None) -> tuple[str, ...] | None:
+    return None if _never_merged(label) else ()
+
+
+def _under_one_parent(label: str, parent: str | None) -> tuple[str, ...] | None:
+    return (parent,) if parent is not None and _accumulated(label) else None
+
+
 def merge_split_rows(
     columns: Sequence[Column], statement: str, labels: Mapping[str, str], units: Mapping[str, str | None],
     excluded: Iterable[frozenset[str]] = (),
@@ -790,16 +802,31 @@ def merge_split_rows(
 
     残すのはいちばん新しい期に値がある行。返り値は 残した行 → まとめた行（新しい順）。
     """
+    skip = set(excluded)
+    out = _merge_groups(columns, statement, labels, units, skip, _by_label)
+    out.update(_merge_groups(columns, statement, labels, units, skip, _under_one_parent))
+    return out
+
+
+def _merge_groups(
+    columns: Sequence[Column], statement: str, labels: Mapping[str, str], units: Mapping[str, str | None],
+    skip: set[frozenset[str]], grouping: Callable[[str, str | None], tuple[str, ...] | None],
+) -> dict[str, list[str]]:
     keys = _row_keys(columns, statement)
     seen = {k: frozenset(i for i, c in enumerate(columns) if k in c.values) for k in keys}
     parts = dict(zip(keys, row_parts(columns, keys)))
-    groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    groups: dict[tuple[str, ...], list[str]] = defaultdict(list)
+    parent: str | None = None
     for key in keys:
         label = labels.get(key, key)
-        if key.startswith("pdf:") or not seen[key] or _never_merged(label):
+        above = parent
+        if not _accumulated(label):
+            parent = key
+        if key.startswith("pdf:") or not seen[key]:
             continue
-        groups[(label, _unit_kind(units, key))].append(key)
-    skip = set(excluded)
+        extra = grouping(label, above)
+        if extra is not None:
+            groups[(label, _unit_kind(units, key), *extra)].append(key)
     out: dict[str, list[str]] = {}
     for members in groups.values():
         if len(members) < 2:

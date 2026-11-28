@@ -3353,3 +3353,28 @@ def test_row_roles_distinguish_items_subtotals_totals_and_grand_totals() -> None
         "NetIncreaseDecreaseInCashAndCashEquivalents": "subtotal",
         "CashAndCashEquivalents": "grand",
     }
+
+
+def test_accumulated_rows_merge_only_under_one_parent() -> None:
+    labels = {"RoU": "使用権資産", "AccExt": "減価償却累計額", "AccRoU": "減価償却累計額", "AccPPE": "減価償却累計額",
+              "RoUNet": "使用権資産(純額)", "Bld": "建物", "AccBld": "減価償却累計額"}
+    seq = [{"Bld": 9, "AccBld": -2, "RoU": 5, "AccExt": -1, "RoUNet": 4},
+           {"Bld": 9, "AccBld": -3, "RoU": 5, "AccRoU": -2, "RoUNet": 3},
+           {"Bld": 9, "AccBld": -4, "RoU": 5, "AccPPE": -3, "RoUNet": 2}]
+    got, keys, cols = merged(seq, labels)
+    assert got == {"AccPPE": ["AccRoU", "AccExt"]}
+    assert keys == ["Bld", "AccBld", "RoU", "AccPPE", "RoUNet"]
+    assert [c.values["AccPPE"] for c in cols] == [-1, -2, -3]
+
+
+def test_accumulated_rows_under_other_parents_stay_apart() -> None:
+    labels = {"Veh": "車両運搬具", "AccVeh": "減価償却累計額", "Mach": "機械装置及び運搬具", "AccMach": "減価償却累計額"}
+    got, _, _ = merged([{"Veh": 5, "AccVeh": -1}, {"Mach": 8, "AccMach": -2}], labels)
+    assert got == {}
+
+
+def test_accumulated_rows_follow_a_parent_merged_across_tags() -> None:
+    labels = {"RoUOld": "使用権資産", "RoU": "使用権資産", "AccOld": "減価償却累計額", "Acc": "減価償却累計額"}
+    got, keys, _ = merged([{"RoUOld": 5, "AccOld": -1}, {"RoU": 5, "Acc": -2}], labels)
+    assert got == {"RoU": ["RoUOld"], "Acc": ["AccOld"]}
+    assert keys == ["RoU", "Acc"]
