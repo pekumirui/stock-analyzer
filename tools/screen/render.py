@@ -71,39 +71,13 @@ def _tab_labels(all_screens: list[Screen], tab_names: list[str]) -> dict[str, st
     return {**{t: by_id[t] for t in tab_names}, SHARED: SHARED_LABEL}
 
 
-def _transition(all_screens: list[Screen], tab_names: list[str], labels: dict[str, str]) -> list[str]:
-    ids = {s.id: f"s{i}" for i, s in enumerate(all_screens)}
-    lines = ["```mermaid", *ELK_LAYOUT, "flowchart LR"]
-    for tab in tab_names:
-        lines.append(f'  subgraph {tab}["{labels[tab]}"]')
-        for s in all_screens:
-            if s.tab == tab:
-                lines.append(f'    {ids[s.id]}["{s.label}<br>{_hash(s, s.paths[-1])}"]')
-        lines.append("  end")
-    for src, dst, default in transitions(all_screens):
-        lines.append(f"  {ids[src]} {'==>' if default else '-->'} {ids[dst]}")
-    return lines + ["```", ""]
-
-
-def transitions(all_screens: list[Screen]) -> list[tuple[str, str, bool]]:
-    by_id = {s.id: s for s in all_screens}
-    out = []
-    for s in all_screens:
-        for src in s.froms:
-            default = src == s.default_from
-            siblings = by_id[src].tab == s.tab and s.id in by_id[src].froms
-            if default or not siblings:
-                out.append((src, s.id, default))
-    return out
-
-
 def _overview(all_screens: list[Screen], tab_names: list[str], labels: dict[str, str],
               by_tab: dict[str, dict[str, list[Call]]], unused: list[str], callers: dict[str, list[str]]) -> str:
     lines = [
         "# 画面設計",
         "",
         (
-            f"- 画面と遷移は `{SCREENS_JS}` の `ROUTES` と `BREADCRUMBS`、画面が呼ぶ API は `{JS_DIR}/*.js` の `/api/…` の文字列、"
+            f"- 画面は `{SCREENS_JS}` の `ROUTES` と `SCREEN_LABELS`、画面が呼ぶ API は `{JS_DIR}/*.js` の `/api/…` の文字列、"
             f"API の引数は FastAPI の OpenAPI、読み書きする表は `{ENTRIES}` から拾う"
         ),
         "- API の応答の形は載らない（ルートが応答の型を宣言していない）。形は各タブの手書きの画面仕様にある",
@@ -122,27 +96,14 @@ def _overview(all_screens: list[Screen], tab_names: list[str], labels: dict[str,
         lines.append(f"| [{labels[tab]}](screen/gen/{tab}.md) | {'、'.join(own)} | {_code(files)} | {len(by_tab[tab])} |")
     lines += [
         "",
-        "## 画面遷移",
-        "",
-        (
-            "枠はタブ、箱は画面（名前とハッシュ）。矢印は「元の画面から来られる」（パンくずの戻り先になる画面）。"
-            "太い矢印は、来た元が分からないときの戻り先。タブの切り替えはどの画面からもできるので線にしない。"
-            "同じタブの中で互いに行き来できる画面どうしの細い線も省く（下の一覧の「来られる元」には出す）。"
-        ),
-        "",
-    ]
-    lines += _transition(all_screens, tab_names, labels)
-    lines += [
         "## 画面の一覧",
         "",
-        "| 画面 | id | タブ | ハッシュ | 既定の戻り先 | 来られる元 |",
-        "|---|---|---|---|---|---|",
+        "| 画面 | id | タブ | ハッシュ |",
+        "|---|---|---|---|",
     ]
     for s in all_screens:
         hashes = "<br>".join(f"`{_hash(s, p)}`" for p in s.paths)
-        lines.append(
-            f"| {s.label} | `{s.id}` | {labels[s.tab]} | {hashes} | {f'`{s.default_from}`' if s.default_from else ''} | {_code(s.froms)} |"
-        )
+        lines.append(f"| {s.label} | `{s.id}` | {labels[s.tab]} | {hashes} |")
     lines += [
         "",
         "## 画面の JS が呼ばない API",

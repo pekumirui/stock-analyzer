@@ -158,7 +158,7 @@ def test_spa_stock_sub_tabs() -> None:
     assert 'id="st-quote"' in html and 'id="st-news" class="sheet"' in html and 'id="st-back"' in html
     assert 'id="st-filing"' not in html
     assert "/api/stock/${code}/overview" in js
-    assert 'writeRoute("stock", stockRoutePath(), "stock-news", true)' in js
+    assert 'writeRoute("stock", stockRoutePath(), true)' in js
     assert '"popstate"' in tabs
     assert "history.pushState" in tabs
 
@@ -178,7 +178,7 @@ def test_chart_tab_moved_into_stock_price() -> None:
     assert 'onclick="loadChart()"' not in html
     assert '"chart"' not in tabs.split("const TABS")[1].split(";")[0]
     assert 'if(tab === "chart")' in tabs and "`${code}/price`" in tabs
-    assert 'showStock(code, "price", "", from)' in js
+    assert 'showStock(code, "price")' in js
     assert "#stock/${c.code}/price" in (ROOT / "static/js/supply.js").read_text(encoding="utf-8")
 
 

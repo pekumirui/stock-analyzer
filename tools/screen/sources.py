@@ -22,8 +22,6 @@ class Screen:
     tab: str
     label: str
     paths: tuple[str, ...]
-    default_from: str | None
-    froms: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -50,18 +48,15 @@ def tabs(root: Path) -> list[str]:
 
 def screens(root: Path) -> list[Screen]:
     text = (root / SCREENS_JS).read_text(encoding="utf-8")
-    crumbs = _const(text, "BREADCRUMBS")
+    labels = _const(text, "SCREEN_LABELS")
     paths: dict[str, list[str]] = {}
     tab_of: dict[str, str] = {}
     for route in _const(text, "ROUTES"):
         paths.setdefault(route["id"], []).append(route["path"])
         tab_of[route["id"]] = route["tab"]
-    if set(paths) != set(crumbs):
-        raise ValueError(f"{SCREENS_JS}: ROUTES と BREADCRUMBS の画面 id が合わない: {sorted(set(paths) ^ set(crumbs))}")
-    return [
-        Screen(sid, tab_of[sid], crumbs[sid]["label"], tuple(paths[sid]), crumbs[sid]["defaultFrom"], tuple(crumbs[sid]["from"]))
-        for sid in paths
-    ]
+    if set(paths) != set(labels):
+        raise ValueError(f"{SCREENS_JS}: ROUTES と SCREEN_LABELS の画面 id が合わない: {sorted(set(paths) ^ set(labels))}")
+    return [Screen(sid, tab_of[sid], labels[sid], tuple(paths[sid])) for sid in paths]
 
 
 def sub_tabs(all_screens: list[Screen]) -> dict[str, str]:

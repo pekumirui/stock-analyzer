@@ -13,7 +13,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 - `monthly-value` pairs `X` and `X(前年比)` in the same section into one row (`monthlyPairYoyRows`). The cell always shows the amount with `(yoy)` under it in `.tl-sub` (yoy only when that month has no amount). There is no `#monthly-value-tabs`. YoY heat is drawn on the cell. The row `data-series` is the amount id; `data-alt` is the yoy id.
 - `monthly-popup` opens `#monthly-pop` on a `table.monthly-tl td.num[data-m]` click. It lists that month for every year ≥ 2024 (`MONTHLY_POPUP_MIN_YEAR`), newest first, and fetches missing years.
 - `monthly-back` returns to TOP via `#monthly-back` while keeping the selected chip and any committed search filter.
-- `monthly-route` persists `#monthly` or `#monthly/{code}` in `location.hash` + `localStorage` `ui.route` (path only). Opening Detail from the list writes `#monthly/{code5}?from=monthly`. Reload/`restoreRoute` reopens TOP or Detail.
+- `monthly-route` persists `#monthly` or `#monthly/{code}` in `location.hash` + `localStorage` `ui.route` (path only). Opening Detail from the list writes `#monthly/{code5}`. Reload/`restoreRoute` reopens TOP or Detail.
 
 ## How to get to it (user POV)
 
@@ -25,7 +25,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 - Click a ▸/▾ name cell to open or close a metric or section.
 - Click a month cell to open `#monthly-pop`. Close it with ×, Esc, or a click outside.
 - Click `#monthly-back` to restore TOP + chip.
-- Reload with `#monthly` or `#monthly/{code}` (or `#monthly/{code}?from=monthly`, or the same path in `ui.route`) to restore TOP or Detail.
+- Reload with `#monthly` or `#monthly/{code}` (or the same path in `ui.route`) to restore TOP or Detail.
 
 ## Driving it with verify-stock-analyzer
 
@@ -42,7 +42,7 @@ Preconditions:
 - **Paired values.** 99970: `#monthly-value-tabs` is absent. The top row is `▾連結売上高` (saved `連結売上高`; #615 dropped `全店` from its names). A DB copied before #615 still stores `全店 連結売上高` and every row falls under `▸その他の項目`. Refresh the copy before proving this tree. Paired rows carry `data-series` = amount id and `data-alt` = yoy id. Cells render amount plus `(yoy)` in `.tl-sub` (e.g. `15,154<span class="tl-sub">(108)</span>`). 138A0 and 30860 have no pairs, so cells stay single-value.
 - **Popup.** Click a `td.num[data-m]` → `#monthly-pop` has the row name, `M月`, ×, and one row per year (paired rows add 金額 / 前年比 columns). Esc removes it.
 - **Proof.** Keep `body.json` (list) and, when `--code` was used, the year artifact(s). If CDP: `ui.png` of Detail or list with the header.
-- **Route restore.** After Detail opened from the list, confirm `location.hash` is `#monthly/{code5}?from=monthly` and `ui.route` is `monthly/{code5}`. A bare `#monthly/{code5}` reload still opens Detail. `#monthly-back` writes `#monthly`.
+- **Route restore.** After Detail opened from the list, confirm `location.hash` is `#monthly/{code5}` and `ui.route` is `monthly/{code5}`. A bare `#monthly/{code5}` reload still opens Detail. `#monthly-back` writes `#monthly`.
 - Do **not** call `/api/monthly*`, `#mon-cal`, or `#mon-to-chart` — those are not on this tip.
 
 ## Gotchas
@@ -63,7 +63,7 @@ Preconditions:
 - Words in `config/monthly/issuer_metrics.json` also shape the saved name when ingest / write routes pass the code (`canonicalize_element_label(element, unit, code)`, #866 / KAB-121): 81980 stores `全店 一品単価(前年比)` (not `一品 全店 客単価(前年比)`), 27910 `一品単価(前年比)`. Old names fold via alias; existing rows are not renamed at startup.
 - Store tables are merged into the sales payload at ingest (#865 / KAB-95): 30280 adds only the total 出店 / 退店 / 店舗数 (業態別 dropped), 75140 adds `店舗数` (from `月末`). A DB copy ingested before that has only the sales rows (30280 auto tree `既存 / 全店 / 全社 売上高`, 75140 `既存 / 全店 売上高`). Re-ingest, not a render bug.
 - List 全店/既存店 YoY missing values render as `-` (`fmtMonthlyYoyList`). Detail `table.monthly-tl` month cells that have no value are **blank** (`monthlyTlCell` skips `fmtMonthlyCell` for `null` / `""`); do not expect `-` in the timeline. The month popup still uses `-` for a loaded empty year and `…` while that year is in flight. Year JSON from `GET /api/v1/tables/{code}/{year}` always has month keys `"1"`…`"12"` with absent months as `null` (0 is a real zero).
-- Public `/monthly` (`body.dataset.publicMonthly === "1"`, `monthly-public.js`) is a separate SEO surface: すべて chip, no 市場/業種 columns, 4-digit `<a href="/monthly/{code4}?from=monthly">`. This map drives the Basic `/app` monthly tab (`monthlyPublic()` false). Do not treat public-only chrome as `/app` proof.
+- Public `/monthly` (`body.dataset.publicMonthly === "1"`, `monthly-public.js`) is a separate SEO surface: すべて chip, no 市場/業種 columns, 4-digit `<a href="/monthly/{code4}">`. This map drives the Basic `/app` monthly tab (`monthlyPublic()` false). Do not treat public-only chrome as `/app` proof.
 - SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify. `GET` / `PUT …/{year}/doc` (#617) back MCP `monthly_get_doc` / `monthly_put_doc`. The SPA never fetches them.
 - Narrow viewports (`@media (max-width:640px)`) keep the timeline name column sticky but narrow it from 18em to 12em (`table.monthly-tl td.tl-name`), and tree indent drops from 1.25em to 0.6em per level (`monthlyIsPhone`).
 - TOP `#monthly-tbl` is content-width with `margin-inline:auto` when narrower than the host. The timeline `table.monthly-tl` instead scrolls to the latest month on render, and keeps the scroll position on toggles.

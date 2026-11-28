@@ -3,11 +3,10 @@ let stockPriceAc = null;
 let stockChart = null;
 
 function gotoChart(code){
-  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   stockSub = "price";
   stockNewsId = "";
   showTab("stock");
-  showStock(code, "price", "", from);
+  showStock(code, "price");
 }
 
 function showStockPrice(){

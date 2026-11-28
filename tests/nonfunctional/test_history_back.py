@@ -1,6 +1,6 @@
 """ブラウザの戻るで前の画面へ（KAB-398）。
 
-タブか対象が変わる遷移は履歴に積み、同じ画面の中のタブと遷移元だけの変化は積まない。
+タブか対象が変わる遷移は履歴に積み、同じ画面の中のタブの変化は積まない。
 戻ると URL のハッシュから画面を開き直す。
 """
 from __future__ import annotations
@@ -48,9 +48,9 @@ for(const f of ["static/js/screens.js", "static/js/tabs.js"]){
   vm.runInContext(fs.readFileSync(root + "/" + f, "utf8"), ctx, {filename: f});
 }
 (async () => {
-  ctx.writeRoute("stock", "72030/price", "ranking");
+  ctx.writeRoute("stock", "72030/price");
   const afterOpen = entries.length;
-  ctx.writeRoute("stock", "72030/summary", "stock-price");
+  ctx.writeRoute("stock", "72030/summary");
   const afterSub = entries.length;
   ctx.writeRoute("ranking", "pts");
   ctx.writeRoute("ranking", "");

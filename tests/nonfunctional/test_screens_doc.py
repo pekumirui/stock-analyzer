@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from tools.screen.render import OVERVIEW, PAGE_DIR, REBUILD, ROOT, _type, render, stale, transitions
-from tools.screen.sources import SHARED, Call, Screen, calls, file_tab, match, screens, sub_tabs, tabs
+from tools.screen.render import OVERVIEW, PAGE_DIR, REBUILD, ROOT, _type, render, stale
+from tools.screen.sources import SHARED, Call, calls, file_tab, match, screens, sub_tabs, tabs
 
 
 def test_screens_doc_matches_routes_js_calls_openapi_and_dataflow():
@@ -64,22 +64,6 @@ def test_file_tab_uses_the_tab_name_then_the_sub_screen_name():
     assert file_tab("holders.js", names, subs) == "holders"
     assert file_tab("pts.js", names, subs) == "ranking"
     assert file_tab("chart-core.js", names, subs) == SHARED
-
-
-def test_transitions_keep_defaults_and_cross_tab_and_drop_sibling_switches():
-    all_screens = [
-        Screen("stock", "stock", "銘柄", ("",), None, ()),
-        Screen("stock-a", "stock", "A", (":c/a",), "stock", ("stock", "stock-b", "earnings")),
-        Screen("stock-b", "stock", "B", (":c/b",), "stock", ("stock", "stock-a")),
-        Screen("stock-b-detail", "stock", "B 詳細", (":c/b/:id",), "stock-b", ("stock-b",)),
-        Screen("earnings", "earnings", "決算", ("",), None, ()),
-    ]
-    assert transitions(all_screens) == [
-        ("stock", "stock-a", True),
-        ("earnings", "stock-a", False),
-        ("stock", "stock-b", True),
-        ("stock-b", "stock-b-detail", True),
-    ]
 
 
 @pytest.mark.parametrize("schema, text", [

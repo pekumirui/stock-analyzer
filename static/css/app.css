@@ -11,17 +11,6 @@
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
   #app-nav a { text-decoration:none; display:inline-block; font-family:inherit; }
   #cur-tab, #menu-btn { display:none; }
-  /* パンくずはヘッダー。PC はタブ行の下。幅に収まらないときは折り返さず横スクロールし、末尾を見せる */
-  #crumbs { font-size:12px; color:var(--sub); line-height:1.4; min-width:0;
-            flex:1 0 100%; order:5; overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  #crumbs[hidden] { display:none; }
-  #crumbs ol { display:inline-flex; flex-wrap:nowrap; align-items:center; list-style:none; padding:0; margin:0; white-space:nowrap; }
-  #crumbs li { display:flex; align-items:center; flex-shrink:0; }
-  #crumbs li:not(:last-child)::after { content:" > "; white-space:pre; color:var(--sub); }
-  #crumbs a { color:var(--accent); text-decoration:none; }
-  #crumbs a:hover { text-decoration:underline; }
-  #crumbs [aria-current="page"] { color:var(--text); }
-  body.public-monthly #crumbs { flex:1 1 auto; order:0; }
   #sym-btn { margin-left:auto; display:flex; align-items:center; gap:4px; flex-shrink:0; background:none; border:0;
              color:var(--accent); padding:6px 8px; cursor:pointer; font:inherit; font-size:13px; }
   #sym-btn svg { width:20px; height:20px; }
@@ -36,10 +25,6 @@
   @media (max-width:720px){
     header { flex-wrap:wrap; padding:8px 10px 8px 6px; }
     #cur-tab { display:block; flex:1 1 0; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
-    header:has(#crumbs:not([hidden])) #cur-tab { display:none; }
-    #crumbs { display:block; flex:1 1 0; order:0; padding:0; font-size:13px; }
-    #crumbs[hidden] { display:none; }
-    #crumbs [aria-current="page"] { font-weight:600; color:var(--accent); }
     #menu-btn { display:flex; flex-shrink:0; background:none; border:0; color:var(--text); padding:6px; cursor:pointer; }
     #menu-btn svg { width:24px; height:24px; }
     #app-nav { display:none; order:10; flex:1 0 100%; flex-direction:column; margin:8px -10px -8px -6px; border-top:1px solid var(--border); }
