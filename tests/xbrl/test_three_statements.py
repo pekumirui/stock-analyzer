@@ -690,6 +690,15 @@ PRINTED_JOINED = [
     "CurrentAssets", "NoncurrentAssetsAbstract", "Goodwill", "NoncurrentAssets", "Assets",
 ]
 
+PRINTED_CF_EDINET = [
+    "NetCashProvidedByUsedInOperatingActivitiesAbstract", "IncomeBeforeIncomeTaxes",
+    "ChangesInAssetsAndLiabilitiesOtherNetOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+]
+PRINTED_CF_TDNET = [
+    "NetCashProvidedByUsedInOperatingActivitiesAbstract", "IncomeBeforeIncomeTaxes",
+    "DecreaseIncreaseInTradeReceivablesOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+]
+
 
 def _printed(s: Seeder) -> None:
     s.stock(PRINTED, "有報は受取手形と売掛金を 1 行、短信は 2 行")
@@ -711,6 +720,16 @@ def _printed(s: Seeder) -> None:
         x("CurrentAssets", "i", 29), x("Goodwill", "i", 3), x("NoncurrentAssets", "i", 3), x("Assets", "i", 32),
     ])
     s.roles(783, [("rol_ConsolidatedBalanceSheetTDnet", "BS", True, False, PRINTED_SPLIT)])
+    s.facts(782, "2026-06-30", [
+        x("IncomeBeforeIncomeTaxes", "d", 5), x("ChangesInAssetsAndLiabilitiesOtherNetOpeCF", "d", -2),
+        x("NetCashProvidedByUsedInOperatingActivities", "d", 3),
+    ])
+    s.roles(782, [("rol_ConsolidatedStatementOfCashFlows-indirect", "CF", True, False, PRINTED_CF_EDINET)])
+    s.facts(783, "2026-06-30", [
+        x("IncomeBeforeIncomeTaxes", "d", 5), x("DecreaseIncreaseInTradeReceivablesOpeCF", "d", -2),
+        x("NetCashProvidedByUsedInOperatingActivities", "d", 3),
+    ])
+    s.roles(783, [("rol_ConsolidatedStatementOfCashFlowsTDnet", "CF", True, False, PRINTED_CF_TDNET)])
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -938,6 +957,15 @@ def test_bs_is_not_supplemented_with_rows_the_primary_filing_does_not_print() ->
     assert sum(r["cells"][1]["value"] for r in current if r["cells"][1]) == value(t, "CurrentAssets", "26.06")
     assert value(t, "Goodwill", "26.06") == 3 * M
     assert source(t, "Goodwill", "26.06") == "tdnet"
+
+
+def test_cf_is_not_supplemented_with_rows_the_primary_filing_does_not_print() -> None:
+    t = table(PRINTED, statement="CF")
+    assert value(t, "ChangesInAssetsAndLiabilitiesOtherNetOpeCF", "26.06") == -2 * M
+    assert "DecreaseIncreaseInTradeReceivablesOpeCF" not in rows(t)
+    items = [r["cells"][-1]["value"] for r in t["rows"]
+             if r["cells"][-1] and r["key"] != "NetCashProvidedByUsedInOperatingActivities"]
+    assert sum(items) == value(t, "NetCashProvidedByUsedInOperatingActivities", "26.06")
 
 
 def test_sign_follows_xbrl_and_pl_is_cumulative() -> None:
@@ -2027,6 +2055,23 @@ def test_cf_sections_keep_their_order_when_periods_lack_different_sections() -> 
         *op, "PurchaseOfPropertyPlantAndEquipmentInvCF", "NetCashProvidedByUsedInInvestmentActivities",
         "CashDividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities", "NetIncreaseDecreaseInCashAndCashEquivalents",
     ]
+def test_cf_rows_do_not_take_items_of_other_statements_when_the_paired_filing_has_no_cf() -> None:
+    pl = [xbrl_fact(1, "NetSales", 5000), xbrl_fact(2, "InterestExpensesNOE", 77.681),
+          xbrl_fact(3, "LossOnRetirementOfNoncurrentAssetsEL", 35.333),
+          xbrl_fact(4, "ProvisionOfAllowanceForDoubtfulAccountsSGA", 40.951),
+          xbrl_fact(5, "ForeignCurrencyTranslationAdjustmentNetOfTaxOCI", -487.974),
+          xbrl_fact(6, "ShareBasedPaymentTransactionsSSIFRS", 102.13), xbrl_fact(7, "IncomeBeforeIncomeTaxes", 1098.817)]
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="Q1", period_end=date(2024, 6, 30),
+                   submitted="2024-08-10", standard="JPGAAP")
+    x.by_statement = {"PL": pl}
+    x.seq = list(pl)
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="Q1", period_end=date(2024, 6, 30),
+                     submitted="2024-08-05", standard="JPGAAP")
+    pdf.by_statement = {"CF": [pl_fact("税金等調整前四半期純利益", 1098.817), pl_fact("支払利息", 77.681),
+                               pl_fact("固定資産除却損", 35.333), pl_fact("貸倒引当金の増減額", 40.951),
+                               pl_fact("その他の流動負債の増減額", -487.974), pl_fact("株式報酬費用", 102.13)]}
+    learned = fst.learn_pair(pdf, x)
+    assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None}
 
 
 def test_bs_rows_do_not_take_income_statement_items() -> None:

@@ -1,0 +1,11 @@
+{
+  "_meta": {"use": "財務3表と xbrl_pdf_matches で、PDF が主の列の短信 PDF の行に当てる要素（会社の 5 桁コード・連結か・表・書類・PDF の行名 row → 要素 key、sign は省略で 1）と、画面の行名（labels: 会社・要素 → 行名）。値学習・名前の当て方より優先し、同じ書類のほかの行に付いた同じ要素は外す", "researched_at": "2026-11-27", "source": "本番の xbrl_facts（短信 PDF の印字と有報の要素）"},
+  "rows": [
+    {"code": "60710", "consolidated": true, "statement": "BS", "doc_id": "20260515537955", "row": "使用権資産", "key": "RightOfUseAssets", "evidence": "26.03 1Q の短信 PDF は総額 5,501 / 減価償却累計額 -1,724 / 純額 3,777 の 3 行。25.12 通期の短信 PDF は純額 1 行を「使用権資産」と印字し、有報の純額と値で組んで「使用権資産 → RightOfUseAssetsNet」と学ぶため、総額が純額の行に入る"},
+    {"code": "60710", "consolidated": true, "statement": "BS", "doc_id": "20260515537955", "row": "減価償却累計額#5", "key": "AccumulatedDepreciationRightOfUseAssets", "evidence": "同上。使用権資産の減価償却累計額（有報の要素）"},
+    {"code": "60710", "consolidated": true, "statement": "BS", "doc_id": "20260515537955", "row": "使用権資産(純額)", "key": "RightOfUseAssetsNet", "evidence": "同上。有報の 使用権資産（純額）"}
+  ],
+  "labels": [
+    {"code": "60710", "key": "RightOfUseAssetsNet", "label": "使用権資産(純額)", "evidence": "学んだ通期の短信 PDF の行名「使用権資産」で上書きされ、総額 RightOfUseAssets と同じ行名が 2 つ並ぶ"}
+  ]
+}
