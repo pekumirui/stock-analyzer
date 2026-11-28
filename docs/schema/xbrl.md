@@ -394,7 +394,7 @@ XBRL のバッチの実行記録
 | `statement` | VARCHAR(8) |  |  | `BS` / `PL` / `CF` |  |  |
 | `element_key` | VARCHAR(300) | 可 |  |  |  | 行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL |
 | `sign` | INTEGER |  |  |  | `1` | PDF の値に掛けると XBRL の向き |
-| `matched_by` | VARCHAR(8) | 可 |  | `value` / `name` / `standard` |  | 付かなければ NULL |
+| `matched_by` | VARCHAR(8) | 可 |  | `value` / `name` / `standard` / `fix` |  | 付かなければ NULL |
 | `generated_at` | DATETIME（`UtcDateTime`） |  |  |  |  |  |
 
 | 索引・一意 | 列 | 一意 |

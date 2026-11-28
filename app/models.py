@@ -808,7 +808,7 @@ class XbrlPdfMatch(Base):
     statement = Column(_one_of("BS", "PL", "CF", length=8), nullable=False)
     element_key = Column(String(300), comment="行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL")
     sign = Column(Integer, nullable=False, default=1, comment="PDF の値に掛けると XBRL の向き")
-    matched_by = Column(_one_of("value", "name", "standard", length=8), comment="付かなければ NULL")
+    matched_by = Column(_one_of("value", "name", "standard", "fix", length=8), comment="付かなければ NULL")
     generated_at = Column(UtcDateTime, nullable=False)
     __table_args__ = (
         Index("idx_xbrl_pdf_matches_filing", "filing_id"),
