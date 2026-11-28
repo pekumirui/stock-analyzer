@@ -14,7 +14,7 @@ from app.models import Statement
 from app.xbrl.context import ParsedContext, assign_relative_periods, shift_years
 from app.xbrl.normalize import ALLOWED_MEMBERS, PDF_SUMMARY_NS
 from app.xbrl.parser import ParsedFact, ParsedPackage
-from app.xbrl.pdf._layout import _FURNITURE_TOP, Line, Page, PdfLayoutError, grid, split_amounts
+from app.xbrl.pdf._layout import COL_TOL, _FURNITURE_TOP, Line, Page, PdfLayoutError, Word, grid, split_amounts
 
 DisclosureNo = NewType("DisclosureNo", str)
 _DISCLOSURE_NO = re.compile(r"\d{14}")
@@ -89,6 +89,15 @@ _BS_ONLY_HEAD = re.compile(
 _BS_DASH = frozenset({"─", "‐"})
 _BS_NOTE_PREFIX = re.compile(r"^注\d+\.")
 _BS_GRAND_TOTAL = re.compile(r"^負債(及び|・)?(純資産|資本)(の部)?(合計|計)$")
+_BS_MARK = "※"
+_BS_MARKED_AMOUNT = re.compile(r"^※\s*(△?\s*\d[\d,]*)$")
+_BS_AMOUNT_WORD = re.compile(r"^△?\s*\d[\d,]*$")
+_BS_MARKED_PEERS = 2
+_BS_NOTE_SUFFIX = re.compile(r"\s+\d{1,2}(?:\s*[,、]\s*\d{1,2})+$")
+_BS_NOTE_COLUMN = "注記"
+_BS_OMITTED = re.compile(r"^[(（]中略[)）]$")
+_BS_CORR_BEFORE = re.compile(r"^[〈<《【\[(（]*訂正前[)）】\]》>〉]*$")
+_BS_CORR_AFTER = re.compile(r"^[〈<《【\[(（]*訂正後[)）】\]》>〉]*$")
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
 # 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
@@ -453,18 +462,19 @@ def _compact(raw: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or ""))
 
 
-def drop_pre_correction(pages: list[Page]) -> list[Page]:
+def drop_pre_correction(pages: list[Page], *, bs: bool = False) -> list[Page]:
     """「（訂正前）」から「（訂正後）」の手前までを捨てる（KAB-212）。"""
+    before, after = (_BS_CORR_BEFORE, _BS_CORR_AFTER) if bs else (_CORR_BEFORE, _CORR_AFTER)
     dropping = False
     out: list[Page] = []
     for page in pages:
         kept: list[Line] = []
         for line in page.lines:
             compact = _compact(line.text)
-            if _CORR_BEFORE.fullmatch(compact):
+            if before.fullmatch(compact):
                 dropping = True
                 continue
-            if _CORR_AFTER.fullmatch(compact):
+            if after.fullmatch(compact):
                 dropping = False
                 continue
             if not dropping:
@@ -1095,14 +1105,42 @@ def _bs_dash_cells(line: Line) -> Line:
     ))
 
 
+def _bs_marked_amounts(lines: list[Line]) -> list[Line]:
+    edges = [amount.x1 for line in lines for amount in split_amounts(line)[1]]
+
+    def column_cell(word: Word) -> bool:
+        return sum(1 for x1 in edges if abs(x1 - word.x1) <= COL_TOL) >= _BS_MARKED_PEERS
+
+    def split_mark(words: tuple[Word, ...], n: int) -> bool:
+        return (
+            words[n].text.strip() == _BS_MARK and n + 1 < len(words)
+            and bool(_BS_AMOUNT_WORD.fullmatch(words[n + 1].text.strip())) and column_cell(words[n + 1])
+        )
+
+    out: list[Line] = []
+    for line in lines:
+        words: list[Word] = []
+        for n, word in enumerate(line.words):
+            if split_mark(line.words, n):
+                continue
+            found = _BS_MARKED_AMOUNT.fullmatch(word.text.strip())
+            if found and column_cell(word):
+                word = replace(word, text=re.sub(r"\s+", "", found.group(1)))
+            words.append(word)
+        out.append(line if tuple(words) == line.words else replace(line, words=tuple(words)))
+    return out
+
+
 def _table_lines(lines: list[Line], *, bs: bool = False) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
     if bs:
-        lines = [_bs_dash_cells(line) for line in lines]
+        lines = _bs_marked_amounts([_bs_dash_cells(line) for line in lines])
     kept: list[Line] = []
     for index, line in enumerate(lines):
         compact = _compact(line.text)
         if not compact:
+            continue
+        if bs and _BS_OMITTED.fullmatch(compact):
             continue
         if _CLASS_HEAD.search(compact):
             continue
@@ -1244,7 +1282,21 @@ def sides(role: Role, amount) -> list[tuple[Role, Decimal]]:
     return [(low, amount.value), (high, amount.upper)]
 
 
-def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
+def _with_bs_blocks(
+    blocks: list[tuple[SectionSpec, list[Line], bool, str]], bs_blocks: list[tuple[SectionSpec, list[Line], bool, str]],
+) -> list[tuple[SectionSpec, list[Line], bool, str]]:
+    fresh = [block for block in bs_blocks if block[0].namespace is NS_BS]
+    out: list[tuple[SectionSpec, list[Line], bool, str]] = []
+    for block in blocks:
+        if block[0].namespace is not NS_BS:
+            out.append(block)
+        elif fresh:
+            out.extend(fresh)
+            fresh = []
+    return out + fresh
+
+
+def package(pages: list[Page], d: PdfDisclosure, bs_pages: list[Page] | None = None) -> ParsedPackage:
     contexts: dict[str, ParsedContext] = {}
     facts: list[ParsedFact] = []
     labels: dict[tuple[str, str], dict[str, str]] = {}
@@ -1260,6 +1312,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
         labels.setdefault((fact.namespace_key, fact.local_name), {"label_ja": label})
 
     blocks = _blocks(pages, d)
+    if bs_pages is not None and bs_pages != pages:
+        blocks = _with_bs_blocks(blocks, _blocks(bs_pages, d))
     # 業績予想の修正は表ごとに見出しの期（「(1)第2四半期（累計）…（9月1日～2月28日）」）を使う。
     # 見出しに期が無ければ題名（最初の見出し）。どちらにも無ければ今までどおり通期（KAB-228）。
     title_hint = next(
@@ -1284,6 +1338,9 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
             pending: list[tuple[ParsedFact, str]] = []
             closed = False
             column_roles = _statement_roles(table, spec, d) if spec.axis is Axis.ITEM_ROWS else None
+            note_column = spec.namespace is NS_BS and any(
+                _BS_NOTE_COLUMN in _compact(header) for column in table.columns for header in column.headers
+            )
             per_share_above = False
             for row in table.rows:
                 row_label = _compact(row.label)
@@ -1299,7 +1356,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         continue
                     slot_only = False
                     if column_roles is not None:
-                        item_text = row.label
+                        item_text = _BS_NOTE_SUFFIX.sub("", row.label) if note_column else row.label
                         role_texts = column.headers
                         role = column_roles[index]
                     else:
