@@ -86,8 +86,10 @@ def split_candidates(view: dict) -> list[dict]:
                 "kind": _kind(label, keys, (grosses[a], grosses[b])), "label": label, "heads": " > ".join(heads), "keys": ",".join(keys),
                 "spans": ",".join(_span(labels, filled[i]) for i in (a, b)), "overlap_in_group": int(overlap),
             })
-    for above, below in zip(rows, rows[1:]):
-        if above["label"].endswith(NET_TAIL) and _accumulated(below["label"]):
+    for n, (above, below) in enumerate(zip(rows, rows[1:])):
+        after = next((r for r in rows[n + 2:] if not _accumulated(r["label"])), None)
+        if (above["label"].endswith(NET_TAIL) and _accumulated(below["label"]) and after is not None
+                and after["label"].endswith(NET_TAIL)):
             out.append({
                 "kind": NET_ABOVE_ACCUMULATED, "label": above["label"], "heads": " > ".join(_heads(above)),
                 "keys": ",".join((above["key"], below["key"])),

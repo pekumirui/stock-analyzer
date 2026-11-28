@@ -77,3 +77,12 @@ def test_accumulated_rows_under_other_gross_rows_are_told_apart() -> None:
         ("AccumulatedDepreciationMachinery", "減価償却累計額", [None, -2]),
     ]))
     assert [c["kind"] for c in got] == ["accumulated_other_gross"]
+
+
+def test_net_name_above_a_lump_accumulated_row_is_not_listed() -> None:
+    got = split_candidates(view([
+        ("OtherNetPPE", "その他(純額)", [7, 7]),
+        ("AccumulatedImpairmentLossPPEByGroup", "減損損失累計額", [-3, -3]),
+        ("Goodwill", "のれん", [2, 2]),
+    ]))
+    assert got == []
