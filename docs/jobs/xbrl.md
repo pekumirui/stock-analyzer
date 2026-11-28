@@ -223,7 +223,7 @@ ZIP を一時ディレクトリへ展開したあと、以下の順序で解析�
 タクソノミと並列実行・コンテキスト抽出の扱いは以下のとおりである。
 
 - タクソノミはリポジトリ同梱の `XBRL_CACHE_DIR`（既定 `data/xbrl_taxonomy`）だけを読み、`urlopen` による外部取得は一切行わない。参照先の XSD やラベル linkbase が欠けている filing は `parse_status='failed'` にして欠落パスをログに出し、`tools/xbrl/taxonomy_bundle.py`（`check`・`sync` で `schemaRef` → `xsd:import` と `load_labels` の参照先を走査し、汎用ラベル・定義リンク・コメント内 URL は数えない）で過去年版を含め同梱を補充したうえで `xbrl_parse.py --retry-failed` で復旧する。
-- プロセス内ではリモート XSD とラベル linkbase を共有キャッシュに載せる（`parse_package`）。ラベル linkbase は href ごとに `(prefix, local)` → 最初の日本語・英語ラベルへ縮約し、filing ごとに fact に出現する要素と次元メンバーだけを引く（KAB-63）。DB 書き込み時は要素を filing 単位で一括 `SELECT`・`INSERT`・差分 `UPDATE` し、コンテキストと fact は bulk insert する。
+- プロセス内ではリモート XSD とラベル linkbase を共有キャッシュに載せる（`parse_package`）。ラベル linkbase は href ごとに `(prefix, local)` → 最初の日本語・英語ラベルへ縮約し（標準ロール `http://www.xbrl.org/2003/role/label` のラベルを、ファイルをまたいで他のロールより先に使う。タクソノミで説明文 `documentation` が標準ラベルより前に並ぶ要素は、説明文が `xbrl_elements.label_ja` に入って業績詳細の CF の行名に出ていた。KAB-614）、filing ごとに fact に出現する要素と次元メンバーだけを引く（KAB-63）。DB 書き込み時は要素を filing 単位で一括 `SELECT`・`INSERT`・差分 `UPDATE` し、コンテキストと fact は bulk insert する。
 - `xbrl_parse.py` は DB に触らない ZIP 展開・解析（`parse_zip`）を `XBRL_PARSE_WORKERS` 個（既定 `2`、`1` で直列、DB 書き込みが 1 件約 `30ms` で律速するため `3` 以上にしてもほぼ速くならない）のプロセスで先読みし、DB 書き込みは親プロセス 1 本が `manifest` 順に直列で行う（KAB-63）。順序が保たれるため直近 filing からの会計基準引き継ぎは直列と一致し、書き込み順が来た時点で skip 判定を再確認し、ワーカークラッシュ時は親で再パースする。
 - コンテキスト抽出は iXBRL から `xbrli:context` ブロックだけを切り出してパースし、コメント・CDATA・ENTITY がある場合や開始タグ数とブロック数が合わない場合、パース失敗時は全体の `iterparse` にフォールバックする（`contextRef` だけを持つ添付本表はコンテキスト 0 件になる）。
 

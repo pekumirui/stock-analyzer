@@ -884,6 +884,35 @@ def test_label_and_xsd_cache_across_filings(tmp: Path) -> None:
         XbrlParser._parse_linkbase = orig_lb
 
 
+_REMOTE_LAB_DOC_FIRST = f"""<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <link:labelLink xlink:role="http://www.xbrl.org/2003/role/link">
+    <link:loc xlink:type="locator" xlink:href="{REMOTE_JPPFS_XSD}#jppfs_cor_NetSales" xlink:label="NetSales"/>
+    <link:label xlink:type="resource" xlink:label="label_NetSales" xlink:role="http://www.xbrl.org/2003/role/documentation"
+                xml:lang="ja">売上高を表す。</link:label>
+    <link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label"
+                   xlink:from="NetSales" xlink:to="label_NetSales"/>
+    <link:label xlink:type="resource" xlink:label="label_NetSales_2" xlink:role="http://www.xbrl.org/2003/role/label"
+                xml:lang="ja">売上高</link:label>
+    <link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label"
+                   xlink:from="NetSales" xlink:to="label_NetSales_2"/>
+  </link:labelLink>
+</link:linkbase>
+"""
+
+
+def test_standard_label_wins_over_documentation_listed_first(tmp: Path) -> None:
+    from app.xbrl.parser import extract_zip
+
+    reset_taxonomy_caches()
+    cache = tmp / "bundle-doc"
+    _write_bundle(cache, REMOTE_JPPFS_XSD, _REMOTE_XSD)
+    _write_bundle(cache, REMOTE_JPPFS_LAB, _REMOTE_LAB_DOC_FIRST)
+    unpacked = extract_zip(write_zip(tmp, "doc-first.zip", _taxonomy_zip()), tmp / "unpacked-doc")
+    pkg = parse_package(unpacked, cache_dir=cache, text_max=1000)
+    assert pkg.labels.get(("jppfs_cor", "NetSales"), {}).get("label_ja") == "売上高"
+
+
 def test_loader_never_downloads(tmp: Path) -> None:
     from unittest.mock import patch
 
