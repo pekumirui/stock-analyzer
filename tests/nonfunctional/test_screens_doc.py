@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from tools.screen.render import OVERVIEW, PAGE_DIR, REBUILD, ROOT, _type, render, stale
-from tools.screen.sources import SHARED, Call, calls, file_tab, match, screens, sub_tabs, tabs
+from tools.screen.render import OVERVIEW, PAGE_DIR, REBUILD, ROOT, _type, edges, render, stale
+from tools.screen.sources import (
+    NAV_TARGETS, SHARED, Call, Screen, calls, file_screen, file_tab, links, match, screens, sub_tabs, tabs,
+)
 
 
 def test_screens_doc_matches_routes_js_calls_openapi_and_dataflow():
@@ -64,6 +66,39 @@ def test_file_tab_uses_the_tab_name_then_the_sub_screen_name():
     assert file_tab("holders.js", names, subs) == "holders"
     assert file_tab("pts.js", names, subs) == "ranking"
     assert file_tab("chart-core.js", names, subs) == SHARED
+
+
+def test_every_nav_function_is_defined_in_js_and_opens_a_real_screen():
+    js = "".join(p.read_text(encoding="utf-8") for p in (ROOT / "static" / "js").glob("*.js"))
+    ids = {s.id for s in screens(ROOT)}
+    for name, target in NAV_TARGETS.items():
+        assert f"function {name}(" in js, name
+        assert target in ids, target
+
+
+def test_transitions_come_from_the_calling_file_and_skip_the_nav_functions_themselves():
+    moves = edges(links(ROOT, screens(ROOT), tabs(ROOT)))
+    for edge in [("earnings", "stock-price"), ("ranking-pts", "stock-price"), ("supply", "stock-price"),
+                 ("stock-holders", "holders-detail"), ("holders", "holders-detail"), ("monthly", "monthly-detail")]:
+        assert edge in moves, edge
+    assert not any(src == "stock-price" for src, _ in moves)
+    assert all(src != dst for src, dst in moves)
+
+
+def test_links_read_calls_and_hrefs_but_not_calls_inside_a_nav_function(tmp_path):
+    js = tmp_path / "static" / "js"
+    js.mkdir(parents=True)
+    (js / "a.js").write_text(
+        "function gotoChart(code){\n  showStock(code);\n  gotoHolder(code);\n}\n"
+        "const x = `<a href=\"#b/${id}\">`;\n"
+        "el.onclick = () => gotoHolder(e);\n",
+        encoding="utf-8",
+    )
+    all_screens = [Screen("a", "a", "A", ("",)), Screen("b", "b", "B", ("",)), Screen("b-detail", "b", "B 詳細", (":id",)),
+                   Screen("stock-price", "stock", "株価", (":code/price",)), Screen("holders-detail", "holders", "保有者", (":e",))]
+    found = [(link.line, link.source, link.target) for link in links(tmp_path, all_screens, ["a", "b", "stock", "holders"])]
+    assert found == [(5, "a", "b-detail"), (6, "a", "holders-detail")]
+    assert file_screen("a.js", all_screens, ["a", "b"]) == "a"
 
 
 @pytest.mark.parametrize("schema, text", [

@@ -93,3 +93,80 @@ def match(call: Call, routes: list[str]) -> str | None:
         if best is None or score > best[0]:
             best = (score, label)
     return best[1] if best else None
+
+
+NAV_TARGETS = {
+    "gotoChart": "stock-price",
+    "gotoHolder": "holders-detail",
+    "gotoHolderFromStock": "holders-detail",
+    "openHolder": "holders-detail",
+    "showMonthlyDetail": "monthly-detail",
+    "openStockNewsDeck": "stock-deck-detail",
+}
+_NAV_CALL = re.compile(r"(?<![\w.])(" + "|".join(NAV_TARGETS) + r")\(")
+_HREF = re.compile(r"""href=["'](#[a-z]+[^"'\s]*|/monthly/[^"'\s]+)["']""")
+
+
+@dataclass(frozen=True)
+class Link:
+    file: str
+    line: int
+    source: str
+    target: str
+
+
+def _body_spans(text: str) -> list[tuple[int, int]]:
+    spans = []
+    for found in re.finditer(r"function (" + "|".join(NAV_TARGETS) + r")\(", text):
+        start = text.index("{", found.end())
+        depth = 0
+        for i in range(start, len(text)):
+            depth += {"{": 1, "}": -1}.get(text[i], 0)
+            if depth == 0:
+                spans.append((found.start(), i))
+                break
+    return spans
+
+
+def file_screen(name: str, all_screens: list[Screen], tab_names: list[str]) -> str | None:
+    ids = {s.id for s in all_screens}
+    stem = Path(name).stem
+    if stem in ids:
+        return stem
+    tab = file_tab(name, tab_names, sub_tabs(all_screens))
+    if f"{tab}-{stem}" in ids:
+        return f"{tab}-{stem}"
+    return tab if tab in ids else None
+
+
+def _href_screen(href: str, all_screens: list[Screen]) -> str | None:
+    if href.startswith("/monthly/"):
+        return "monthly-detail"
+    tab, _, rest = re.sub(r"\$\{[^}]*\}", "x", href[1:].split("?", 1)[0]).partition("/")
+    parts = rest.split("/") if rest else []
+    best = None
+    for s in all_screens:
+        for path in s.paths if s.tab == tab else ():
+            pattern = path.rstrip("?").split("/") if path.rstrip("?") else []
+            if len(pattern) == len(parts) and all(p.startswith(":") or p == r for p, r in zip(pattern, parts)):
+                score = sum(not p.startswith(":") for p in pattern)
+                if best is None or score > best[0]:
+                    best = (score, s.id)
+    return best[1] if best else None
+
+
+def links(root: Path, all_screens: list[Screen], tab_names: list[str]) -> list[Link]:
+    out = []
+    for path in sorted((root / JS_DIR).glob("*.js")):
+        source = file_screen(path.name, all_screens, tab_names)
+        if source is None:
+            continue
+        text = path.read_text(encoding="utf-8")
+        spans = _body_spans(text)
+        found = [(m.start(), NAV_TARGETS[m.group(1)]) for m in _NAV_CALL.finditer(text)]
+        found += [(m.start(), _href_screen(m.group(1), all_screens)) for m in _HREF.finditer(text)]
+        for pos, target in sorted(found):
+            if target is None or any(a <= pos <= b for a, b in spans):
+                continue
+            out.append(Link(path.name, text.count("\n", 0, pos) + 1, source, target))
+    return out

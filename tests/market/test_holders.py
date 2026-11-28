@@ -273,7 +273,7 @@ def test_holder_page_query_count_is_bounded(c) -> None:
 def test_spa_holders_tab() -> None:
     html = (ROOT / "static/index.html").read_text(encoding="utf-8")
     tabs = (ROOT / "static/js/tabs.js").read_text(encoding="utf-8")
-    js = (ROOT / "static/js/holders.js").read_text(encoding="utf-8")
+    js = "".join((ROOT / f"static/js/{f}.js").read_text(encoding="utf-8") for f in ("holders", "stock-holders"))
     stock = (ROOT / "static/js/stock.js").read_text(encoding="utf-8")
     assert 'data-tab="holders"' in html and 'id="tab-holders"' in html
     assert 'id="hd-sym"' in html and 'id="hd-feed"' in html and 'id="hd-holdings"' in html
