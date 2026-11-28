@@ -2023,6 +2023,38 @@ def test_rows_outside_bs_do_not_take_balances_of_other_statements() -> None:
     assert learned.maps["BS"]["流動負債合計"].key == "CurrentLiabilities"
 
 
+def test_cf_rows_stay_on_their_side_of_the_subtotal_when_the_newest_period_has_none() -> None:
+    def column(end: date, order: list[str]) -> fst.Column:
+        f = fst.Filing(id=end.toordinal(), doc_id=str(end), source="edinet", period_type="FY", period_end=end,
+                       submitted=str(end), standard="JPGAAP")
+        return fst.Column(f, {k: 1.0 for k in order}, order, {k: "edinet" for k in order})
+
+    old = column(date(2024, 3, 31), ["IncomeBeforeIncomeTaxes", "OtherNetOpeCF", "SubtotalOpeCF", "IncomeTaxesPaidOpeCF",
+                                     "NetCashProvidedByUsedInOperatingActivities"])
+    new = column(date(2024, 9, 30), ["IncomeBeforeIncomeTaxes", "IncomeTaxesPaidOpeCF", "OtherNetOpeCF",
+                                     "NetCashProvidedByUsedInOperatingActivities"])
+    assert fst._row_keys([old, new], "CF") == [
+        "IncomeBeforeIncomeTaxes", "OtherNetOpeCF", "SubtotalOpeCF", "IncomeTaxesPaidOpeCF",
+        "NetCashProvidedByUsedInOperatingActivities",
+    ]
+
+
+def test_cf_sections_keep_their_order_when_periods_lack_different_sections() -> None:
+    def column(end: date, order: list[str]) -> fst.Column:
+        f = fst.Filing(id=end.toordinal(), doc_id=str(end), source="edinet", period_type="FY", period_end=end,
+                       submitted=str(end), standard="JPGAAP")
+        return fst.Column(f, {k: 1.0 for k in order}, order, {k: "edinet" for k in order})
+
+    op = ["IncomeBeforeIncomeTaxes", "NetCashProvidedByUsedInOperatingActivities"]
+    without_inv = column(date(2026, 3, 31), [*op, "CashDividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities",
+                                             "NetIncreaseDecreaseInCashAndCashEquivalents"])
+    without_fin = column(date(2026, 9, 30), [*op, "PurchaseOfPropertyPlantAndEquipmentInvCF",
+                                             "NetCashProvidedByUsedInInvestmentActivities",
+                                             "NetIncreaseDecreaseInCashAndCashEquivalents"])
+    assert fst._row_keys([without_inv, without_fin], "CF") == [
+        *op, "PurchaseOfPropertyPlantAndEquipmentInvCF", "NetCashProvidedByUsedInInvestmentActivities",
+        "CashDividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities", "NetIncreaseDecreaseInCashAndCashEquivalents",
+    ]
 def test_cf_rows_do_not_take_items_of_other_statements_when_the_paired_filing_has_no_cf() -> None:
     pl = [xbrl_fact(1, "NetSales", 5000), xbrl_fact(2, "InterestExpensesNOE", 77.681),
           xbrl_fact(3, "LossOnRetirementOfNoncurrentAssetsEL", 35.333),
