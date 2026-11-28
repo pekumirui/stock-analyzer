@@ -81,7 +81,7 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 | `AllowPartialRow` | 空欄のある `statements` の行 |
 | `AllowSameDay` | 同じ開示日の 2 本目（`row` は決算短信の行、`gross` は短信の開示） |
 
-ほかの前提: 項目は 2 つ、値は 2 種類。1 本の書類は言う項目すべてに同じ値を言う。全部入りの書類はどの項目も持つ（訂正で科目が無くなることは入れていない）。三表は提出時刻が全部違う（`_newest` の `id` での決着は入れていない）。有報が言った項目は、後から短信の訂正が来ても有報の値（`docs/jobs/xbrl.md` の優先のとおり。本番で有報より後に出た短信は XBRL 88 件・PDF 871 件）。`_fills` の BS の制限（主の表示リンクに無い要素は補わない）、PDF の行と XBRL の要素の対応付け、連結と個別の継ぎ合わせ、会計基準での表の分割、決算期変更、`find_statement` の年度末の近傍探しと `is_revision` の後回し、`merge_into` と `upsert_statements` の取込順、同じ開示の ZIP と PDF の両立（[formal-tdnet-pdf-retire](../formal-tdnet-pdf-retire/SKILL.md)）は入れていない。
+ほかの前提: 項目は 2 つ、値は 2 種類。1 本の書類は言う項目すべてに同じ値を言う。全部入りの書類はどの項目も持つ（訂正で科目が無くなることは入れていない）。三表は提出時刻が全部違う（`_newest` の `id` での決着は入れていない）。有報が言った項目は、後から短信の訂正が来ても有報の値（`docs/jobs/xbrl.md` の優先のとおり。本番で有報より後に出た短信は XBRL 88 件・PDF 871 件）。`_fills` の制限（主の表示リンクに無い要素は補わない。BS は KAB-547、PL・CF は KAB-611）、PDF の行と XBRL の要素の対応付け、連結と個別の継ぎ合わせ、会計基準での表の分割、決算期変更、`find_statement` の年度末の近傍探しと `is_revision` の後回し、`merge_into` と `upsert_statements` の取込順、同じ開示の ZIP と PDF の両立（[formal-tdnet-pdf-retire](../formal-tdnet-pdf-retire/SKILL.md)）は入れていない。
 
 `RowSpec` の空欄の読み方は KAB-571 で決めた規則で、J-Quants の仕様からは出てこない。`/v2/fins/summary` の仕様は、空文字列は「値の記載がなかったことのみを示す」もので、前回からの変更の有無を表さないと書いている。訂正であることを示す項目も無い。値のある項目が元と同じなら空欄は載せていないだけ（`95560` の訂正はサマリーの無い ZIP から作った行で、本文の EPS は元と同じ 54.75）、違えば空欄の項目も変わりうる（古い EPS を新しい利益と混ぜない）、と読む。模型の「同じ」は値が等しいこと。コードは金額の差 100 万円未満、EPS の差 0.01 未満を同じとみなす（百万円と千円の単位の違い）。
 
@@ -131,5 +131,5 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 ## 同期
 
 - 対象: `app/xbrl/three_statements.py`（`build_columns` と `description` に挙げた関数）、`app/market/analytics.py`（`find_statement`）、`app/xbrl/gross_profit.py`
-- 最後に模型とコードの一致を確かめたコミット: `c578ec7`
-- `git log c578ec7..HEAD -- app/xbrl/three_statements.py app/market/analytics.py app/xbrl/gross_profit.py` に何か出たら、模型を見直してから同期コミットを進める
+- 最後に模型とコードの一致を確かめたコミット: `a94c28c`
+- `git log a94c28c..HEAD -- app/xbrl/three_statements.py app/market/analytics.py app/xbrl/gross_profit.py` に何か出たら、模型を見直してから同期コミットを進める

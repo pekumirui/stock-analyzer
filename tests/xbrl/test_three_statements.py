@@ -690,6 +690,15 @@ PRINTED_JOINED = [
     "CurrentAssets", "NoncurrentAssetsAbstract", "Goodwill", "NoncurrentAssets", "Assets",
 ]
 
+PRINTED_CF_EDINET = [
+    "NetCashProvidedByUsedInOperatingActivitiesAbstract", "IncomeBeforeIncomeTaxes",
+    "ChangesInAssetsAndLiabilitiesOtherNetOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+]
+PRINTED_CF_TDNET = [
+    "NetCashProvidedByUsedInOperatingActivitiesAbstract", "IncomeBeforeIncomeTaxes",
+    "DecreaseIncreaseInTradeReceivablesOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+]
+
 
 def _printed(s: Seeder) -> None:
     s.stock(PRINTED, "有報は受取手形と売掛金を 1 行、短信は 2 行")
@@ -711,6 +720,16 @@ def _printed(s: Seeder) -> None:
         x("CurrentAssets", "i", 29), x("Goodwill", "i", 3), x("NoncurrentAssets", "i", 3), x("Assets", "i", 32),
     ])
     s.roles(783, [("rol_ConsolidatedBalanceSheetTDnet", "BS", True, False, PRINTED_SPLIT)])
+    s.facts(782, "2026-06-30", [
+        x("IncomeBeforeIncomeTaxes", "d", 5), x("ChangesInAssetsAndLiabilitiesOtherNetOpeCF", "d", -2),
+        x("NetCashProvidedByUsedInOperatingActivities", "d", 3),
+    ])
+    s.roles(782, [("rol_ConsolidatedStatementOfCashFlows-indirect", "CF", True, False, PRINTED_CF_EDINET)])
+    s.facts(783, "2026-06-30", [
+        x("IncomeBeforeIncomeTaxes", "d", 5), x("DecreaseIncreaseInTradeReceivablesOpeCF", "d", -2),
+        x("NetCashProvidedByUsedInOperatingActivities", "d", 3),
+    ])
+    s.roles(783, [("rol_ConsolidatedStatementOfCashFlowsTDnet", "CF", True, False, PRINTED_CF_TDNET)])
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -938,6 +957,15 @@ def test_bs_is_not_supplemented_with_rows_the_primary_filing_does_not_print() ->
     assert sum(r["cells"][1]["value"] for r in current if r["cells"][1]) == value(t, "CurrentAssets", "26.06")
     assert value(t, "Goodwill", "26.06") == 3 * M
     assert source(t, "Goodwill", "26.06") == "tdnet"
+
+
+def test_cf_is_not_supplemented_with_rows_the_primary_filing_does_not_print() -> None:
+    t = table(PRINTED, statement="CF")
+    assert value(t, "ChangesInAssetsAndLiabilitiesOtherNetOpeCF", "26.06") == -2 * M
+    assert "DecreaseIncreaseInTradeReceivablesOpeCF" not in rows(t)
+    items = [r["cells"][-1]["value"] for r in t["rows"]
+             if r["cells"][-1] and r["key"] != "NetCashProvidedByUsedInOperatingActivities"]
+    assert sum(items) == value(t, "NetCashProvidedByUsedInOperatingActivities", "26.06")
 
 
 def test_sign_follows_xbrl_and_pl_is_cumulative() -> None:
