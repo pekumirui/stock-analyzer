@@ -786,12 +786,12 @@ def _accumulated(label: str) -> bool:
     return label.removesuffix("(純額)").startswith(NEVER_MERGED_PREFIXES)
 
 
-def _by_label(label: str, parent: str | None) -> tuple[str, ...] | None:
+def _by_label(label: str, around: tuple[str, str] | None) -> tuple[str, ...] | None:
     return None if _never_merged(label) else ()
 
 
-def _under_one_parent(label: str, parent: str | None) -> tuple[str, ...] | None:
-    return (parent,) if parent is not None and _accumulated(label) else None
+def _between_gross_and_net(label: str, around: tuple[str, str] | None) -> tuple[str, ...] | None:
+    return around if around is not None and _accumulated(label) else None
 
 
 def merge_split_rows(
@@ -804,27 +804,24 @@ def merge_split_rows(
     """
     skip = set(excluded)
     out = _merge_groups(columns, statement, labels, units, skip, _by_label)
-    out.update(_merge_groups(columns, statement, labels, units, skip, _under_one_parent))
+    out.update(_merge_groups(columns, statement, labels, units, skip, _between_gross_and_net))
     return out
 
 
 def _merge_groups(
     columns: Sequence[Column], statement: str, labels: Mapping[str, str], units: Mapping[str, str | None],
-    skip: set[frozenset[str]], grouping: Callable[[str, str | None], tuple[str, ...] | None],
+    skip: set[frozenset[str]], grouping: Callable[[str, tuple[str, str] | None], tuple[str, ...] | None],
 ) -> dict[str, list[str]]:
     keys = _row_keys(columns, statement)
     seen = {k: frozenset(i for i, c in enumerate(columns) if k in c.values) for k in keys}
     parts = dict(zip(keys, row_parts(columns, keys)))
     groups: dict[tuple[str, ...], list[str]] = defaultdict(list)
-    parent: str | None = None
+    around = _gross_and_net(columns, labels)
     for key in keys:
         label = labels.get(key, key)
-        above = parent
-        if not _accumulated(label):
-            parent = key
         if key.startswith("pdf:") or not seen[key]:
             continue
-        extra = grouping(label, above)
+        extra = grouping(label, around.get(key))
         if extra is not None:
             groups[(label, _unit_kind(units, key), *extra)].append(key)
     out: dict[str, list[str]] = {}
@@ -850,6 +847,28 @@ def _merge_groups(
                         column.order = [keep if k == key else k for k in column.order]
             out[keep] = rest
     return out
+
+
+def _gross_and_net(columns: Sequence[Column], labels: Mapping[str, str]) -> dict[str, tuple[str, str]]:
+    found: dict[str, set[tuple[str, str] | None]] = defaultdict(set)
+    for column in columns:
+        order = [k for k in column.order if k in column.values]
+        gross: str | None = None
+        run: list[str] = []
+        for key in [*order, None]:
+            label = labels.get(key, key) if key is not None else ""
+            if key is not None and _accumulated(label):
+                run.append(key)
+                continue
+            pair = (gross, key) if gross is not None and key is not None and _net_of(labels.get(gross, gross), label) else None
+            for k in run:
+                found[k].add(pair)
+            gross, run = key, []
+    return {k: next(iter(pairs)) for k, pairs in found.items() if len(pairs) == 1 and None not in pairs}
+
+
+def _net_of(gross: str, label: str) -> bool:
+    return label.endswith(NET_TAIL) or label == gross
 
 
 def _components(members: Sequence[str], edges: set[tuple[str, str]]) -> list[list[str]]:
