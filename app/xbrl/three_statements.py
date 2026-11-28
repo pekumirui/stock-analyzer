@@ -73,6 +73,9 @@ CF_MARK_RE = re.compile(
 )
 CF_TOTAL_RE = re.compile(r"^NetCashProvidedByUsedIn")
 CF_CASH_RE = re.compile(r"^CashAndCashEquivalents")
+CF_START_RE = re.compile(
+    r"^(IncomeBeforeIncomeTaxes|IncomeLossBeforeIncomeTaxes|ProfitLoss|NetIncome)(IFRS|USGAAP)?$|^ProfitLossBeforeTax(IFRS)?$"
+)
 CF_CASH_CHANGE_RE = re.compile(r"CCE$|InCashAndCashEquivalents")
 PL_END_RE = re.compile(r"ProfitLoss|NetIncome|ComprehensiveIncome|EarningsLossPerShare|EarningsPerShare")
 AHEAD_SKIP_RE = re.compile(r"SummaryOfBusinessResults|KeyFinancialData|InvestmentEquitySecurities")
@@ -1459,6 +1462,9 @@ def _foreign(statement: str, fact: Fact, own: set[str]) -> bool:
     if statement == "BS":
         return not fact.instant
     if statement == "PL" and CF_MARK_RE.search(fact.local):
+        return True
+    if statement == "CF" and not (CF_MARK_RE.search(fact.local) or CF_CASH_RE.search(fact.local)
+                                  or CF_START_RE.match(fact.local)):
         return True
     return fact.instant and not (statement == "CF" and CF_CASH_RE.search(fact.local))
 
