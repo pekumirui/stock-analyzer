@@ -2023,6 +2023,7 @@ def test_rows_outside_bs_do_not_take_balances_of_other_statements() -> None:
     assert learned.maps["BS"]["流動負債合計"].key == "CurrentLiabilities"
 
 
+<<<<<<< HEAD
 def test_cf_rows_stay_on_their_side_of_the_subtotal_when_the_newest_period_has_none() -> None:
     def column(end: date, order: list[str]) -> fst.Column:
         f = fst.Filing(id=end.toordinal(), doc_id=str(end), source="edinet", period_type="FY", period_end=end,
@@ -2055,6 +2056,8 @@ def test_cf_sections_keep_their_order_when_periods_lack_different_sections() -> 
         *op, "PurchaseOfPropertyPlantAndEquipmentInvCF", "NetCashProvidedByUsedInInvestmentActivities",
         "CashDividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities", "NetIncreaseDecreaseInCashAndCashEquivalents",
     ]
+=======
+>>>>>>> origin/main
 def test_cf_rows_do_not_take_items_of_other_statements_when_the_paired_filing_has_no_cf() -> None:
     pl = [xbrl_fact(1, "NetSales", 5000), xbrl_fact(2, "InterestExpensesNOE", 77.681),
           xbrl_fact(3, "LossOnRetirementOfNoncurrentAssetsEL", 35.333),

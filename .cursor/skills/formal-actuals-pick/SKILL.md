@@ -131,5 +131,5 @@ Finding の cfg が通るようになったら、その食い違いが直った�
 ## 同期
 
 - 対象: `app/xbrl/three_statements.py`（`build_columns` と `description` に挙げた関数）、`app/market/analytics.py`（`find_statement`）、`app/xbrl/gross_profit.py`
-- 最後に模型とコードの一致を確かめたコミット: `a94c28c`
-- `git log a94c28c..HEAD -- app/xbrl/three_statements.py app/market/analytics.py app/xbrl/gross_profit.py` に何か出たら、模型を見直してから同期コミットを進める
+- 最後に模型とコードの一致を確かめたコミット: `5955ea9`
+- `git log 5955ea9..HEAD -- app/xbrl/three_statements.py app/market/analytics.py app/xbrl/gross_profit.py` に何か出たら、模型を見直してから同期コミットを進める
