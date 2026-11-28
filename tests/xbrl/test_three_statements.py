@@ -3353,3 +3353,50 @@ def test_row_roles_distinguish_items_subtotals_totals_and_grand_totals() -> None
         "NetIncreaseDecreaseInCashAndCashEquivalents": "subtotal",
         "CashAndCashEquivalents": "grand",
     }
+
+
+def test_accumulated_rows_merge_only_under_one_parent() -> None:
+    labels = {"RoU": "使用権資産", "AccExt": "減価償却累計額", "AccRoU": "減価償却累計額", "AccPPE": "減価償却累計額",
+              "RoUNet": "使用権資産(純額)", "Bld": "建物", "AccBld": "減価償却累計額"}
+    seq = [{"Bld": 9, "AccBld": -2, "RoU": 5, "AccExt": -1, "RoUNet": 4},
+           {"Bld": 9, "AccBld": -3, "RoU": 5, "AccRoU": -2, "RoUNet": 3},
+           {"Bld": 9, "AccBld": -4, "RoU": 5, "AccPPE": -3, "RoUNet": 2}]
+    got, keys, cols = merged(seq, labels)
+    assert got == {"AccPPE": ["AccRoU", "AccExt"]}
+    assert keys == ["Bld", "AccBld", "RoU", "AccPPE", "RoUNet"]
+    assert [c.values["AccPPE"] for c in cols] == [-1, -2, -3]
+
+
+def test_accumulated_rows_under_other_parents_stay_apart() -> None:
+    labels = {"Veh": "車両運搬具", "AccVeh": "減価償却累計額", "VehNet": "車両運搬具(純額)",
+              "Mach": "機械装置及び運搬具", "AccMach": "減価償却累計額", "MachNet": "機械装置及び運搬具(純額)"}
+    got, _, _ = merged([{"Veh": 5, "AccVeh": -1, "VehNet": 4}, {"Mach": 8, "AccMach": -2, "MachNet": 6}], labels)
+    assert got == {}
+
+
+def test_accumulated_rows_follow_a_parent_merged_across_tags() -> None:
+    labels = {"RoUOld": "使用権資産", "RoU": "使用権資産", "AccOld": "減価償却累計額", "Acc": "減価償却累計額",
+              "Net": "使用権資産(純額)"}
+    got, keys, _ = merged([{"RoUOld": 5, "AccOld": -1, "Net": 4}, {"RoU": 5, "Acc": -2, "Net": 3}], labels)
+    assert got == {"RoU": ["RoUOld"], "Acc": ["AccOld"]}
+    assert keys == ["RoU", "Acc", "Net"]
+
+
+def test_accumulated_rows_without_a_net_row_below_stay_apart() -> None:
+    labels = {"Other": "その他", "AccOther": "減価償却累計額", "Group": "減価償却累計額", "PPE": "有形固定資産合計"}
+    got, _, _ = merged([{"Other": 5, "AccOther": -1, "PPE": 9}, {"Other": 5, "Group": -8, "PPE": 9}], labels)
+    assert got == {}
+
+
+def test_accumulated_rows_merge_only_when_each_period_has_them_between_gross_and_net() -> None:
+    labels = {"Other": "その他", "AccOther": "減価償却累計額", "OtherNet": "その他(純額)",
+              "Group": "減価償却累計額", "PPE": "有形固定資産合計"}
+    got, _, _ = merged([{"Other": 5, "Group": -8, "PPE": 9}, {"Other": 5, "AccOther": -1, "OtherNet": 4, "PPE": 9}],
+                       labels)
+    assert got == {}
+
+
+def test_net_row_may_repeat_the_gross_name() -> None:
+    labels = {"BS": "建物及び構築物", "AccOld": "減価償却累計額", "Acc": "減価償却累計額", "BSNet": "建物及び構築物"}
+    got, _, _ = merged([{"BS": 5, "AccOld": -1, "BSNet": 4}, {"BS": 5, "Acc": -2, "BSNet": 3}], labels)
+    assert got == {"Acc": ["AccOld"]}
