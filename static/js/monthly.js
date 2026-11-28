@@ -343,7 +343,7 @@ function renderMonthlyList(){
     const mkt = fmtMarket(r.market);
     const label = escHtml(fmtMonthlyIssuerLabel(r.code, r.name));
     const nameCell = pub
-      ? `<td class="l name"><a href="/monthly/${monthlyCode4(r.code)}?from=monthly">${label}</a>${neu}</td>`
+      ? `<td class="l name"><a href="/monthly/${monthlyCode4(r.code)}">${label}</a>${neu}</td>`
       : `<td class="l name" onclick="showMonthlyDetail('${r.code}')">${label}${neu}</td>`;
     h += `<tr data-code="${r.code}">` + nameCell +
       (pub ? "" : `<td class="l ${mkt.cls}">${escHtml(mkt.label)}</td>` +
@@ -360,7 +360,6 @@ function renderMonthlyList(){
 function showMonthlyTop(){
   $("#monthly-top").style.display = "";
   $("#monthly-detail").style.display = "none";
-  if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
 function hideMonthlySuggest(){
@@ -432,7 +431,6 @@ function findMonthlyIssuer(code){
 function showMonthlyDetail(code, opts){
   hideMonthlySuggest();
   const skipHist = !!(opts && opts.skipHist);
-  const keepFrom = !!(opts && (opts.skipHist || opts.keepFrom));
   const row = findMonthlyIssuer(code);
   if(!row){
     if(monthlyPublic()){
@@ -453,12 +451,11 @@ function showMonthlyDetail(code, opts){
   $("#monthly-detail").style.display = "";
   if(monthlyPublic()){
     const path = `/monthly/${monthlyCode4(row.code)}`;
-    const url = skipHist ? (location.pathname + location.search) : `${path}?from=monthly`;
+    const url = skipHist ? (location.pathname + location.search) : path;
     if(!skipHist && location.pathname + location.search !== url) history.pushState({code: row.code}, "", url);
     document.title = `${nm || monthlyCode4(row.code)}（${monthlyCode4(row.code)}）の月次売上 | 株KPI`;
-  }else if(typeof writeRoute === "function") writeRoute("monthly", row.code, keepFrom ? undefined : "monthly");
+  }else if(typeof writeRoute === "function") writeRoute("monthly", row.code);
   loadMonthlyTables();
-  if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
 function backMonthly(ev){
@@ -466,7 +463,7 @@ function backMonthly(ev){
   if(monthlyPublic()){
     if(location.pathname !== "/monthly") history.pushState({}, "", "/monthly");
     document.title = "月次売上 | 株KPI";
-  }else if(typeof writeRoute === "function") writeRoute("monthly", "", "");
+  }else if(typeof writeRoute === "function") writeRoute("monthly", "");
   showMonthlyTop();
 }
 

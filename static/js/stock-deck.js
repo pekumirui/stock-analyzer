@@ -373,7 +373,7 @@ if(typeof document !== "undefined") $("#st-deck-back").addEventListener("click",
   e.preventDefault();
   stockDeckKey = "";
   stockSub = "news";
-  writeRoute("stock", stockRoutePath(), "stock-deck-detail");
+  writeRoute("stock", stockRoutePath());
   renderStockSub();
 });
 // node のテスト（tests/market/test_stock_decks.py）が組み立てを呼ぶ

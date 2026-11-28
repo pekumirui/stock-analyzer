@@ -16,8 +16,8 @@
 
 | 画面 | `/app` のハッシュ | 公開面のパス | 表示切替と戻り操作 |
 |---|---|---|---|
-| TOP | `#monthly` | `/monthly` | `#monthly-top` を表示し、`#monthly-detail` を隠す。トップ画面のためパンくずは出さない |
-| Detail | `#monthly/{code5}`（5 桁コード、例: `#monthly/99830`） | `/monthly/{code4}`（4 桁コード、例: `/monthly/9983`） | `#monthly-detail` を表示し、`#monthly-top` を隠す。パンくず `#crumbs`（`月次 > {社名}`）、`#monthly-back`（`戻る`）、または公開面ヘッダーのサイト名リンクで TOP へ戻り、直前に選んでいたチップと確定済み検索語を維持する |
+| TOP | `#monthly` | `/monthly` | `#monthly-top` を表示し、`#monthly-detail` を隠す |
+| Detail | `#monthly/{code5}`（5 桁コード、例: `#monthly/99830`） | `/monthly/{code4}`（4 桁コード、例: `/monthly/9983`） | `#monthly-detail` を表示し、`#monthly-top` を隠す。`#monthly-back`（`戻る`）、または公開面ヘッダーのサイト名リンクで TOP へ戻り、直前に選んでいたチップと確定済み検索語を維持する |
 
 ## データ形
 
@@ -78,7 +78,7 @@ DB は縦持ちの 4 テーブル（`monthly_issuers`・`monthly_tables`・`mont
 
 `#monthly-sym` への入力中は `#monthly-tbl` を書き換えず、読み込み済みの月次発行体リストから一致する最大 20 件を `{4桁コード} {正式社名}` で `#monthly-suggest` に出す（`/api/stocks/search` は呼ばない）。`Enter` キーまたは `#monthly-suggest` の候補クリックで検索語を確定し、選択中のチップに関わらず全発行体を対象に社名・コード（4 桁・5 桁）・`industry`・`sector33` の部分一致で `#monthly-tbl` を絞り込む。`#monthly-sym` を空にして `Enter` を押すかチップを押すとチップ絞り込みへ戻り、`Escape` キーで `#monthly-suggest` を閉じる。
 
-`会社名` セル（`td.name`）を押すと Detail へ遷移する。公開面の行内リンク `<a href="/monthly/{code4}?from=monthly">` は通常クリック時に `history.pushState` で画面遷移し、`Ctrl` キーや `Cmd` キーを押しながらのクリックでは別タブで開く。
+`会社名` セル（`td.name`）を押すと Detail へ遷移する。公開面の行内リンク `<a href="/monthly/{code4}">` は通常クリック時に `history.pushState` で画面遷移し、`Ctrl` キーや `Cmd` キーを押しながらのクリックでは別タブで開く。
 
 ### 空とエラー
 

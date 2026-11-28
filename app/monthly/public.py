@@ -109,7 +109,6 @@ def _shell(
 <body class="public-monthly" data-public-monthly="1">
 <header>
   <a class="brand" href="/monthly">{escape(PUBLIC_SITE_NAME)}</a>
-  <nav id="crumbs" aria-label="パンくず" hidden></nav>
 </header>
 <main>
 <section id="tab-monthly">
@@ -151,7 +150,7 @@ def render_top_list(issuers: list[dict]) -> str:
     rows = []
     for r in issuers:
         code = str(r.get("code") or "")
-        href = f"/monthly/{escape(code4(code))}?from=monthly"
+        href = f"/monthly/{escape(code4(code))}"
         label = escape(issuer_label(code, r.get("name")))
         neu = '<span class="badge new">NEW</span>' if r.get("ingested_today") else ""
         ind = escape(str(r.get("industry") or "その他"))

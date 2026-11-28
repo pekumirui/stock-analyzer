@@ -14,16 +14,16 @@
 
 本タブが持つルートと表示画面の対応は以下のとおりである。
 
-| ハッシュ | 画面 ID | 表示内容とパンくずの戻り先 |
+| ハッシュ | 画面 ID | 表示内容 |
 |---|---|---|
 | `#stock` | `stock` | 銘柄未選択の案内を `#st-msg` に出す |
 | `#stock/{code}`、`#stock/{code}/summary` | `stock-summary` | 概要サブタブ（5 指標カード + 決算表）を表示する |
-| `#stock/{code}/price` | `stock-price` | 株価サブタブを表示する。決算速報・スクリーナー・ランキング・PTS・サプライ・大量保有報告書から `gotoChart` で入ったときは、パンくず `#crumbs` で元のタブへ戻れる |
+| `#stock/{code}/price` | `stock-price` | 株価サブタブを表示する。決算速報・スクリーナー・ランキング・PTS・サプライ・大量保有報告書からは `gotoChart` で入る |
 | `#stock/{code}/financials` | `stock-financials` | 業績詳細サブタブ（財務 3 表 `BS`・`PL`・`CF`）を表示する |
 | `#stock/{code}/news` | `stock-news` | ニュースサブタブ（決算短信・予想修正・決算説明資料の一覧）を表示する |
-| `#stock/{code}/news/{id}` | `stock-news-detail` | ニュースの詳細を表示する。`id` は XBRL 短信が `x{filing_id}`、PDF 変換短信が `p{disclosure_no}` である。サブタブの選択は `ニュース` のまま保ち、パンくずまたは `#st-back` で `ニュース` 一覧へ戻れる |
-| `#stock/{code}/decks/{key}` | `stock-deck-detail` | 決算説明資料の中身を表示する。`key` は `briefing_documents` のキー（`d` + 20 桁 16 進）である。サブタブの選択は `ニュース` のまま保ち、パンくずまたは `#st-deck-back` で `ニュース` 一覧へ戻れる |
-| `#stock/{code}/holders` | `stock-holders` | 株主サブタブを表示する。提出者名リンクを押すと大量保有報告書タブの保有者画面 `#holders/{edinet}` へ遷移し、パンくずで `株主` へ戻れる |
+| `#stock/{code}/news/{id}` | `stock-news-detail` | ニュースの詳細を表示する。`id` は XBRL 短信が `x{filing_id}`、PDF 変換短信が `p{disclosure_no}` である。サブタブの選択は `ニュース` のまま保ち、`#st-back` で `ニュース` 一覧へ戻れる |
+| `#stock/{code}/decks/{key}` | `stock-deck-detail` | 決算説明資料の中身を表示する。`key` は `briefing_documents` のキー（`d` + 20 桁 16 進）である。サブタブの選択は `ニュース` のまま保ち、`#st-deck-back` で `ニュース` 一覧へ戻れる |
+| `#stock/{code}/holders` | `stock-holders` | 株主サブタブを表示する。提出者名リンクを押すと大量保有報告書タブの保有者画面 `#holders/{edinet}` へ遷移する。ブラウザの戻るで `株主` へ戻れる |
 
 ## データ形
 
@@ -294,7 +294,7 @@ PC・スマホともに 3 列すべてを表示し、`題名` 列は画面幅に
 
 ### 操作
 
-`#st-back`、パンくず `#crumbs` の `ニュース`、またはサブタブの `ニュース` を押すと、`#stock/{code5}/news` の一覧へ戻る。`#st-zoom` を切り替えると再取得せずに表示倍率を更新する。
+`#st-back` またはサブタブの `ニュース` を押すと、`#stock/{code5}/news` の一覧へ戻る。`#st-zoom` を切り替えると再取得せずに表示倍率を更新する。
 
 ### 空とエラー
 
@@ -322,7 +322,7 @@ EDINET の大量保有報告書・変更報告書から大株主の顔ぶれと�
 
 ### 操作
 
-`#st-holders-large` の提出者リンクを押すと、大量保有報告書タブの保有者画面 `#holders/{edinet_code}` へ遷移する（パンくずで元の銘柄の `株主` へ戻れる）。
+`#st-holders-large` の提出者リンクを押すと、大量保有報告書タブの保有者画面 `#holders/{edinet_code}` へ遷移する（ブラウザの戻るで元の銘柄の `株主` へ戻れる）。
 
 ### 空とエラー
 
@@ -354,7 +354,7 @@ EDINET の大量保有報告書・変更報告書から大株主の顔ぶれと�
 
 ### 操作
 
-`#st-deck-back`、パンくず `#crumbs` の `ニュース`、またはサブタブの `ニュース` を押すと、`#stock/{code5}/news` の一覧へ戻る。
+`#st-deck-back` またはサブタブの `ニュース` を押すと、`#stock/{code5}/news` の一覧へ戻る。
 
 ### 空とエラー
 

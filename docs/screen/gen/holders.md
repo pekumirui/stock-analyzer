@@ -23,27 +23,19 @@ flowchart LR
   n1["GET /api/holders/activity"]:::api
   n2["GET /api/holders/search"]:::api
   n3["GET /api/holders/{edinet}"]:::api
-  n4["GET /api/stock/{code}/holders"]:::api
-  n5[("daily_prices")]:::tbl
-  n6[("edinet_buyback_resolutions")]:::tbl
-  n7[("edinet_buybacks")]:::tbl
-  n8[("large_holding_reports")]:::tbl
-  n9[("large_holdings")]:::tbl
+  n4[("daily_prices")]:::tbl
+  n5[("large_holding_reports")]:::tbl
+  n6[("large_holdings")]:::tbl
   n0 --> n1
-  n1 -.- n8
-  n1 -.- n9
+  n1 -.- n5
+  n1 -.- n6
   n0 --> n2
-  n2 -.- n8
-  n2 -.- n9
+  n2 -.- n5
+  n2 -.- n6
   n0 --> n3
+  n3 -.- n4
   n3 -.- n5
-  n3 -.- n8
-  n3 -.- n9
-  n0 --> n4
-  n4 -.- n6
-  n4 -.- n7
-  n4 -.- n8
-  n4 -.- n9
+  n3 -.- n6
   classDef js fill:#f3e8ff,stroke:#7048e8
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -54,7 +46,6 @@ flowchart LR
 | `GET /api/holders/activity` | `holders.js` |  | `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/holders/search` | `holders.js` |  | `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/holders/{edinet}` | `holders.js` |  | `daily_prices`, `large_holding_reports`, `large_holdings`, `stocks` |
-| `GET /api/stock/{code}/holders` | `holders.js` |  | `edinet_buyback_resolutions`, `edinet_buybacks`, `large_holding_reports`, `large_holdings`, `stocks` |
 
 ## API の引数
 
@@ -78,11 +69,4 @@ flowchart LR
 | 引数 | 場所 | 型 | 必須 | 既定 |
 |---|---|---|---|---|
 | `edinet` | path | string | ○ |  |
-| `today` | query | string（`^\d{4}-\d{2}-\d{2}$`） |  |  |
-
-### GET /api/stock/{code}/holders
-
-| 引数 | 場所 | 型 | 必須 | 既定 |
-|---|---|---|---|---|
-| `code` | path | string | ○ |  |
 | `today` | query | string（`^\d{4}-\d{2}-\d{2}$`） |  |  |

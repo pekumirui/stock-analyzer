@@ -6,7 +6,7 @@
 
 | 知りたいこと | 参照先 |
 |---|---|
-| 画面一覧・画面遷移・各画面が呼ぶ API | [画面設計](SCREENS.md)、タブ別仕様は [画面仕様の共通規則](screen/SPEC.md)、API の共通規約は [API 仕様](screen/api.md) |
+| 画面一覧・各画面が呼ぶ API | [画面設計](SCREENS.md)、タブ別仕様は [画面仕様の共通規則](screen/SPEC.md)、API の共通規約は [API 仕様](screen/api.md) |
 | テーブル・列・索引・ER 図 | [データモデル](SCHEMA.md)、行の状態遷移は [状態の遷移](schema/states.md) |
 | バッチの起動時刻・引数・依存関係 | [ジョブ設計](JOBS.md)、取込規則は [株価・決算](jobs/market.md)・[月次](jobs/monthly.md)・[サプライ](jobs/supply.md)・[XBRL](jobs/xbrl.md)・[EDINET](jobs/edinet.md)・[共通](jobs/common.md) |
 | ジョブと API が読み書きするテーブル | [データの流れ](DATA_FLOW.md) |

@@ -81,7 +81,7 @@
  "tests/monthly/test_tdnet_monthly_r2.py": 1.9,
  "tests/nonfunctional/test_app_etag.py": 0.1,
  "tests/nonfunctional/test_app_independent_of_jobs.py": 3.5,
- "tests/nonfunctional/test_breadcrumbs.py": 0.1,
+ "tests/nonfunctional/test_screen_routes.py": 0.1,
  "tests/nonfunctional/test_dataflow.py": 0.2,
  "tests/nonfunctional/test_db_access.py": 3.2,
  "tests/nonfunctional/test_history_back.py": 0.1,

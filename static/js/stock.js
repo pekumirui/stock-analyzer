@@ -59,14 +59,13 @@ document.addEventListener("click", e => {
 });
 
 function stockPick(s){
-  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   const onStock = $("#tab-stock").style.display !== "none" && stockCode;
   $("#sym-q").value = "";
   stockLastSuggest = [];
   setSymSearch(false);
   $("#sym-q").blur();
   showTab("stock");
-  showStock(s.code, onStock ? stockSub : "summary", "", from);
+  showStock(s.code, onStock ? stockSub : "summary");
 }
 
 function stockRoutePath(){
@@ -78,7 +77,7 @@ function stockRoutePath(){
 
 function openStockRoute(path){
   const [code, sub, id] = String(path).split("/");
-  showStock(code, sub || "summary", sub === "news" ? (id || "") : "", undefined, sub === "decks" ? (id || "") : "");
+  showStock(code, sub || "summary", sub === "news" ? (id || "") : "", sub === "decks" ? (id || "") : "");
 }
 
 function stockMsg(text){
@@ -87,7 +86,7 @@ function stockMsg(text){
   m.hidden = !text;
 }
 
-async function showStock(code, sub, newsId, from, deckKey = ""){
+async function showStock(code, sub, newsId = "", deckKey = ""){
   const changed = code !== stockCode || !stockOverview;
   stockCode = code;
   stockSub = sub;
@@ -95,7 +94,7 @@ async function showStock(code, sub, newsId, from, deckKey = ""){
   if(stockSub === "decks" && !deckKey) stockSub = "news";
   if(changed) resetStockDecks();
   stockDeckKey = stockSub === "decks" ? deckKey : "";
-  writeRoute("stock", stockRoutePath(), from);
+  writeRoute("stock", stockRoutePath());
   if(changed){
     if(stockAc) stockAc.abort();
     stockAc = new AbortController();
@@ -157,11 +156,10 @@ function renderStockHead(d){
 document.querySelectorAll("#st-tabs .ftab").forEach(b => b.onclick = () => {
   if(!stockCode) return;
   if(b.dataset.sub === stockSub && !(stockSub === "news" && stockNewsId) && !(stockSub === "decks" && stockDeckKey)) return;
-  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   stockSub = b.dataset.sub;
   stockNewsId = "";
   stockDeckKey = "";
-  writeRoute("stock", stockRoutePath(), from);
+  writeRoute("stock", stockRoutePath());
   renderStockSub();
 });
 
@@ -328,7 +326,7 @@ function openStockNewsDeck(key){
   stockNewsId = "";
   stockSub = "decks";
   stockDeckKey = key;
-  writeRoute("stock", stockRoutePath(), "stock-news", true);
+  writeRoute("stock", stockRoutePath(), true);
   renderStockSub();
 }
 
@@ -340,14 +338,14 @@ $("#st-news").addEventListener("click", e => {
     return;
   }
   stockNewsId = tr.dataset.id;
-  writeRoute("stock", stockRoutePath(), "stock-news", true);
+  writeRoute("stock", stockRoutePath(), true);
   renderStockNews();
 });
 
 $("#st-back").onclick = e => {
   e.preventDefault();
   stockNewsId = "";
-  writeRoute("stock", stockRoutePath(), "stock-news-detail");
+  writeRoute("stock", stockRoutePath());
   renderStockNews();
 };
 

@@ -811,7 +811,7 @@
   "comment": 4
  },
  "static/css/app.css": {
-  "comment": 9
+  "comment": 8
  },
  "static/js/api.js": {
   "comment": 1
@@ -829,9 +829,6 @@
   "comment": 21
  },
  "static/js/ranking.js": {
-  "comment": 2
- },
- "static/js/screens.js": {
   "comment": 2
  },
  "static/js/stock-deck.js": {
@@ -1110,9 +1107,6 @@
  },
  "tests/nonfunctional/test_app_etag.py": {
   "docstring": 1
- },
- "tests/nonfunctional/test_breadcrumbs.py": {
-  "docstring": 4
  },
  "tests/nonfunctional/test_dataflow.py": {
   "docstring": 1
