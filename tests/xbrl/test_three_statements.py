@@ -2680,10 +2680,11 @@ def column(end: str, values: dict[str, float], parts: dict[str, fst.Part] | None
 
 def merged(seq: list[dict[str, float]], labels: dict[str, str], statement: str = "BS",
            units: dict | None = None, excluded: tuple = (),
-           parts: dict[str, fst.Part] | None = None) -> tuple[dict[str, list[str]], list[str], list[fst.Column]]:
+           parts: dict[str, fst.Part] | None = None,
+           listed: tuple = ()) -> tuple[dict[str, list[str]], list[str], list[fst.Column]]:
     cols = [column(end, values, {k: v for k, v in (parts or {}).items() if k in values})
             for end, values in zip(ENDS, seq)]
-    got = fst.merge_split_rows(cols, statement, labels, units or {}, excluded)
+    got = fst.merge_split_rows(cols, statement, labels, units or {}, excluded, listed)
     return got, fst._row_keys(cols, statement), cols
 
 
@@ -3400,3 +3401,41 @@ def test_net_row_may_repeat_the_gross_name() -> None:
     labels = {"BS": "建物及び構築物", "AccOld": "減価償却累計額", "Acc": "減価償却累計額", "BSNet": "建物及び構築物"}
     got, _, _ = merged([{"BS": 5, "AccOld": -1, "BSNet": 4}, {"BS": 5, "Acc": -2, "BSNet": 3}], labels)
     assert got == {"Acc": ["AccOld"]}
+
+
+def test_listed_rows_merge_whatever_their_names() -> None:
+    labels = {"IOA": "繰延税金資産", "CA": "繰延税金資産", "DTA": "繰延税金資産"}
+    seq = [{"IOA": 9, "CA": 2}, {"IOA": 8, "CA": 1}, {"DTA": 7}]
+    assert merged(seq, labels)[0] == {}
+    got, keys, cols = merged(seq, labels, listed=(("IOA", "DTA"),))
+    assert got == {"DTA": ["IOA"]}
+    assert keys == ["DTA", "CA"]
+    assert [c.values.get("DTA") for c in cols] == [9, 8, 7]
+
+
+def test_listed_rows_sharing_a_period_stay_apart() -> None:
+    labels = {"Net": "建物", "Gross": "建物"}
+    got, _, _ = merged([{"Net": 9, "Gross": 12}, {"Gross": 11}], labels, listed=(("Net", "Gross"),))
+    assert got == {}
+
+
+def test_listed_rows_follow_rows_already_merged_by_the_rule() -> None:
+    labels = {"Old": "顧客関連資産", "Mid": "顧客関連資産", "New": "顧客関係資産"}
+    seq = [{"Old": 1}, {"Mid": 2}, {"New": 3}]
+    assert merged(seq, labels)[0] == {"Mid": ["Old"]}
+    got, keys, cols = merged(seq, labels, listed=(("Old", "New"),))
+    assert got == {"New": ["Mid", "Old"]}
+    assert keys == ["New"]
+    assert [c.values.get("New") for c in cols] == [1, 2, 3]
+
+
+def test_merge_fixes_are_well_formed() -> None:
+    raw = json.loads(fst.XBRL_ROW_MERGE_FIXES_PATH.read_text(encoding="utf-8"))
+    seen = set()
+    for item in raw["groups"]:
+        assert len(item["code"]) == 5 and item["statement"] in fst.STATEMENTS
+        assert len(item["keys"]) >= 2 and len(set(item["keys"])) == len(item["keys"])
+        assert item["evidence"].startswith("KAB-")
+        key = (item["code"], item["statement"], frozenset(item["keys"]))
+        assert key not in seen
+        seen.add(key)
