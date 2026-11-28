@@ -68,7 +68,7 @@ _NOTE_LINE = re.compile(r"^(\(注|※|\(参考\)|[＝=])")
 # EPS・ROE のような英字で始まる行まで注記になる）。ダッシュの後ろが数字・ダッシュなら金額の印なので外す。
 _FORMULA_LINE = re.compile(r"=|^[\-‐−—―](?=[^\d\-‐−—―])")
 # ※1 / ※ の注記番号（KAB-214）。空白の後ろだけ消す（※2171,958 の番号と金額をつながない）。
-_NOTE_MARK = re.compile(r"※\s*\d{0,2}(?:\s*[,、]\s*※\s*\d{0,2})*(?=\s|$)")
+_NOTE_MARK = re.compile(r"※\s*\d{0,2}(?:\s*[,、]\s*※\s*\d{0,2})*(?=\s|$)|[（(]注\d{0,2}[)）](?=[△▲]?\d)")
 # 配当の「40 円 40 円」（KAB-213）。金額の間と末尾の飾り。
 _AMOUNT_GAP = re.compile(r"^[\s円銭]+$")
 # 語の途中から始まる数字は金額にしない（KAB-216）。直前が行頭・空白・△▲・～ のときだけ。
@@ -96,7 +96,7 @@ _SNAP_SKIP = re.compile(r"^[年月日]$|^\d{1,4}$|[~～〜]|^\d+年|月期|月�
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
 # 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「増減額（△は減少）」、「(予想)」）。
-_TAIL = re.compile(r"^純?損失|^額|^増減額[（(]△は|^[（(]予想")
+_TAIL = re.compile(r"^純?損失|^額|^増減額?[（(]△は|^[（(]予想")
 # 値だけの行のあとでも、これは新しい行名（KAB-213 の今回予想を前回に付けない）。
 # 「増減額（△は減少）」は CF の折り返しなので _TAIL 側（KAB-236 の増減は修正表の行）。
 _ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|増減|第[123]四半期|(当|前|次)期)")
@@ -104,6 +104,7 @@ _ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|増減|第[123]四半期|
 _HEADER_ROW_LABEL = re.compile(r"^(前回|今回|増減|前期実績)")
 # 数値の下にずれた行名（松井の配当通知。KAB-237）。上の次の行の見出しにはしない。
 _UNDER_ROW = re.compile(r"^(前回|今回|実績)")
+_BARE_NOTE_MARK = re.compile(r"(※\d{0,2})+")
 
 _LABEL_BELOW_RATIO = 1.5
 
@@ -760,6 +761,8 @@ def grid(lines: list[Line], *, label_below: bool = False) -> Grid:
             continue
         if not amounts:
             compact_line = _compact_text(line.text)
+            if _BARE_NOTE_MARK.fullmatch(compact_line):
+                continue
             label_text = line.text
             if _HEADER_ROW_LABEL.match(compact_line):
                 left = [

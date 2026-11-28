@@ -26,6 +26,7 @@ from app.xbrl.context import classify_title
 from app.xbrl.normalize import is_normalizable_context, normalize_filing
 from app.xbrl.parser import ParsedPackage
 from app.xbrl.pdf._layout import (
+    Page,
     PdfLayoutError,
     format_garbled_pages,
     format_textless_pages,
@@ -72,7 +73,7 @@ __all__ = [
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 25
+READER_VERSION = 27
 _STD_DOC = re.compile(
     r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(Consolidated|NonConsolidated)_(IFRS|JP)$"
 )
@@ -149,7 +150,11 @@ def read_tdnet_pdf(html: str, disclosure: PdfDisclosure) -> ParsedPackage:
 
     金額は円（百万円は 10^6 倍）。印字の符号のまま（△ は負）。百分率は pure。
     """
-    return package(drop_pre_correction(read_pages(html)), disclosure)
+    return _package(read_pages(html), disclosure)
+
+
+def _package(pages: list[Page], disclosure: PdfDisclosure) -> ParsedPackage:
+    return package(drop_pre_correction(pages), disclosure, bs_pages=drop_pre_correction(pages, bs=True))
 
 
 @dataclass(frozen=True)
@@ -359,7 +364,7 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
         garbled_note = format_garbled_pages(garbled_idx)
         textless_note = format_textless_pages(textless_page_indexes(pages, exclude=garbled_idx))
         amendment = is_amendment_notice(plan.doc.title, pages)
-        pkg = _kept(package(drop_pre_correction(pages), plan.disclosure))
+        pkg = _kept(_package(pages, plan.disclosure))
     except PdfLayoutError as exc:
         filing.parse_status = "failed"
         filing.parse_error = str(exc)[:2000]

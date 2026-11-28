@@ -276,7 +276,8 @@ def collect_parser_taxonomy_urls(
 # Process-level caches reused across parse_package() calls (one Parser per filing).
 _SHARED_XSD_CACHE: dict = {}
 LabelSlots = dict[tuple[str, str], dict[str, str]]
-_SHARED_LABEL_CACHE: dict[str, LabelSlots] = {}
+_SHARED_LABEL_CACHE: dict[str, tuple[LabelSlots, LabelSlots]] = {}
+STANDARD_LABEL_ROLE = "http://www.xbrl.org/2003/role/label"
 
 
 def reset_taxonomy_caches() -> None:
@@ -285,25 +286,28 @@ def reset_taxonomy_caches() -> None:
     _SHARED_LABEL_CACHE.clear()
 
 
-def _label_slots(labels: Iterable[Label]) -> LabelSlots:
-    """(prefix, local) → first ja / first en label, in linkbase order."""
-    slots: LabelSlots = {}
+def _label_slots(labels: Iterable[Label]) -> tuple[LabelSlots, LabelSlots]:
+    """(prefix, local) → first ja / first en label, in linkbase order: standard-role labels, then the rest."""
+    standard: LabelSlots = {}
+    other: LabelSlots = {}
     for lab in labels:
+        slots = standard if lab.label_role == STANDARD_LABEL_ROLE else other
         slot = slots.setdefault((lab.qname.prefix or "", lab.qname.local_name), {})
         if lab.lang.startswith("ja"):
             slot.setdefault("label_ja", lab.text)
         elif lab.lang.startswith("en"):
             slot.setdefault("label_en", lab.text)
-    return slots
+    return standard, other
 
 
 def _collect_labels(parser: Parser, wanted: set[tuple[str, str]]) -> LabelSlots:
     """Labels for ``wanted`` keys only. Remote label linkbases are reduced once per process.
 
-    Same result as walking every label of every linkbase with first-wins per slot.
+    Same result as walking every label of every linkbase with first-wins per slot, standard-role labels first.
     A non-missing-taxonomy error keeps the labels found before it.
     """
-    labels: LabelSlots = {}
+    standard: LabelSlots = {}
+    other: LabelSlots = {}
     saved = None
     try:
         parser._ensure_linkbase_refs()
@@ -311,19 +315,20 @@ def _collect_labels(parser: Parser, wanted: set[tuple[str, str]]) -> LabelSlots:
         for ref in list(saved.get("labelLinkbaseRef", [])):
             href = ref[0]
             remote = str(href).startswith(("http://", "https://"))
-            slots = _SHARED_LABEL_CACHE.get(href) if remote else None
-            if slots is None:
+            found = _SHARED_LABEL_CACHE.get(href) if remote else None
+            if found is None:
                 parser.linkbase_refs = {"labelLinkbaseRef": [ref]}
-                slots = _label_slots(parser.load_labels())
+                found = _label_slots(parser.load_labels())
                 if remote:
-                    _SHARED_LABEL_CACHE[href] = slots
-            for key in wanted:
-                src = slots.get(key)
-                if src is None:
-                    continue
-                slot = labels.setdefault(key, {})
-                for name, text in src.items():
-                    slot.setdefault(name, text)
+                    _SHARED_LABEL_CACHE[href] = found
+            for into, slots in zip((standard, other), found):
+                for key in wanted:
+                    src = slots.get(key)
+                    if src is None:
+                        continue
+                    slot = into.setdefault(key, {})
+                    for name, text in src.items():
+                        slot.setdefault(name, text)
     except (TaxonomyMissingError, FileNotFoundError):
         raise
     except Exception:
@@ -331,6 +336,9 @@ def _collect_labels(parser: Parser, wanted: set[tuple[str, str]]) -> LabelSlots:
     finally:
         if saved is not None:
             parser.linkbase_refs = saved
+    labels: LabelSlots = {}
+    for key in standard.keys() | other.keys():
+        labels[key] = {**other.get(key, {}), **standard.get(key, {})}
     return labels
 
 
