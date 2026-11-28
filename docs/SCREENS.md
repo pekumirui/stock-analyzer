@@ -1,6 +1,6 @@
 # 画面設計
 
-- 画面と遷移は `static/js/screens.js` の `ROUTES` と `BREADCRUMBS`、画面が呼ぶ API は `static/js/*.js` の `/api/…` の文字列、API の引数は FastAPI の OpenAPI、読み書きする表は `docs/dataflow/entries.json` から拾う
+- 画面は `static/js/screens.js` の `ROUTES` と `SCREEN_LABELS`、画面遷移は `static/js/*.js` の画面を移る関数の呼び出しとリンクの `href`、画面が呼ぶ API は `static/js/*.js` の `/api/…` の文字列、API の引数は FastAPI の OpenAPI、読み書きする表は `docs/dataflow/entries.json` から拾う
 - API の応答の形は載らない（ルートが応答の型を宣言していない）。形は各タブの手書きの画面仕様にある
 - 読み書きする表はテストが通った道だけなので下限。読み方は [DATA_FLOW.md](DATA_FLOW.md)
 
@@ -11,17 +11,17 @@
 | タブ | 画面 | JS | 呼ぶ API |
 |---|---|---|---|
 | [決算速報](screen/gen/earnings.md) | 決算速報 | `earnings.js` | 7 |
-| [銘柄](screen/gen/stock.md) | 銘柄、概要、株価、業績詳細、ニュース、ニュース詳細、株主、説明資料の中身 | `stock-deck.js`, `stock-financials.js`, `stock-price.js`, `stock.js` | 8 |
+| [銘柄](screen/gen/stock.md) | 銘柄、概要、株価、業績詳細、ニュース、ニュース詳細、株主、説明資料の中身 | `stock-deck.js`, `stock-financials.js`, `stock-holders.js`, `stock-price.js`, `stock.js` | 9 |
 | [スクリーナー](screen/gen/screener.md) | スクリーナー | `screener.js` | 1 |
 | [月次](screen/gen/monthly.md) | 月次、月次詳細 | `monthly.js` | 3 |
 | [サプライ](screen/gen/supply.md) | サプライ | `supply.js` | 4 |
 | [ランキング](screen/gen/ranking.md) | ランキング、PTS | `pts.js`, `ranking.js` | 2 |
-| [大量保有報告書](screen/gen/holders.md) | 大量保有報告書、保有者 | `holders.js` | 4 |
+| [大量保有報告書](screen/gen/holders.md) | 大量保有報告書、保有者 | `holders.js` | 3 |
 | [共通](screen/gen/common.md) |  | `chart-core.js` | 2 |
 
 ## 画面遷移
 
-枠はタブ、箱は画面（名前とハッシュ）。矢印は「元の画面から来られる」（パンくずの戻り先になる画面）。太い矢印は、来た元が分からないときの戻り先。タブの切り替えはどの画面からもできるので線にしない。同じタブの中で互いに行き来できる画面どうしの細い線も省く（下の一覧の「来られる元」には出す）。
+枠はタブ、箱は画面（名前とハッシュ）。矢印は、元の画面の JS が先の画面を開く呼び出し（`gotoChart`, `gotoHolder`, `gotoHolderFromStock`, `openHolder`, `showMonthlyDetail`, `openStockNewsDeck`）か、先の画面のハッシュへのリンクを持っていること。元の画面は呼び出しのある JS のファイル名で決める（`stock-holders.js` なら株主、`pts.js` なら PTS、それ以外はタブの最初の画面）。タブの切り替えと、銘柄の中のタブの切り替えはどこからでもできるので線にしない。
 
 ```mermaid
 ---
@@ -60,47 +60,52 @@ flowchart LR
     s15["大量保有報告書<br>#holders"]
     s16["保有者<br>#holders/:edinet"]
   end
-  s1 ==> s2
-  s1 ==> s3
   s0 --> s3
-  s9 --> s3
+  s15 --> s16
+  s15 --> s3
+  s10 --> s11
   s13 --> s3
   s14 --> s3
-  s12 --> s3
-  s15 --> s3
-  s16 --> s3
-  s1 ==> s4
-  s1 ==> s5
-  s5 ==> s6
-  s1 ==> s7
-  s5 ==> s8
-  s10 ==> s11
-  s13 ==> s14
-  s15 ==> s16
+  s9 --> s3
+  s1 --> s8
   s7 --> s16
+  s12 --> s3
 ```
+
+| 元 | 先 | 呼び出しのある JS |
+|---|---|---|
+| 決算速報（`earnings`） | 株価（`stock-price`） | `earnings.js` |
+| 大量保有報告書（`holders`） | 保有者（`holders-detail`） | `holders.js` |
+| 大量保有報告書（`holders`） | 株価（`stock-price`） | `holders.js` |
+| 月次（`monthly`） | 月次詳細（`monthly-detail`） | `monthly-public.js`, `monthly.js` |
+| ランキング（`ranking`） | 株価（`stock-price`） | `ranking.js` |
+| PTS（`ranking-pts`） | 株価（`stock-price`） | `pts.js` |
+| スクリーナー（`screener`） | 株価（`stock-price`） | `screener.js` |
+| 銘柄（`stock`） | 説明資料の中身（`stock-deck-detail`） | `stock.js` |
+| 株主（`stock-holders`） | 保有者（`holders-detail`） | `stock-holders.js` |
+| サプライ（`supply`） | 株価（`stock-price`） | `supply.js` |
 
 ## 画面の一覧
 
-| 画面 | id | タブ | ハッシュ | 既定の戻り先 | 来られる元 |
-|---|---|---|---|---|---|
-| 決算速報 | `earnings` | 決算速報 | `#earnings` |  |  |
-| 銘柄 | `stock` | 銘柄 | `#stock` |  |  |
-| 概要 | `stock-summary` | 銘柄 | `#stock/:code`<br>`#stock/:code/summary` | `stock` | `stock`, `stock-price`, `stock-financials`, `stock-news`, `stock-holders` |
-| 株価 | `stock-price` | 銘柄 | `#stock/:code/price` | `stock` | `stock`, `stock-summary`, `stock-financials`, `stock-news`, `stock-holders`, `earnings`, `screener`, `ranking`, `ranking-pts`, `supply`, `holders`, `holders-detail` |
-| 業績詳細 | `stock-financials` | 銘柄 | `#stock/:code/financials` | `stock` | `stock`, `stock-summary`, `stock-price`, `stock-news`, `stock-holders` |
-| ニュース | `stock-news` | 銘柄 | `#stock/:code/news` | `stock` | `stock`, `stock-summary`, `stock-price`, `stock-financials`, `stock-holders`, `stock-news-detail`, `stock-deck-detail` |
-| ニュース詳細 | `stock-news-detail` | 銘柄 | `#stock/:code/news/:newsId` | `stock-news` | `stock-news` |
-| 株主 | `stock-holders` | 銘柄 | `#stock/:code/holders` | `stock` | `stock`, `stock-summary`, `stock-price`, `stock-financials`, `stock-news` |
-| 説明資料の中身 | `stock-deck-detail` | 銘柄 | `#stock/:code/decks/:deckKey` | `stock-news` | `stock-news` |
-| スクリーナー | `screener` | スクリーナー | `#screener` |  |  |
-| 月次 | `monthly` | 月次 | `#monthly` |  |  |
-| 月次詳細 | `monthly-detail` | 月次 | `#monthly/:code` | `monthly` | `monthly` |
-| サプライ | `supply` | サプライ | `#supply`<br>`#supply/:id?` |  |  |
-| ランキング | `ranking` | ランキング | `#ranking` |  | `ranking-pts` |
-| PTS | `ranking-pts` | ランキング | `#ranking/pts` | `ranking` | `ranking` |
-| 大量保有報告書 | `holders` | 大量保有報告書 | `#holders` |  |  |
-| 保有者 | `holders-detail` | 大量保有報告書 | `#holders/:edinet` | `holders` | `holders`, `stock-holders` |
+| 画面 | id | タブ | ハッシュ |
+|---|---|---|---|
+| 決算速報 | `earnings` | 決算速報 | `#earnings` |
+| 銘柄 | `stock` | 銘柄 | `#stock` |
+| 概要 | `stock-summary` | 銘柄 | `#stock/:code`<br>`#stock/:code/summary` |
+| 株価 | `stock-price` | 銘柄 | `#stock/:code/price` |
+| 業績詳細 | `stock-financials` | 銘柄 | `#stock/:code/financials` |
+| ニュース | `stock-news` | 銘柄 | `#stock/:code/news` |
+| ニュース詳細 | `stock-news-detail` | 銘柄 | `#stock/:code/news/:newsId` |
+| 株主 | `stock-holders` | 銘柄 | `#stock/:code/holders` |
+| 説明資料の中身 | `stock-deck-detail` | 銘柄 | `#stock/:code/decks/:deckKey` |
+| スクリーナー | `screener` | スクリーナー | `#screener` |
+| 月次 | `monthly` | 月次 | `#monthly` |
+| 月次詳細 | `monthly-detail` | 月次 | `#monthly/:code` |
+| サプライ | `supply` | サプライ | `#supply`<br>`#supply/:id?` |
+| ランキング | `ranking` | ランキング | `#ranking` |
+| PTS | `ranking-pts` | ランキング | `#ranking/pts` |
+| 大量保有報告書 | `holders` | 大量保有報告書 | `#holders` |
+| 保有者 | `holders-detail` | 大量保有報告書 | `#holders/:edinet` |
 
 ## 画面の JS が呼ばない API
 

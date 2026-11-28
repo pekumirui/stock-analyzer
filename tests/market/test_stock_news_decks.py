@@ -55,7 +55,7 @@ global.__urls = [];
 global.__deckShown = 0;
 global.resetStockDecks = () => { global.stockDeckKey = ""; global.__deckShown = 0; };
 global.renderStockDecks = () => { global.__deckShown += 1; };
-global.writeRoute = (tab, path, from, push) => { global.__routes.push({tab, path, from, push}); };
+global.writeRoute = (tab, path, push) => { global.__routes.push({tab, path, push}); };
 global.api = (url) => {
   const u = String(url);
   global.__urls.push(u);
@@ -446,13 +446,13 @@ def test_deck_open_keeps_news_tab_and_back_returns_to_the_list(c) -> None:
     assert opened["deckKey"] == out["row"]
     assert opened["newsOn"] is True and opened["otherOn"] == []
     assert opened["deckHidden"] is False and opened["newsHidden"] is True
-    assert f"/decks/{out['row']}" in opened["hash"] and "from=stock-news" in opened["hash"]
+    assert f"/decks/{out['row']}" in opened["hash"] and "?" not in opened["hash"]
     back = out["back"]
     assert back["sub"] == "news" and back["deckKey"] == ""
     assert back["newsOn"] is True
     assert back["listHidden"] is False and back["detailHidden"] is True
     assert back["deckHidden"] is True and back["newsHidden"] is False
-    assert back["hash"].startswith(f"#stock/{CODE}/news") and "from=stock-deck-detail" in back["hash"]
+    assert back["hash"].startswith(f"#stock/{CODE}/news") and "?" not in back["hash"]
     reload = out["reload"]
     assert reload["sub"] == "decks" and reload["newsOn"] is True and reload["deckHidden"] is False
     assert f"/decks/{out['row']}" in reload["hash"]

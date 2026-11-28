@@ -7,7 +7,7 @@ The screener tab lists issuers matching Minervini stage and RS rank, using the l
 - `screener-open` shows `#tab-screener` and auto-runs `loadScreener` when `#sc-tbl` is empty.
 - `screener-default` uses Stage `2` and RS `70` (the select/input defaults).
 - `screener-filter` changes `#sc-stage` / `#sc-rs` and 検索.
-- `screener-to-chart` clicks a name (`.clicky` → `gotoChart`) → 銘柄 › 株価, hash `#stock/{code}/price?from=screener`. 銘柄 is the first 5 characters of the name (`title` has the full name) over the 4-digit code in `.g` (same `table.sheet` look as 決算速報). Headers left to right: 銘柄 / 業種 / 株価 / RS / Stage / 安値比 / 高値比 / MA50 / MA200. 業種 is `fmtSector` (`title` is the full `sector`). Stage cells read `S2` (`.badge.st2`). Headers 安値比 / 高値比 are 52週安値比 / 52週高値比. Only 銘柄 is sticky (`.pin0`). `ma150` is in the payload, not a column.
+- `screener-to-chart` clicks a name (`.clicky` → `gotoChart`) → 銘柄 › 株価, hash `#stock/{code}/price`. 銘柄 is the first 5 characters of the name (`title` has the full name) over the 4-digit code in `.g` (same `table.sheet` look as 決算速報). Headers left to right: 銘柄 / 業種 / 株価 / RS / Stage / 安値比 / 高値比 / MA50 / MA200. 業種 is `fmtSector` (`title` is the full `sector`). Stage cells read `S2` (`.badge.st2`). Headers 安値比 / 高値比 are 52週安値比 / 52週高値比. Only 銘柄 is sticky (`.pin0`). `ma150` is in the payload, not a column.
 
 ## How to get to it (user POV)
 
@@ -32,4 +32,4 @@ Preconditions:
 - The API default `limit` is 100; there is no max. The UI and `helpers/capture.py` omit `limit`, so that path returns at most 100. `capture.py` may also trim the saved `results` list.
 - Switching away and back does not reload if `#sc-tbl` already has HTML.
 - When any `Stock.product_category` in `RS_PRODUCT_CATEGORIES` (`011`) exists, the screener query itself filters to those categories (not ranking-only). A name missing from the table can still exist in search. The "no `0`-prefix code" rule is DB hygiene, not a screener filter.
-- `restoreRoute` to screener calls `loadScreener()` on boot / crumbs (`pop` false). `popstate` passes `{pop: true}` and skips the fetch when `#sc-tbl` already has HTML (same as `selectTab`). `popstate` always runs `restoreRoute`, not only while 銘柄 is visible.
+- `restoreRoute` to screener calls `loadScreener()` on boot (`pop` false). `popstate` passes `{pop: true}` and skips the fetch when `#sc-tbl` already has HTML (same as `selectTab`). `popstate` always runs `restoreRoute`, not only while 銘柄 is visible.

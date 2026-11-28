@@ -4,7 +4,9 @@ from collections import defaultdict
 from pathlib import Path
 
 from tools.dataflow.render import ELK_LAYOUT, ENTRIES, HUB, Entry, load_entries
-from tools.screen.sources import JS_DIR, SCREENS_JS, SHARED, Call, Screen, calls, file_tab, match, screens, sub_tabs, tabs
+from tools.screen.sources import (
+    JS_DIR, NAV_TARGETS, SCREENS_JS, SHARED, Call, Link, Screen, calls, file_tab, links, match, screens, sub_tabs, tabs,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 OVERVIEW = "docs/SCREENS.md"
@@ -71,7 +73,16 @@ def _tab_labels(all_screens: list[Screen], tab_names: list[str]) -> dict[str, st
     return {**{t: by_id[t] for t in tab_names}, SHARED: SHARED_LABEL}
 
 
-def _transition(all_screens: list[Screen], tab_names: list[str], labels: dict[str, str]) -> list[str]:
+def edges(found: list[Link]) -> dict[tuple[str, str], list[Link]]:
+    out: dict[tuple[str, str], list[Link]] = defaultdict(list)
+    for link in found:
+        if link.source != link.target:
+            out[(link.source, link.target)].append(link)
+    return dict(sorted(out.items()))
+
+
+def _transition(all_screens: list[Screen], tab_names: list[str], labels: dict[str, str],
+                moves: dict[tuple[str, str], list[Link]]) -> list[str]:
     ids = {s.id: f"s{i}" for i, s in enumerate(all_screens)}
     lines = ["```mermaid", *ELK_LAYOUT, "flowchart LR"]
     for tab in tab_names:
@@ -80,30 +91,18 @@ def _transition(all_screens: list[Screen], tab_names: list[str], labels: dict[st
             if s.tab == tab:
                 lines.append(f'    {ids[s.id]}["{s.label}<br>{_hash(s, s.paths[-1])}"]')
         lines.append("  end")
-    for src, dst, default in transitions(all_screens):
-        lines.append(f"  {ids[src]} {'==>' if default else '-->'} {ids[dst]}")
+    lines += [f"  {ids[src]} --> {ids[dst]}" for src, dst in moves]
     return lines + ["```", ""]
 
 
-def transitions(all_screens: list[Screen]) -> list[tuple[str, str, bool]]:
-    by_id = {s.id: s for s in all_screens}
-    out = []
-    for s in all_screens:
-        for src in s.froms:
-            default = src == s.default_from
-            siblings = by_id[src].tab == s.tab and s.id in by_id[src].froms
-            if default or not siblings:
-                out.append((src, s.id, default))
-    return out
-
-
 def _overview(all_screens: list[Screen], tab_names: list[str], labels: dict[str, str],
-              by_tab: dict[str, dict[str, list[Call]]], unused: list[str], callers: dict[str, list[str]]) -> str:
+              by_tab: dict[str, dict[str, list[Call]]], unused: list[str], callers: dict[str, list[str]],
+              moves: dict[tuple[str, str], list[Link]]) -> str:
     lines = [
         "# 画面設計",
         "",
         (
-            f"- 画面と遷移は `{SCREENS_JS}` の `ROUTES` と `BREADCRUMBS`、画面が呼ぶ API は `{JS_DIR}/*.js` の `/api/…` の文字列、"
+            f"- 画面は `{SCREENS_JS}` の `ROUTES` と `SCREEN_LABELS`、画面遷移は `{JS_DIR}/*.js` の画面を移る関数の呼び出しとリンクの `href`、画面が呼ぶ API は `{JS_DIR}/*.js` の `/api/…` の文字列、"
             f"API の引数は FastAPI の OpenAPI、読み書きする表は `{ENTRIES}` から拾う"
         ),
         "- API の応答の形は載らない（ルートが応答の型を宣言していない）。形は各タブの手書きの画面仕様にある",
@@ -120,29 +119,36 @@ def _overview(all_screens: list[Screen], tab_names: list[str], labels: dict[str,
         own = [s.label for s in all_screens if s.tab == tab]
         files = sorted({c.file for cs in by_tab[tab].values() for c in cs})
         lines.append(f"| [{labels[tab]}](screen/gen/{tab}.md) | {'、'.join(own)} | {_code(files)} | {len(by_tab[tab])} |")
+    by_id = {s.id: s for s in all_screens}
     lines += [
         "",
         "## 画面遷移",
         "",
         (
-            "枠はタブ、箱は画面（名前とハッシュ）。矢印は「元の画面から来られる」（パンくずの戻り先になる画面）。"
-            "太い矢印は、来た元が分からないときの戻り先。タブの切り替えはどの画面からもできるので線にしない。"
-            "同じタブの中で互いに行き来できる画面どうしの細い線も省く（下の一覧の「来られる元」には出す）。"
+            "枠はタブ、箱は画面（名前とハッシュ）。矢印は、元の画面の JS が先の画面を開く呼び出し"
+            f"（{_code(NAV_TARGETS)}）か、先の画面のハッシュへのリンクを持っていること。"
+            "元の画面は呼び出しのある JS のファイル名で決める（`stock-holders.js` なら株主、`pts.js` なら PTS、"
+            "それ以外はタブの最初の画面）。タブの切り替えと、銘柄の中のタブの切り替えはどこからでもできるので線にしない。"
         ),
         "",
     ]
-    lines += _transition(all_screens, tab_names, labels)
+    lines += _transition(all_screens, tab_names, labels, moves)
     lines += [
+        "| 元 | 先 | 呼び出しのある JS |",
+        "|---|---|---|",
+    ]
+    for (src, dst), found in moves.items():
+        lines.append(f"| {by_id[src].label}（`{src}`） | {by_id[dst].label}（`{dst}`） | {_code(sorted({link.file for link in found}))} |")
+    lines += [
+        "",
         "## 画面の一覧",
         "",
-        "| 画面 | id | タブ | ハッシュ | 既定の戻り先 | 来られる元 |",
-        "|---|---|---|---|---|---|",
+        "| 画面 | id | タブ | ハッシュ |",
+        "|---|---|---|---|",
     ]
     for s in all_screens:
         hashes = "<br>".join(f"`{_hash(s, p)}`" for p in s.paths)
-        lines.append(
-            f"| {s.label} | `{s.id}` | {labels[s.tab]} | {hashes} | {f'`{s.default_from}`' if s.default_from else ''} | {_code(s.froms)} |"
-        )
+        lines.append(f"| {s.label} | `{s.id}` | {labels[s.tab]} | {hashes} |")
     lines += [
         "",
         "## 画面の JS が呼ばない API",
@@ -242,7 +248,8 @@ def render(root: Path = ROOT) -> dict[str, str]:
     if lost:
         raise ValueError(f"{JS_DIR} が呼ぶのに app/api に無い API: {lost}")
     used = {label for found in by_tab.values() for label in found}
-    out = {OVERVIEW: _overview(all_screens, tab_names, labels, by_tab, sorted(set(ops) - used), callers)}
+    moves = edges(links(root, all_screens, tab_names))
+    out = {OVERVIEW: _overview(all_screens, tab_names, labels, by_tab, sorted(set(ops) - used), callers, moves)}
     for tab in [*tab_names, SHARED]:
         out[f"{PAGE_DIR}/{tab}.md"] = _tab_page(tab, labels, all_screens, by_tab[tab], by_name, ops)
     return out

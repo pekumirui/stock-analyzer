@@ -32,27 +32,22 @@ function routeArg(tab, raw){
 }
 
 function parseRoute(raw){
-  const {tab, rest, from} = splitRouteString(raw);
+  const {tab, rest} = splitRouteString(raw);
   if(tab === "chart"){
     const code = CODE_RE.test(rest) ? rest : "";
-    return {tab: "stock", code: code ? `${code}/price` : "", from};
+    return {tab: "stock", code: code ? `${code}/price` : ""};
   }
   if(tab === "pts"){
-    return {tab: "ranking", code: "pts", from};
+    return {tab: "ranking", code: "pts"};
   }
-  if(!TABS.includes(tab)) return {tab: "earnings", code: "", from: ""};
-  return {tab, code: routeArg(tab, rest), from};
+  if(!TABS.includes(tab)) return {tab: "earnings", code: ""};
+  return {tab, code: routeArg(tab, rest)};
 }
 
 function currentRoute(){
   if(location.hash && location.hash.length > 1) return parseRoute(location.hash);
   try { return parseRoute(localStorage.getItem(UI_ROUTE_KEY) || ""); }
-  catch(e){ return {tab: "earnings", code: "", from: ""}; }
-}
-
-function currentScreenId(){
-  const r = currentRoute();
-  return screenIdFromTabCode(r.tab, r.code);
+  catch(e){ return {tab: "earnings", code: ""}; }
 }
 
 function routeScreenKey(tab, code){
@@ -60,7 +55,7 @@ function routeScreenKey(tab, code){
   return `${tab}/${String(code || "").split("/")[0]}`;
 }
 
-function writeRoute(tab, code, from, push){
+function writeRoute(tab, code, push){
   if(tab === "pts"){ tab = "ranking"; code = "pts"; }
   if(!TABS.includes(tab)) tab = "earnings";
   const useCode = routeArg(tab, code);
@@ -69,16 +64,8 @@ function writeRoute(tab, code, from, push){
     push = routeScreenKey(prev.tab, prev.code) !== routeScreenKey(tab, useCode);
   }
   const path = useCode ? `${tab}/${useCode}` : tab;
-  const screen = screenIdFromTabCode(tab, useCode);
-  const incoming = from === undefined
-    ? ((parseRoute(location.hash).from || new URLSearchParams(location.search).get("from") || ""))
-    : (from || "");
-  const fromId = resolveFrom(screen, incoming);
-  const hash = fromId ? `#${path}?from=${encodeURIComponent(fromId)}` : `#${path}`;
-  const q = new URLSearchParams(location.search);
-  q.delete("from");
-  const search = q.toString();
-  const next = location.pathname + (search ? "?" + search : "") + hash;
+  const hash = `#${path}`;
+  const next = location.pathname + location.search + hash;
   const cur = location.pathname + location.search + location.hash;
   if(cur !== next){
     if(push){
@@ -88,7 +75,6 @@ function writeRoute(tab, code, from, push){
     else history.replaceState(null, "", next);
   }
   try { localStorage.setItem(UI_ROUTE_KEY, path); } catch(e) {}
-  if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
 function showTab(tab){
@@ -143,7 +129,7 @@ async function restoreRoute(opts){
   }
   if(tab === "monthly"){
     await loadMonthlyList();
-    if(code) showMonthlyDetail(code, {keepFrom: true});
+    if(code) showMonthlyDetail(code);
     else writeRoute("monthly");
     return;
   }
@@ -170,23 +156,7 @@ $("#menu-btn").onclick = () => {
 document.addEventListener("keydown", e => { if(e.key === "Escape") setMenu(false); });
 window.writeRoute = writeRoute;
 window.restoreRoute = restoreRoute;
-window.currentScreenId = currentScreenId;
 window.parseRoute = parseRoute;
-
-const crumbsNav = document.getElementById("crumbs");
-if(crumbsNav){
-  crumbsNav.addEventListener("click", ev => {
-    const a = ev.target.closest("a[href^='#']");
-    if(!a || document.body.getAttribute("data-public-monthly") === "1") return;
-    ev.preventDefault();
-    const href = a.getAttribute("href");
-    if(location.hash !== href){
-      history.replaceState({y: window.scrollY}, "");
-      history.pushState(null, "", href);
-    }
-    restoreRoute();
-  });
-}
 
 if("scrollRestoration" in history) history.scrollRestoration = "manual";
 window.addEventListener("popstate", async ev => {
